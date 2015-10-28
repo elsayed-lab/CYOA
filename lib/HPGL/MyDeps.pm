@@ -11,7 +11,6 @@ $VERSION='20151101';
 #our @EXPORT = qw(deps);    # Symbols to be exported by default
 
 our @use_deps = (
-    'AppConfig',
     'Bio::Seq',
     'Bio::SeqIO',
     'Bio::Tools::Run::StandAloneBlast',

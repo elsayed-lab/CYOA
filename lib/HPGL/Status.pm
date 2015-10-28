@@ -83,5 +83,4 @@ sub Finishedp_Rawseq {
     }
 }
 
-
 1;

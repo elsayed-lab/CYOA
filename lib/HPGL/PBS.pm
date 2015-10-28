@@ -1,3 +1,4 @@
+package HPGL;
 
 =head2
     Qsub()
@@ -62,7 +63,6 @@ $args{job_string}" if ($me->{debug});
     $total_script_string .= "$args{comment}\n" if ($args{comment});
     $total_script_string .= "$args{prescript}\n" if ($args{prescript});
     $total_script_string .= "$args{job_string}\n" if ($args{job_string});
-    $total_script_string .= "if [ \$? == \"0\" ]; then\n";
     if ($args{postscript}) {
         $total_script_string .= qq!if [ \$? == "0" ]; then
    $args{postscript}
@@ -71,9 +71,10 @@ fi
     }
     $total_script_string .= "$script_end\n";
 
-    open(SCRIPT, ">$script_file");
-    print SCRIPT $total_script_string;
-    close(SCRIPT);
+    my $script = new FileHandle;
+    $script->open(">$script_file");
+    print $script $total_script_string;
+    $script->close();
 
     my $qsub = qq"bash $script_file";
     if ($me->{pbs}) {

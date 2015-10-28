@@ -108,7 +108,7 @@ sub Bowtie {
                                   depends => $bt_job->{pbs_id},);
     $bt_jobs{aligned_compression} = $al_comp;
 
-    my $stats = $me->Get_Stats(depends => $bt_job->{pbs_id},
+    my $stats = $me->BT1_Stats(depends => $bt_job->{pbs_id},
                                job_name => "bt1stats",
                                bt_type => $bt_type,
                                count_table => qq"${basename}-${bt_type}.count.xz",
@@ -614,6 +614,55 @@ sub TopHat {
     return({tophat => $tophat, htseq => $htmulti,});
 }
 
+=head2
+    BT1_Stats()
+=cut
+sub BT1_Stats {
+    my $me = shift;
+    my %args = @_;
+    my $bt_input = $args{bt_input};
+    my $trim_input = $args{trim_input};
+    my $basename = $me->{basename};
+    my $bt_type = "";
+    $bt_type = $args{bt_type} if ($args{bt_type});
+    my $depends = "";
+    $depends = $args{depends} if ($args{depends});
+    my $job_name = "stats";
+    $job_name = $args{job_name} if ($args{job_name});
+    my $jobid = qq"${basename}_stats";
+    my $count_table = "";
+    $count_table = $args{count_table} if ($args{count_table});
+    my $comment = qq!
+## This is a stupidly simple job to collect alignment statistics.
+!;
+    my $job_string = qq!
+original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g')
+original_reads=\${original_reads_tmp:-0}
+reads_tmp=\$(grep "^# reads processed" $bt_input | awk -F: '{print \$2}' | sed 's/ //g')
+reads=\${reads_tmp:-0}
+one_align_tmp=\$(grep "^# reads with at least one reported" $bt_input | awk -F": " '{print \$2}' | sed 's/ .*//g')
+one_align=\${one_align_tmp:-0}
+failed_tmp=\$(grep "^# reads that failed to align" $bt_input | awk -F": " '{print \$2}' | sed 's/ .*//g')
+failed=\${failed_tmp:-0}
+sampled_tmp=\$(grep "^# reads with alignments sampled" $bt_input | awk -F": " '{print \$2}' | sed 's/ .*//g')
+sampled=\${sampled_tmp:-0}
+rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
+rpm=\${rpm_tmp:-0}
+stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
+echo "\$stat_string" >> ../bowtie_stats.csv
+!;
+    my $stats = $me->Qsub(job_name => $job_name,
+                          depends => $depends,
+                          qsub_queue => "throughput",
+                          qsub_cpus => 1,
+                          qsub_mem => 1,
+                          qsub_wall => "00:10:00",
+                          job_string => $job_string,
+                          input => $bt_input,
+                          comment => $comment,
+        );
+    return($stats);
+}
 
 
 1;

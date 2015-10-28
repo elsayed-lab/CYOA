@@ -5,21 +5,31 @@ use autodie qw":all";
 use common::sense;
 use Bio::DB::Universal;
 use Bio::Root::RootI;
+use Bio::SeqIO;
+use Bio::Tools::GFF;
 use Cwd qw"cwd";
+use Data::Dumper;
 use Digest::MD5 qw"md5 md5_hex md5_base64";
 use File::Basename;
 use File::Find;
+use File::Which qw"which";
+use File::Tree;
+use FileHandle;
 use Getopt::Long;
 use HPGL::SeqMisc;
-use HPGL::Ceph;
-use HPGL::RNASeq;
-use HPGL::Aligners;
 use Log::Log4perl;
 use Log::Log4perl::Level;
 use Net::Amazon::S3;
 use PerlIO;
 use Pod::Usage;
 use Term::ReadLine;
+use warnings qw"all";
+
+use HPGL::Aligners;
+use HPGL::Ceph;
+use HPGL::RNASeq;
+use HPGL::RNASeq_QA;
+use HPGL::PBS;
 
 our $AUTOLOAD;
 require Exporter;
@@ -37,9 +47,11 @@ $attribs->{completion_suppress_append} = 1;
 my $OUT = $term->OUT || \*STDOUT;
 
 =head1 NAME
+
     HPGL - A perl library to make preprocessing high-throughput data easier.
 
 =head1 SYNOPSIS
+
     HPGL.pm HPGL::Job.pm Some perl libraries to submit jobs to the
     umiacs cluster.  This can take a variety of options:
 
@@ -53,33 +65,6 @@ my $OUT = $term->OUT || \*STDOUT;
   --species:s : Species used for alignments.
   --stranded  : Are the libraries stranded?
   --identifier: The identifier tag in the annotation gff
-
-=head1 DESCRIPTION
-
-    This library should write out PBS compatible job files for torque and
-    submit them to appropriate queues on the cluster.  It should also
-    collect the outputs and clean up the mess.
-
-=head1 AUTHOR - atb
-
-Email abelew@gmail.com
-=cut
-
-=head2
-    new() instantiates a new HPGL object.
-    It has a plethora of options which are either pulled from
-    GetOpt::Long or via a default hash reference -- I probably should
-    move some of those options from the default reference and give
-    them flags on the command line.
-
-    Since each tool used herein also can take an annoyingly large set
-    of options, they all pull %args from @_ and use that for more
-    information.
-
-    There are a few things which are commonly passed, but not necessarily in new()
-    The following code snippets describe a couple:
-
-=head1 SYNOPSIS
 
     use HPGL;
     my $hpgl = new HPGL;
@@ -103,11 +88,37 @@ Email abelew@gmail.com
     ## or BWA
     my $bw = $hpgl->BWA(depends => $trim->{pbs_id});
 
+=head1 DESCRIPTION
+
+    This library should write out PBS compatible job files for torque and
+    submit them to appropriate queues on the cluster.  It should also
+    collect the outputs and clean up the mess.
+
+=head1 AUTHOR - atb
+
+Email abelew@gmail.com
+
+=cut
+
+=head2
+    new() instantiates a new HPGL object.
+    It has a plethora of options which are either pulled from
+    GetOpt::Long or via a default hash reference -- I probably should
+    move some of those options from the default reference and give
+    them flags on the command line.
+
+    Since each tool used herein also can take an annoyingly large set
+    of options, they all pull %args from @_ and use that for more
+    information.
+
+    There are a few things which are commonly passed, but not necessarily in new()
+    The following code snippets describe a couple:
 =cut
 sub new {
     my ($class, %args) = @_;
     my $me = bless {}, $class;
     foreach my $key (keys %args) {
+        print "TESTME: $key $args{$key}\n";
         $me->{$key} = $args{$key} if ($args{$key});
     }
     $me->{appconfig} = new AppConfig({
@@ -126,54 +137,54 @@ sub new {
     ## The following for loop will include all of these in conf_specification_temp
     ## which will in turn be passed to GetOpts
     ## As a result, _all_ of these variables may be overridden on the command line.
-    $me->{shell} = "/usr/bin/bash";
-    $me->{align_trimmed} = 1;
-    $me->{aligner} = "bowtie";
-    $me->{aws_access_key_id} = 'PQOD56HDPQOXJPYQYHH9';
-    $me->{aws_hostname} = 'gembox.cbcb.umd.edu';
-    $me->{aws_secret_access_key} = 'kNl27xjeVSnChzEww9ziq1VkgUMNmNonNYjxWkGw';
-    $me->{bam_small} = "21-26";
-    $me->{bam_mid} = "27-32";
-    $me->{bam_big} = "33-40";
-    $me->{base} = undef;
-    $me->{basedir} = cwd();
+    $me->{shell} = "/usr/bin/bash" if (!defined($me->{shell}));
+    $me->{align_trimmed} = 1 if (!defined($me->{align_trimmed}));
+    $me->{aligner} = "bowtie" if (!defined($me->{aligner}));
+    $me->{aws_access_key_id} = 'PQOD56HDPQOXJPYQYHH9' if (!defined($me->{aws_access_key_id}));
+    $me->{aws_hostname} = 'gembox.cbcb.umd.edu' if (!defined($me->{aws_hostname}));
+    $me->{aws_secret_access_key} = 'kNl27xjeVSnChzEww9ziq1VkgUMNmNonNYjxWkGw' if (!defined($me->{aws_secret_access_key}));
+    $me->{bam_small} = "21-26" if (!defined($me->{bam_small}));
+    $me->{bam_mid} = "27-32" if (!defined($me->{bam_mid}));
+    $me->{bam_big} = "33-40" if (!defined($me->{bam_big}));
+    $me->{base} = undef if (!defined($me->{base}));
+    $me->{basedir} = cwd() if (!defined($me->{basedir}));
     $me->{bt_args} = {
         v0M1 => "--best -v 0 -M 1",
         v1M1 => "--best -v 1 -M 1",
         v2M1 => "--best -v 2 -M 1",
-    };
-    $me->{btmulti} = 0;
-    $me->{config} = qq"$ENV{HOME}/.config/hpgl.conf",
-    $me->{debug} = 1;
-    $me->{depends} = {};
-    $me->{help} = undef;
-    $me->{hpgl} = undef;
-    $me->{hpglid} = undef;
-    $me->{htseq_identifier} = "ID";
-    $me->{htseq_stranded} = "no";
-    $me->{input} = undef;
-    $me->{jobs} = [];
-    $me->{jobids} = {};
-    $me->{len_min} = 21;
-    $me->{len_max} = 40;
-    $me->{libdir} = "$ENV{HOME}/libraries";
-    $me->{libtype} = "genome";
-    $me->{paired} = 0;
-    $me->{pbs} = 1;
-    $me->{qsub_args} = "-j oe -V -m n";
-    $me->{qsub_queue} = "throughput";
-    $me->{qsub_queues} = ["throughput","workstation","long","large"];
-    $me->{qsub_shell} = "$bash";
-    $me->{qsub_mem} = 6;
-    $me->{qsub_wall} = "10:00:00";
-    $me->{qsub_cpus} = "4";
-    $me->{qsub_depends} = "depend=afterok:";
-    $me->{qsub_loghost} = "ibissub00.umiacs.umd.edu";
-    $me->{qsub_logdir} = qq"$options{qsub_loghost}:$options{basedir}/outputs";
-    $me->{species} = undef;
-    $me->{suffixes} = (".fastq",".gz",".xz", ".fasta", ".sam", ".bam", ".count");
-    $me->{trimmer} = "trimmomatic";
-    $me->{type} = "rnaseq";
+    } if (!defined($me->{bt_args}));
+    $me->{btmulti} = 0 if (!defined($me->{btmulti}));
+    $me->{config_file} = qq"$ENV{HOME}/.config/hpgl.conf" if (!defined($me->{config_file}));
+    $me->{debug} = 1 if (!defined($me->{debug}));
+    $me->{depends} = {} if (!defined($me->{depends}));
+    $me->{help} = undef if (!defined($me->{help}));
+    $me->{hpgl} = undef if (!defined($me->{hpgl}));
+    $me->{hpglid} = undef if (!defined($me->{hpglid}));
+    $me->{htseq_identifier} = "ID" if (!defined($me->{htseq_identifier}));
+    $me->{htseq_stranded} = "no" if (!defined($me->{htseq_stranded}));
+    $me->{input} = undef if (!defined($me->{input}));
+    $me->{jobs} = [] if (!defined($me->{jobs}));
+    $me->{jobids} = {} if (!defined($me->{jobids}));
+    $me->{len_min} = 21 if (!defined($me->{len_min}));
+    $me->{len_max} = 40 if (!defined($me->{len_max}));
+    $me->{libdir} = "$ENV{HOME}/libraries" if (!defined($me->{libdir}));
+    $me->{libtype} = "genome" if (!defined($me->{libtype}));
+    $me->{paired} = 0 if (!defined($me->{paired}));
+    $me->{pbs} = 1 if (!defined($me->{pbs}));
+    $me->{qsub_args} = "-j oe -V -m n" if (!defined($me->{qsub_args}));
+    $me->{qsub_queue} = "throughput" if (!defined($me->{qsub_queue}));
+    $me->{qsub_queues} = ["throughput","workstation","long","large"] if (!defined($me->{qsub_queues}));
+    $me->{qsub_shell} = "bash" if (!defined($me->{qsub_shell}));
+    $me->{qsub_mem} = 6 if (!defined($me->{qsub_mem}));
+    $me->{qsub_wall} = "10:00:00" if (!defined($me->{qsub_wall}));
+    $me->{qsub_cpus} = "4" if (!defined($me->{qsub_cpus}));
+    $me->{qsub_depends} = "depend=afterok:" if (!defined($me->{qsub_depends}));
+    $me->{qsub_loghost} = "ibissub00.umiacs.umd.edu" if (!defined($me->{qsub_loghost}));
+    $me->{qsub_logdir} = qq"$me->{qsub_loghost}:$me->{basedir}/outputs" if (!defined($me->{qsub_logdir}));
+    $me->{species} = undef if (!defined($me->{species}));
+    $me->{suffixes} = [".fastq",".gz",".xz", ".fasta", ".sam", ".bam", ".count"] if (!defined($me->{suffixes}));
+    $me->{trimmer} = "trimmomatic" if (!defined($me->{trimmer}));
+    $me->{type} = "rnaseq" if (!defined($me->{type}));
 
     ## Now that the set of defaults has been created, allow it to be changed via a config file
     ## All the stuff above may therefore be overwritten by entries in the config file.
@@ -195,15 +206,15 @@ sub new {
     }
     ## For some command line options, one might want shortcuts etc, set those here:
     %conf_specification_temp = (
-        "debug|d" => \$options{debug},
-        "btmulti:i" => \$options{btmulti},
-        "help" => \$options{help},
-        "hpgl|h:s" => \$options{hpgl},
-        "input|i:s" => \$options{input},
-        "pbs|p:i" => \$options{pbs},
-        "species|s:s" => \$options{species},
-        "stranded:s" => \$options{htseq_stranded},
-        "identifier:s" => \$options{htseq_identifier},
+        "debug|d" => \$conf{debug},
+        "btmulti:i" => \$conf{btmulti},
+        "help" => \$conf{help},
+        "hpgl|h:s" => \$conf{hpgl},
+        "input|i:s" => \$conf{input},
+        "pbs|p:i" => \$conf{pbs},
+        "species|s:s" => \$conf{species},
+        "stranded:s" => \$conf{htseq_stranded},
+        "identifier:s" => \$conf{htseq_identifier},
         );
     ## This makes both of the above groups command-line changeable
     foreach my $name (keys %conf_specification_temp) {
@@ -227,17 +238,25 @@ sub new {
 
     Help() if (defined($me->{help}));
 
-##    $me->Check_Options(["input",]);
-    my $base = $me->{input};
-    my @suffixes = @{$me->{suffixes}};
-    $base = basename($base, @suffixes);
-    $base = basename($base, @suffixes);
-    $me->{base} = $base;
-    if (!defined($me->{hpglid})) {
-        my $tmp = $me->{input};
-        $tmp =~ s/^(hpgl\d+).*/$1/g;
-        $me->{hpglid} = $tmp;
+    ##    $me->Check_Options(["input",]);
+    if ($me->{input}) {
+        my $base = $me->{input};
+        my @suffixes = @{$me->{suffixes}};
+        $base = basename($base, @suffixes);
+        $base = basename($base, @suffixes);
+        $me->{basename} = $base;
+        if (!defined($me->{hpglid})) {
+            my $tmp = $me->{input};
+            $tmp =~ s/^(hpgl\d+).*/$1/g;
+            $me->{hpglid} = $tmp;
+        }
     }
+
+    if ($me->{pbs}) {
+        my $qsub_path = which 'qsub';
+        $me->{pbs} = 0 unless ($qsub_path);
+    }
+
     return($me);
 }
 
@@ -245,8 +264,15 @@ sub new {
     Help()
 =cut
 sub Help {
-    pod2usage();
-    exit(0);
+    my $me = shift;
+    my $fh = \*STDERR;
+    ##    my $usage = pod2usage(-output => $fh, -verbose => 99, -sections => "SYNOPSIS");
+    use Pod::Find qw(pod_where);
+    pod2usage(-input => pod_where({-inc => 1}, __PACKAGE__), -verbose => 2, -output => $fh, -sections => "NAME|SYNOPSIS|DESCRIPTION|VERSION", -exitval => 'NOEXIT');
+    ##my $usage = pod2usage(-verbose => 2, -output => $fh, -sections => "NAME|SYNOPSIS|DESCRIPTION|VERSION", -exitval => 'NOEXIT');
+    ##print STDERR "Ran pod2usage\n";
+    ##print Dumper $usage;
+    return(0);
 }
 
 
@@ -263,19 +289,6 @@ sub Check_Options {
             $me->{$option} = $term->readline($query);
             $me->{$option} =~ s/\s+$//g;
         }
-    }
-}
-
-sub AUTOLOAD {
-    my $me = shift;
-    my $type = ref($me) or Callstack(die => 1, message => "$me is not an object");
-    my $name = $AUTOLOAD;
-    $name =~ s/.*://;   # strip fully-qualified portion
-    if (@_) {
-        return $me->{$name} = shift;
-    }
-    else {
-        return $me->{$name};
     }
 }
 
