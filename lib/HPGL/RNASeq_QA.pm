@@ -107,7 +107,7 @@ sub Fastqc_Stats {
     my $depends = "";
     $depends = $args{depends} if ($args{depends});
     my $job_name = "fqcst";
-    $jo_name = $args{job_name} if ($args{job_name});
+    $job_name = $args{job_name} if ($args{job_name});
     my $comment = qq!
 ## This is a stupidly simple job to collect alignment statistics.
 !;
@@ -134,7 +134,7 @@ kmer_content_tmp=\$(grep "Kmer Content" $input_file | awk -F '\\t' '{print \$2}'
 kmer_content=\${kmer_content_tmp:-0}
 
 stat_string=\$(printf "${basename},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
-echo "\$stat_string" >> fastqc_stats.csv
+echo "\$stat_string" >> stats/fastqc_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,
@@ -147,21 +147,6 @@ echo "\$stat_string" >> fastqc_stats.csv
                           comment => $comment,
         );
     return($stats);
-}
-
-sub Fastqc_Last_Stat {
-    my $me = shift;
-    my %args = @_;
-    my $input = new FileHandle;
-    $input->open("<fastqc_stats.csv");
-    my ($line, $last);
-    while ($line = <$input>) {
-        chomp $line;
-        ## I am doing this due to terminal newlines on the file, there is probably a much smrtr way.
-        $last = $line unless ($line =~ /^$/);
-    }
-    $input->close();
-    return($last);
 }
 
 1;

@@ -1,0 +1,15 @@
+##gff-version 3
+NC_001422	EMBL/GenBank/SwissProt	gene	3981	5386	.	+	1	db_xref=GeneID:2546398;gene=A;ID=phiX174p01
+NC_001422	EMBL/GenBank/SwissProt	gene	1	136	.	+	1	db_xref=GeneID:2546398;gene=A;ID=phiX174p01
+NC_001422	EMBL/GenBank/SwissProt	gene	4497	5386	.	+	1	db_xref=GeneID:2546406;gene=A;ID=phiX174p02
+NC_001422	EMBL/GenBank/SwissProt	gene	1	136	.	+	1	db_xref=GeneID:2546406;gene=A;ID=phiX174p02
+NC_001422	EMBL/GenBank/SwissProt	gene	5075	5386	.	+	1	db_xref=GeneID:2546405;gene=B;ID=phiX174p03
+NC_001422	EMBL/GenBank/SwissProt	gene	1	51	.	+	1	db_xref=GeneID:2546405;gene=B;ID=phiX174p03
+NC_001422	EMBL/GenBank/SwissProt	gene	51	221	.	+	1	db_xref=GeneID:2546403;gene=K;ID=phiX174p04
+NC_001422	EMBL/GenBank/SwissProt	gene	133	393	.	+	1	db_xref=GeneID:2546402;ID=phiX174p05
+NC_001422	EMBL/GenBank/SwissProt	gene	358	3975	.	+	1	db_xref=GeneID:2546408;gene=F;ID=phiX174p06
+NC_001422	EMBL/GenBank/SwissProt	gene	358	991	.	+	1	db_xref=GeneID:2546399;gene=D;ID=phiX174p07
+NC_001422	EMBL/GenBank/SwissProt	gene	568	843	.	+	1	db_xref=GeneID:2546400;gene=E;ID=phiX174p08
+NC_001422	EMBL/GenBank/SwissProt	gene	848	964	.	+	1	db_xref=GeneID:2546404;gene=J;ID=phiX174p09
+NC_001422	EMBL/GenBank/SwissProt	gene	2395	2922	.	+	1	db_xref=GeneID:2546401;gene=G;ID=phiX174p10
+NC_001422	EMBL/GenBank/SwissProt	gene	2931	3917	.	+	1	db_xref=GeneID:2546407;gene=H;ID=phiX174p11

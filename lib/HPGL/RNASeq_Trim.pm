@@ -1,3 +1,5 @@
+package HPGL;
+
 =head2
     Cutadapt()
 =cut
@@ -175,7 +177,7 @@ if [[ \! -r "${input}" ]]; then
     exit 1
   fi
 fi
-trimmomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>output/${basename}-trimomatic.err
+trimmomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $me->Qsub(job_name => "trim",
 			 qsub_wall => "4:00:00",
@@ -189,12 +191,50 @@ trimmomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.f
     my $comp = $me->Recompress(job_name => "",
 			       depends => $trim->{pbs_id},
 			       input => $input,
-			       output => qq"sequences/${input}.xz",
+			       output => qq"sequences/",
 			       comment => qq"## The original sequence file is in sequences/",
         );
+    $trim_stats = $me->Trimomatic_Stats(basename => $basename, depends => $trim->{pbs_id});
     ## Set the input for future tools to the output from this trimming operation.
     $me->{input} = $output;
     return($trim);
+}
+
+sub Trimomatic_Stats {
+    my $me = shift;
+    my %args = @_;
+    my $basename = $args{basename};
+    my $input_file = "outputs/${basename}-trimomatic.out";
+    my $depends = "";
+    print STDERR "GOT INPUT? $input_file\n";
+    $depends = $args{depends} if ($args{depends});
+    my $job_name = 'trimst';
+    $job_name = $args{job_name} if ($args{job_name});
+    my $comment = qq!
+## This is a stupidly simple job to collect alignment statistics.
+!;
+    my $job_string = qq!
+total_reads_tmp=\$(grep "^Input Reads" $input_file | awk '{print \$3}')
+total_reads=\${total_reads_tmp:-0}
+surviving_reads_tmp=\$(grep "^Input Reads" $input_file | awk '{print \$5}')
+surviving_reads=\${surviving_reads_tmp:-0}
+dropped_reads_tmp=\$(grep "^Input Reads" $input_file | awk '{print \$8}')
+dropped_reads=\${dropped_reads_tmp:-0}
+
+stat_string=\$(printf "${basename},%s,%s,%s" "\${total_reads}" "\${surviving_reads}" "\${dropped_reads}")
+echo "\$stat_string" >> stats/trimomatic_stats.csv
+!;
+    my $stats = $me->Qsub(job_name => $job_name,
+                          depends => $depends,
+                          qsub_queue => "throughput",
+                          qsub_cpus => 1,
+                          qsub_mem => 1,
+                          qsub_wall => "00:10:00",
+                          job_string => $job_string,
+                          input => $input_file,
+                          comment => $comment,
+        );
+    return($stats);
 }
 
 1;

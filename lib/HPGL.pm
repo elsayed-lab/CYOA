@@ -13,7 +13,7 @@ use Digest::MD5 qw"md5 md5_hex md5_base64";
 use File::Basename;
 use File::Find;
 use File::Which qw"which";
-use File::Tree;
+use File::Path;
 use FileHandle;
 use Getopt::Long;
 use HPGL::SeqMisc;
@@ -25,10 +25,12 @@ use Pod::Usage;
 use Term::ReadLine;
 use warnings qw"all";
 
-use HPGL::Aligners;
-use HPGL::Ceph;
-use HPGL::RNASeq;
+use HPGL::Compress;
 use HPGL::RNASeq_QA;
+use HPGL::RNASeq_Trim;
+use HPGL::RNASeq_Aligners;
+use HPGL::RNASeq_Count;
+use HPGL::Convert;
 use HPGL::PBS;
 
 our $AUTOLOAD;
@@ -118,8 +120,7 @@ sub new {
     my ($class, %args) = @_;
     my $me = bless {}, $class;
     foreach my $key (keys %args) {
-        print "TESTME: $key $args{$key}\n";
-        $me->{$key} = $args{$key} if ($args{$key});
+        $me->{$key} = $args{$key} if (defined($args{$key}));
     }
     $me->{appconfig} = new AppConfig({
         CASE => 1,
@@ -342,6 +343,22 @@ sub Get_Input {
 ##    $input =~ s/\.xz//g;
 
     return($input);
+}
+
+sub Last_Stat {
+    my $me = shift;
+    my %args = @_;
+    my $input = new FileHandle;
+    my $input_filename = $args{input};
+    $input->open("<$input_filename");
+    my ($line, $last);
+    while ($line = <$input>) {
+        chomp $line;
+        ## I am doing this due to terminal newlines on the file, there is probably a much smrtr way.
+        $last = $line unless ($line =~ /^$/);
+    }
+    $input->close();
+    return($last);
 }
 
 1;

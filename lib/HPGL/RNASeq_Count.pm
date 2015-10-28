@@ -1,3 +1,4 @@
+package HPGL;
 
 =head2
     HT_Multi()

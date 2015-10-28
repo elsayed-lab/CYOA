@@ -1,3 +1,4 @@
+package HPGL;
 =head2
     Recompress()
 =cut
@@ -15,6 +16,7 @@ sub Recompress {
 	($input1, $input2) = split(/\:|\,/, $input);
     } else {
 	$input1 = $input;
+        $input2 = "";
     }
     my $job_name = "xz";
     $job_name = $args{job_name} if ($args{job_name});
@@ -23,14 +25,25 @@ sub Recompress {
     my $comment = "";
     $comment = $args{comment} if ($args{comment});
     my $basename = $me->{basename};
-    my $job_string = qq!pxz -f -9e $input1 $input2
-!;
+    my $job_string = "";
+    my $indir = dirname($input1);
+    my ($in1, $in2);
+    $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
+    $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
+
+    if ($input1 =~ /\.gz/) {
+        $job_string = qq!gunzip -f $input1 $input2 && xz -f -9e $in1 $in2\n!;
+    } elsif ($input1 =~ /\.bz2/) {
+        $job_string = qq!bunzip2 -f $input1 $input2 && xz -f -9e $in1 $in2\n!;
+    } elsif ($input1 =~ /\.fast[a|q]$/) {
+        $job_string = qq!pxz -f -9e $in1 $in2\n!;
+    } else {
+        $job_string = qq!pxz -f -9e $in1 $in2\n!;
+    }
     if ($args{output}) {
-        $job_string .= qq!mv ${input1}.xz $args{output}
-!;
+        $job_string .= qq!mv ${in1}.xz $args{output}\n!;
 	if ($input2) {
-	    $job_string .= qq!mv ${input2}.xz $args{output2}
-!;
+	    $job_string .= qq!mv ${in2}.xz $args{output}\n!;
 	}
     }
 
@@ -93,3 +106,5 @@ sub Uncompress {
         );
     return($compression);
 }
+
+1;

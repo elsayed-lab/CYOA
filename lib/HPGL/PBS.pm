@@ -54,7 +54,13 @@ echo "####Finished $script_file at \$(date), it took \$(( \$SECONDS / 60 )) minu
 echo "####This job consisted of the following:" >> outputs/log.txt
 cat "\$0" >> outputs/log.txt
 !;
-    system("cd $mycwd && mkdir -p status outputs scripts sequences");
+    ##stem("cd $mycwd && mkdir -p status outputs scripts sequences 2>mkdir.log");
+    mkdir('status');
+    mkdir('stats');
+    mkdir('outputs');
+    mkdir('scripts');
+    mkdir('sequences');
+
     print "The job is:
 $args{job_string}" if ($me->{debug});
 
