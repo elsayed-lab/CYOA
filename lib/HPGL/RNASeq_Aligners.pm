@@ -23,6 +23,15 @@ sub Bowtie {
     my $count = 1;
     $count = $args{count} if (defined($args{count}));
 
+    
+    if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+        my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
+        $bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
+        $me->{input} = $bt_input;
+        $bt_depends_on = $uncomp->{pbs_id};
+    }
+
+
     ## Check that the indexes exist
     my $bt_reflib = "$me->{libdir}/${libtype}/$me->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
@@ -33,7 +42,7 @@ sub Bowtie {
     }
     my $bowtie_input_flag = "-q";  ## fastq by default
     $bowtie_input_flag = "-f" if ($me->{input} =~ /\.fasta$/);
-    my $basename = $me->{basename};
+
     my $species = $me->{species};
     my $error_file = qq"bowtie_out/${basename}-${bt_type}.err";
     my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
@@ -69,10 +78,10 @@ sub Bowtie {
     my $un_comp = $me->Recompress(depends => $bt_job->{pbs_id},
                                   job_name => "xzun",
                                   comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt_args\n",
-                                  input => "bowtie_out/${basename}-${bt_type}_unaligned_${species}.fasta");
+                                  input => "bowtie_out/${basename}-${bt_type}_unaligned_${species}.fastq");
     $bt_jobs{unaligned_compression} = $un_comp;
 
-    my $al_comp = $me->Recompress(input => "bowtie_out/${basename}-${bt_type}_aligned_${species}.fasta",
+    my $al_comp = $me->Recompress(input => "bowtie_out/${basename}-${bt_type}_aligned_${species}.fastq",
                                   comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt_args",
                                   job_name => "xzal",
                                   depends => $bt_job->{pbs_id},);
@@ -239,7 +248,6 @@ sub BWA {
         $bwa_jobs{index} = $index_job;
         $bwa_depends_on = $index_job->{pbs_id};
     }
-    my $basename = $me->{basename};
     my $species = $me->{species};
     my $comment = qq!## This is a BWA alignment of $bwa_input against
 ## $bwa_reflib.!;
@@ -301,9 +309,9 @@ sub BWA_Index {
 }
 
 =head2
-    Bowtie_Stats()
+    BT2_Stats()
 =cut
-sub Bowtie_Stats {
+sub BT2_Stats {
     my $me = shift;
     my %args = @_;
     my $bt_input = $args{bt_input};
@@ -322,7 +330,7 @@ sub Bowtie_Stats {
 ## This is a stupidly simple job to collect alignment statistics.
 !;
     my $job_string = qq!
-original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g')
+original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g' 2>/dev/null)
 original_reads=\${original_reads_tmp:-0}
 reads_tmp=\$(grep "^# reads processed" $bt_input | awk -F: '{print \$2}' | sed 's/ //g')
 reads=\${reads_tmp:-0}
@@ -335,7 +343,7 @@ sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
 stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> ../bowtie_stats.csv
+echo "\$stat_string" >> stats/bowtie_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,
@@ -459,7 +467,7 @@ sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
 stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> ../bowtie_stats.csv
+echo "\$stat_string" >> stats/bowtie_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,

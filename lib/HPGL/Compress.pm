@@ -88,8 +88,16 @@ sub Uncompress {
     my $comment = "";
     $comment = $args{comment} if ($args{comment});
     my $basename = $me->{basename};
-    my $job_string = qq!pxz -f -d $input1 $input2
-!;
+    my $job_string;
+    if ($input =~ /\.gz$/) {
+        $job_string = qq!gunzip -f $input1 $input2\n!;
+    } elsif ($input =~ /\.bz2$/) {
+        $job_string = qq!bunzip2 -f $input1 $input2\n!;
+    } elsif ($input =~ /\.xz$/) {
+        $job_string = qq!xz -f -d $input1 $input2\n!;
+    } else {
+        $job_string = qq!xz -f -d $input1 $input2\n!;
+    }
 
     my $trim_jobid = qq"${basename}_unxz";
     my $compression = $me->Qsub(job_name => $job_name,

@@ -9,10 +9,37 @@ ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
 my $hpgl = new HPGL(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
 diag("Does bowtie execute?");
 ok($hpgl->Bowtie(),     'Run Bowtie1');
-#diag("Can I collect bowtie statistics into bowtie_stats.csv?");
-#ok(my $bt1_result = $hpgl->Last_Stat(input => 'stats/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
-#diag("Does the last entry of bowtie_stats.csv match the expected output?");
-#ok($bt1_result eq 'asdsadadasdasd',      'Are the bowtie results the expected value?');
+diag("Can I collect bowtie statistics into bowtie_stats.csv?");
+ok(my $bt1_result = $hpgl->Last_Stat(input => 'stats/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
+diag("Does the last entry of bowtie_stats.csv match the expected output?");
+ok($bt1_result eq 'test_forward,v0M1,0,10000,30,9970,0,33333.3333333333,test_forward-v0M1.count.xz',      'Are the bowtie results the expected value?');
+my $expected_htseq = qq"phiX174p01\t1
+phiX174p02\t0
+phiX174p03\t0
+phiX174p04\t0
+phiX174p05\t0
+phiX174p06\t8
+phiX174p07\t0
+phiX174p08\t0
+phiX174p09\t0
+phiX174p10\t0
+phiX174p11\t0
+__no_feature\t0
+__ambiguous\t21
+__too_low_aQual\t0
+__not_aligned\t9970
+__alignment_not_unique\t0
+";
+my $actual_htseq = qx"xzcat bowtie_out/test_forward-v0M1.count.xz";
+diag("Is the htseq output what was expected for phix?");
+
+##use String::Diff qw( diff_fully diff diff_merge diff_regexp );# export functions
+##my($old, $new) = String::Diff::diff($expected_htseq, $actual_htseq);
+##print STDERR "$old\n";
+##print STDERR "---\n";
+##print STDERR "$new\n";
+
+ok($expected_htseq eq $actual_htseq);
 #diag("Can I remove the bowtie outputs?");
 #ok(unlink('test_forward.fastq'),      'Remove the sequences');
 #diag("Can I clean up the mess?");
