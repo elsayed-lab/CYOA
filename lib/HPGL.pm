@@ -281,9 +281,6 @@ sub new {
     if ($failed) {
         die ("HPGL.pm requires external programs, of which $failed were missing.");
     }
-    make_path("$me->{basedir}/outputs", {verbose => 0});
-    make_path("$me->{basedir}/sequences", {verbose => 0});
-    make_path("$me->{basedir}/scripts", {verbose => 0});
     return($me);
 }
 

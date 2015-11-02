@@ -41,6 +41,9 @@ sub Qsub {
     $job_input = $args{input} if ($args{input});
     my $script_file = qq"$me->{basedir}/scripts/${job_name}.sh";
     my $mycwd = cwd();
+    make_path("$me->{basedir}/outputs", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs");
+    make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
+    make_path("$me->{basedir}/scripts", {verbose => 0}) unless (-r qq"$me->{basedir}/scripts");
     my $script_start = qq!#PBS -V -S $qsub_shell -q $qsub_queue -d $me->{basedir}
 #PBS -N $job_name -l mem=${qsub_mem}gb -l walltime=$qsub_wall -l ncpus=$qsub_cpus
 #PBS -o $qsub_log $qsub_args

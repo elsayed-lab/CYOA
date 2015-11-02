@@ -97,35 +97,35 @@ bamtools stats -in $output 2>${output}.stats 1>&2
 }
 
 sub Gb2Gff {
-    my %options = (
-        input => undef,
-        base => undef,
-        );
-    my $opt = GetOptions(
-        "input|i:s" => \$options{input},
-        );
-    if (!defined($options{input})) {
+    my $me = shift;
+    my %args = @_;
+    my $input = $me->{input};
+
+    if (!defined($input)) {
         my $term = new Term::ReadLine('>');
         my $attribs = $term->Attribs;
         $attribs->{completion_suppress_append} = 1;
         my $OUT = $term->OUT || \*STDOUT;
-        $options{input} = $term->readline("Please provide an input genbank file: ");
-        $options{input} =~ s/\s+$//g;
+        $input = $term->readline("Please provide an input genbank file: ");
+        $input =~ s/\s+$//g;
     }
     my @suffix = (".gb", ".genbank");
-    $options{base} = basename($options{input}, @suffix);
+    my $base = basename($input, @suffix);
 
-    my $seqio = new Bio::SeqIO(-format => 'genbank', -file => $options{input});
-    my $count = 0;
-    my $fasta = new Bio::SeqIO(-file => qq">${options{base}}.fasta", -format => 'fasta', -flush => 0);
-    my $gffout = new Bio::Tools::GFF(-file => ">${options{base}}_all.gff", -gff_version => 3);
-    my $gene_gff = new Bio::Tools::GFF(-file => ">${options{base}}.gff", -gff_version => 3);
-    my $cds_gff = new Bio::Tools::GFF(-file => ">${options{base}}_cds.gff", -gff_version => 3);
-    my $inter_gffout = new Bio::Tools::GFF(-file => ">${options{base}}_interCDS.gff", -gff_version => 3);
-    my $cds_fasta = new Bio::SeqIO(-file => qq">${options{base}}_cds.fasta", -format => 'Fasta');
-    my $pep_fasta = new Bio::SeqIO(-file => qq">${options{base}}_pep.fasta", -format => 'Fasta');
+    my $seqio = new Bio::SeqIO(-format => 'genbank', -file => $input);
+    my $seq_count = 0;
+    my $total_nt = 0;
+    my $feature_count = 0;
+    my $fasta = new Bio::SeqIO(-file => qq">${base}.fasta", -format => 'fasta', -flush => 0);
+    my $gffout = new Bio::Tools::GFF(-file => ">${base}_all.gff", -gff_version => 3);
+    my $gene_gff = new Bio::Tools::GFF(-file => ">${base}.gff", -gff_version => 3);
+    my $cds_gff = new Bio::Tools::GFF(-file => ">${base}_cds.gff", -gff_version => 3);
+    my $inter_gffout = new Bio::Tools::GFF(-file => ">${base}_interCDS.gff", -gff_version => 3);
+    my $cds_fasta = new Bio::SeqIO(-file => qq">${base}_cds.fasta", -format => 'Fasta');
+    my $pep_fasta = new Bio::SeqIO(-file => qq">${base}_pep.fasta", -format => 'Fasta');
     while(my $seq = $seqio->next_seq) {
-        $count++;
+        $seq_count++;
+        $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);
         my @feature_list = ();
         # defined a default name
@@ -135,6 +135,7 @@ sub Gb2Gff {
             my $feat_count = 0;
         }
         for my $feat_object ($seq->get_SeqFeatures) {
+            $feature_count++;
             my $feat_count = 0;
             if ($feat_object->primary_tag eq "CDS") {
                 $cds_gff->write_feature($feat_object);
@@ -221,7 +222,13 @@ sub Gb2Gff {
           $new_feature->{_location} = $inter_location;
           $inter_gffout->write_feature($new_feature);
       }
-    }
+    } ## End while every sequence
+    my $ret_stats = {
+        num_sequences => $seq_count,
+        total_nt => $total_nt,
+        num_features => $feature_count,
+    };
+    return($ret_stats);
 }
 
 1;

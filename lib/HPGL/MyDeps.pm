@@ -31,6 +31,7 @@ our @use_deps = (
     'File::Which',
     'FileHandle',
     'Getopt::Long',
+    'IO::Uncompress::UnXz',
     'Log::Log4perl',
     'Net::Amazon::S3',
     'PerlIO',
