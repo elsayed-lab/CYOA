@@ -11,15 +11,16 @@ $VERSION='20151101';
 #our @EXPORT = qw(deps);    # Symbols to be exported by default
 
 our @use_deps = (
+    'local::lib',
+    'autodie',
+    'common::sense',
     'AppConfig',
     'Archive::Extract',
-    'autodie',
     'Bio::DB::Universal',
     'Bio::Tools::GFF',
     'Bio::Seq',
     'Bio::SeqIO',
     'Bio::Tools::Run::StandAloneBlast',
-    'common::sense',
     'Cwd',
     'Data::Dumper',
     'Digest::MD5',
@@ -32,7 +33,9 @@ our @use_deps = (
     'FileHandle',
     'Getopt::Long',
     'IO::Uncompress::UnXz',
+    'List::MoreUtils',
     'Log::Log4perl',
+    'LWP',
     'Net::Amazon::S3',
     'PerlIO',
     'Pod::Usage',

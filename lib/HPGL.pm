@@ -185,6 +185,7 @@ sub new {
     $me->{qsub_logdir} = qq"$me->{qsub_loghost}:$me->{basedir}/outputs" if (!defined($me->{qsub_logdir}));
     $me->{species} = undef if (!defined($me->{species}));
     $me->{suffixes} = [".fastq",".gz",".xz", ".fasta", ".sam", ".bam", ".count"] if (!defined($me->{suffixes}));
+    $me->{taxid} = "353153" if (!defined($me->{taxid}));
     $me->{trimmer} = "trimmomatic" if (!defined($me->{trimmer}));
     $me->{type} = "rnaseq" if (!defined($me->{type}));
 
