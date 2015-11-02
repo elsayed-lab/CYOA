@@ -49,18 +49,11 @@ source /cbcb/lab/nelsayed/scripts/dotbashrc
 cd $me->{basedir} || exit
 !;
     my $script_end = qq!## The following lines give status codes and some logging
-echo \$? > status/${job_name}.status
+echo \$? > outputs/${job_name}.status
 echo "####Finished $script_file at \$(date), it took \$(( \$SECONDS / 60 )) minutes." >> outputs/log.txt
 echo "####This job consisted of the following:" >> outputs/log.txt
 cat "\$0" >> outputs/log.txt
 !;
-    ##stem("cd $mycwd && mkdir -p status outputs scripts sequences 2>mkdir.log");
-    mkdir('status');
-    mkdir('stats');
-    mkdir('outputs');
-    mkdir('scripts');
-    mkdir('sequences');
-
     print "The job is:
 $args{job_string}" if ($me->{debug});
 

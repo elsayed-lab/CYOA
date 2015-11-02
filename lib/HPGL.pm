@@ -13,7 +13,7 @@ use Digest::MD5 qw"md5 md5_hex md5_base64";
 use File::Basename;
 use File::Find;
 use File::Which qw"which";
-use File::Path;
+use File::Path qw"make_path remove_tree";
 use FileHandle;
 use Getopt::Long;
 use HPGL::SeqMisc;
@@ -31,6 +31,7 @@ use HPGL::RNASeq_Trim;
 use HPGL::RNASeq_Aligners;
 use HPGL::RNASeq_Count;
 use HPGL::Convert;
+use HPGL::Cleanup;
 use HPGL::PBS;
 
 our $AUTOLOAD;
@@ -236,7 +237,6 @@ sub new {
         }
     }
     undef(%conf);
-
     Help() if (defined($me->{help}));
 
     ##    $me->Check_Options(["input",]);
@@ -257,7 +257,33 @@ sub new {
         my $qsub_path = which 'qsub';
         $me->{pbs} = 0 unless ($qsub_path);
     }
-
+    my %needed_programs = ('trimomatic' => 'http://www.usadellab.org/cms/?page=trimmomatic',
+                           'cutadapt' => 'https://pypi.python.org/pypi/cutadapt/',
+                           'bowtie' => 'http://bowtie-bio.sourceforge.net/index.shtml',
+                           'bowtie2' => 'http://bowtie-bio.sourceforge.net/bowtie2/index.shtml',
+                           'tophat' => 'https://ccb.jhu.edu/software/tophat/index.shtml',
+                           'fastqc' => 'http://www.bioinformatics.babraham.ac.uk/projects/fastqc/',
+                           'bwa' => 'http://bio-bwa.sourceforge.net/',
+                           'xz' => 'http://tukaani.org/xz/',
+                           'htseq-count' => 'http://www-huber.embl.de/users/anders/HTSeq/doc/count.html',
+                           'plot_scores' => 'https://github.com/maasha/biopieces',
+                           'samtools' => 'http://samtools.sourceforge.net/',
+        );
+    my $failed = 0;
+    foreach my $prog (keys %needed_programs) {
+        my $url = $needed_programs{$prog};
+        my $found = which($prog);
+        if (!$found) {
+            $failed++;
+            warn("HPGL.pm requires $prog, which may be found at: ${url}");
+        }
+    }
+    if ($failed) {
+        die ("HPGL.pm requires external programs, of which $failed were missing.");
+    }
+    make_path("$me->{basedir}/outputs", {verbose => 0});
+    make_path("$me->{basedir}/sequences", {verbose => 0});
+    make_path("$me->{basedir}/scripts", {verbose => 0});
     return($me);
 }
 

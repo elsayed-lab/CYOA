@@ -18,12 +18,11 @@ sub Cutadapt {
 ## and separate the sequence file into a few pieces depending on size
 ## and adapter status.  It also performs some simple graphs of the data.!;
     my $job_string = qq!
-mkdir -p cutadapt
 xzcat -f ${input} | cutadapt - ${cutadapt_flags} -e 0.1 -n 3 -m ${minlen} -M ${maxlen} \\
     --too-short-output=cutadapt/${basename}_tooshort.fastq \\
     --too-long-output=cutadapt/${basename}_toolong.fastq \\
     --untrimmed-output=cutadapt/${basename}_untrimmed.fastq \\
-    2>cutadapt/cutadapt.err 1> ${output}!;
+    2>outputs/cutadapt.err 1> ${output}!;
     my $cutadapt = $me->Qsub(job_name => "cutadapt",
                              qsub_wall => "8:00:00",
                              job_string => $job_string,
@@ -103,12 +102,11 @@ sub Trimomatic_Pairwise {
     $basename =~ s/\_R1$//g;
     $me->{basename} = $basename;
     my $output = qq"${r1o}:${r2o}";
-    my $comment = qq!## This call to trimmomatic removes illumina and epicentre adapters from ${input}.
+    my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
     my $job_string = qq!
-mkdir -p sequences
 ## In case a trimming needs to be redone...
 if [[ \! -r "${r1}" ]]; then
   if [[ -r "sequences/${r1}.xz" ]]; then
@@ -118,11 +116,11 @@ if [[ \! -r "${r1}" ]]; then
     exit 1
   fi
 fi
-trimmomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 2>outputs/${basename}-trimomatic.err 1>outputs/${basename}-trimomatic.out
+trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 2>outputs/${basename}-trimomatic.err 1>outputs/${basename}-trimomatic.out
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.err)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
-  trimmomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} SLIDINGWINDOW:4:25 1>>outputs/${basename}-trimomatic.out 2>>output/${basename}-trimomatic.err
+  trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} SLIDINGWINDOW:4:25 1>>outputs/${basename}-trimomatic.out 2>>output/${basename}-trimomatic.err
 fi
 sleep 10
 mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
@@ -167,7 +165,6 @@ sub Trimomatic_Single {
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
     my $job_string = qq!
-mkdir -p sequences
 ## In case a trimming needs to be redone...
 if [[ \! -r "${input}" ]]; then
   if [[ -r "sequences/${input}.xz" ]]; then
@@ -177,7 +174,7 @@ if [[ \! -r "${input}" ]]; then
     exit 1
   fi
 fi
-trimmomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
+trimomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $me->Qsub(job_name => "trim",
 			 qsub_wall => "4:00:00",
@@ -206,7 +203,6 @@ sub Trimomatic_Stats {
     my $basename = $args{basename};
     my $input_file = "outputs/${basename}-trimomatic.out";
     my $depends = "";
-    print STDERR "GOT INPUT? $input_file\n";
     $depends = $args{depends} if ($args{depends});
     my $job_name = 'trimst';
     $job_name = $args{job_name} if ($args{job_name});
@@ -222,7 +218,7 @@ dropped_reads_tmp=\$(grep "^Input Reads" $input_file | awk '{print \$8}')
 dropped_reads=\${dropped_reads_tmp:-0}
 
 stat_string=\$(printf "${basename},%s,%s,%s" "\${total_reads}" "\${surviving_reads}" "\${dropped_reads}")
-echo "\$stat_string" >> stats/trimomatic_stats.csv
+echo "\$stat_string" >> outputs/trimomatic_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,

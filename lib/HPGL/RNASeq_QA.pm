@@ -15,11 +15,10 @@ sub Biopieces_Graph {
     my @inputs = split(/\,/, $input);
     my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
     my $job_string = qq!
-mkdir -p biopieces
 xzcat -f ${input} | read_fastq -i - -e base_33 |\\
- plot_scores -T \'Quality Scores\' -t svg -o biopieces/${basename}_quality_scores.svg |\\
- plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o biopieces/${basename}_ntdist.svg |\\
- plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o biopieces/${basename}_lendist.svg |\\
+ plot_scores -T \'Quality Scores\' -t svg -o outputs/${basename}_quality_scores.svg |\\
+ plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/${basename}_ntdist.svg |\\
+ plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/${basename}_lendist.svg |\\
 !;
     my $bp = $me->Qsub(job_name => "biop",
                        depends => $bp_depends_on,
@@ -52,8 +51,8 @@ sub Fastqc_Pairwise {
     my $basename = basename($r1, (".fastq"));
     $basename =~ s/\_R1$//g;
     $me->{basename} = $basename;
-    my $job_string = qq!mkdir -p ${basename}-${type}_fastqc &&\\
-  fastqc --extract -o ${basename}-${type}_fastqc ${r1} ${r2} \\
+    my $job_string = qq!mkdir -p outputs/${basename}-${type}_fastqc &&\\
+  fastqc --extract -o outputs/${basename}-${type}_fastqc ${r1} ${r2} \\
   2>outputs/${basename}-${type}_fastqc.out 1>&2
 !;
     my $comment = qq!## This FastQC run is against ${type} data and is used for
@@ -79,7 +78,7 @@ sub Fastqc_Single {
     $filtered = "unfiltered" unless ($filtered);
     my $input = $me->{input};
     my $basename = $me->{basename};
-    my $outdir = qq"${basename}-${filtered}_fastqc";
+    my $outdir = qq"outputs/${basename}-${filtered}_fastqc";
     my $job_string = qq!mkdir -p ${outdir} &&\\
   fastqc --extract -o ${outdir} ${input} \\
   2>outputs/${basename}-${filtered}_fastqc.out 1>&2
@@ -134,7 +133,7 @@ kmer_content_tmp=\$(grep "Kmer Content" $input_file | awk -F '\\t' '{print \$2}'
 kmer_content=\${kmer_content_tmp:-0}
 
 stat_string=\$(printf "${basename},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
-echo "\$stat_string" >> stats/fastqc_stats.csv
+echo "\$stat_string" >> outputs/fastqc_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,

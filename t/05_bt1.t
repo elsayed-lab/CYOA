@@ -3,16 +3,19 @@ BEGIN {
     use HPGL;
     use File::Path qw"remove_tree";
     use File::Copy qw"cp";
+    use String::Diff qw( diff_fully diff diff_merge diff_regexp );
 }
 diag("Copying data file to cwd().");
 ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
 my $hpgl = new HPGL(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
+mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
 diag("Does bowtie execute?");
 ok($hpgl->Bowtie(),     'Run Bowtie1');
 diag("Can I collect bowtie statistics into bowtie_stats.csv?");
-ok(my $bt1_result = $hpgl->Last_Stat(input => 'stats/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
+ok(my $actual_csv = $hpgl->Last_Stat(input => 'outputs/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
 diag("Does the last entry of bowtie_stats.csv match the expected output?");
-ok($bt1_result eq 'test_forward,v0M1,0,10000,30,9970,0,33333.3333333333,test_forward-v0M1.count.xz',      'Are the bowtie results the expected value?');
+my $expected_csv = qq"test_forward,v0M1,10000,10000,30,9970,0,33333.3333333333,test_forward-v0M1.count.xz";
+ok($actual_csv eq $expected_csv,      'Are the bowtie results the expected value?');
 my $expected_htseq = qq"phiX174p01\t1
 phiX174p02\t0
 phiX174p03\t0
@@ -30,17 +33,14 @@ __too_low_aQual\t0
 __not_aligned\t9970
 __alignment_not_unique\t0
 ";
-my $actual_htseq = qx"xzcat bowtie_out/test_forward-v0M1.count.xz";
+my $actual_htseq = qx"xzcat outputs/bowtie/test_forward-v0M1.count.xz";
 diag("Is the htseq output what was expected for phix?");
+ok($expected_htseq eq $actual_htseq);
 
-##use String::Diff qw( diff_fully diff diff_merge diff_regexp );# export functions
 ##my($old, $new) = String::Diff::diff($expected_htseq, $actual_htseq);
 ##print STDERR "$old\n";
 ##print STDERR "---\n";
 ##print STDERR "$new\n";
+##print STDERR "---\n";
 
-ok($expected_htseq eq $actual_htseq);
-#diag("Can I remove the bowtie outputs?");
-#ok(unlink('test_forward.fastq'),      'Remove the sequences');
-#diag("Can I clean up the mess?");
-#ok(remove_tree('outputs') and remove_tree('stats') and remove_tree('status') and remove_tree('sequences') and remove_tree('scripts'))
+

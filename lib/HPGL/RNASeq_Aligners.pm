@@ -23,7 +23,6 @@ sub Bowtie {
     my $count = 1;
     $count = $args{count} if (defined($args{count}));
 
-    
     if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
         my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
         $bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
@@ -31,9 +30,8 @@ sub Bowtie {
         $bt_depends_on = $uncomp->{pbs_id};
     }
 
-
     ## Check that the indexes exist
-    my $bt_reflib = "$me->{libdir}/${libtype}/$me->{species}";
+    my $bt_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
     if (!-r $bt_reftest) {
         my $index_job = $me->BT1_Index(depends => $bt_depends_on, libtype => $libtype);
@@ -44,23 +42,22 @@ sub Bowtie {
     $bowtie_input_flag = "-f" if ($me->{input} =~ /\.fasta$/);
 
     my $species = $me->{species};
-    my $error_file = qq"bowtie_out/${basename}-${bt_type}.err";
-    my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
+    my $error_file = qq"outputs/bowtie/${basename}-${bt_type}.err";
     my $comment = qq!## This is a bowtie1 alignment of $bt_input against
 ## $bt_reflib using arguments: $bt_args.
 ## This jobs depended on: $bt_depends_on
 !;
-    my $aligned_filename = qq"bowtie_out/${basename}-${bt_type}_aligned_${species}.fastq";
-    my $unaligned_filename = qq"bowtie_out/${basename}-${bt_type}_unaligned_${species}.fastq";
-    my $sam_filename = qq"bowtie_out/${basename}-${bt_type}.sam";
-    my $job_string = qq!mkdir -p bowtie_out && sleep 10 && bowtie $bt_reflib $bt_args \\
+    my $aligned_filename = qq"outputs/bowtie/${basename}-${bt_type}_aligned_${species}.fastq";
+    my $unaligned_filename = qq"outputs/bowtie/${basename}-${bt_type}_unaligned_${species}.fastq";
+    my $sam_filename = qq"outputs/bowtie/${basename}-${bt_type}.sam";
+    my $job_string = qq!mkdir -p outputs/bowtie && sleep 10 && bowtie $bt_reflib $bt_args \\
   -p 4 \\
   $bowtie_input_flag $bt_input \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>bowtie_out/${basename}-${bt_type}.out
+  1>outputs/bowtie/${basename}-${bt_type}.out
 !;
     my $bt_job = $me->Qsub(job_name => qq"bt1_${bt_type}",
                            depends => $bt_depends_on,
@@ -78,15 +75,17 @@ sub Bowtie {
     my $un_comp = $me->Recompress(depends => $bt_job->{pbs_id},
                                   job_name => "xzun",
                                   comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt_args\n",
-                                  input => "bowtie_out/${basename}-${bt_type}_unaligned_${species}.fastq");
+                                  input => "outputs/bowtie/${basename}-${bt_type}_unaligned_${species}.fastq");
     $bt_jobs{unaligned_compression} = $un_comp;
 
-    my $al_comp = $me->Recompress(input => "bowtie_out/${basename}-${bt_type}_aligned_${species}.fastq",
+    my $al_comp = $me->Recompress(input => "outputs/bowtie/${basename}-${bt_type}_aligned_${species}.fastq",
                                   comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt_args",
                                   job_name => "xzal",
                                   depends => $bt_job->{pbs_id},);
     $bt_jobs{aligned_compression} = $al_comp;
 
+    ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
+    my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
     my $stats = $me->BT1_Stats(depends => $bt_job->{pbs_id},
                                job_name => "bt1stats",
                                bt_type => $bt_type,
@@ -164,7 +163,7 @@ sub Bowtie_RRNA {
     my $depends_on = $args{depends};
     if ($exclude) {
         my $in = $me->{input};
-        $args{postscript} = qq"mv $in includerrna_${in} && mv bowtie_out/${basename}-rRNA_unaligned_${species}.fastq $in";
+        $args{postscript} = qq"mv $in includerrna_${in} && mv outputs/bowtie/${basename}-rRNA_unaligned_${species}.fastq $in";
     }
     my $job = $me->Bowtie(depends => $depends_on,
                           job_name => qq"btrrna",
@@ -189,9 +188,9 @@ sub BT1_Index {
     $dep = $args{depends};
     my $libtype = $me->{libtype};
     $libtype = $args{libtype} if ($args{libtype});
-    my $job_string = qq!bowtie-build $me->{libdir}/${libtype}/$me->{species}.fasta $me->{libdir}/genome/$me->{species}
+    my $job_string = qq!bowtie-build $me->{libdir}/${libtype}/$me->{species}.fasta $me->{libdir}/${libtype}/indexes/$me->{species}
 !;
-    my $comment = qq!## Generating bowtie1 indexes for species: $me->{species} in $me->{libdir}/${libtype}!;
+    my $comment = qq!## Generating bowtie1 indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
     my $bt1_index = $me->Qsub(job_name => "bt1idx",
                               depends => $dep,
                               job_string => $job_string,
@@ -211,13 +210,14 @@ sub BT2_Index {
     my $basename = $me->{basename};
     my $dep = "";
     $dep = $args{depends};
+    my $libtype = $me->{libtype};
     my $job_string = qq!
 if [ \! -r "$me->{libdir}/genome/$me->{species}.fa" ]; then
   ln -s $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/genome/$me->{species}.fa
 fi
-bowtie2-build $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/genome/$me->{species}
+bowtie2-build $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/${libtype}/indexes/$me->{species}
 !;
-    my $comment = qq!## Generating bowtie2 indexes for species: $me->{species} in $me->{libdir}/genome!;
+    my $comment = qq!## Generating bowtie2 indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
     my $jobid = $me->Qsub(job_name => "bt2idx",
                           depends => $dep,
                           job_string => $job_string,
@@ -241,7 +241,8 @@ sub BWA {
     my $basename = $me->{basename};
 
     ## Check that the indexes exist
-    my $bwa_reflib = "$me->{libdir}/genome/$me->{species}";
+    my $libtype = $me->{libtype};
+    my $bwa_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}";
     my $bwa_reftest = qq"${bwa_reflib}.bwa";
     if (!-r $bwa_reftest) {
         my $index_job = $me->BWA_Index(depends => $bwa_depends_on);
@@ -251,8 +252,8 @@ sub BWA {
     my $species = $me->{species};
     my $comment = qq!## This is a BWA alignment of $bwa_input against
 ## $bwa_reflib.!;
-    my $job_string = qq!mkdir -p bwa_out
-cd bwa_out && bwa aln $me->{libdir}/genome/$me->{species}.fasta $bwa_input 2>bwa.err 1>${basename}.sai
+    my $job_string = qq!mkdir -p outputs/bwa
+cd outputs/bwa && bwa aln $bwa_reflib $bwa_input 2>bwa.err 1>${basename}.sai
 !;
     my $bwa_job = $me->Qsub(job_name => "bwa",
 			    depends => $bwa_depends_on,
@@ -295,9 +296,10 @@ sub BWA_Index {
     my $basename = $me->{basename};
     my $dep = "";
     $dep = $args{depends};
-    my $job_string = qq!cd $me->{libdir}/genome/ && bwa index $me->{libdir}/genome/$me->{species}.fasta
+    my $libtype = $me->{libtype};
+    my $job_string = qq!cd $me->{libdir}/${libtype}/indexes && bwa index $me->{libdir}/genome/$me->{species}.fasta
 !;
-    my $comment = qq!## Generating bwa indexes for species: $me->{species} in $me->{libdir}/genome!;
+    my $comment = qq!## Generating bwa indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
     my $bwa_index = $me->Qsub(job_name => "bwaidx",
                               depends => $dep,
                               job_string => $job_string,
@@ -330,7 +332,7 @@ sub BT2_Stats {
 ## This is a stupidly simple job to collect alignment statistics.
 !;
     my $job_string = qq!
-original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g' 2>/dev/null)
+original_reads_tmp=\$(grep "^Input Reads" "${trim_input}" 2>/dev/null | awk '{print \$3}' | sed 's/ //g')
 original_reads=\${original_reads_tmp:-0}
 reads_tmp=\$(grep "^# reads processed" $bt_input | awk -F: '{print \$2}' | sed 's/ //g')
 reads=\${reads_tmp:-0}
@@ -343,7 +345,7 @@ sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
 stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> stats/bowtie_stats.csv
+echo "\$stat_string" >> outputs/bowtie_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,
@@ -374,12 +376,13 @@ sub TopHat {
     if ($args{tophat_args}) {
         $tophat_args = $args{tophat_args};
     }
-    my $tophat_dir = 'tophat_out';
+    my $tophat_dir = 'outputs/tophat';
     if ($args{tophat_dir}) {
         $tophat_dir = $args{tophat_dir};
     }
     my $basename = $me->{basename};
-    my $bt_reflib = "$me->{libdir}/genome/$me->{species}";
+    my $libtype = $me->{libtype};
+    my $bt_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.bt2";
     if (!-r $bt_reftest) {
         $me->BT2_Index();
@@ -467,7 +470,7 @@ sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
 stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> stats/bowtie_stats.csv
+echo "\$stat_string" >> outputs/bowtie_stats.csv
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,
