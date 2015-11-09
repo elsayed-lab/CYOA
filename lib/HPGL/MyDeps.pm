@@ -29,6 +29,7 @@ our @use_deps = (
     'File::Copy',
     'File::Find',
     'File::Path',
+    'File::Spec',
     'File::Which',
     'FileHandle',
     'Getopt::Long',

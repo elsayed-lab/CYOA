@@ -1,4 +1,6 @@
 package HPGL;
+use common::sense;
+use autodie;
 
 =head2
     Bowtie()
@@ -211,9 +213,10 @@ sub BT2_Index {
     my $dep = "";
     $dep = $args{depends};
     my $libtype = $me->{libtype};
+    my $libdir = File::Spec->rel2abs($me->{libdir});
     my $job_string = qq!
-if [ \! -r "$me->{libdir}/genome/$me->{species}.fa" ]; then
-  ln -s $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/genome/$me->{species}.fa
+if [ \! -r "$libdir/genome/$me->{species}.fa" ]; then
+  ln -s $libdir/genome/$me->{species}.fasta $libdir/genome/indexes/$me->{species}.fa
 fi
 bowtie2-build $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/${libtype}/indexes/$me->{species}
 !;
@@ -362,9 +365,9 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
 
 
 =head2
-    TopHat()
+    Tophat()
 =cut
-sub TopHat {
+sub Tophat {
     my $me = shift;
     my %args = @_;
     $me->Check_Options(["species"]);
@@ -389,15 +392,28 @@ sub TopHat {
     }
     if (!-r qq"$me->{libdir}/genome/$me->{species}.gtf") {
         print "Missing the gtf file for $me->{species}\n";
-        Gff2Gtf("$me->{libdir}/genome/$me->{species}.gff");
+        my $written = $me->Gff2Gtf(gff => "$me->{libdir}/genome/$me->{species}.gff");
+        print STDERR "Gff2Gtf wrote $written features\n";
     }
     my $inputs = $me->{input};
     my @in = split(/\:/, $inputs);
     $inputs =~ s/\:/ /g;
 
+    my $spliced = 0;
+    if ($me->{spliced}) {
+        $spliced = 1;
+    }
+    if ($args{spliced}) {
+        $spliced = 1;
+    }
+
     my $job_string = qq!mkdir -p ${tophat_dir} && tophat ${tophat_args} --b2-very-sensitive -p 1 -o ${tophat_dir} \\
--G $me->{libdir}/genome/$me->{species}.gtf --no-novel-juncs \\
-  $me->{libdir}/genome/$me->{species} \\
+!;
+    if ($spliced) {
+        $job_string .= qq!-G $me->{libdir}/genome/$me->{species}.gtf --no-novel-juncs \\
+!;
+    }
+    $job_string .= qq!$me->{libdir}/genome/indexes/$me->{species} \\
   $inputs && samtools index ${tophat_dir}/accepted_hits.bam
 !;
     my $comment = qq!## I still have no clue what I am doing when I use tophat...
@@ -421,7 +437,7 @@ sub TopHat {
 			   postscript => $args{postscript},
         );
 
-    my $accepted = "accepted_hits.bam";
+    my $accepted = "${tophat_dir}/accepted_hits.bam";
     $accepted = $args{accepted_hits} if ($args{accepted_hits});
     my $count_table = "accepted_hits.count";
     $count_table = $args{count_table} if ($args{count_table});
@@ -431,6 +447,20 @@ sub TopHat {
                                 job_name => qq"$in[0]_count",
                                 ##output => $count_table,
         );
+
+    ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
+    my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
+    my $unaccepted = $accepted;
+    $unaccepted =~ s/accepted_hits/unmapped/g;
+    my $input_read_info = $accepted;
+    $input_read_info =~ s/accepted_hits\.bam/prep_reads\.info/g;
+    my $stats = $me->Tophat_Stats(depends => $tophat->{pbs_id},
+                                  job_name => "tpstats",
+                                  count_table => qq"${count_table}.xz",
+                                  trim_input => ${trim_output_file},
+                                  accepted_input => $accepted,
+                                  unaccepted_input => $unaccepted,
+                                  prep_input => $input_read_info,);
 
     return({tophat => $tophat, htseq => $htmulti,});
 }
@@ -480,6 +510,57 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
                           qsub_wall => "00:10:00",
                           job_string => $job_string,
                           input => $bt_input,
+                          comment => $comment,
+        );
+    return($stats);
+}
+
+=head2
+    Tophat_Stats()
+=cut
+sub Tophat_Stats {
+    my $me = shift;
+    my %args = @_;
+    my $accepted_input = $args{accepted_input};
+    my $accepted_output = qq"${accepted_input}.stats";
+    my $unaccepted_input = $args{unaccepted_input};
+    my $unaccepted_output = qq"${unaccepted_input}.stats";
+    my $read_info = $args{prep_input};
+    my $trim_input = $args{trim_input};
+    my $basename = $me->{basename};
+    my $depends = "";
+    $depends = $args{depends} if ($args{depends});
+    my $job_name = "stats";
+    $job_name = $args{job_name} if ($args{job_name});
+    my $jobid = qq"${basename}_stats";
+    my $count_table = "";
+    $count_table = $args{count_table} if ($args{count_table});
+    my $comment = qq!
+## This is a stupidly simple job to collect alignment statistics.
+!;
+    my $job_string = qq!
+bamtools stats < ${accepted_input} 2>${accepted_output} 1>&2 && bamtools stats < ${unaccepted_input} 2>${unaccepted_output} 1>&2
+original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g')
+original_reads=\${original_reads_tmp:-0}
+reads_tmp=\$(grep "^reads_in " $read_info | awk -F= '{print \$2}' | sed 's/ //g')
+reads=\${reads_tmp:-0}
+aligned_tmp=\$(grep "^Total reads" $accepted_output | awk '{print \$3}' | sed 's/ .*//g')
+aligned=\${aligned_tmp:-0}
+failed_tmp=\$(grep "^Total reads" $unaccepted_output | awk '{print \$3}' | sed 's/ .*//g')
+failed=\${failed_tmp:-0}
+rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
+rpm=\${rpm_tmp:-0}
+stat_string=\$(printf "${basename},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aligned}" "\${failed}" "\$rpm")
+echo "\$stat_string" >> outputs/tophat_stats.csv
+!;
+    my $stats = $me->Qsub(job_name => $job_name,
+                          depends => $depends,
+                          qsub_queue => "throughput",
+                          qsub_cpus => 1,
+                          qsub_mem => 1,
+                          qsub_wall => "00:10:00",
+                          job_string => $job_string,
+                          input => $accepted_input,
                           comment => $comment,
         );
     return($stats);

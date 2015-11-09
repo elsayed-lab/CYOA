@@ -1,26 +1,68 @@
 package HPGL;
+use common::sense;
+use autodie;
 
 =head2
     Gff2Gtf()
 =cut
 sub Gff2Gtf {
-    my $in = shift;
+    my $me = shift;
+    my %args = @_;
+    my $input = $args{gff};
     use File::Basename;
     use Bio::FeatureIO;
 
-    my ($name, $path, $suffix) = fileparse($in, qr/\.gff/);
-    my $outFile = $path . $name . ".gtf";
+    my ($name, $path, $suffix) = fileparse($input, qr/\.gff/);
+    my $out_file = $path . $name . ".gtf";
 
-    my $inGFF = new Bio::FeatureIO('-file' => "$in",
-                                   '-format' => 'GFF',
-                                   '-version' => 3);
-    my $outGTF = new Bio::FeatureIO('-file' => ">$outFile",
+    my $in_gff = new Bio::FeatureIO('-file' => "$input",
                                     '-format' => 'GFF',
-                                    '-version' => 2.5);
+                                    '-version' => 3);
+    my $out_gtf = new FileHandle();
+    print "TSTME: $out_file\n";
+    $out_gtf->open(">$out_file");
 
-    while (my $feature = $inGFF->next_feature() ) {
-        $outGTF->write_feature($feature);
+    my $features_written = 0;
+    while (my $feature = $in_gff->next_feature()) {
+        # the output handle is reset for every file
+        ##According to UCSC, GTF file contains 9 column:
+        ##<seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes]
+        ## An example working gtf line: (except the double spaces are tabs...)
+        ##TcChr20-S  TriTrypDB  CDS  14765  15403  .  -  0    gene_id "cds_TcCLB.397937.10-1"; transcript_id "cds_TcCLB.397937.10-1";
+
+        my @tags = $feature->get_all_tags();
+        my $seqid = $feature->seq_id();
+        my $location = $feature->location();
+        my $start = $feature->start();
+        my $end = $feature->end();
+        my $strand = $feature->strand();
+        if ($strand == 1) {
+            $strand = '+';
+        } else {
+            $strand = '-';
+        }
+        my $source = $feature->source_tag();
+        my $primary_id = $feature->primary_tag();
+        my $string = qq"$seqid\t$source\tCDS\t$start\t$end\t.\t$strand\t0\t";
+
+        my $last_column = "";
+        my $annot = $feature->{annotation};
+        my $stringified;
+        my $key;
+        foreach $key ($annot->get_all_annotation_keys()) {
+            my @values = $annot->get_Annotations($key);
+            foreach my $value (@values) {
+                $stringified = $value->{value};
+                $stringified = $value->{term}->{name} unless($stringified);
+##                print "TSTME: $value $key $stringified\n";
+                $last_column .= qq!${key} "${stringified}"; !;
+            }
+        }
+        $string .= "$last_column\n";
+        print $out_gtf $string;
     }
+    $out_gtf->close();
+    return($features_written);
 }
 
 =head2
@@ -494,7 +536,7 @@ sub TriTryp_GO {
             print $out "$current_id\t$gene\t$ontology\t$go_term_name\t$source\t$evidence_code\n";
 ####                   1      2           3     4 5       6      7                8            9       10        11     12     13                      14       15
 ####                   source gene   shortname qual|go  dbref  evidencecode     withfrom       P    goname      gosym  type   taxon                   date      assignedby
-            print $gaf "TRI\t$current_id\tundef\t\t$gene\tundef\t$evidence_code\t$go_term_name\tP\t$go_term_name\tundef\tgene\ttaxon:${options{taxid}}\t20050101\tTriTryp\n";
+            print $gaf "TRI\t$current_id\tundef\t\t$gene\tundef\t$evidence_code\t$go_term_name\tP\t$go_term_name\tundef\tgene\ttaxon:$me->{taxid}}\t20050101\tTriTryp\n";
             $lines_written++;
 	}
     }
