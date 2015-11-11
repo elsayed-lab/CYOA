@@ -238,56 +238,131 @@ sub BWA {
     my $me = shift;
     my %args = @_;
     my %bwa_jobs = ();
-    my $bwa_input = $me->{input};
     my $bwa_depends_on;
     $me->Check_Options(["species"]);
     my $basename = $me->{basename};
-
+    my $inputs = $me->{input};
+    my @in = split(/\:/, $inputs);
+    $inputs =~ s/\:/ /g;
     ## Check that the indexes exist
     my $libtype = $me->{libtype};
-    my $bwa_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}";
+    my $bwa_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}.fasta";
     my $bwa_reftest = qq"${bwa_reflib}.bwa";
     if (!-r $bwa_reftest) {
         my $index_job = $me->BWA_Index(depends => $bwa_depends_on);
         $bwa_jobs{index} = $index_job;
         $bwa_depends_on = $index_job->{pbs_id};
     }
+    my $reporter_string = qq"bwa samse ${bwa_reflib} outputs/bwa/${basename}_aln-forward.sai $in[0] \\
+1>outputs/bwa/${basename}_aln.sam 2>outputs/bwa/${basename}.samerr";
+    my $aln_string = qq"bwa aln ${bwa_reflib} $in[0] 1>outputs/bwa/${basename}_aln-forward.sai 2>outputs/bwa/${basename}_aln-forward.err";
+    if (scalar(@in) == 2) {
+        $aln_string = qq"${aln_string}
+bwa aln ${bwa_reflib} $in[1] 1>outputs/bwa/${basename}_aln-reverse.sai 2>outputs/bwa/${basename}_aln-reverse.err";
+        $reporter_string = qq"bwa sampe ${bwa_reflib} \\
+outputs/bwa/${basename}_aln-forward.sai outputs/bwa/${basename}_aln-reverse.sai \\
+$in[0] $in[1] \\
+1>outputs/bwa/${basename}_aln.sam 2>outputs/bwa/${basename}.samerr";
+    }
+
     my $species = $me->{species};
-    my $comment = qq!## This is a BWA alignment of $bwa_input against
-## $bwa_reflib.!;
+    my $comment = qq!## This is a BWA alignment of $inputs against
+## $bwa_reflib.
+## It will perform a separate bwa mem run and bwa aln run.!;
     my $job_string = qq!mkdir -p outputs/bwa
-cd outputs/bwa && bwa aln $bwa_reflib $bwa_input 2>bwa.err 1>${basename}.sai
+bwa mem -a ${bwa_reflib} ${inputs} 2>outputs/bwa/bwa.err 1>outputs/bwa/${basename}_mem.sam
+${aln_string}
+${reporter_string}
 !;
     my $bwa_job = $me->Qsub(job_name => "bwa",
 			    depends => $bwa_depends_on,
 			    job_string => $job_string,
-			    input => $bwa_input,
+			    input => $inputs,
 			    comment => $comment,
-			    output => qq"bwa/${basename}.sai",
+			    output => qq"outputs/bwa/${basename}_mem.sam",
 			    prescript => $args{prescript},
 			    postscript => $args{postscript},
         );
-    $bwa_jobs{bowtie} = $bwa_job;
+    $bwa_jobs{bwa} = $bwa_job;
 
-    my $sam_job = $me->Samtools(depends => $bwa_job->{pbs_id},
-                                job_name => "s2b",
+    my $mem_sam = $me->Samtools(depends => $bwa_job->{pbs_id},
+                                job_name => "s2b_mem",
                                 input => $bwa_job->{output},);
-    $bwa_jobs{samtools} = $sam_job;
+    $bwa_jobs{samtools_mem} = $mem_sam;
+    my $mem_htmulti = $me->HT_Multi(job_name => "ht_mem", depends => $mem_sam->{pbs_id}, input => $mem_sam->{output},);
+    $bwa_jobs{htseq_mem} = $mem_htmulti;
 
-    my $htmulti = $me->HT_Multi(depends => $sam_job->{pbs_id},
-                                input => $sam_job->{output},);
-    $bwa_jobs{htseq} = $htmulti;
+    my $aln_sam = $me->Samtools(depends => $bwa_job->{pbs_id},
+                                job_name => 's2b_aln',
+                                input => qq"outputs/bwa/${basename}_aln.sam",);
+    $bwa_jobs{samtools_aln} = $aln_sam;
+    my $aln_htmulti = $me->HT_Multi(jobname => "ht_aln", depends => $aln_sam->{pbs_id}, input => $aln_sam->{output},);
+    $bwa_jobs{htseq_aln} = $aln_htmulti;
 
-    my $c = 0;
-    foreach my $ht_out (@{$htmulti}) {
-        $c++;
-        if ($ht_out) {
-            my $count_compression = $me->Recompress(depends => $ht_out->{pbs_id},
-                                                    job_name => "xz_hts${c}",
-                                                    input => $ht_out->{output});
-        }
-    }
+    my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
+    my $bwa_stats = $me->BWA_Stats(depends => $aln_sam->{pbs_id},
+                                   job_name => 'bwastats',
+                                   aln_output => $aln_sam->{output},
+                                   mem_output => $mem_sam->{output},
+                                   trim_input => $trim_output_file,);
+##    my $c = 0;
+##    foreach my $ht_out (@{$aln_htmulti}) {
+##        $c++;
+##        if ($ht_out) {
+##            my $count_compression = $me->Recompress(depends => $ht_out->{pbs_id},
+##                                                    job_name => "xz_hts${c}",
+##                                                    input => $ht_out->{output});
+##        }
+##    }
     return(\%bwa_jobs);
+}
+
+sub BWA_Stats {
+    my $me = shift;
+    my %args = @_;
+    my $basename = $me->{basename};
+    my $aln_input = $args{aln_output};
+    $aln_input = qq"${aln_input}.stats";
+    my $mem_input = $args{mem_output};
+    $mem_input = qq"${mem_input}.stats";
+    my $output = qq"${basename}.stats";
+    my $trim_input = $args{trim_input};
+
+    my $depends = "";
+    $depends = $args{depends} if ($args{depends});
+    my $job_name = "stats";
+    $job_name = $args{job_name} if ($args{job_name});
+    my $jobid = qq"${basename}_stats";
+    my $count_table = "";
+    $count_table = $args{count_table} if ($args{count_table});
+    my $comment = qq!
+## This is a stupidly simple job to collect alignment statistics.
+!;
+    my $job_string = qq!
+original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g')
+original_reads=\${original_reads_tmp:-0}
+reads_tmp=\$(grep "^Total reads: " $aln_input | awk '{print \$3}' | sed 's/ //g')
+reads=\${reads_tmp:-0}
+aln_aligned_tmp=\$(grep "^Mapped reads" $aln_input | awk '{print \$3}' | sed 's/ .*//g')
+aln_aligned=\${aln_aligned_tmp:-0}
+mem_aligned_tmp=\$(grep "^Mapped reads" $mem_input | awk '{print \$3}' | sed 's/ .*//g')
+mem_aligned=\${mem_aligned_tmp:-0}
+rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
+rpm=\${rpm_tmp:-0}
+stat_string=\$(printf "${basename},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aln_aligned}" "\${mem_aligned}" "\$rpm")
+echo "\$stat_string" >> outputs/bwa_stats.csv
+!;
+    my $stats = $me->Qsub(job_name => $job_name,
+                          depends => $depends,
+                          qsub_queue => "throughput",
+                          qsub_cpus => 1,
+                          qsub_mem => 1,
+                          qsub_wall => "00:10:00",
+                          job_string => $job_string,
+                          input => $aln_input,
+                          comment => $comment,
+        );
+    return($stats);
 }
 
 =head2
@@ -300,7 +375,10 @@ sub BWA_Index {
     my $dep = "";
     $dep = $args{depends};
     my $libtype = $me->{libtype};
-    my $job_string = qq!cd $me->{libdir}/${libtype}/indexes && bwa index $me->{libdir}/genome/$me->{species}.fasta
+    my $job_string = qq!
+start=\$(pwd)
+cd \$start/$me->{libdir}/${libtype}/indexes && ln -s \$start/$me->{libdir}/genome/$me->{species}.fasta . && bwa index $me->{species}.fasta
+cd \$start
 !;
     my $comment = qq!## Generating bwa indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
     my $bwa_index = $me->Qsub(job_name => "bwaidx",

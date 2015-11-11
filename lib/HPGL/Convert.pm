@@ -3,6 +3,69 @@ use common::sense;
 use autodie;
 
 =head2
+    Gff2Fasta()
+=cut
+sub Gff2Fasta {
+    my $me = shift;
+    my %args = @_;
+    my $genome = $args{genome};
+    my $gff = $args{gff};
+    my $genome_basename = basename($genome, ('.fasta'));
+    my $chromosomes = $me->Read_Genome(genome => $genome);
+    open(GFF, "<${gff}");
+    my $out_fasta_amino = new FileHandle();
+    my $out_fasta_nt = new FileHandle();
+    my $aa_out_name = qq"${genome_basename}_cds_aa.fasta";
+    my $nt_out_name = qq"${genome_basename}_cds_nt.fasta";
+    $out_fasta_amino->open(">${aa_out_name}");
+    $out_fasta_nt->open(">${nt_out_name}");
+    my $tag = 'ID';
+    $tag = $me->{tag} if ($me->{tag});
+    my $feature_type = 'CDS';
+    $feature_type = $me->{feature_type} if ($me->{feature_type});
+    my $annotation_in = new Bio::Tools::GFF(-fh => \*GFF, -gff_version => 3);
+  LOOP: while(my $feature = $annotation_in->next_feature()) {
+      ##print "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
+      next LOOP unless ($feature->{_primary_tag} eq $feature_type);
+      my $location = $feature->{_location};
+      my $start = $location->start();
+      my $end = $location->end();
+      my $strand = $location->strand();
+      my @something = $feature->each_tag_value();
+      ##print Dumper $feature if ($me->{debug} == 1);
+      my @ids = $feature->each_tag_value($tag);
+      my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_string = $annotation_in->{$gff_chr};
+      if (!defined($chromosomes->{$gff_chr})) {
+          print STDERR "Something is wrong with $gff_chr\n";
+          next LOOP;
+      }
+      my $id = "";
+      foreach my $i (@ids) {
+          $id .= "$i ";
+      }
+      $id =~ s/(\s+$)//g;
+      my $cds = $chromosomes->{$gff_chr}->subseq($start, $end);
+      if ($strand == -1) {
+          $cds = reverse($cds);
+          $cds =~ tr/ATGCatgc/TACGtacg/;
+      }
+      my $seq_obj = new Bio::Seq();
+      $seq_obj->seq($cds);
+      my $aa_cds = $seq_obj->translate->seq();
+      print $out_fasta_amino ">${gff_chr} ${id}
+${aa_cds}
+";
+      print $out_fasta_nt ">${gff_chr} ${id}
+${cds}
+";
+  } ## End LOOP
+    close(GFF);
+    $out_fasta_amino->close();
+    $out_fasta_nt->close();
+}
+
+=head2
     Gff2Gtf()
 =cut
 sub Gff2Gtf {
@@ -63,6 +126,24 @@ sub Gff2Gtf {
     }
     $out_gtf->close();
     return($features_written);
+}
+
+=head2
+    Read_Genome()
+=cut
+sub Read_Genome {
+    my $me = shift;
+    my %args = @_;
+    my $genome = $args{genome};
+    my $chromosomes = {};
+    print "TESTME: REading $genome\n";
+    my $input = new Bio::SeqIO(-file => $genome, -format => 'Fasta');
+    while (my $genome_seq = $input->next_seq()) {
+        next unless(defined($genome_seq->id));
+        my $id = $genome_seq->id;
+        $chromosomes->{$id} = $genome_seq;
+    }
+    return($chromosomes);
 }
 
 =head2
@@ -300,7 +381,6 @@ sub TriTryp2Text {
 
     my $master_table = $me->TriTryp_Master(input => $input, base => $species);
     my ($ortho_table, $go_table);
-    #print Dumper $master_table;
     if ($args{ortho}) {
         $ortho_table = $me->TriTryp_Ortho(input => $input, base => $species);
     }

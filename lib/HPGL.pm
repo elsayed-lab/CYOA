@@ -1,8 +1,11 @@
 package HPGL;
-use AppConfig qw":argcount :expand";
-use Archive::Extract;
 use autodie qw":all";
 use common::sense;
+use local::lib;
+use warnings qw"all";
+
+use AppConfig qw":argcount :expand";
+use Archive::Extract;
 use Bio::DB::Universal;
 use Bio::Root::RootI;
 use Bio::SeqIO;
@@ -17,7 +20,6 @@ use File::Which qw"which";
 use File::Path qw"make_path remove_tree";
 use FileHandle;
 use Getopt::Long;
-use HPGL::SeqMisc;
 use IO::String;
 use Log::Log4perl;
 use Log::Log4perl::Level;
@@ -25,16 +27,17 @@ use Net::Amazon::S3;
 use PerlIO;
 use Pod::Usage;
 use Term::ReadLine;
-use warnings qw"all";
 
+use HPGL::Alignment;
+use HPGL::Cleanup;
 use HPGL::Compress;
+use HPGL::Convert;
+use HPGL::PBS;
 use HPGL::RNASeq_QA;
 use HPGL::RNASeq_Trim;
 use HPGL::RNASeq_Aligners;
 use HPGL::RNASeq_Count;
-use HPGL::Convert;
-use HPGL::Cleanup;
-use HPGL::PBS;
+use HPGL::SeqMisc;
 
 our $AUTOLOAD;
 require Exporter;
@@ -161,6 +164,7 @@ sub new {
     $me->{config_file} = qq"$ENV{HOME}/.config/hpgl.conf" if (!defined($me->{config_file}));
     $me->{debug} = 1 if (!defined($me->{debug}));
     $me->{depends} = {} if (!defined($me->{depends}));
+    $me->{feature_type} = 'CDS' if (!defined($me->{feature_type}));
     $me->{help} = undef if (!defined($me->{help}));
     $me->{hpgl} = undef if (!defined($me->{hpgl}));
     $me->{hpglid} = undef if (!defined($me->{hpglid}));
@@ -282,7 +286,7 @@ sub new {
         }
     }
     if ($failed) {
-        die ("HPGL.pm requires external programs, of which $failed were missing.");
+        warn("HPGL.pm requires external programs, of which $failed were missing.");
     }
     return($me);
 }
