@@ -1,7 +1,22 @@
 package HPGL;
 
-=head2
-    HT_Multi()
+=head1 NAME
+    HPGL::RNASeq_Count - Perform Sequence alignments counting with HTSeq
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->HT_Multi();
+
+=head2 Methods
+
+=over 2
+
+=item C<HT_Multi>
+
+    some stuff here
+
 =cut
 sub HT_Multi {
     my $me = shift;
@@ -128,5 +143,17 @@ sub HTSeq {
         );
     return($htseq);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<htseq-count>
+
+=cut
 
 1;

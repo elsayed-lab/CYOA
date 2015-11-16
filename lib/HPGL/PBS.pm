@@ -1,7 +1,23 @@
 package HPGL;
 
-=head2
-    Qsub()
+=head1 NAME
+    HPGL::Qsub - Submit jobs to the torque cluster.
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Cutadapt();
+
+=head2 Methods
+
+=over 4
+
+=item C<Qsub>
+
+    $hpgl->Qsub(); invokes qsub with (hopefully) appropriate
+    parameters for various jobs on our Torque cluster.
+
 =cut
 sub Qsub {
     my $me = shift;
@@ -112,5 +128,17 @@ fi
     };
     return($job);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<Bio::Tools::Run::StandAloneBlast>
+
+=cut
 
 1;

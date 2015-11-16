@@ -1,7 +1,22 @@
 package HPGL;
 
-=head2
-    Cutadapt()
+=head1 NAME
+    HPGL::RNASeq_Trim - Use trimomatic/cutadapt/etc to trim libraries
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Cutadapt();
+
+=head2 Methods
+
+=item C<Cutadapt>
+
+    $hpgl->Cutadapt(); will use biopieces/cutadapt to attempt to
+    remove sequence adapters from a library.  This is most common used
+    by me for ribosome profiling libraries.
+
 =cut
 sub Cutadapt {
     my $me = shift;
@@ -55,8 +70,14 @@ xzcat -f ${input} | cutadapt - ${cutadapt_flags} -e 0.1 -n 3 -m ${minlen} -M ${m
 	);
 }
 
-=head2
-    Trimomatic()
+=item C<Trimomatic>
+
+    $hpgl->Trimomatic(); calls the java tool trimomatic to remove
+    adapters/low quality sequences.  If $args{input} has a ':' or ','
+    then this will assume the input is comprised of two pairwise files
+    and will call 'Trimomatic_Pairwise()', otherwise
+    'Trimomatic_Single()'.
+
 =cut
 sub Trimomatic {
     my $me = shift;
@@ -70,8 +91,11 @@ sub Trimomatic {
     return($trim);
 }
 
-=head2
-    Trimomatic_Pairwise()
+=item C<Trimomatic_Pairwise>
+
+    $hpgl->Trimomatic_Pairwise(); invokes trimomatic with parameters
+    suitable for pairwise sequence libraries.
+
 =cut
 sub Trimomatic_Pairwise {
     my $me = shift;
@@ -149,8 +173,11 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
     return($trim);
 }
 
-=head2
-    Trimomatic_Single()
+=item C<Trimomatic_Single>
+
+    $hpgl->Trimomatic_Single(); invokes trimomatic with parameters
+    suitable for single-read sequence libraries.
+
 =cut
 sub Trimomatic_Single {
     my $me = shift;
@@ -197,6 +224,12 @@ trimomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa
     return($trim);
 }
 
+=item C<Trimomatic_Stats>
+
+    Collect the trimming statistics from the output file
+    'trimomatic.out' and report them in a .csv file by library.
+
+=cut
 sub Trimomatic_Stats {
     my $me = shift;
     my %args = @_;
@@ -233,4 +266,17 @@ echo "\$stat_string" >> outputs/trimomatic_stats.csv
     return($stats);
 }
 
+=back
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<Bio::Tools::Run::StandAloneBlast>
+
+=cut
+
 1;
+

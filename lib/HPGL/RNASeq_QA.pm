@@ -1,9 +1,23 @@
 package HPGL;
 
-=head2
-    Biopieces_Graph()
+=head1 NAME
+    HPGL::RNASeq_Trim - Use trimomatic/cutadapt/etc to trim libraries
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Fastqc();
+
+=head2 Methods
+
+=over 4
+
+=item C<Biopieces_Graph>
+
     Reads in a fastq file and uses biopieces to make some graphs
     describing the sequences therein.
+
 =cut
 sub Biopieces_Graph {
     my $me = shift;
@@ -32,8 +46,10 @@ xzcat -f ${input} | read_fastq -i - -e base_33 |\\
 }
 
 
-=head2
+=item C<Fastqc_Pairwise>
+
     Fastqc_Pairwise()
+
 =cut
 sub Fastqc_Pairwise {
     my $me = shift;
@@ -68,8 +84,10 @@ sub Fastqc_Pairwise {
         );
 }
 
-=head2
-    Fastqc_Single()
+=item C<Fastqc_Single>
+
+    $hpgl->Fastqc_Single()
+
 =cut
 sub Fastqc_Single {
     my $me = shift;
@@ -98,6 +116,11 @@ sub Fastqc_Single {
     return($fqc);
 }
 
+=item C<Fastqc_Stats>
+
+    $hpgl->Fastqc_Stats()
+
+=cut
 sub Fastqc_Stats {
     my $me = shift;
     my %args = @_;
@@ -147,5 +170,17 @@ echo "\$stat_string" >> outputs/fastqc_stats.csv
         );
     return($stats);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<Bio::Tools::Run::StandAloneBlast>
+
+=cut
 
 1;

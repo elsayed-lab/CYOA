@@ -2,8 +2,31 @@ package HPGL;
 use common::sense;
 use autodie;
 
-=head2
-    Gff2Fasta()
+=head1 NAME
+
+    HPGL::Convert - Perform conversions between various formats:
+    sam->bam, gff->fasta, genbank->fasta, etc.
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Gff2Fasta(genome => 'mmusculus.fasta', gff => 'mmusculus.gff');
+
+=head2 Methods
+
+=over 4
+
+=item C<Gff2Fasta>
+
+    $hpgl->Gff2Fasta(genome => 'something.fasta', gff => 'something.gff')
+    will read the genome's fasta and annotation files and return a set
+    of fasta files which include the coding sequence regions which are
+    members of args{feature_type} in the gff file.
+
+    It writes one file of amino acid sequence and one of nucleotides.
+    Upon completion, it returns the number of entries written.
+
 =cut
 sub Gff2Fasta {
     my $me = shift;
@@ -24,6 +47,7 @@ sub Gff2Fasta {
     my $feature_type = 'CDS';
     $feature_type = $me->{feature_type} if ($me->{feature_type});
     my $annotation_in = new Bio::Tools::GFF(-fh => \*GFF, -gff_version => 3);
+    my $features_written = 0;
   LOOP: while(my $feature = $annotation_in->next_feature()) {
       ##print "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
       next LOOP unless ($feature->{_primary_tag} eq $feature_type);
@@ -59,14 +83,20 @@ ${aa_cds}
       print $out_fasta_nt ">${gff_chr} ${id}
 ${cds}
 ";
+      $features_written++;
   } ## End LOOP
     close(GFF);
     $out_fasta_amino->close();
     $out_fasta_nt->close();
+    return($features_written);
 }
 
-=head2
-    Gff2Gtf()
+=item C<Gff2Gtf>
+
+    $hpgl->Gff2Gtf(gff => 'mmusculus.gff')
+    reads a given gff file and writes a gtf file from the features
+    found therein.  It returns the number of features written.
+
 =cut
 sub Gff2Gtf {
     my $me = shift;
@@ -82,7 +112,6 @@ sub Gff2Gtf {
                                     '-format' => 'GFF',
                                     '-version' => 3);
     my $out_gtf = new FileHandle();
-    print "TSTME: $out_file\n";
     $out_gtf->open(">$out_file");
 
     my $features_written = 0;
@@ -627,5 +656,16 @@ sub TriTryp_GO {
     return($go);
 }
 
+=back
+
+=head1 AUTHOR - atb
+
+Email abelew@gmail.com
+
+=head1 SEE ALSO
+
+    L<samtools> L<Bio::FeatureIO>
+
+=cut
 
 1;

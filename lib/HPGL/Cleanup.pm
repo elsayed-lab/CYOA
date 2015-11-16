@@ -1,7 +1,23 @@
 package HPGL;
+use common::sense;
+use autodie qw":all";
 
-=head2
-    Cleanup_Seq()
+=head1 NAME
+    HPGL::Cleanup - Delete the various directories/files created by
+    the RNASeq tools invoked by HPGL.pm
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Cleanup();
+
+=over4
+
+=item C<Cleanup>
+
+    delete the various directories/files from the RNASeq tools invoked by HPGL.pm
+
 =cut
 sub Cleanup {
     my $me = shift;
@@ -30,5 +46,17 @@ sub Cleanup {
         );
     return($clean);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<HPGL>
+
+=cut
 
 1;

@@ -1,13 +1,48 @@
-package SeqMisc;
-use strict;
-use File::Temp qw / tmpnam /;
+package HPGL::SeqMisc;
+use common::sense;
 use autodie qw":all";
+use File::Temp qw / tmpnam /;
 use parent 'Exporter';
 our @EXPORT = qw"$references";
 our @EXPORT_OK = qw"$references";
 ## Every function here should take as input an array reference
 ## containing the sequence to be shuffled.
 
+=head1 NAME
+    HPGL::SeqMisc - Given a primary sequence, collect some information including:
+    amino acids in all reading frames, nucleotide/aa/dinucleotide/codon
+    frequencies.  Weights (in Daltons), pI of amino acids, volume of
+    amino acids, polarity of amino acids, hydrophobicity, solubility,
+    pYrimidine/puRine ratio, # hydrogen bonds by codon, charge by
+    amino acid, pkCOOH, pkNHHH, pkR, occurrence value, accessibility
+    value, %amino acid buried, isoelectric point, amino acid sequences
+    in all reading frames, dinucleotide sequences of the 12, 23, 31,
+    and 13 transitions.  Reverse sequence, complementary sequence,
+    revcomp.  GC/CT content.
+
+    Conversely, perform randomizations using a few algorithms
+    including via the external squid library.
+
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    use HPGL::SeqMisc;
+    my $misc = new HPGL::SeqMisc(sequence => 'aaaa');
+    print $misc->{gc_content};
+
+=head2 Data Structures
+
+=over 4
+
+=item C<$references>
+
+    The namespace global variable '$references' contains some generic
+    information.  Note to self: I've been meaning for years to include
+    either the codon tables from the codon database or a way to read
+    in a text file.  Do that, damnit!
+
+=cut
 our $references = {
     aminos => {
         A => [['GCA', 'GCC', 'GCG', 'GCU'], ['Ala', 'Alanine']],
@@ -70,7 +105,7 @@ our $references = {
         ANA => '?', ANU => '?', ANC => '?', ANG => '?',
         UNA => '?', UNU => '?', UNC => '?', UNG => '?',
         CNA => '?', CNU => '?', CNC => '?', CNG => '?',
-        GNA => '?', GNU => '?', GNC => '?', GNG => '?',	    
+        GNA => '?', GNU => '?', GNC => '?', GNG => '?',
     },
     ## Weights of amino acids taken from sigma's catalog
     weights => {
@@ -277,7 +312,7 @@ our $references = {
         GGA => 6, GGG => 6, ## G
         AGA => 5, AGG => 5, ## R
         GAA => 5, GAG => 5, ## E
-        AAA => 4, AAG => 4, ## K            
+        AAA => 4, AAG => 4, ## K
     },
     charge => {
         D => -1.0, E => -1.0,
@@ -485,8 +520,8 @@ sub new {
     $me->{revcomp} =~ tr/ACGTUacgtu/UGCAAugcaa/;
     $me->{complement} =~ tr/ACGTUacgtu/UGCAAugcaa/;
     my @ntseq = @{$me->{sequence}};
-    $me->{gc_content} = $me->Get_GC(\@ntseq);    
-    $me->{pyrimidine_content} = $me->Get_CT(\@ntseq);    
+    $me->{gc_content} = $me->Get_GC(\@ntseq);
+    $me->{pyrimidine_content} = $me->Get_CT(\@ntseq);
     my (@aaseq, @aaminusone, @aaminustwo, @codonseq, @dint12seq, @dint23seq, @dint31seq, @dint13seq);
     if ($me->{readop} eq 'orf') {
 	my @init = ('A', 'T', 'G');
@@ -529,7 +564,7 @@ sub new {
 	push(@codonseq, $codon_string);
 	push(@dint12seq, join('', $one, $two));
 	push(@dint23seq, join('', $two, $three));
-	
+
 	#	push(@dint13seq, join('', $one, $ntseq[0]));
 	($count == $me->{length}) ? push(@dint31seq, join('', $three, '*')) :
 	    push(@dint31seq, join('', $three, $ntseq[0]));
@@ -537,7 +572,7 @@ sub new {
 	$me->{ntfreq}{$one}++;
 	$me->{ntfreq}{$two}++;
 	$me->{ntfreq}{$three}++;
-	
+
 	$finished++ if ($me->{readop} eq 'orf' and ($references->{codons}{$codon_string} eq '*'));
     }    ## End while the length of sequence > 2
     $me->{aaseq} = \@aaseq;
@@ -548,7 +583,7 @@ sub new {
     $me->{dint23seq} = \@dint23seq;
     $me->{dint31seq} = \@dint31seq;
     $me->{dint13seq} = \@dint13seq;
-    
+
     while (scalar(@ntseq) > 0) {
 	my $nt = shift @ntseq;
 	$me->{ntfreq}{$nt}++;
@@ -567,12 +602,12 @@ sub Random {
     while (scalar(@seq) > 0) {
 	shift @seq;
 	$return[$count] = $me->{nt}->{int(rand(4))};
-	
+
 	## Avoid premature termination codons using the codon table of interest.
 	if ($codon_count == 2) {
 	    my $test = $return[$count - 2] . $return[$count - 1] . $return[$count];
 	    my $fun = $me->{codons}->{$test};
-	    
+
 	    while ($me->{codons}->{$test} eq '*') {
 		$return[$count - 2] = $me->{nt}->{int(rand(4))};
 		$return[$count - 1] = $me->{nt}->{int(rand(4))};
@@ -658,10 +693,10 @@ sub Same31Random {
     my $me = shift;
     my @dint31seq = @{$me->{dint31seq}};
     my @return;
-    
+
     my ($third, $first) = undef;
     while (scalar(@dint31seq) > 0) {
-	
+
 	#  The first nucleotide in the codon, checking if we are starting or ending.
 	if (defined($first)) {    ## Not at the beginning of the sequence?
 	    if ($first eq '*') {    ## Maybe at the end?
@@ -673,16 +708,16 @@ sub Same31Random {
 	else {    ## at the beginning add a random nucleotide at position 1.
 	    push(@return, $me->{nt}->{ int( rand(4))});
 	}
-	
+
 	#	!defined($first)    ?   ## 1st nucleotide in the sequence?
 	#	  push(@return, $me->{nt}->{int(rand(4))})    :   ## yes
 	#		($first eq '*')    ?  ## End of sequence?
 	#		  return(\@return)    :  ## yes
 	#			push(@return, $first);  ## no
-	
+
 	#  The second nucleotide in the codon
 	push(@return, $me->{nt}->{int(rand(4))});
-	
+
 	#  The third nucleotide in the codon
 	####  Why do I do the shift here?  Think about the recreation of the nucleotide sequence
 	####  for a moment in terms of the first codon and you will see :)
@@ -711,11 +746,11 @@ sub SameDint {
 #    my @onetwo = @{$me->{dintseq}{12}};
 #    my @twothree = @{$me->{dintseq}{23}};
 #    my @threeone = @{$me->{dintseq}{31}};
-#    
+#
 #    my @return;
 #    my $count = 0;
 #    my $rotate = 0;
-#    
+#
 #    while (scalar(@dint) > 0) {
 #	if ($rotate == 1) {
 #	    my @tmp;
@@ -767,7 +802,7 @@ sub Same31Composite {
     my @dint31seq = @{$me->{dint31seq}};
     my @aminos = @{$me->{aaseq}};
     my @codons;
-    
+
     my $first = undef;
     my ($third) = split(//, $dint31seq[0]);
     while (scalar(@dint31seq) > 0) {
@@ -782,7 +817,7 @@ sub Same31Composite {
 	    return (\@codons)
 	    :    ## yes
 	    push(@codons, $me->Find_Alternates($aa, "$first.$third"));
-	
+
 	#			push(@codons, $first);  ## no
 	#  The second nucleotide in the codon
 	#	push(@codons, $me->Find_Alternates($aa, "$first.$third"));
@@ -874,7 +909,7 @@ sub Dinucletode {
     my $start_sequence = shift;
     my @st = @{$start_sequence};
     my @new_sequence = ();
-    
+
     #  my @startA = my @startT = my @startG = my @startC = ();
     #  ## Create 4 arrays containing
     ## Create an array containing all the dinucleotides
@@ -1038,5 +1073,17 @@ sub Add_One {
 	return(\@array);
     }
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<Bio::Tools::Run::StandAloneBlast>
+
+=cut
 
 1;

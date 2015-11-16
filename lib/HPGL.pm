@@ -102,13 +102,12 @@ my $OUT = $term->OUT || \*STDOUT;
     submit them to appropriate queues on the cluster.  It should also
     collect the outputs and clean up the mess.
 
-=head1 AUTHOR - atb
+=head2 Methods
 
-Email abelew@gmail.com
+=over 4
 
-=cut
+=item C<new>
 
-=head2
     new() instantiates a new HPGL object.
     It has a plethora of options which are either pulled from
     GetOpt::Long or via a default hash reference -- I probably should
@@ -121,6 +120,7 @@ Email abelew@gmail.com
 
     There are a few things which are commonly passed, but not necessarily in new()
     The following code snippets describe a couple:
+
 =cut
 sub new {
     my ($class, %args) = @_;
@@ -291,8 +291,12 @@ sub new {
     return($me);
 }
 
-=head2
-    Help()
+=item C<Help>
+
+    Help() returns 0.
+    Before it returns, it will hopefully print some useful information
+    regarding ways to invoke HPGL.pm.
+
 =cut
 sub Help {
     my $me = shift;
@@ -306,9 +310,13 @@ sub Help {
     return(0);
 }
 
+=item C<Check_Options>
 
-=head2
-    Check_Options()
+    Check_Options() currently does not return anything, but instead
+    will check to see if specific required options were given to
+    HPGL.pm, if they are not defined, it will open an interactive
+    terminal and query the user for the requisite information.
+
 =cut
 sub Check_Options {
     my $me = shift;
@@ -323,23 +331,28 @@ sub Check_Options {
     }
 }
 
-=head2
-    Get_Input()
+=item C<Get_Input>
+
+    Get_Input() attempts to standardize the inputs passed to HPGL.
+    It returns a stringified and standard representation of the likely
+    input(s) to the script.
+
+    There are a few problems with how I send input to these scripts:
+    Sometimes I put in --hpgl hpgl0415 when I mean --hpgl HPGL0415,
+    Sometimes I put in --input hpgl0415.fastq  when I mean hpgl0415.fastq.(gz|xz),
+    Sometimes I put in -i hpgl0415.fastq.(gz|xz) when I mean hpgl0415.fastq,
+    Sometimes I put in -i hpgl0415.fastq when I mean hpgl0415-trimmed.fastq(.gz|.xz)
+    Sometimes I put in -i hpgl0415_forward.fastq:hpgl0415_reverse.fastq
+
+    So, this function should make this unambiguous and consistent no matter what I type
+
 =cut
 sub Get_Input {
     my $me = shift;
     my $input = $me->{input};
     my $id = $me->{hpgl};
     my $actual = "";
-    ## There are a few problems with how I send input to these scripts
-    ## Sometimes I put in --hpgl hpgl0415 when I mean --hpgl HPGL0415
-    ## Sometimes I put in --input hpgl0415.fastq  when I mean hpgl0415.fastq.(gz|xz)
-    ## Sometimes I put in -i hpgl0415.fastq.(gz|xz) when I mean hpgl0415.fastq
-    ## Sometimes I put in -i hpgl0415.fastq when I mean hpgl0415-trimmed.fastq(.gz|.xz)
-    ## Sometimes I put in -i hpgl0415_forward.fastq:hpgl0415_reverse.fastq
 
-    ## So, this function should make this unambiguous and consistent no matter what I type
-    ## First: lower-case whatever I typed because uppercase characters are obnoxious
     my @input_list = undef;
     if ($input =~ /:/) {
         @input_list = split(/:/, $input);
@@ -375,6 +388,17 @@ sub Get_Input {
     return($input);
 }
 
+=item C<Last_Stat>
+
+    Last_Stat() reads the final line of an input file and returns it
+    as a string.
+
+    This is useful because many of these tools append to .csv files
+    with summary information (alignment statistics, sequence sizes,
+    etc) and the tests keep a set of expected outputs for the most
+    recent run.
+
+=cut
 sub Last_Stat {
     my $me = shift;
     my %args = @_;
@@ -390,6 +414,18 @@ sub Last_Stat {
     $input->close();
     return($last);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email abelew@gmail.com
+
+=head1 SEE ALSO
+
+    L<Bio::Seq> L<common::sense> L<autodie> L<local::lib>
+
+=cut
 
 1;
 
