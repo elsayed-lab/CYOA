@@ -157,15 +157,17 @@ sub Gff2Gtf {
     return($features_written);
 }
 
-=head2
-    Read_Genome()
+=item C<Read_Genome>
+
+    $hpgl->Read_Genome(genome => 'mmusculus.fasta');
+    read the given genome file and return a hash of the chromosomes.
+
 =cut
 sub Read_Genome {
     my $me = shift;
     my %args = @_;
     my $genome = $args{genome};
     my $chromosomes = {};
-    print "TESTME: REading $genome\n";
     my $input = new Bio::SeqIO(-file => $genome, -format => 'Fasta');
     while (my $genome_seq = $input->next_seq()) {
         next unless(defined($genome_seq->id));
@@ -175,17 +177,24 @@ sub Read_Genome {
     return($chromosomes);
 }
 
-=head2
-    Sam2Bam()
+=item C<Sam2Bam>
+
+    $hpgl->Sam2Bam();
+    Used to invoke samtools to take the sam output from bowtie/bwa and
+    convert it to an compressed-sorted-indexed bam alignment.
+
+    This function just calls $me->Samtools(), but has a little logic
+    to see if the invocation of this is for an extent .sam file or
+    calling it on an existing .fastq(.gz), in which case one must
+    assume it is being called on one or more files in the bowtie_out/
+    directory and which start with $basename, include something like
+    -trimmed-v0M1.sam.
+
 =cut
 sub Sam2Bam {
     my $me = shift;
     $me->Check_Options(["species"]);
     my %args = @_;
-    ## A little logic to see if the invocation of this is for an extent .sam file
-    ## Or calling it on an existing .fastq(.gz), in which case one must assume
-    ## It is being called on one or more files in the bowtie_out/ directory
-    ## And which start with $basename, include something like -trimmed-v0M1.sam
     my $basename = $me->{basename};
     my @input_list = ();
     if ($args{input}) {
@@ -211,8 +220,17 @@ sub Sam2Bam {
 }
 
 
-=head2
-    Samtools()
+=item C<Samtools>
+
+    $hpgl->Samtools() calls (in order): samtools view, samtools sort,
+    and samtools index.  Upon completion, it invokes bamtools stats to
+    see what the alignments looked like.
+
+    It explicitly does not pipe one samtools invocation into the next,
+    not for any real reason but because when I first wrote it, it
+    seemed like the sorting was taking too long if I did not already
+    have the alignments in a bam file.
+
 =cut
 sub Samtools {
     my $me = shift;
@@ -248,6 +266,13 @@ bamtools stats -in $output 2>${output}.stats 1>&2
     return($samtools);
 }
 
+=item C<Gb2Gff>
+
+    $hpgl->Gb2Gff() takes a genbank genome file and splits it into:
+    A genomic fasta file, CDS fasta, peptide fasta, gff file of all
+    entries, CDS, and interCDS regions.
+
+=cut
 sub Gb2Gff {
     my $me = shift;
     my %args = @_;
@@ -383,6 +408,12 @@ sub Gb2Gff {
     return($ret_stats);
 }
 
+=item C<TriTryp2Text>
+
+    $hpgl->TriTryp2Text() generates some simple text tables from the
+    much more elaborate text files provided by the TriTrypDB.
+
+=cut
 sub TriTryp2Text {
     my $me = shift;
     my %args = @_;
@@ -425,6 +456,15 @@ sub TriTryp2Text {
     return($ret);
 }
 
+=item C<TriTryp_DL_Text>
+
+    $hpgl->TriTryp_DL_Text() downloads the newest TriTrypDb text,
+    genomic fasta, gff, and annotated CDS files for $args{species}.
+    The species must be in their format, so unlike other invocations
+    of 'species' where 'lmajor' would be fine, this would require:
+    'LmajorFriedlin' or 'TcruziCLBrener'
+
+=cut
 sub TriTryp_DL_Text {
     my $me = shift;
     my %args = @_;
@@ -433,7 +473,10 @@ sub TriTryp_DL_Text {
     my $ua = new LWP::UserAgent;
     $ua->agent("HPGL/downloader ");
 
-    my $final_request;
+    my $final_text_request;
+    my $final_fasta_request;
+    my $final_cds_request;
+    my $final_gff_request;
     # Create a request
     my $species = 'LmajorFriedlin';
     my $req = HTTP::Request->new(GET => qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/");
@@ -454,34 +497,91 @@ sub TriTryp_DL_Text {
           next LISTING unless ($line =~ m/\<a href="TriTrypDB.+Gene\.txt">/);
           $line =~ s/^.*\<a href=.*"\>(TriTryp.+Gene\.txt).*$/\1/g;
           if ($line =~ /^TriTrypDB/) {
-              $final_request = $line;
+              $final_text_request = $line;
+              $final_gff_request = $final_text_request;
+              $final_gff_request =~ s/Gene\.txt/\.gff/g;
+              $final_fasta_request = $final_gff_request;
+              $final_fasta_request =~ s/\.gff/_Genome\.fasta/g;
+              $final_cds_request = $final_fasta_request;
+              $final_cds_request =~ s/_Genome\.fasta/_AnnotatedCdSs\.fasta/g;
           }
       }
     }
     if ($text_listing) {
-        my $output = new FileHandle;
-        my $url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/${final_request}";
-        print "Going to write to $final_request with the output from: $url\n";
-        unless (-r $final_request) { ## Don't redownload if we already did.
-            $output->open(">$final_request");
-            ##open(OUT, ">$text_listing");
-            my $req = HTTP::Request->new(GET => qq"$url");
+        my $text_output = new FileHandle;
+        my $gff_output = new FileHandle;
+        my $fasta_output = new FileHandle;
+        my $cds_output = new FileHandle;
+        my $text_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/${final_text_request}";
+        print "Going to write to $final_text_request with the output from: $text_url\n";
+        unless (-r $final_text_request) { ## Don't redownload if we already did.
+            $text_output->open(">$final_text_request");
+            my $req = HTTP::Request->new(GET => qq"$text_url");
             $req->content_type('text/html');
             my $res = $ua->request($req);
             if ($res->is_success) {
-                ##print OUT $res->content;
-                print $output $res->content;
+                print $text_output $res->content;
             } else {
                 print $res->status_line, "\n";
             }
-            $output->close();
-            ##close(OUT);
+            $text_output->close();
         } ## End unless
+
+        my $gff_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/gff/data/${final_gff_request}";
+        print "Going to write to $final_gff_request with the output from: $gff_url\n";
+        unless (-r $final_gff_request) { ## Don't redownload if we already did.
+            $gff_output->open(">$final_gff_request");
+            my $req = HTTP::Request->new(GET => qq"$gff_url");
+            $req->content_type('text/html');
+            my $res = $ua->request($req);
+            if ($res->is_success) {
+                print $gff_output $res->content;
+            } else {
+                print $res->status_line, "\n";
+            }
+            $gff_output->close();
+        } ## End unless
+
+        my $fasta_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/fasta/data/${final_fasta_request}";
+        print "Going to write to $final_fasta_request with the output from: $fasta_url\n";
+        unless (-r $final_fasta_request) { ## Don't redownload if we already did.
+            $fasta_output->open(">$final_fasta_request");
+            my $req = HTTP::Request->new(GET => qq"$fasta_url");
+            $req->content_type('text/html');
+            my $res = $ua->request($req);
+            if ($res->is_success) {
+                print $fasta_output $res->content;
+            } else {
+                print $res->status_line, "\n";
+            }
+            $fasta_output->close();
+        } ## End unless
+
+        my $cds_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/fasta/data/${final_cds_request}";
+        print "Going to write to $final_cds_request with the output from: $cds_url\n";
+        unless (-r $final_cds_request) { ## Don't redownload if we already did.
+            $cds_output->open(">$final_cds_request");
+            my $req = HTTP::Request->new(GET => qq"$cds_url");
+            $req->content_type('text/html');
+            my $res = $ua->request($req);
+            if ($res->is_success) {
+                print $cds_output $res->content;
+            } else {
+                print $res->status_line, "\n";
+            }
+            $cds_output->close();
+        } ## End unless
+
     } ## End checking to see that we got a downloadable filename
     return($final_request);
 }
 
+=item C<TriTryp_Ortho>
 
+    $hpgl->TriTryp_Ortho() generates a text table of
+    orthologs/paralogs from the large TriTrypDB text files.
+
+=cut
 sub TriTryp_Ortho {
     my $me = shift;
     my %args = @_;
@@ -532,6 +632,12 @@ sub TriTryp_Ortho {
     return($orth);
 }
 
+=item C<TriTryp_Master>
+
+    $hpgl->TriTryp_Master() generates a text table of
+    the ~50 columns of data from the large TriTrypDB text files.
+
+=cut
 sub TriTryp_Master {
     my $me = shift;
     my %args = @_;
@@ -599,7 +705,12 @@ sub TriTryp_Master {
     return($master_table);
 }
 
+=item C<TriTryp_GO>
 
+    $hpgl->TriTryp_GO() generates a text table of gene ontology data
+    from the large TriTrypDB text files.
+
+=cut
 sub TriTryp_GO {
     my $me = shift;
     my %args = @_;
