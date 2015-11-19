@@ -465,7 +465,7 @@ sub TriTryp2Text {
     'LmajorFriedlin' or 'TcruziCLBrener'
 
 =cut
-sub TriTryp_DL_Text {
+sub TriTryp_Download {
     my $me = shift;
     my %args = @_;
     my $species = $args{species};
@@ -503,7 +503,8 @@ sub TriTryp_DL_Text {
               $final_fasta_request = $final_gff_request;
               $final_fasta_request =~ s/\.gff/_Genome\.fasta/g;
               $final_cds_request = $final_fasta_request;
-              $final_cds_request =~ s/_Genome\.fasta/_AnnotatedCdSs\.fasta/g;
+              $final_cds_request =~ s/_Genome\.fasta/_AnnotatedCDSs\.fasta/g;
+                        ##TriTrypDB-26_LmajorFriedlin_AnnotatedCDSs.fasta
           }
       }
     }
@@ -513,7 +514,7 @@ sub TriTryp_DL_Text {
         my $fasta_output = new FileHandle;
         my $cds_output = new FileHandle;
         my $text_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/${final_text_request}";
-        print "Going to write to $final_text_request with the output from: $text_url\n";
+        print "Going to write to $final_text_request with $text_url\n";
         unless (-r $final_text_request) { ## Don't redownload if we already did.
             $text_output->open(">$final_text_request");
             my $req = HTTP::Request->new(GET => qq"$text_url");
@@ -528,7 +529,7 @@ sub TriTryp_DL_Text {
         } ## End unless
 
         my $gff_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/gff/data/${final_gff_request}";
-        print "Going to write to $final_gff_request with the output from: $gff_url\n";
+        print "Going to write to $final_gff_request with $gff_url\n";
         unless (-r $final_gff_request) { ## Don't redownload if we already did.
             $gff_output->open(">$final_gff_request");
             my $req = HTTP::Request->new(GET => qq"$gff_url");
@@ -543,7 +544,7 @@ sub TriTryp_DL_Text {
         } ## End unless
 
         my $fasta_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/fasta/data/${final_fasta_request}";
-        print "Going to write to $final_fasta_request with the output from: $fasta_url\n";
+        print "Going to write to $final_fasta_request with $fasta_url\n";
         unless (-r $final_fasta_request) { ## Don't redownload if we already did.
             $fasta_output->open(">$final_fasta_request");
             my $req = HTTP::Request->new(GET => qq"$fasta_url");
@@ -557,8 +558,9 @@ sub TriTryp_DL_Text {
             $fasta_output->close();
         } ## End unless
 
-        my $cds_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/fasta/data/${final_cds_request}";
-        print "Going to write to $final_cds_request with the output from: $cds_url\n";
+        my $cds_url = qq"http://tritrypdb.org/common/downloads/Current_Release/LmajorFriedlin/fasta/data/${final_cds_request}";
+
+        print "Going to write to $final_cds_request with $cds_url\n";
         unless (-r $final_cds_request) { ## Don't redownload if we already did.
             $cds_output->open(">$final_cds_request");
             my $req = HTTP::Request->new(GET => qq"$cds_url");
@@ -573,7 +575,7 @@ sub TriTryp_DL_Text {
         } ## End unless
 
     } ## End checking to see that we got a downloadable filename
-    return($final_request);
+    return($final_fasta_request);
 }
 
 =item C<TriTryp_Ortho>

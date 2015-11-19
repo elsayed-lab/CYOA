@@ -2,8 +2,35 @@ package HPGL;
 use common::sense;
 use autodie;
 
-=head2
-    Bowtie()
+=head1 NAME
+
+    HPGL::RNASeq_Aligners - Perform highthroughput sequence alignments with tools like bowtie/tophat/etc
+
+=head1 SYNOPSIS
+
+    use HPGL;
+    my $hpgl = new HPGL;
+    $hpgl->Bowtie();
+
+=head2 Methods
+
+=over 4
+
+=item C<Bowtie>
+
+    $hpgl->Bowtie() performs a bowtie alignment.  Unless instructed
+    otherwise, it will do so with 0 mismatches and with multi-matches
+    randomly placed 1 time among the possibilities. (options -v 0 -M 1)
+
+
+    It checks to see if a bowtie1 compatible index is in
+    $libdir/$libtype/indexes/$species, if not it attempts to create
+    them.
+
+    It will continue on to convert the bowtie sam output to a
+    compressed, sorted, indexed bam file, and pass that to htseq-count
+    using a gff file of the same species.
+
 =cut
 sub Bowtie {
     my $me = shift;
@@ -119,8 +146,14 @@ sub Bowtie {
     return(\%bt_jobs);
 }
 
-=head2
-    BT_Multi()
+=item C<BT_Multi>
+
+    $hpgl->BT_Multi() attempts to run multiple bowtie1 runs for a
+    given species.  One run is performed for each of a few parameters
+    which are kept in the variable '$hpgl->{bt_types}' and generally
+    include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
+    hit, 0 randomly placed hits, or default options.
+
 =cut
 sub BT_Multi {
     my $me = shift;
@@ -141,11 +174,12 @@ sub BT_Multi {
     }
 }
 
-=head2
-    Bowtie_RRNA()
-    Perform an alignment against a home-curated set of ribosomal
-    RNA/tRNA sequences.  The alignment requires a fastq input library
-    and fasta library found in 'libraries/rRNA/$me->{species}.fasta'
+=item C<Bowtie_RRNA>
+
+    $hpgl->Bowtie_RRNA() performs an alignment against a home-curated
+    set of ribosomal RNA/tRNA sequences.  The alignment requires a
+    fastq input library and fasta library found in
+    'libraries/rRNA/$me->{species}.fasta'
 
   Example:
     my $rrna = $hpgl->Bowtie_RRNA();
@@ -179,8 +213,11 @@ sub Bowtie_RRNA {
     return($job);
 }
 
-=head2
-    BT1_Index()
+=item C<BT1_Index>
+
+    $hpgl->BT1_Index() creates a bowtie1 index using
+    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+
 =cut
 sub BT1_Index {
     my $me = shift;
@@ -203,8 +240,11 @@ sub BT1_Index {
     return($bt1_index);
 }
 
-=head2
-    BT2_Index()
+=item C<BT2_Index>
+
+    $hpgl->BT2_Index() creates a bowtie2 index using
+    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+
 =cut
 sub BT2_Index {
     my $me = shift;
@@ -231,8 +271,12 @@ bowtie2-build $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/${libtype}
     return($jobid);
 }
 
-=head2
-    BWA()
+=item C<BWA>
+
+    $hpgl->BWA() performs a bwa alignment using both the sam(s|p)e and
+    aln algorithms.  It then converts the output (when appropriate) to
+    sorted/indexed bam and passes them to htseq.
+
 =cut
 sub BWA {
     my $me = shift;
@@ -317,6 +361,11 @@ ${reporter_string}
     return(\%bwa_jobs);
 }
 
+=item C<BWA_Stats>
+
+    $hpgl->BWA_Stats() collects some alignment statistics from bwa.
+
+=cut
 sub BWA_Stats {
     my $me = shift;
     my %args = @_;
@@ -365,8 +414,10 @@ echo "\$stat_string" >> outputs/bwa_stats.csv
     return($stats);
 }
 
-=head2
-    BWA_Index()
+=item C<BWA_Index>
+
+    $hpgl->BWA_Index() creates bwa indexes.
+
 =cut
 sub BWA_Index {
     my $me = shift;
@@ -391,8 +442,10 @@ cd \$start
     return($bwa_index);
 }
 
-=head2
-    BT2_Stats()
+=item C<BT2_Stats>
+
+    $hpgl->BT2_Stats() collects alignment statistics from bowtie 2.
+
 =cut
 sub BT2_Stats {
     my $me = shift;
@@ -441,9 +494,102 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
     return($stats);
 }
 
+=item C<Kallisto_Index
 
-=head2
-    Tophat()
+    $hpgl->Kallisto_Index() uses kallisto and an annotated_CDS fasta sequence library to do the expected.
+
+=cut
+sub Kallisto_Index {
+    my $me = shift;
+    my %args = @_;
+    my $basename = $me->{basename};
+    my $dep = "";
+    $dep = $args{depends};
+    my $libtype = $me->{libtype};
+    my $libdir = File::Spec->rel2abs($me->{libdir});
+    my $input_file = qq"${libdir}/genome/$me->{species}_cds.fasta";
+    unless (-r qq"${input_file}") {
+        die("The indexing operation for kallisto will fail because ${input_file} does not exist.")
+    }
+
+    my $job_string = qq!
+kallisto index -i $me->{libdir}/${libtype}/indexes/$me->{species}.idx $me->{libdir}/genome/$me->{species}_cds.fasta
+!;
+    my $comment = qq!## Generating kallisto indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
+    my $jobid = $me->Qsub(job_name => "kalidx",
+                          depends => $dep,
+                          job_string => $job_string,
+                          comment => $comment,
+			  prescript => $args{prescript},
+			  postscript => $args{postscript},
+        );
+    return($jobid);
+}
+
+=item C<Kallisto>
+
+    $hpgl->Kallisto() should perform a kallisto alignment, I have not
+    yet properly tested this  TODO!
+
+=cut
+sub Kallisto {
+    my $me = shift;
+    my %args = @_;
+    my %ka_jobs = ();
+    my $species = $me->{species};
+    my $ka_input = $me->{input};
+    my $ka_depends_on;
+    $ka_depends_on = $args{depends} if ($args{depends});
+    $me->Check_Options(["species"]);
+    my $basename = $me->{basename};
+
+    my $jobname = qq"kall";
+    $jobname = $args{jobname} if ($args{jobname});
+
+    if ($ka_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+        my $uncomp = $me->Uncompress(input => $ka_input, depends => $ka_depends_on);
+        $ka_input =  basename($ka_input, ('.gz','.bz2','.xz'));
+        $me->{input} = $ka_input;
+        $ka_depends_on = $uncomp->{pbs_id};
+    }
+
+    ## Check that the indexes exist
+    my $ka_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}.idx";
+    if (!-r $ka_reflib) {
+        my $index_job = $me->Kallisto_Index(depends => $ka_depends_on, libtype => $libtype);
+        $ka_jobs{index} = $index_job;
+        $ka_depends_on = $index_job->{pbs_id};
+    }
+
+    my $error_file = qq"outputs/kallisto/${basename}-kallisto.err";
+    my $output_file = qq"outputs/kallisto/${basename}-kallisto.out";
+    my $comment = qq!## This is a kallisto pseudoalignment of $ka_input against
+## $ka_reflib.
+## This jobs depended on: $ka_depends_on
+!;
+    my $job_string = qq!mkdir -p outputs/kallisto && sleep 10 && \\
+kallisto quant --plaintext -t 4 -b 100 -o outputs/kallisto -i $ka_reflib \\
+  $ka_input 2>${error_file} 1>${output_file}
+!;
+    my $ka_job = $me->Qsub(job_name => qq"kaquant",
+                           depends => $ka_depends_on,
+                           job_string => $job_string,
+                           input => $ka_input,
+                           comment => $comment,
+			   prescript => $args{prescript},
+			   postscript => $args{postscript},
+        );
+    $ka_jobs{kallisto} = $ka_job;
+
+    return(\%ka_jobs);
+}
+
+=item C<Tophat>
+
+    $hpgl->Tophat() runs... guess... tophat!  It also sorts/indexes
+    the accepted_hits file, collects some statistics, and passes the
+    hits to htseq-count.
+
 =cut
 sub Tophat {
     my $me = shift;
@@ -543,8 +689,11 @@ sub Tophat {
     return({tophat => $tophat, htseq => $htmulti,});
 }
 
-=head2
-    BT1_Stats()
+=item C<BT1_Stats>
+
+    $hpgl->BT1_Stats() collects some alignment statistics from
+    bowtie1.
+
 =cut
 sub BT1_Stats {
     my $me = shift;
@@ -593,8 +742,11 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
     return($stats);
 }
 
-=head2
-    Tophat_Stats()
+=item C<Tophat_Stats>
+
+    $hpgl->Tophat_Stats() collects alignment statistics from the
+    accepted_hits.bam/unaligned.bam files generated by a tophat run.
+
 =cut
 sub Tophat_Stats {
     my $me = shift;
@@ -643,5 +795,17 @@ echo "\$stat_string" >> outputs/tophat_stats.csv
         );
     return($stats);
 }
+
+=back
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+    L<bowtie> L<bowtie2> L<tophat> L<bwa> L<kallisto> L<samtools> L<htseq>
+
+=cut
 
 1;
