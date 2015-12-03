@@ -29,7 +29,7 @@ sub Biopieces_Graph {
     my @inputs = split(/\,/, $input);
     my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
     my $job_string = qq!
-xzcat -f ${input} | read_fastq -i - -e base_33 |\\
+lesspipe ${input} | read_fastq -i - -e base_33 |\\
  plot_scores -T \'Quality Scores\' -t svg -o outputs/${basename}_quality_scores.svg |\\
  plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/${basename}_ntdist.svg |\\
  plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/${basename}_lendist.svg |\\
@@ -53,7 +53,7 @@ xzcat -f ${input} | read_fastq -i - -e base_33 |\\
 =cut
 sub Fastqc_Pairwise {
     my $me = shift;
-    my %args => @_;
+    my %args = @_;
     my $type = $args{type};
     $type = "unfiltered" unless ($type);
     my $input = $me->{input};

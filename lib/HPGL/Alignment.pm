@@ -223,61 +223,26 @@ sub Split_Align {
 
 =cut
 sub Split_Align_Blast {
-    my %conf = (
-        number => 200,
-        input => undef,
-        lib => undef,
-        blast_params => ' -e 10 ',
-        blast => 'blastn',
-        parse => 1,
-        peptide => 'F',
-        output_type => '0',
-        output => 'split_align_output.txt',
-        formatdb => 'formatdb -p $peptide -o T -n blastdb/$lib -s -i',
-        help => undef,
-        num_dirs => 0,
-        clean => undef,
-        best_only => undef,
-        queue => 'workstation',
-        skip => undef,
-        num_sequences => 0,
-        );
-    my %options = (
-        'best_only' => \$conf{best_only}, ## Whether to only print 1 result/gene
-        'blast|b:s' => \$conf{blast},  ## Use --blast or -b followed by 'blastp' or 'tblastx' or whatever to set the blast program.
-        'blast_params|bp:s' => \$conf{blast_params},
-        'clean' => \$conf{clean}, ## Clean up in case of an incomplete run
-        'formatdb|f:s' => \$conf{formatdb}, ## the formatdb command used to index a fasta library of sequences
-        'help|h' => \$conf{help},
-        'input|i:s' => \$conf{input},
-        'lib|l:s' => \$conf{lib},
-        'number|n:s' => \$conf{number},
-        'output|o:s' => \$conf{output},
-        'output_type|m:s' => \$conf{output_type}, ## Blast's output type can only be parsed if it is 7, 0 is default
-        'parse:s' => \$conf{parse},
-        'peptide|p:s' => \$conf{peptide}, ## T for a peptide database, F for nucleotide
-        'queue|q:s' => \$conf{queue},  ## Set the pbs queue, right now throughput isn't moving -- for example
-        'skip' => \$conf{skip},  ## If you just want to parse the output
-        );
-    my $argv_result = GetOptions(%options);
+    my $me = shift;
+    my %args = @_;
     my $job = "";
 
-    if ($conf{clean}) {
+    if ($args{clean}) {
         Cleanup();
     }
 
-    if ($conf{skip}) {
+    if ($args{skip}) {
         print "Skipping blast, just parsing $ARGV[0]\n";
         Parse_Blast($ARGV[0]);
         exit(0);
     }
 
-    if ($conf{help}) {
+    if ($args{help}) {
         pod2usage();
         exit(0);
     }
 
-    my $library = basename($conf{lib}, ('.fasta'));
+    my $library = basename($args{lib}, ('.fasta'));
 
     ## Number entries 23119
     ## Thus 116 entries in each fasta
@@ -285,7 +250,7 @@ sub Split_Align_Blast {
     ##  To arrive at this number, I just rounded up (/ 23119 200)
     ## However, we can count the number of fasta entries in the input file
     my $num_per_split = Get_Split();
-    print "Going to make $conf{number} directories with $num_per_split sequences each.\n";
+    print "Going to make $args{number} directories with $num_per_split sequences each.\n";
     Make_Directories($num_per_split);
     Check_Blastdb();
     Make_Align();
@@ -301,7 +266,7 @@ If --parse is on, it will call Parse_Blast()
 =cut
 sub Wait_Concat {
     my $finished = 0;
-    my %conf;
+    my %args;
     while (!$finished) {
         my $num_finished = 0;
         open(FIN, '/bin/ls status/*.finished 2>/dev/null | wc -w |');
@@ -310,24 +275,24 @@ sub Wait_Concat {
             $num_finished = $line;
         }
         close(FIN);
-        print "$num_finished jobs are completed out of $conf{num_dirs}.\n";
-        if ($num_finished >= $conf{num_dirs}) {
+        print "$num_finished jobs are completed out of $args{num_dirs}.\n";
+        if ($num_finished >= $args{num_dirs}) {
             $finished++;
         } else {
             print "Waiting 20 seconds to see if the blast jobs are finished.\n";
             sleep(20);
         }
     }
-    print "Concatenating the output files into $conf{output}.gz\n";
+    print "Concatenating the output files into $args{output}.gz\n";
     ## waiting a couple seconds to make sure the files get written to disk
     sleep(20);
-    open(CONCAT, "rm -f $conf{output}.gz && for i in \$(/bin/ls outputs/*.out); do echo \"concatenating \$i\"; gzip -c \$i >> $conf{output}.gz; done && rm -f finished/* |");
+    open(CONCAT, "rm -f $args{output}.gz && for i in \$(/bin/ls outputs/*.out); do echo \"concatenating \$i\"; gzip -c \$i >> $args{output}.gz; done && rm -f finished/* |");
     while(my $line = <CONCAT>) {
         print $line;
     }
     close(CONCAT);
-    if ($conf{parse}) {
-        Parse_Blast("$conf{output}.gz");
+    if ($args{parse}) {
+        Parse_Blast("$args{output}.gz");
     }
     print "Unless you hit control-C in the next minute, this script will delete everything except the compressed output file.\n";
     sleep(60);
@@ -354,7 +319,7 @@ sub Cleanup {
 =cut
 sub Parse_Blast {
     my $input = shift;
-    my %conf;
+    my %args;
     my $output = qq"${input}";
     $output =~ s/\.txt\.gz/_parsed\.txt/g;
     print "Writing parsed output to $output\n";
@@ -373,9 +338,9 @@ sub Parse_Blast {
     open(F,"gunzip -c $input |");
     $XML::SAX::ParserPackage = 'XML::SAX::PurePerl';
     my $searchio;
-    if ($conf{output_type} eq '0') { ## use old blast format
+    if ($args{output_type} eq '0') { ## use old blast format
         $searchio = new Bio::SearchIO(-format => 'blast', -fh => \*F, -best => 1,);
-    } elsif ($conf{output_type} eq '7') {  ## use blastxml
+    } elsif ($args{output_type} eq '7') {  ## use blastxml
         $searchio = new Bio::SearchIO(-format => 'blastxml', -fh => \*F, -best => 1,);
     } else { ## I don't know what it is, make searchio guess it
         $searchio = new Bio::SearchIO(-fh => \*F, -best => 1,);
@@ -389,7 +354,7 @@ sub Parse_Blast {
   RESULT: while(my $result = $searchio->next_result()) {
       my $hit_count = 0;
       $result_count++;
-      print "Parsed $result_count of $conf{num_sequences} results.\n";
+      print "Parsed $result_count of $args{num_sequences} results.\n";
       my $query_name = "";
       while(my $hit = $result->next_hit) {
           $hit_count++;
@@ -423,7 +388,7 @@ sub Parse_Blast {
           ## Then the score of the hit, its Evalue, and the component length.
           my $print_string = qq"${query_name}\t${acc2}\t${acc3}\t${start}\t${end}\t${ident}\t${score}\t${sig}\t${query_length}\t${hsp_identical}\t$hit_count\n";
           print $fh $print_string;
-          if ($conf{best_only}) {
+          if ($args{best_only}) {
               next RESULT;
           }
       } ## End each hit for a single result
@@ -453,13 +418,6 @@ sub Parse_Global {
     $args{min_percent} = undef unless (defined($args{min_percent}));
 
     my $input_string = qq"<$args{input}";
-    ##if ($args{input} =~ /\.xz/) {
-    ##    $input_string = qq"xzcat $args{input} |";
-    ##} elsif ($args{input} =~ /\.gz/) {
-    ##    $input_string = qq"zcat $args{input} |";
-    ##} elsif ($args{input} =~ /\.bz2/) {
-    ##    $input_string = qq"bzcat $args{input} |";
-    ##}
     my $searchio = new Bio::SearchIO(-format => $args{format}, -file => $input_string,
                                      -best_hit_only => $args{best_hit_only} , -max_significance => $args{max_significance},
                                      -check_all_hits => $args{check_all_hits}, -min_score => $args{min_score},
@@ -471,6 +429,7 @@ sub Parse_Global {
     my $few = new FileHandle;
     my $many = new FileHandle;
     my $zero = new FileHandle;
+    my $all = new FileHandle;
     my $base = basename($args{input}, ('.tab', '.txt'));
     my $count_file = qq"${base}.count";
     my $parsed_file = qq"${base}.parsed";
@@ -479,6 +438,7 @@ sub Parse_Global {
     my $few_file = qq"${base}_few.txt";
     my $many_file = qq"${base}_many.txt";
     my $zeroes_file = qq"${base}_zero.txt";
+    my $all_file = qq"${base}_all.txt";
 
     $counts->open(">$count_file");
     $parsed->open(">$parsed_file");
@@ -486,7 +446,8 @@ sub Parse_Global {
     $doubles->open(">$double_file");
     $few->open(">$few_file");
     $many->open(">$many_file");
-    $zero->open(">zeroes_file");
+    $zero->open(">$zeroes_file");
+    $all->open(">$all_file");
 
     my $seq_count = 0;
     print $parsed "Query Name\tQuery length\tHit ID\tHit Length\tScore\tE\tIdentity\tHit length\tHit Matches\n";
@@ -521,6 +482,7 @@ sub Parse_Global {
             print $parsed "$query_name\t$query_length\t$acc2\t$length\t$score\t$sig\t$ident\t$hit_len\t$hit_matches\n";
         } ## End iterating over every hit for a sequence.
         $entry .= "\n";
+        print $all $entry;
         if ($hit_count == 1) {
             print $singles $entry;
         } elsif ($hit_count == 2) {
@@ -541,6 +503,7 @@ sub Parse_Global {
     $few->close();
     $many->close();
     $zero->close();
+    $all->close();
 
     return($seq_count);
 }
@@ -590,7 +553,7 @@ sub Check_Blastdb {
 
     Get_Split takes the number of sequences in the query library and divides by the number of jobs to run,
     takes the ceiling of that, and prints that many sequences to each file in split/ starting at 1000.
-    (So, as long as you have <= 8,999 jobs PBS won't get confused by the difference between 099 and 100
+    (So, as long as you have <= 8,999 jobs PBS won't get argsused by the difference between 099 and 100
     because they will be 1099 and 1100 instead.)
 
 =cut
@@ -619,7 +582,6 @@ sub Get_Split {
 sub Make_Directories {
     my $me = shift;
     my %args = @_;
-    my %conf;
     my $num_per_split = $args{num_per_split};
     my $splits = $args{number};
     ## I am choosing to make directories starting at 1000
@@ -672,10 +634,10 @@ $seq
 
 =cut
 sub Make_Align {
-    my %conf;
+    my %args;
     my $library;
     my $job;
-    my $array_end = 1000 + $conf{number};
+    my $array_end = 1000 + $args{number};
     my $array_string = qq"1000-${array_end}";
     use Cwd;
     my $dir = getcwd;
@@ -683,7 +645,7 @@ sub Make_Align {
 ##cat <<"EOF" | qsub -t ${array_string} -V -d $dir -q throughput -l walltime=18:00:00,mem=8Gb -j eo -e $dir/split_align.out -m n -
 ##cd ${dir}
 ##CMD="mkdir -p ${dir}/stats ${dir}/outputs && \
-## blastall -e 1000 -p $conf{blast} -d ${dir}/blast/${library} \
+## blastall -e 1000 -p $args{blast} -d ${dir}/blast/${library} \
 ## -i ${dir}/split/\${PBS_ARRAYID}/in.fasta \
 ## -o ${dir}/outputs/\${PBS_ARRAYID}.out \
 ## && touch ${dir}status/\${PBS_ARRAYID}.finished"
@@ -691,8 +653,8 @@ sub Make_Align {
 ##eval \$CMD
 ##EOF
 ##?;
-    if ($conf{parse}) {
-        if ($conf{output_type} ne '7') {
+    if ($args{parse}) {
+        if ($args{output_type} ne '7') {
             print "If one wants to parse the output, it probably should be in the xml format, which may be done by adding --output_type 7 to this script.\n";
             print "This script will still try to parse a blast plain text output, but if it fails, don't say I didn't warn you.\n";
             print "Sleeping for 10 seconds so you can hit Control-C if you want to rerun.\n";
@@ -702,7 +664,7 @@ sub Make_Align {
     my $string = qq?
 cd ${dir}
 CMD="mkdir -p ${dir}/status ${dir}/outputs && \
- blastall -m $conf{output_type} $conf{blast_params} -p $conf{blast} -d ${dir}/blastdb/${library} \
+ blastall -m $args{output_type} $args{blast_params} -p $args{blast} -d ${dir}/blastdb/${library} \
  -i ${dir}/split/\${PBS_ARRAYID}/in.fasta \
  1> ${dir}/outputs/\${PBS_ARRAYID}.out 2>>${dir}/split_align_errors.txt \
  && touch ${dir}/status/\${PBS_ARRAYID}.finished"
@@ -713,7 +675,7 @@ eval \$CMD
 $string
 ";
     open(SCRIPT, ">split_align_submission.sh");
-    print SCRIPT "#PBS -t ${array_string} -V -d $dir -q $conf{queue} -l walltime=18:00:00,mem=8gb -jeo -e $dir/status/split_align.out -m n\n";
+    print SCRIPT "#PBS -t ${array_string} -V -d $dir -q $args{queue} -l walltime=18:00:00,mem=8gb -jeo -e $dir/status/split_align.out -m n\n";
     print SCRIPT $string;
     close(SCRIPT);
     my $submit = qq"qsub split_align_submission.sh";

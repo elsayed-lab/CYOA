@@ -21,23 +21,39 @@ package HPGL;
 sub Cutadapt {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(['input']);
+
+    my $type = $me->{type};
+    $type = $args{type} if (defined($args{type}));
+    $type = 'tnseq' unless(defined($type));
     my $input = $me->{input};
-    my $basename = $me->{basename};
-    my @inputs = split(/\,/, $input);
+    my $basename = basename($input, @{$me->{suffixes}});
     my $output = qq"${basename}-trimmed.fastq";
-    my $cutadapt_flags = " -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
-    my $minlen = 12;
-    my $maxlen = 40;
+    my $cutadapt_flags = "";
+    my $minlength = 7;
+    my $maxlength = 40;
+    if ($type eq 'tnseq') {
+        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
+        $maxlength = 20;
+    } elsif ($type eq 'riboseq') {
+        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
+        $minlength = 20;
+    } else {
+        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT ";
+    }
 
     my $comment = qq!## This script makes use of biopieces and cutadapt to trim away adapters
 ## and separate the sequence file into a few pieces depending on size
 ## and adapter status.  It also performs some simple graphs of the data.!;
+    my $out_dir = qq"$me->{basedir}/outputs/cutadapt";
     my $job_string = qq!
-xzcat -f ${input} | cutadapt - ${cutadapt_flags} -e 0.1 -n 3 -m ${minlen} -M ${maxlen} \\
-    --too-short-output=cutadapt/${basename}_tooshort.fastq \\
-    --too-long-output=cutadapt/${basename}_toolong.fastq \\
-    --untrimmed-output=cutadapt/${basename}_untrimmed.fastq \\
-    2>outputs/cutadapt.err 1> ${output}!;
+mkdir -p $out_dir && \\
+ lesspipe ${input} | cutadapt - ${cutadapt_flags} -e 0.1 -n 3 -m ${minlength} -M ${maxlength} \\
+  --too-short-output=${out_dir}/${basename}_tooshort.fastq \\
+  --too-long-output=${out_dir}/${basename}_toolong.fastq \\
+  --untrimmed-output=${out_dir}/${basename}_untrimmed.fastq \\
+  2>outputs/cutadapt.err 1>${output}
+!;
     my $cutadapt = $me->Qsub(job_name => "cutadapt",
                              qsub_wall => "8:00:00",
                              job_string => $job_string,

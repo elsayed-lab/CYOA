@@ -1,11 +1,14 @@
 package HPGL;
 use autodie qw":all";
 use common::sense;
+use diagnostics;
 use local::lib;
 use warnings qw"all";
 
 use AppConfig qw":argcount :expand";
 use Archive::Extract;
+use Bio::DB::Sam;
+use Bio::SeqIO;
 use Bio::DB::Universal;
 use Bio::Root::RootI;
 use Bio::SeqIO;
@@ -26,6 +29,7 @@ use Log::Log4perl::Level;
 use Net::Amazon::S3;
 use PerlIO;
 use Pod::Usage;
+use Storable qw"freeze thaw store retrieve";
 use Term::ReadLine;
 
 use HPGL::Alignment;
@@ -38,20 +42,21 @@ use HPGL::RNASeq_Trim;
 use HPGL::RNASeq_Aligners;
 use HPGL::RNASeq_Count;
 use HPGL::SeqMisc;
+use HPGL::TNSeq;
 
 our $AUTOLOAD;
 require Exporter;
 our @ISA = qw"Exporter";
 our @EXPORT = qw"";
 use vars qw"$VERSION";
-$VERSION="20151101";
-$ENV{COMPRESSION} = "xz";
-$ENV{XZ_OPTS} = "-9e";
-$ENV{XZ_DEFAULTS} = "-9e";
-$ENV{GZIP} = "--best";
+$VERSION = '20151101';
+$ENV{COMPRESSION} = 'xz';
+$ENV{XZ_OPTS} = '-9e';
+$ENV{XZ_DEFAULTS} = '-9e';
+$ENV{GZIP} = '--best';
 my $term = new Term::ReadLine('>');
 my $attribs = $term->Attribs;
-$attribs->{completion_suppress_append} = 1;
+##$attribs->{completion_suppress_append} = 1;
 my $OUT = $term->OUT || \*STDOUT;
 
 =head1 NAME
@@ -137,63 +142,119 @@ sub new {
             EXPAND => EXPAND_ALL,
             EXPAND_ENV => 1,
             EXPAND_UID => 1,
-            DEFAULT => "unset",
+            DEFAULT => 'unset',
             ARGCOUNT => 1,
         },});
     ## First fill out a set of default configuration values
     ## The following for loop will include all of these in conf_specification_temp
     ## which will in turn be passed to GetOpts
     ## As a result, _all_ of these variables may be overridden on the command line.
-    $me->{shell} = "/usr/bin/bash" if (!defined($me->{shell}));
+    ## Default shell to use for shell commands (especially PBS)
+    $me->{shell} = '/usr/bin/bash' if (!defined($me->{shell}));
+    ## Perform alignments of trimmed sequence?
     $me->{align_trimmed} = 1 if (!defined($me->{align_trimmed}));
-    $me->{aligner} = "bowtie" if (!defined($me->{aligner}));
-    $me->{aws_access_key_id} = 'PQOD56HDPQOXJPYQYHH9' if (!defined($me->{aws_access_key_id}));
-    $me->{aws_hostname} = 'gembox.cbcb.umd.edu' if (!defined($me->{aws_hostname}));
-    $me->{aws_secret_access_key} = 'kNl27xjeVSnChzEww9ziq1VkgUMNmNonNYjxWkGw' if (!defined($me->{aws_secret_access_key}));
-    $me->{bam_small} = "21-26" if (!defined($me->{bam_small}));
-    $me->{bam_mid} = "27-32" if (!defined($me->{bam_mid}));
-    $me->{bam_big} = "33-40" if (!defined($me->{bam_big}));
-    $me->{base} = undef if (!defined($me->{base}));
+    $me->{align_parse} = 1 if (!defined($me->{align_parse}));
+    ## Use this aligner if none is chosen
+    $me->{aligner} = 'bowtie' if (!defined($me->{aligner}));
+    ## The ceph access key id username
+    $me->{align_jobs} = 200 if (!defined($me->{align_jobs}));
+    $me->{align_outtype} = 0 if (!defined($me->{align_outtype}));
+    $me->{align_bestonly} = 0 if (!defined($me->{align_bestonly}));
+    $me->{align_numseq} = 0 if (!defined($me->{align_numseq}));
+    ## The range of bam sizes considered as 'small' read lengths (ribosome profiling)
+    $me->{bam_small} = '21-26' if (!defined($me->{bam_small}));
+    ## The range of bam sizes considered as 'medium' read lengths (ribosome profiling)
+    $me->{bam_mid} = '27-32' if (!defined($me->{bam_mid}));
+    ## The range of bam sizes considered as 'large' read lengths (ribosome profiling)
+    $me->{bam_big} = '33-40' if (!defined($me->{bam_big}));
+    ## The base directory when invoking various shell commands
     $me->{basedir} = cwd() if (!defined($me->{basedir}));
+    $me->{blast_params} = ' -e 10 ' if (!defined($me->{blast_params}));
+    $me->{blast_program} = 'blastn' if (!defined($me->{blast_program}));
+    $me->{blast_peptide} = 'F' if (!defined($me->{blast_peptide}));
+
+    ## A series of default bowtie1 arguments
     $me->{bt_args} = {
-        v0M1 => "--best -v 0 -M 1",
-        v1M1 => "--best -v 1 -M 1",
-        v2M1 => "--best -v 2 -M 1",
+        v0M1 => ' --best -v 0 -M 1 ',
+        v1M1 => ' --best -v 1 -M 1 ',
+        v2M1 => ' --best -v 2 -M 1 ',
     } if (!defined($me->{bt_args}));
+    ## A boolean to decide whether to use multiple bowtie1 argument sets
     $me->{btmulti} = 0 if (!defined($me->{btmulti}));
+    ## Use the following configuration file to overwrite options for these scripts
     $me->{config_file} = qq"$ENV{HOME}/.config/hpgl.conf" if (!defined($me->{config_file}));
-    $me->{debug} = 1 if (!defined($me->{debug}));
+    ## Debugging?
+    $me->{debug} = 0 if (!defined($me->{debug}));
+    ## A flag for PBS telling what each job depends upon
     $me->{depends} = {} if (!defined($me->{depends}));
+    ## A default feature type when examining gff files
     $me->{feature_type} = 'CDS' if (!defined($me->{feature_type}));
+    ## A default gff file!
+    $me->{gff} = 'default.gff' if (!defined($me->{gff}));
+    ## Ask for help?
     $me->{help} = undef if (!defined($me->{help}));
+    ## An hpgl identifier
     $me->{hpgl} = undef if (!defined($me->{hpgl}));
-    $me->{hpglid} = undef if (!defined($me->{hpglid}));
-    $me->{htseq_identifier} = "ID" if (!defined($me->{htseq_identifier}));
-    $me->{htseq_stranded} = "no" if (!defined($me->{htseq_stranded}));
+    ## The identifier flag passed to htseq (probably should be moved to feature_type)
+    $me->{htseq_identifier} = 'ID' if (!defined($me->{htseq_identifier}));
+    ## Use htseq stranded options?
+    $me->{htseq_stranded} = 'no' if (!defined($me->{htseq_stranded}));
+    ## An index file for tnseq (change this variable to tnseq_index I think)
+    $me->{index_file} = 'indexes.txt' if (!defined($me->{index_file}));
+    ## The default input file
     $me->{input} = undef if (!defined($me->{input}));
+    ## A list of jobs
     $me->{jobs} = [] if (!defined($me->{jobs}));
+    ## And a hash of jobids
     $me->{jobids} = {} if (!defined($me->{jobids}));
+    ## Minimum length for good reads (riboseq): FIXME rename this
     $me->{len_min} = 21 if (!defined($me->{len_min}));
+    ## Maximum length for good reads (riboseq): FIXME rename this
     $me->{len_max} = 40 if (!defined($me->{len_max}));
+    ## The default directory for gff/fasta/genbank/indexes
     $me->{libdir} = "$ENV{HOME}/libraries" if (!defined($me->{libdir}));
-    $me->{libtype} = "genome" if (!defined($me->{libtype}));
+    ## What type of library are we going to search for?
+    $me->{libtype} = 'genome' if (!defined($me->{libtype}));
+    ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
+    $me->{orientation} = 'start' if (!defined($me->{orientation}));
+    ## Paired reads?
     $me->{paired} = 0 if (!defined($me->{paired}));
+    ## Use pbs?
     $me->{pbs} = 1 if (!defined($me->{pbs}));
-    $me->{qsub_args} = "-j oe -V -m n" if (!defined($me->{qsub_args}));
-    $me->{qsub_queue} = "throughput" if (!defined($me->{qsub_queue}));
-    $me->{qsub_queues} = ["throughput","workstation","long","large"] if (!defined($me->{qsub_queues}));
-    $me->{qsub_shell} = "bash" if (!defined($me->{qsub_shell}));
+    ## What arguments will be passed to qsub by default?
+    $me->{qsub_args} = '-j oe -V -m n' if (!defined($me->{qsub_args}));
+    ## What queue will jobs default to?
+    $me->{qsub_queue} = 'throughput' if (!defined($me->{qsub_queue}));
+    ## Other possible queues
+    $me->{qsub_queues} = ['throughput','workstation','long','large'] if (!defined($me->{qsub_queues}));
+    $me->{qsub_shell} = 'bash' if (!defined($me->{qsub_shell}));
     $me->{qsub_mem} = 6 if (!defined($me->{qsub_mem}));
-    $me->{qsub_wall} = "10:00:00" if (!defined($me->{qsub_wall}));
-    $me->{qsub_cpus} = "4" if (!defined($me->{qsub_cpus}));
-    $me->{qsub_depends} = "depend=afterok:" if (!defined($me->{qsub_depends}));
-    $me->{qsub_loghost} = "ibissub00.umiacs.umd.edu" if (!defined($me->{qsub_loghost}));
-    $me->{qsub_logdir} = qq"$me->{qsub_loghost}:$me->{basedir}/outputs" if (!defined($me->{qsub_logdir}));
+    $me->{qsub_wall} = '10:00:00' if (!defined($me->{qsub_wall}));
+    $me->{qsub_cpus} = '4' if (!defined($me->{qsub_cpus}));
+    $me->{qsub_depends} = 'depend=afterok:' if (!defined($me->{qsub_depends}));
+    $me->{qsub_loghost} = 'localhost' if (!defined($me->{qsub_loghost}));
+    $me->{riboasite} = 1 if (!defined($me->{riboasite}));
+    $me->{ribopsite} = 1 if (!defined($me->{ribopsite}));
+    $me->{riboesite} = 1 if (!defined($me->{riboesite}));
+    $me->{ribominsize} = 24 if (!defined($me->{ribominsize}));
+    $me->{ribomaxsize} = 36 if (!defined($me->{ribomaxsize}));
+    $me->{ribominpos} = -30 if (!defined($me->{ribominpos}));
+    $me->{ribomaxpos} = 30 if (!defined($me->{ribomaxpos}));
+    $me->{ribocorrect} = 1 if (!defined($me->{ribocorrect}));
+    $me->{riboanchor} = 'start' if (!defined($me->{rioanchor}));
+    $me->{ribosizes} = '25,26,27,28,29,30,31,32,33,34' if (!defined($me->{ribosizes}));
     $me->{species} = undef if (!defined($me->{species}));
-    $me->{suffixes} = [".fastq",".gz",".xz", ".fasta", ".sam", ".bam", ".count"] if (!defined($me->{suffixes}));
-    $me->{taxid} = "353153" if (!defined($me->{taxid}));
-    $me->{trimmer} = "trimmomatic" if (!defined($me->{trimmer}));
-    $me->{type} = "rnaseq" if (!defined($me->{type}));
+    $me->{suffixes} = ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count'] if (!defined($me->{suffixes}));
+    $me->{taxid} = '353153' if (!defined($me->{taxid}));
+    $me->{tnseq_trim} = 0 if (!defined($me->{tnseq_trim}));
+    $me->{trimmer} = 'trimmomatic' if (!defined($me->{trimmer}));
+    $me->{type} = 'rnaseq' if (!defined($me->{type}));
+
+    ## Some variables depend on others, put them here.
+    $me->{qsub_logdir} = qq"$me->{qsub_loghost}:$me->{basedir}/outputs" if (!defined($me->{qsub_logdir}));
+    my $blast_species = $me->{species};
+    $blast_species = 'lmajor' if (!defined($blast_species));
+    $me->{blast_format} = "formatdb -p $me->{blast_peptide} -o T -n blastdb/${blast_species} -s -i" if (!defined($me->{blast_format}));
 
     ## Now that the set of defaults has been created, allow it to be changed via a config file
     ## All the stuff above may therefore be overwritten by entries in the config file.
@@ -215,15 +276,11 @@ sub new {
     }
     ## For some command line options, one might want shortcuts etc, set those here:
     %conf_specification_temp = (
-        "debug|d" => \$conf{debug},
-        "btmulti:i" => \$conf{btmulti},
-        "help" => \$conf{help},
-        "hpgl|h:s" => \$conf{hpgl},
-        "input|i:s" => \$conf{input},
-        "pbs|p:i" => \$conf{pbs},
-        "species|s:s" => \$conf{species},
-        "stranded:s" => \$conf{htseq_stranded},
-        "identifier:s" => \$conf{htseq_identifier},
+        "de|d" => \$conf{debug},
+        "hp|h:s" => \$conf{hpgl},
+        "in|i:s" => \$conf{input},
+        "pb|p:i" => \$conf{pbs},
+        "sp|s:s" => \$conf{species},
         );
     ## This makes both of the above groups command-line changeable
     foreach my $name (keys %conf_specification_temp) {
@@ -324,9 +381,14 @@ sub Check_Options {
     my @options = @{$needed_list};
     foreach my $option (@options) {
         if (!defined($me->{$option})) {
-            my $query = qq"The option:${option} was missing, please fill it in: ";
+            my $query = qq"The option: ${option} was missing, please fill it in: ";
             $me->{$option} = $term->readline($query);
             $me->{$option} =~ s/\s+$//g;
+            if ($option eq 'input') {
+                my $base = basename($me->{input}, @{$me->{suffixes}});
+                $base = basename($me->{input}, @{$me->{suffixes}});
+                $me->{basename} = $base;
+            }
         }
     }
 }
@@ -413,6 +475,134 @@ sub Last_Stat {
     }
     $input->close();
     return($last);
+}
+
+
+=item C<Read_Genome_Fasta>
+
+    Read a fasta file and return the chromosomes.
+
+=cut
+sub Read_Genome_Fasta {
+    my $me = shift;
+    my %args = @_;
+    my $chromosomes = {};
+    my $fasta_name = basename($args{fasta}, ['.fasta']);
+    my $data_file = qq"$me->{basedir}/${fasta_name}.pdata";
+    if (-r $data_file) {
+        $chromosomes = retrieve($data_file);
+    } else {
+        my $input_genome = new Bio::SeqIO(-file => $args{fasta}, -format => 'Fasta');
+        while (my $genome_seq = $input_genome->next_seq()) {
+            next unless(defined($genome_seq->id));
+            my $id = $genome_seq->id;
+            my $sequence = $genome_seq->seq;
+            print "Reading chromosome: $id\n";
+            my $length = $genome_seq->length;
+            my $empty_forward = [];
+            my $empty_reverse = [];
+            for my $c (0 .. $length) {
+                $empty_forward->[$c] = 0;
+                $empty_reverse->[$c] = 0;
+            }
+            $chromosomes->{$id}->{forward} = $empty_forward;
+            $chromosomes->{$id}->{sequence} = $sequence;
+            $chromosomes->{$id}->{reverse} = $empty_reverse;
+        } ## End reading each chromosome
+        store($chromosomes, $data_file);
+    } ## End checking for a .pdata file
+    return($chromosomes);
+}
+
+=item C<Read_GFF>
+
+    Read a GFF file and extract the annotation information from it.
+
+=cut
+sub Read_Genome_GFF {
+    my $me = shift;
+    my %args = @_;
+    ##my $gff = new FileHandle;
+    ##$gff->open("<$args{gff}");
+    my $feature_type = $me->{feature_type};
+    $feature_type = $args{feature_type} if (defined($args{feature_type}));
+    my $annotation_in = new Bio::Tools::GFF(-file => "$args{gff}", -gff_version => 3);
+    my $gff_out = { stats => { chromosomes => [],
+                               lengths => [],
+                               feature_names => [],
+                               cds_starts => [],
+                               cds_ends => [],
+                               inter_starts => [],
+                               inter_ends => [],
+                    },};
+    my $gff_name = basename($args{gff}, ['.gff']);
+    my $data_file = qq"$me->{basedir}/${gff_name}.pdata";
+    if (-r $data_file and !$me->{debug}) {
+        my $gff_out = retrieve($data_file);
+    } else {
+        print "Starting to read gff: $args{gff}\n" if ($me->{debug});
+        my $hits = 0;
+        my @chromosome_list = @{$gff_out->{stats}->{chromosomes}};
+        my @feature_names = @{$gff_out->{stats}->{feature_names}};
+        my @cds_starts = @{$gff_out->{stats}->{cds_starts}};
+        my @inter_starts = @{$gff_out->{stats}->{inter_starts}};
+        my @cds_ends = @{$gff_out->{stats}->{cds_ends}};
+        my @inter_ends = @{$gff_out->{stats}->{inter_ends}};
+        my $start = 1;
+        my $old_start = 1;
+        my $end = 1;
+        my $old_end = 1;
+      LOOP: while(my $feature = $annotation_in->next_feature()) {
+          ## print "In loop with type: $feature->{_primary_tag}\n" if ($me->{debug});
+          next LOOP unless ($feature->{_primary_tag} eq $feature_type);
+          $hits++;
+          my $location = $feature->{_location};
+          $old_start = $start;
+          $old_end = $end;
+          $start = $location->start();
+          $end = $location->end();
+          my $strand = $location->strand();
+          my @ids = $feature->each_tag_value("ID");
+          my $id = "";
+          my $gff_chr = $feature->{_gsf_seq_id};
+          my $gff_string = $annotation_in->gff_string($feature);
+          foreach my $i (@ids) {
+              $i =~ s/^cds_//g;
+              $i =~ s/\-\d+$//g;
+              $id .= "$i ";
+          }
+          $id =~ s/\s+$//g;
+          my @gff_information = split(/\t+/, $gff_string);
+          my $description_string = $gff_information[8];
+          my $orf_chromosome = $gff_chr;
+          ## Add the chromosome to the list of chromosomes if it is not there already.
+          push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
+          push(@feature_names, $id);
+          push(@cds_starts, $start);
+          push(@inter_starts, $old_start+1);
+          push(@cds_ends, $end);
+          ##push(@inter_ends, $old_start-1);
+          push(@inter_ends, $start-1);
+          my $annot = {
+              id => $id,
+              start => $start,  ## Genomic coordinate of the start codon
+              end => $end,      ## And stop codon
+              strand => $strand,
+              description_string => $description_string,
+              chromosome => $gff_chr,
+          };
+          $gff_out->{$gff_chr}->{$id} = $annot;
+      } ## End looking at every gene in the gff file
+        $gff_out->{stats}->{chromosomes} = \@chromosome_list;
+        $gff_out->{stats}->{feature_names} = \@feature_names;
+        $gff_out->{stats}->{cds_starts} = \@cds_starts;
+        $gff_out->{stats}->{cds_ends} = \@cds_ends;
+        $gff_out->{stats}->{inter_starts} = \@inter_starts;
+        $gff_out->{stats}->{inter_ends} = \@inter_ends;
+        print STDERR "Not many hits were observed, do you have the right feature type?  It is: $me->{feature_type}\n" if ($hits < 1000);
+        store($gff_out, $data_file);
+    } ## End looking for the gff data file
+    return($gff_out);
 }
 
 =back

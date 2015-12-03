@@ -27,9 +27,9 @@ sub Recompress {
     my $basename = $me->{basename};
     my $job_string = "";
     my $indir = dirname($input1);
-    my ($in1, $in2);
+    my ($in1, $in2) = "";
     $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
-    $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
+    $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if (defined($input2));
 
     if ($input1 =~ /\.gz/) {
         $job_string = qq!gunzip -f $input1 $input2 && xz -f -9e $in1 $in2\n!;

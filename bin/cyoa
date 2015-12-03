@@ -1,0 +1,104 @@
+#!/usr/bin/env perl
+# -*-Perl-*-
+use autodie qw":all";
+use common::sense;
+use diagnostics;
+use warnings qw"all";
+
+use File::Basename;
+use HPGL;
+use Switch;
+use Term::ReadLine;
+use Term::UI;
+
+
+
+my $term = new Term::ReadLine('HPGL>');
+my $menus = {
+    RNASeq => {
+        name => 'rnaseq',
+        message => "The world is dark and full of terrors, take this and go to page 147.",
+        choices => ['FastQC'],},
+    TNSeq => {
+        name => 'tnseq',
+        message => "You have enterred a world of jumping DNA, be ware and go to page 342.",
+        choices => ['Sort_Indexes','Cutadapt','Essentiality_TAs','BT1'],},
+    RiboSeq => {
+        name => 'riboseq',
+        message => "Awake Awake Fear Fire Foes!  Go to page 4",
+        choices => [],},
+    Alignment => {
+        name => 'alignment',
+        message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 128.",
+        choices => [],},
+    Conversion => {
+        name => 'convert',
+        message => qq"And it rained a fever.
+ And it rained a silence.
+ And it rained a sacrifice.
+ And it rained a miracle.
+ And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
+        choices => [],},
+};
+
+Main();
+
+sub Main {
+    $Term::UI::VERBOSE = 0;
+    ### always pick the default (good for non-interactive terms)
+    ### -- default is '0'
+    ##$Term::UI::AUTOREPLY = 1;
+    my $finished = 0;
+    while ($finished != 1) {
+        my $top_level = $term->get_reply(
+            prompt => 'Choose your adventure!',
+            choices => ['RNASeq','TNSeq','RiboSeq','Alignment','Conversion'],
+            default => 'TNSeq',);
+
+        my $h = new HPGL;
+        Iterate( type => $top_level, hpgl => $h );
+
+        my $bool = $term->ask_yn(
+            prompt => 'Are you done?',
+            default => 'n',
+            );
+        $finished = 1 if ($bool eq '1');
+        #my $string = q[some_command -option --no-foo --quux='this thing'];
+        #my ($options,$munged_input) = $term->parse_options($string);
+        ### don't have Term::UI issue warnings -- default is '1'
+
+        ### Retrieve the entire session as a printable string:
+        #$hist = Term::UI::History->history_as_string;
+        #$hist = $term->history_as_string;
+    } ## End while not finished.
+}
+
+sub Iterate {
+    my %args = @_;
+    my $type = $args{type};
+    my $h = $args{hpgl};
+    $h->{debug} = 1;
+    my $finished = 0;
+    while ($finished != 1) {
+        my $task = $term->get_reply(
+            prompt => $menus->{$type}->{message},
+            choices => $menus->{$type}->{choices},
+            );
+        print "You chose: $task\n";
+        $h->$task(type => $menus->{$type}->{name});
+
+        if ($task eq 'Cutadapt' or $task =~ /Trim/) {
+            my $new_input = basename($h->{input}, @{$h->{suffixes}}) . "-trimmed.fastq";
+            $h->{input} = $new_input;
+            print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
+        }
+
+        my $bool = $term->ask_yn(
+            prompt => 'Go back to the toplevel?',
+            default => 'n',
+            );
+        $finished = 1 if ($bool eq '1');
+    } ## End the task while loop
+}
+
+## EOF

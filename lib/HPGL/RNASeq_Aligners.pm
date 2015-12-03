@@ -540,6 +540,8 @@ sub Kallisto {
     my $ka_input = $me->{input};
     my $ka_depends_on;
     $ka_depends_on = $args{depends} if ($args{depends});
+    my $libtype = 'genome';
+    $libtype = $args{libtype} if ($args{libtype});
     $me->Check_Options(["species"]);
     my $basename = $me->{basename};
 
@@ -599,10 +601,16 @@ sub Tophat {
     if ($args{depends}) {
         $depends = $args{depends};
     }
+    my $inputs = $me->{input};
+    my @in = split(/\:/, $inputs);
+    $inputs =~ s/\:/ /g;
+
     my $tophat_args = ' -g 1 ';
     if ($args{tophat_args}) {
         $tophat_args = $args{tophat_args};
     }
+    $tophat_args .= ' --no-mixed --no-discordant ' if (scalar(@in) > 1);
+
     my $tophat_dir = 'outputs/tophat';
     if ($args{tophat_dir}) {
         $tophat_dir = $args{tophat_dir};
@@ -619,9 +627,6 @@ sub Tophat {
         my $written = $me->Gff2Gtf(gff => "$me->{libdir}/genome/$me->{species}.gff");
         print STDERR "Gff2Gtf wrote $written features\n";
     }
-    my $inputs = $me->{input};
-    my @in = split(/\:/, $inputs);
-    $inputs =~ s/\:/ /g;
 
     my $spliced = 0;
     if ($me->{spliced}) {

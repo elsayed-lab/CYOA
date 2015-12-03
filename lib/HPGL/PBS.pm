@@ -50,11 +50,11 @@ sub Qsub {
     $qsub_logdir = $args{qsub_logdir} if ($args{qsub_logdir});
     my $qsub_log = qq"${qsub_logdir}/${job_name}.qsubout";
     my $depends_string = $me->{qsub_depends};
-    $depends_string .= $args{depends};
+    $depends_string .= $args{depends} if (defined($args{depends}));
     my $job_output = "";
-    $job_output = $args{output} if ($args{output});
+    $job_output = $args{output} if (defined($args{output}));
     my $job_input = "";
-    $job_input = $args{input} if ($args{input});
+    $job_input = $args{input} if (defined($args{input}));
     my $script_file = qq"$me->{basedir}/scripts/${job_name}.sh";
     my $mycwd = cwd();
     make_path("$me->{basedir}/outputs", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs");
@@ -64,7 +64,6 @@ sub Qsub {
 #PBS -N $job_name -l mem=${qsub_mem}gb -l walltime=$qsub_wall -l ncpus=$qsub_cpus
 #PBS -o $qsub_log $qsub_args
 echo "####Started $script_file at \$(date)" >> outputs/log.txt
-source /cbcb/lab/nelsayed/scripts/dotbashrc
 cd $me->{basedir} || exit
 !;
     my $script_end = qq!## The following lines give status codes and some logging
