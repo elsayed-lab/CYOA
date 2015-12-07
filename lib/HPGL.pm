@@ -22,7 +22,7 @@ use File::Spec;
 use File::Which qw"which";
 use File::Path qw"make_path remove_tree";
 use FileHandle;
-use Getopt::Long;
+use Getopt::Long qw"GetOptionsFromArray";
 use IO::String;
 use Log::Log4perl;
 use Log::Log4perl::Level;
@@ -182,6 +182,7 @@ sub new {
     ## A boolean to decide whether to use multiple bowtie1 argument sets
     $me->{btmulti} = 0 if (!defined($me->{btmulti}));
     ## Use the following configuration file to overwrite options for these scripts
+    $me->{cpus} = 1 if (!defined($me->{cpus}));
     $me->{config_file} = qq"$ENV{HOME}/.config/hpgl.conf" if (!defined($me->{config_file}));
     ## Debugging?
     $me->{debug} = 0 if (!defined($me->{debug}));
@@ -215,6 +216,7 @@ sub new {
     $me->{libdir} = "$ENV{HOME}/libraries" if (!defined($me->{libdir}));
     ## What type of library are we going to search for?
     $me->{libtype} = 'genome' if (!defined($me->{libtype}));
+    $me->{method} = undef;
     ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
     $me->{orientation} = 'start' if (!defined($me->{orientation}));
     ## Paired reads?
@@ -245,6 +247,7 @@ sub new {
     $me->{ribosizes} = '25,26,27,28,29,30,31,32,33,34' if (!defined($me->{ribosizes}));
     $me->{species} = undef if (!defined($me->{species}));
     $me->{suffixes} = ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count'] if (!defined($me->{suffixes}));
+    $me->{task} = undef;
     $me->{taxid} = '353153' if (!defined($me->{taxid}));
     $me->{tnseq_trim} = 0 if (!defined($me->{tnseq_trim}));
     $me->{trimmer} = 'trimmomatic' if (!defined($me->{trimmer}));
@@ -289,9 +292,9 @@ sub new {
     undef(%conf_specification_temp);
     ## Now pull out the command line options.
     my $argv_result = GetOptions(%conf_specification);
-    unless ($argv_result) {
-        Help();
-    }
+    ##unless ($argv_result) {
+    ##    Help();
+    ##}
 
     ## Finally merge the options from the config file to those
     ## in the default hash and those from the command line.
@@ -386,7 +389,7 @@ sub Check_Options {
             $me->{$option} =~ s/\s+$//g;
             if ($option eq 'input') {
                 my $base = basename($me->{input}, @{$me->{suffixes}});
-                $base = basename($me->{input}, @{$me->{suffixes}});
+                $base = basename($base, @{$me->{suffixes}});
                 $me->{basename} = $base;
             }
         }
@@ -538,7 +541,7 @@ sub Read_Genome_GFF {
     my $gff_name = basename($args{gff}, ['.gff']);
     my $data_file = qq"$me->{basedir}/${gff_name}.pdata";
     if (-r $data_file and !$me->{debug}) {
-        my $gff_out = retrieve($data_file);
+        $gff_out = retrieve($data_file);
     } else {
         print "Starting to read gff: $args{gff}\n" if ($me->{debug});
         my $hits = 0;

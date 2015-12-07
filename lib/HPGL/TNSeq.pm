@@ -395,6 +395,9 @@ sub Essentiality_TAs {
     my $me = shift;
     my %args = @_;
 
+    my $output_directory = qq"outputs/essentiality";
+    make_path($output_directory);
+    ## A smarter way of handling counting inter-cds regions would be to use the Read_GFF() functions to pull the intercds regions rather than the hackish @inter_starts @inter_ends.
     $me->Check_Options(['species','input']);
     my $input = $me->{input};
     $input = $args{input} if (defined($args{input}));
@@ -412,19 +415,19 @@ sub Essentiality_TAs {
     my @data = @{$genome->{data}};
     ## These 5 arrays will hold the lists of start/ends of each region of interest
     ## This is a somewhat dirty method for this, but I just wanted something easy
-    my $gff = $me->Read_Genome_GFF(gff => $genome_gff, feature_type => 'gene');
-    my $chr_name = $gff->{stats}->{chromosomes}->[0];  ## Grab the name of the first chromosome
-    my @names = @{$gff->{stats}->{feature_names}};
-    my @cds_starts =  @{$gff->{stats}->{cds_starts}};
-    my @cds_ends =  @{$gff->{stats}->{cds_ends}};
-    my @inter_starts = @{$gff->{stats}->{inter_starts}};
-    my @inter_ends =  @{$gff->{stats}->{inter_ends}};
+    my $cds_gff = $me->Read_Genome_GFF(gff => $genome_gff, feature_type => 'gene');
+    my $chr_name = $cds_gff->{stats}->{chromosomes}->[0];  ## Grab the name of the first chromosome
+    my @names = @{$cds_gff->{stats}->{feature_names}};
+    my @cds_starts = @{$cds_gff->{stats}->{cds_starts}};
+    my @cds_ends = @{$cds_gff->{stats}->{cds_ends}};
+    my @inter_starts = @{$cds_gff->{stats}->{inter_starts}};
+    my @inter_ends = @{$cds_gff->{stats}->{inter_ends}};
 
     print STDERR "Counting TAs in ${input}, this takes a while.\n";
     my $datum = $me->Count_TAs(data => \@data);
     @data = @{$datum};
 
-    my $tas_file = qq"${input_name}_tas.txt";
+    my $tas_file = qq"${output_directory}/${input_name}_tas.txt";
     print STDERR "Printing list of #TAs observed by position to ${tas_file}.\n";
     my $ta_count = new FileHandle;
     $ta_count->open(">${tas_file}");
@@ -437,10 +440,11 @@ sub Essentiality_TAs {
         }
     }
     $ta_count->close();
+
     my $inter_tas = new FileHandle;
     my $cds_tas = new FileHandle;
-    $inter_tas->open(">${input_name}_interCDS_tas.txt");
-    $cds_tas->open(">${input_name}_gene_tas.txt");
+    $inter_tas->open(">${output_directory}/${input_name}_interCDS_tas.txt");
+    $cds_tas->open(">${output_directory}/${input_name}_gene_tas.txt");
     my $file_start = qq"#type=COPY_NUMBER
 Chromosome\tStart\tEnd\tFeature reads\t TAs
 ";
@@ -459,6 +463,7 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
             ## $c and $d outline the position of the TA
             ## So I want to figure out if the TA is inside an ORF or intercds, and its name...
           NAMES: for my $i (0 .. $#names) {
+              ## print "TESTME: inter_start: $inter_starts[$i] inter_end: $inter_ends[$i] vs. $c CDS $cds_starts[$i] $cds_ends[$i]\n";
               if ($c >= $inter_starts[$i] and $c <= $inter_ends[$i]) {
                   $feature = "inter_$names[$i]";
                   last NAMES;
@@ -467,6 +472,7 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
                   last NAMES;
               }
           } ## End searching for feature names.
+            ## Now look for inter vs cds features
             if ($feature =~ /^inter/) {
                 print $inter_tas "${chr_name}\t$c\t$d\t$feature\t$total\t1\n";
             } else {
@@ -502,9 +508,9 @@ sub Count_TAs {
     print STDERR "There are $number_reads alignments in ${input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
   BAMLOOP: while (my $align = $bam->read1) {
       $align_count++;
-      if ($me->{debug}) {  ## Stop after a relatively small number of reads when debugging.
-          last BAMLOOP if ($align_count > 200);
-      }
+      ##if ($me->{debug}) {  ## Stop after a relatively small number of reads when debugging.
+      ##    last BAMLOOP if ($align_count > 200);
+      ##}
       if (($align_count % 1000000) == 0) {
           $million_aligns++;
           print STDERR "Finished $million_aligns million alignments out of ${number_reads}.\n";
@@ -664,8 +670,6 @@ sub Allocate_Genome {
     print "Found $genome->{sequences} sequence(s) in $me->{fasta} with $genome->{length} characters.\n";
     return($genome);
 }
-
-
 
 1;
 

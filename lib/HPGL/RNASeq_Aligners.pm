@@ -39,10 +39,9 @@ sub Bowtie {
     my $bt_input = $me->{input};
     my $bt_depends_on;
     $bt_depends_on = $args{depends} if ($args{depends});
-    $me->Check_Options(["species"]);
     my $basename = $me->{basename};
 
-    my $bt_type = "v0M1";
+   my $bt_type = "v0M1";
     $bt_type = $args{bt_type} if ($args{bt_type});
     my $bt_args = $me->{bt_args}->{$bt_type};
     my $jobname = qq"bt${bt_type}";
@@ -53,6 +52,7 @@ sub Bowtie {
     $count = $args{count} if (defined($args{count}));
 
     if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+        print "The input needs to be uncompressed, doing that now.\n" if ($me->{debug});
         my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
         $bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
         $me->{input} = $bt_input;
@@ -70,6 +70,7 @@ sub Bowtie {
     my $bowtie_input_flag = "-q";  ## fastq by default
     $bowtie_input_flag = "-f" if ($me->{input} =~ /\.fasta$/);
 
+    my $cpus = $me->{cpus};
     my $species = $me->{species};
     my $error_file = qq"outputs/bowtie/${basename}-${bt_type}.err";
     my $comment = qq!## This is a bowtie1 alignment of $bt_input against
@@ -80,7 +81,7 @@ sub Bowtie {
     my $unaligned_filename = qq"outputs/bowtie/${basename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"outputs/bowtie/${basename}-${bt_type}.sam";
     my $job_string = qq!mkdir -p outputs/bowtie && sleep 10 && bowtie $bt_reflib $bt_args \\
-  -p 4 \\
+  -p ${cpus} \\
   $bowtie_input_flag $bt_input \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
@@ -158,7 +159,7 @@ sub Bowtie {
 sub BT_Multi {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["species"]);
+    $me->Check_Options(["species","input"]);
     my $basename = $me->{basename};
     my $species = $me->{species};
     my $depends_on = $args{depends};
@@ -283,7 +284,7 @@ sub BWA {
     my %args = @_;
     my %bwa_jobs = ();
     my $bwa_depends_on;
-    $me->Check_Options(["species"]);
+    $me->Check_Options(['species', 'input']);
     my $basename = $me->{basename};
     my $inputs = $me->{input};
     my @in = split(/\:/, $inputs);

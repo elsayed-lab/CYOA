@@ -10,27 +10,56 @@ use HPGL;
 use Switch;
 use Term::ReadLine;
 use Term::UI;
+use Getopt::Long qw"GetOptionsFromArray";
 
+=head1 NAME
 
+    cyoa - Choose Your Own Adventure!  (In Sequence Processing)
 
+=head1 SYNOPSIS
+
+    ## Starts the menu-based function chooser
+    cyoa
+    ## Perform an rnaseq specific job to use bwa with the lmajor reference and 2 paired sequence files.
+    cyoa --task rnaseq --method bwa --species lmajor --input fwd_reads.fastq.gz:rev_reads.fastq.gz
+
+=head2 Methods & Globals
+
+=over 4
+
+=item C<menus>
+
+    The global variable $menus keeps a set of silly choose your own
+    adventure quotes along with the possible task->method listings.
+    The choices slot in each key of the hash is a list of function
+    names found in HPGL::something.  The assumption is that all the
+    functions use Check_Options() to ensure that they receive all the
+    relevant parameters.
+
+=cut
+
+## Going to pull an initial instance of hpgl in order to handle command line arguments
+my $hpgl = new HPGL;
 my $term = new Term::ReadLine('HPGL>');
+## I am going to use Getopt::Long to turn possible things TODO on, they start all off.
+## Use this hash to define the menu system and options available to each toplevel task
 my $menus = {
     RNASeq => {
         name => 'rnaseq',
         message => "The world is dark and full of terrors, take this and go to page 147.",
-        choices => ['FastQC'],},
+        choices => ['FastQC','Biopieces_Graph','Trimomatic','BT_Multi','Bowtie_RRNA','BWA','Kallisto','Tophat','Sam2Bam','HT_Multi','Trinity','Trinity_Post'],},
     TNSeq => {
         name => 'tnseq',
         message => "You have enterred a world of jumping DNA, be ware and go to page 342.",
-        choices => ['Sort_Indexes','Cutadapt','Essentiality_TAs','BT1'],},
+        choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','Essentiality_TAs','BT_Multi'],},
     RiboSeq => {
         name => 'riboseq',
         message => "Awake Awake Fear Fire Foes!  Go to page 4",
-        choices => [],},
+        choices => ['Biopieces_Graph','Cutadapt','BT_Multi','Calibrate','Count_States','Graph_Reads'],},
     Alignment => {
         name => 'alignment',
         message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 128.",
-        choices => [],},
+        choices => ['Blast_Parse','Split_Align','Split_Align_Blast','Parse_Blast'],},
     Conversion => {
         name => 'convert',
         message => qq"And it rained a fever.
@@ -38,10 +67,19 @@ my $menus = {
  And it rained a sacrifice.
  And it rained a miracle.
  And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
-        choices => [],},
+        choices => ['Sam2Bam','Gb2Gff','TriTryp2Text','TriTryp_Download',],},
 };
+## The general idea is to have a toplevel 'task' to perform
+## Something like TNSeq, RNASeq, etc
+##  Then a second-level method to perform therein, which will provide a match to the appropriate function
+if (!defined($hpgl->{task})) {  ## If task is not defined, then we need to run Main()
+    Main();
+} elsif (!defined($hpgl->{method})) { ## If task is defined, but method is not, use the menu system to get that information
+    Iterate(task => $hpgl->{task}, hpgl => $hpgl);
+} else {
+    Match_Method(task => $hpgl->{task}, hpgl => $hpgl, method => $hpgl->{method});
+}
 
-Main();
 
 sub Main {
     $Term::UI::VERBOSE = 0;
@@ -56,7 +94,7 @@ sub Main {
             default => 'TNSeq',);
 
         my $h = new HPGL;
-        Iterate( type => $top_level, hpgl => $h );
+        Iterate(task => $top_level, hpgl => $h);
 
         my $bool = $term->ask_yn(
             prompt => 'Are you done?',
@@ -75,9 +113,9 @@ sub Main {
 
 sub Iterate {
     my %args = @_;
-    my $type = $args{type};
+    my $type = $args{task};
     my $h = $args{hpgl};
-    $h->{debug} = 1;
+    ## $h->{debug} = 1;
     my $finished = 0;
     while ($finished != 1) {
         my $task = $term->get_reply(
@@ -100,5 +138,65 @@ sub Iterate {
         $finished = 1 if ($bool eq '1');
     } ## End the task while loop
 }
+
+sub Match_Method {
+    my %args = @_;
+    my $type = $args{task};
+    my $h = $args{hpgl};
+    my $m = '--' . $args{method};
+    my @method = ($m,);
+
+    my %todo = (
+        );
+    ## This way, we can trivially make an array to pass to GetOptionsFromArray()
+    my %methods = (
+	"biopieces+" => \$todo{Biopieces_Graph},
+	"blastparse+" => \$todo{Blast_Parse},
+	"bowtierrna+" => \$todo{Bowtie_RRNA},
+        "btmulti+" => \$todo{BT_Multi},
+	"calibrate+" => \$todo{Calibrate},
+	"countstates+" => \$todo{Count_States},
+	"cutadapt+" => \$todo{Cutadapt},
+        "essentialitytas+" => \$todo{Essentiality_TAs},
+        "fastqc+" => \$todo{FastQC},
+	"gb2gff+" => \$todo{Gb2Gff},
+	"graphreads+" => \$todo{Graph_Reads},
+	"htmulti+" => \$todo{HT_Multi},
+	"kallisto+" => \$todo{Kallisto},
+	"parseblast+" => \$todo{Parse_Blast},
+	"sam2bam+" => \$todo{Sam2Bam},
+        "sortindexes+" => \$todo{Sort_Indexes},
+	"splitalign+" => \$todo{Split_Align},
+	"splitalignblast+" => \$todo{Split_Align_Blast},
+	"tophat+" => \$todo{Tophat},
+	"trinity+" => \$todo{Trinity},
+	"tritrypdownload+" => \$todo{TriTryp_Download},
+	"tritryp2text+" => \$todo{TriTryp2Text},
+	"posttrinity+" => \$todo{Trinity_Post},
+	"trimomatic+" => \$todo{Trimomatic},
+        );
+
+    my $array_result = GetOptionsFromArray(\@method, %methods);
+    ## Now some portions of $todo should be filled in with 1s
+    foreach my $job (keys %todo) {
+        if ($todo{$job}) {
+            print "You chose to perform: $job\n";
+            $h->$job(type => $type);
+        }
+    }
+#    Main();
+}
+
+=back
+
+=head1 AUTHOR - atb
+
+Email abelew@gmail.com
+
+=head1 SEE ALSO
+
+    L<HPGL> L<HPGL::Convert> L<HPGL::RNASeq_Trim>
+
+=cut
 
 ## EOF

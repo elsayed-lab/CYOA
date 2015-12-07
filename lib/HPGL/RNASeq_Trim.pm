@@ -28,6 +28,7 @@ sub Cutadapt {
     $type = 'tnseq' unless(defined($type));
     my $input = $me->{input};
     my $basename = basename($input, @{$me->{suffixes}});
+    $basename = basename($basename, @{$me->{suffixes}});
     my $output = qq"${basename}-trimmed.fastq";
     my $cutadapt_flags = "";
     my $minlength = 7;
