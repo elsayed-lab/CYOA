@@ -126,8 +126,8 @@ sub Sort_TNSeq_File {
     use String::Approx;
     return(undef) unless ($input =~ /\.fastq/);
     print STDOUT "Starting to read: $input\n";
+    ## Does FileHandle work here?
     open(INPUT, "lesspipe $input |");  ## PerlIO::gzip is failing on some files.
-    ##open(INPUT, "<:gzip", "$input");
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
     while (my $in_seq = $in->next_dataset()) {
         $me->{indexes}->{total}->{read}++;
@@ -208,8 +208,8 @@ sub Sort_TNSeq_File_Approx {
     use String::Approx qw"amatch";
     return(undef) unless ($input =~ /\.fastq/);
     print STDOUT "Starting to read: $input\n";
+    ## Does FileHandle work here?
     open(INPUT, "lesspipe $input |");  ## PerlIO::gzip is failing on some files.
-    ##open(INPUT, "<:gzip", "$input");
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
     my $count = 0;
     READS: while (my $in_seq = $in->next_dataset()) {
@@ -323,8 +323,8 @@ sub Read_Indexes {
     make_path($me->{outdir}) if (!-d $me->{outdir});
     unlink("$me->{outdir}/unknown.fastq.gz") if (-r "$me->{outdir}/unknown.fastq.gz");
     unlink("$me->{outdir}/ambiguous.fastq.gz") if (-r "$me->{outdir}/ambiguous.fastq.gz");
-    $unknown->open("|gzip >> $me->{outdir}/unknown.fastq.gz");
-    $ambiguous->open("|gzip >> $me->{outdir}/ambiguous.fastq.gz");
+    $unknown->open("| gzip >> $me->{outdir}/unknown.fastq.gz");
+    $ambiguous->open("| gzip >> $me->{outdir}/ambiguous.fastq.gz");
     my $indexes = {
         total => {
             read => 0,
@@ -353,7 +353,7 @@ sub Read_Indexes {
         my $output_filename = qq"$me->{outdir}/${sample}.fastq.gz";
         unlink($output_filename) if (-r $output_filename);
         my $handle = new FileHandle;
-        $handle->open("|gzip >> $output_filename");
+        $handle->open("| gzip >> $output_filename");
         print "Opened for writing: $output_filename\n" if ($me->{debug});
         $indexes->{$ind} = {
             name => $sample,

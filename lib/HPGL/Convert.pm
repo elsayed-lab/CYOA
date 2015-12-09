@@ -1,6 +1,8 @@
 package HPGL;
 use common::sense;
 use autodie;
+use File::Basename;
+use Bio::FeatureIO;
 
 =head1 NAME
 
@@ -35,7 +37,8 @@ sub Gff2Fasta {
     my $gff = $args{gff};
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $me->Read_Genome(genome => $genome);
-    open(GFF, "<${gff}");
+    my $gff = new FileHandle;
+    $gff->open("lesspipe ${gff} |");
     my $out_fasta_amino = new FileHandle();
     my $out_fasta_nt = new FileHandle();
     my $aa_out_name = qq"${genome_basename}_cds_aa.fasta";
@@ -46,7 +49,8 @@ sub Gff2Fasta {
     $tag = $me->{tag} if ($me->{tag});
     my $feature_type = 'CDS';
     $feature_type = $me->{feature_type} if ($me->{feature_type});
-    my $annotation_in = new Bio::Tools::GFF(-fh => \*GFF, -gff_version => 3);
+    $feature_type = $args{feature_type} if ($args{feature_type});
+    my $annotation_in = new Bio::Tools::GFF(-fh => $gff, -gff_version => 3);
     my $features_written = 0;
   LOOP: while(my $feature = $annotation_in->next_feature()) {
       ##print "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
@@ -77,15 +81,15 @@ sub Gff2Fasta {
       my $seq_obj = new Bio::Seq();
       $seq_obj->seq($cds);
       my $aa_cds = $seq_obj->translate->seq();
-      print $out_fasta_amino ">${gff_chr} ${id}
+      print $out_fasta_amino ">${gff_chr}_${id}
 ${aa_cds}
 ";
-      print $out_fasta_nt ">${gff_chr} ${id}
+      print $out_fasta_nt ">${gff_chr}_${id}
 ${cds}
 ";
       $features_written++;
   } ## End LOOP
-    close(GFF);
+    $gff->close();
     $out_fasta_amino->close();
     $out_fasta_nt->close();
     return($features_written);
@@ -102,8 +106,6 @@ sub Gff2Gtf {
     my $me = shift;
     my %args = @_;
     my $input = $args{gff};
-    use File::Basename;
-    use Bio::FeatureIO;
 
     my ($name, $path, $suffix) = fileparse($input, qr/\.gff/);
     my $out_file = $path . $name . ".gtf";
@@ -168,12 +170,15 @@ sub Read_Genome {
     my %args = @_;
     my $genome = $args{genome};
     my $chromosomes = {};
-    my $input = new Bio::SeqIO(-file => $genome, -format => 'Fasta');
+    my $fh = new FileHandle;
+    $fh->open("lesspipe $genome |");
+    my $input = new Bio::SeqIO(-fh => $fh, -format => 'Fasta');
     while (my $genome_seq = $input->next_seq()) {
         next unless(defined($genome_seq->id));
         my $id = $genome_seq->id;
         $chromosomes->{$id} = $genome_seq;
     }
+    $fh->close();
     return($chromosomes);
 }
 
@@ -289,7 +294,9 @@ sub Gb2Gff {
     my @suffix = (".gb", ".genbank");
     my $base = basename($input, @suffix);
 
-    my $seqio = new Bio::SeqIO(-format => 'genbank', -file => $input);
+    my $in = new FileHandle;
+    $in->open("lesspipe $input |");
+    my $seqio = new Bio::SeqIO(-format => 'genbank', -fh => $in);
     my $seq_count = 0;
     my $total_nt = 0;
     my $feature_count = 0;
@@ -405,6 +412,7 @@ sub Gb2Gff {
         total_nt => $total_nt,
         num_features => $feature_count,
     };
+    close($in);
     return($ret_stats);
 }
 

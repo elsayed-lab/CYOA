@@ -188,6 +188,8 @@ sub new {
     $me->{debug} = 0 if (!defined($me->{debug}));
     ## A flag for PBS telling what each job depends upon
     $me->{depends} = {} if (!defined($me->{depends}));
+    $me->{fasta_args} = ' -b 20 -d 20 ' if (!defined($me->{fasta_args}));
+    $me->{fasta_tool} = 'ggsearch36' if (!defined($me->{fasta_tool}));
     ## A default feature type when examining gff files
     $me->{feature_type} = 'CDS' if (!defined($me->{feature_type}));
     ## A default gff file!
@@ -213,6 +215,7 @@ sub new {
     ## Maximum length for good reads (riboseq): FIXME rename this
     $me->{len_max} = 40 if (!defined($me->{len_max}));
     ## The default directory for gff/fasta/genbank/indexes
+    $me->{library} = undef if (!defined($me->{library}));
     $me->{libdir} = "$ENV{HOME}/libraries" if (!defined($me->{libdir}));
     ## What type of library are we going to search for?
     $me->{libtype} = 'genome' if (!defined($me->{libtype}));
@@ -229,12 +232,13 @@ sub new {
     $me->{qsub_queue} = 'throughput' if (!defined($me->{qsub_queue}));
     ## Other possible queues
     $me->{qsub_queues} = ['throughput','workstation','long','large'] if (!defined($me->{qsub_queues}));
-    $me->{qsub_shell} = 'bash' if (!defined($me->{qsub_shell}));
+    $me->{qsub_shell} = '/usr/bin/bash' if (!defined($me->{qsub_shell}));
     $me->{qsub_mem} = 6 if (!defined($me->{qsub_mem}));
     $me->{qsub_wall} = '10:00:00' if (!defined($me->{qsub_wall}));
     $me->{qsub_cpus} = '4' if (!defined($me->{qsub_cpus}));
     $me->{qsub_depends} = 'depend=afterok:' if (!defined($me->{qsub_depends}));
     $me->{qsub_loghost} = 'localhost' if (!defined($me->{qsub_loghost}));
+    $me->{query} = undef if (!defined($me->{query}));
     $me->{riboasite} = 1 if (!defined($me->{riboasite}));
     $me->{ribopsite} = 1 if (!defined($me->{ribopsite}));
     $me->{riboesite} = 1 if (!defined($me->{riboesite}));
@@ -307,9 +311,9 @@ sub new {
     Help() if (defined($me->{help}));
 
     ##    $me->Check_Options(["input",]);
+    my @suffixes = @{$me->{suffixes}};
     if ($me->{input}) {
         my $base = $me->{input};
-        my @suffixes = @{$me->{suffixes}};
         $base = basename($base, @suffixes);
         $base = basename($base, @suffixes);
         $me->{basename} = $base;
@@ -318,6 +322,9 @@ sub new {
             $tmp =~ s/^(hpgl\d+).*/$1/g;
             $me->{hpglid} = $tmp;
         }
+    } else {
+        my $base = basename($me->{basedir}, @suffixes);
+        $me->{basename} = $base;
     }
 
     if ($me->{pbs}) {

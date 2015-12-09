@@ -153,7 +153,8 @@ new observations.\n";
         my $entries = shift;
         my $strand = shift;
         my $multiplier = $options{asite} + $options{psite} + $options{esite};
-        open(COUNT, ">>$options{outdir}/$options{gff_type}.count");        
+        my $count = new FileHandle;
+        $count->open(">>$options{outdir}/options{gff_type}.count");
       CANDIDATES: foreach my $candidate (keys %{$entries}) {
           my $orf_start = $entries->{$candidate}->{start} - 1;
           my $orf_end = $entries->{$candidate}->{end} - 1;
@@ -165,10 +166,10 @@ new observations.\n";
         }
           $candidate_count = floor($candidate_count / $multiplier);
           my $string = qq"$entries->{$candidate}->{id}\t$candidate_count\n";
-          print COUNT $string;
+          print $count $string;
           print "TESTME: $string";
       }
-        close(COUNT);
+        $count->close();
     }
 
     sub Count_States {
@@ -303,30 +304,32 @@ new observations.\n";
     sub Print_Chromosome {
         my $name = shift;
         my $datum = shift;
-        open(OUT, ">$name");
+        my $out = new FileHandle;
+        $out->open(">${name}");
         my @data = @{$datum};
         foreach my $base (@data) {
-            print OUT "$base\n";
+            print $out "$base\n";
         }
-        close(OUT);
+        $out->close();
     }
 
     sub Print_States {
         my $file = shift;
         my $datum = shift;
-
-        open(OUT, ">$file");
+        my $out = new FileHandle;
+        $out->open(">${file}");
         foreach my $s (@{$datum}) {
-            print OUT $s;
+            print $out $s;
         }
-        print OUT "\n";
-        close(OUT);
+        print $out "\n";
+        $out->close();
     }
 
     sub Print_State_Prob {
         my $file = shift;
         my $states = shift;
-        open(OUT, ">$file");
+        my $out = new FileHandle;
+        $out->open(">${file}");
         foreach my $k (sort keys %{$states}) {
             my $likelihood;
             if ($states->{total} == 0) {
@@ -336,15 +339,16 @@ new observations.\n";
                 my $n = new Math::BigFloat($likelihood);
                 $likelihood = $n->bround(8);
             }
-            print OUT "$k $states->{$k} $likelihood\n";
+            print $out "$k $states->{$k} $likelihood\n";
         }
-        close(OUT);
+        $out->close();
     }
 
     sub Print_Trans_Prob {
         my $file = shift;
         my $trans = shift;
-        open(OUT, ">$file");
+        my $out = new FileHandle;
+        $out->open(">${file}");
         foreach my $k (sort keys %{$trans}) {
             my $likelihood;
             if ($trans->{total} == 0) {
@@ -354,9 +358,9 @@ new observations.\n";
                 my $n = new Math::BigFloat($likelihood);
                 $likelihood = $n->bround(8);
             }
-            print OUT "$k $trans->{$k} $likelihood\n";
+            print $out "$k $trans->{$k} $likelihood\n";
         }
-        close(OUT);
+        $out->close();
     }
 
     sub Read_GFF {
@@ -407,7 +411,6 @@ new observations.\n";
 
 sub Graph_Reads {
 
-
     if ($options{help}) {
         print "This script attempts to simplify the graphing of read distributions for ribosome profiling experiments.
 Likely options include:
@@ -428,8 +431,6 @@ Likely options include:
     if (!-d $options{output}) {  system("mkdir $options{output}") };
     #my $counted = Read_Counts(min => 24, max => 36);
     my $counted = Read_Counts();
-
-
 
     sub Read_Counts {
         my %args = @_;
@@ -468,7 +469,6 @@ Likely options include:
         }
         close(IN);
         close(TOTAL);
-
     }
 
     sub Correct {
