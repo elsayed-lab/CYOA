@@ -33,12 +33,16 @@ use Bio::FeatureIO;
 sub Gff2Fasta {
     my $me = shift;
     my %args = @_;
-    my $genome = $args{genome};
-    my $gff = $args{gff};
+    $me->Check_Options(["gff","genome"]);
+    my $genome = $me->{genome};
+    $genome = $args{genome} if (!defined($genome));
+    my $gff = $me->{gff};
+    $gff = $args{gff} if (!defined($gff));
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $me->Read_Genome(genome => $genome);
-    my $gff = new FileHandle;
-    $gff->open("lesspipe ${gff} |");
+
+    my $gff_handle = new FileHandle;
+    $gff_handle->open("less ${gff} |");
     my $out_fasta_amino = new FileHandle();
     my $out_fasta_nt = new FileHandle();
     my $aa_out_name = qq"${genome_basename}_cds_aa.fasta";
@@ -50,7 +54,7 @@ sub Gff2Fasta {
     my $feature_type = 'CDS';
     $feature_type = $me->{feature_type} if ($me->{feature_type});
     $feature_type = $args{feature_type} if ($args{feature_type});
-    my $annotation_in = new Bio::Tools::GFF(-fh => $gff, -gff_version => 3);
+    my $annotation_in = new Bio::Tools::GFF(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
   LOOP: while(my $feature = $annotation_in->next_feature()) {
       ##print "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
@@ -89,7 +93,7 @@ ${cds}
 ";
       $features_written++;
   } ## End LOOP
-    $gff->close();
+    $gff_handle->close();
     $out_fasta_amino->close();
     $out_fasta_nt->close();
     return($features_written);
@@ -171,7 +175,7 @@ sub Read_Genome {
     my $genome = $args{genome};
     my $chromosomes = {};
     my $fh = new FileHandle;
-    $fh->open("lesspipe $genome |");
+    $fh->open("less $genome |");
     my $input = new Bio::SeqIO(-fh => $fh, -format => 'Fasta');
     while (my $genome_seq = $input->next_seq()) {
         next unless(defined($genome_seq->id));
@@ -295,7 +299,7 @@ sub Gb2Gff {
     my $base = basename($input, @suffix);
 
     my $in = new FileHandle;
-    $in->open("lesspipe $input |");
+    $in->open("less ${input} |");
     my $seqio = new Bio::SeqIO(-format => 'genbank', -fh => $in);
     my $seq_count = 0;
     my $total_nt = 0;

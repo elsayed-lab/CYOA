@@ -170,7 +170,7 @@ sub new {
     ## The base directory when invoking various shell commands
     $me->{basedir} = cwd() if (!defined($me->{basedir}));
     $me->{blast_params} = ' -e 10 ' if (!defined($me->{blast_params}));
-    $me->{blast_program} = 'blastn' if (!defined($me->{blast_program}));
+    $me->{blast_tool} = undef;
     $me->{blast_peptide} = 'F' if (!defined($me->{blast_peptide}));
 
     ## A series of default bowtie1 arguments
@@ -193,11 +193,12 @@ sub new {
     ## A default feature type when examining gff files
     $me->{feature_type} = 'CDS' if (!defined($me->{feature_type}));
     ## A default gff file!
-    $me->{gff} = 'default.gff' if (!defined($me->{gff}));
+    $me->{genome} = undef;
+    $me->{gff} = undef;
     ## Ask for help?
-    $me->{help} = undef if (!defined($me->{help}));
+    $me->{help} = undef;
     ## An hpgl identifier
-    $me->{hpgl} = undef if (!defined($me->{hpgl}));
+    $me->{hpgl} = undef;
     ## The identifier flag passed to htseq (probably should be moved to feature_type)
     $me->{htseq_identifier} = 'ID' if (!defined($me->{htseq_identifier}));
     ## Use htseq stranded options?
@@ -205,17 +206,17 @@ sub new {
     ## An index file for tnseq (change this variable to tnseq_index I think)
     $me->{index_file} = 'indexes.txt' if (!defined($me->{index_file}));
     ## The default input file
-    $me->{input} = undef if (!defined($me->{input}));
+    $me->{input} = undef;
     ## A list of jobs
     $me->{jobs} = [] if (!defined($me->{jobs}));
     ## And a hash of jobids
     $me->{jobids} = {} if (!defined($me->{jobids}));
     ## Minimum length for good reads (riboseq): FIXME rename this
-    $me->{len_min} = 21 if (!defined($me->{len_min}));
+    $me->{len_min} = 16 if (!defined($me->{len_min}));
     ## Maximum length for good reads (riboseq): FIXME rename this
-    $me->{len_max} = 40 if (!defined($me->{len_max}));
+    $me->{len_max} = 42 if (!defined($me->{len_max}));
     ## The default directory for gff/fasta/genbank/indexes
-    $me->{library} = undef if (!defined($me->{library}));
+    $me->{library} = undef;
     $me->{libdir} = "$ENV{HOME}/libraries" if (!defined($me->{libdir}));
     ## What type of library are we going to search for?
     $me->{libtype} = 'genome' if (!defined($me->{libtype}));
@@ -238,7 +239,8 @@ sub new {
     $me->{qsub_cpus} = '4' if (!defined($me->{qsub_cpus}));
     $me->{qsub_depends} = 'depend=afterok:' if (!defined($me->{qsub_depends}));
     $me->{qsub_loghost} = 'localhost' if (!defined($me->{qsub_loghost}));
-    $me->{query} = undef if (!defined($me->{query}));
+    $me->{qual} = undef;
+    $me->{query} = undef;
     $me->{riboasite} = 1 if (!defined($me->{riboasite}));
     $me->{ribopsite} = 1 if (!defined($me->{ribopsite}));
     $me->{riboesite} = 1 if (!defined($me->{riboesite}));
@@ -249,8 +251,8 @@ sub new {
     $me->{ribocorrect} = 1 if (!defined($me->{ribocorrect}));
     $me->{riboanchor} = 'start' if (!defined($me->{rioanchor}));
     $me->{ribosizes} = '25,26,27,28,29,30,31,32,33,34' if (!defined($me->{ribosizes}));
-    $me->{species} = undef if (!defined($me->{species}));
-    $me->{suffixes} = ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count'] if (!defined($me->{suffixes}));
+    $me->{species} = undef;
+    $me->{suffixes} = ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'] if (!defined($me->{suffixes}));
     $me->{task} = undef;
     $me->{taxid} = '353153' if (!defined($me->{taxid}));
     $me->{tnseq_trim} = 0 if (!defined($me->{tnseq_trim}));
@@ -355,6 +357,47 @@ sub new {
     if ($failed) {
         warn("HPGL.pm requires external programs, of which $failed were missing.");
     }
+    $me->{todo} = ();
+    $me->{methods} = {
+	"biopieces+" => \$me->{todo}{Biopieces_Graph},
+	"blastparse+" => \$me->{todo}{Blast_Parse},
+	"blastsplitalign+" => \$me->{todo}{Split_Align_Blast},
+	"bowtierrna+" => \$me->{todo}{Bowtie_RRNA},
+        "btmulti+" => \$me->{todo}{BT_Multi},
+	"calibrate+" => \$me->{todo}{Calibrate},
+	"countstates+" => \$me->{todo}{Count_States},
+        "concat+" => \$me->{todo}{Concatenate_Searches},
+	"cutadapt+" => \$me->{todo}{Cutadapt},
+        "essentialitytas+" => \$me->{todo}{Essentiality_TAs},
+        "fastasplitalign+" => \$me->{todo}{Split_Align_Fasta},
+        "fastqc+" => \$me->{todo}{FastQC},
+	"gb2gff+" => \$me->{todo}{Gb2Gff},
+        "gff2fasta+" => \$me->{todo}{Gff2Fasta},
+	"graphreads+" => \$me->{todo}{Graph_Reads},
+	"htmulti+" => \$me->{todo}{HT_Multi},
+	"kallisto+" => \$me->{todo}{Kallisto},
+        "mergeparse+" => \$me->{todo}{Merge_Parse_Blast},
+        "pbt1+" => \$me->{todo}{RNAseq_Pipeline_Bowtie},
+        "pbt2+" => \$me->{todo}{RNAseq_Pipeline_Bowtie2},
+        "pbwa+" => \$me->{todo}{RNAseq_Pipeline_BWA},
+        "pkallisto+" => \$me->{todo}{RNAseq_Pipeline_Kallisto},
+        "ptophat+" => \$me->{todo}{RNAseq_Pipeline_Tophat},
+        "ptnseq+" => \$me->{todo}{TNseq_Pipeline},
+        "priboseq+" => \$me->{todo}{Riboseq_Pipeline},
+	"parseblast+" => \$me->{todo}{Parse_Blast},
+	"posttrinity+" => \$me->{todo}{Trinity_Post},
+        "runessentiality+" => \$me->{todo}{Run_Essentiality},
+	"sam2bam+" => \$me->{todo}{Sam2Bam},
+        "sortindexes+" => \$me->{todo}{Sort_Indexes},
+	"splitalign+" => \$me->{todo}{Split_Align},
+        "test+" => \$me->{todo}{Test_Job},
+	"tophat+" => \$me->{todo}{Tophat},
+	"trimomatic+" => \$me->{todo}{Trimomatic},
+	"trinity+" => \$me->{todo}{Trinity},
+	"tritrypdownload+" => \$me->{todo}{TriTryp_Download},
+	"tritryp2text+" => \$me->{todo}{TriTryp2Text},
+        "helpme+" => \$me->{todo}{CYOA_Help},
+    };
     return($me);
 }
 
@@ -613,6 +656,127 @@ sub Read_Genome_GFF {
         store($gff_out, $data_file);
     } ## End looking for the gff data file
     return($gff_out);
+}
+
+sub Pipeline_Riboseq {
+    my $me = shift;
+    my %args = @_;
+    $me->Fastqc(%args);
+    my $cutadapt_job = $me->Cutadapt(%args);
+    $args{depends} = $cutadapt_job->{pbs_id};
+    $me->Biopieces_Graph(%args);
+    my $rrna_job = $me->Bowtie_RRNA(%args);
+    $args{depends} = $rrna_job->{pbs_id};
+    my $bt_jobs = $me->Bowtie(%args);
+}
+
+sub Pipeline_RNAseq_Bowtie {
+    my $me = shift;
+    my %args = @_;
+    $args{aligner} = 'bowtie';
+    $me->Pipeline_RNAseq(%args);
+    return($me);
+}
+
+sub Pipeline_RNAseq_Bowtie2 {
+    my $me = shift;
+    my %args = @_;
+    $args{aligner} = 'bowtie2';
+    $me->Pipeline_RNAseq(%args);
+    return($me);
+}
+
+
+sub Pipeline_RNAseq_Tophat {
+    my $me = shift;
+    my %args = @_;
+    $args{aligner} = 'tophat';
+    $me->Pipeline_RNAseq(%args);
+    return($me);
+}
+
+sub Pipeline_RNAseq_BWA {
+    my $me = shift;
+    my %args = @_;
+    $args{aligner} = 'bwa';
+    $me->Pipeline_RNAseq(%args);
+    return($me);
+}
+
+sub Pipeline_RNAseq_Kallisto {
+    my $me = shift;
+    my %args = @_;
+    $args{aligner} = 'kallisto';
+    $me->Pipeline_RNAseq(%args);
+    return($me);
+}
+
+sub Pipeline_RNAseq {
+    my $me = shift;
+    my %args = @_;
+    $me->Fastqc(%args);
+    my $trim_job = $me->Trimomatic(%args);
+    $args{depends} = $trim_job->{pbs_id};
+    $me->Biopieces_Graph(%args);
+    my $rrna_job = $me->Bowtie_RRNA(%args);
+    $args{depends} = $rrna_job->{pbs_id};
+    my $align_jobs;
+    if ($args{aligner} eq 'bowtie') {
+        $align_jobs = $me->Bowtie(%args);
+    } elsif ($args{aligner} eq 'bowtie2') {
+        $align_jobs = $me->Bowtie2(%args);
+    } elsif ($args{aligner} eq 'tophat') {
+        $align_jobs = $me->Tophat(%args);
+    } elsif ($args{aligner} eq 'bwa') {
+        $align_jobs = $me->BWA(%args);
+    } elsif ($args{aligner} eq 'kallisto') {
+        $align_jobs = $me->Kallisto(%args);
+    } else {
+        $align_jobs = $me->Tophat(%args);
+    }
+    return($me);
+}
+
+sub Pipeline_TNseq {
+    my $me = shift;
+    my %args = @_;
+    $me->Fastqc(%args);
+    $args{type} = 'tnseq';
+    my $cutadapt_job = $me->Cutadapt(%args);
+    $args{depends} = $cutadapt_job->{pbs_id};
+    $me->Biopieces_Graph(%args);
+    my $bt_jobs = $me->Bowtie(%args);
+}
+
+sub CYOA_Help {
+    my $me = shift;
+    my %args = @_;
+    my %methods = %{$me->{methods}};
+    print qq"The command line program 'cyoa' has a series of shortcuts intended to make it easy to use and flexible.
+The following comprises the set of strings you may feed it as 'methods':\n";
+    my $c = 0;
+    for my $k (sort keys %methods) {
+        my $sep = '\t';
+        if (($c % 3) == 0) {
+            $sep = '\n';
+        } else {
+            $sep = '\t';
+        }
+        $c++;
+        print "${k}${sep}";
+    }
+    print "\n";
+    print qq"cyoa uses GetOptions, so you can shortcut all the 'methods', so:
+'cyoa --task ri --method cut --input test.fastq' calls the cutadapt with
+  options suitable for ribosome profiling data.  Conversely:
+'cyoa --task rna --method top --input test.fastq' calls tophat assuming
+  rnaseq data.
+'cyoa --method blastsplt --query test.fasta --library nr --blast_tool blastp'
+  Splits the test.fasta into a bunch of pieces (settable with --number), calls
+  blastp on them, merges the outputs, and parses the result into a table of hits.
+You get the idea, the following is the HPGL pod documentation:
+";
+    $me->Help();
 }
 
 =back

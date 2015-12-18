@@ -22,29 +22,69 @@ package HPGL;
 sub Biopieces_Graph {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(['input']);
     my $input = $me->{input};
     my $bp_depends_on;
     my $basename = $me->{basename};
     $bp_depends_on = $args{depends} if ($args{depends});
-    my @inputs = split(/\,/, $input);
+    my @inputs = split(/\,|\:|\;/, $input);
     my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
-    my $job_string = qq!
-lesspipe ${input} | read_fastq -i - -e base_33 |\\
+    my $bp;
+    if (scalar(@inputs) > 1) { ## multiple comma/colon/semicolon inputs were provided.
+        foreach my $in (@inputs) {
+            my $short_in = basename($in, ('.gz','.fastq'));
+            $short_in = basename($short_in, ('.gz','.fastq'));
+            my $job_string = qq!
+less ${in} | read_fastq -i - -e base_33 |\\
+ plot_scores -T \'Quality Scores\' -t svg -o outputs/${short_in}_quality_scores.svg |\\
+ plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/${short_in}_ntdist.svg |\\
+ plot_lendist -x -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/${short_in}_lendist.svg |\\
+ analyze_gc | bin_vals -b 5 -k GC\% | plot_distribution -k GC\%_BIN -t svg -o outputs/${short_in}_gc_dist.svg |\\
+ analyze_gc | mean_vals -k GC\% -o outputs/${short_in}_gc.txt |\\
+ count_records -o outputs/${short_in}_count.txt -x
+!;
+            $bp = $me->Qsub(job_name => "biop",
+                               depends => $bp_depends_on,
+                               job_string => $job_string,
+                               comment => $comment,
+                               input => $in,
+                               prescript => $args{prescript},
+                               postscript => $args{postscript},
+                );
+        }
+    } else {  ## A single input was provided
+        my $job_string = qq!
+less ${input} | read_fastq -i - -e base_33 |\\
  plot_scores -T \'Quality Scores\' -t svg -o outputs/${basename}_quality_scores.svg |\\
  plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/${basename}_ntdist.svg |\\
- plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/${basename}_lendist.svg |\\
+ plot_lendist -x -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/${basename}_lendist.svg |\\
+ analyze_gc | bin_vals -b 5 -k GC\% | plot_distribution -k GC\%_BIN -t svg -o outputs/${basename}_gc_dist.svg |\\
+ analyze_gc | mean_vals -k GC\% -o outputs/${basename}_gc.txt |\\
+ count_records -o outputs/${basename}_count.txt -x
 !;
-    my $bp = $me->Qsub(job_name => "biop",
-                       depends => $bp_depends_on,
-                       job_string => $job_string,
-                       comment => $comment,
-                       input => $input,
-		       prescript => $args{prescript},
-		       postscript => $args{postscript},
-	);
+        $bp = $me->Qsub(job_name => "biop",
+                        depends => $bp_depends_on,
+                        job_string => $job_string,
+                        comment => $comment,
+                        input => $input,
+                        prescript => $args{prescript},
+                        postscript => $args{postscript},
+            );
+    }
     return($bp);
 }
 
+sub Fastqc {
+    my $me = shift;
+    my %args = @_;
+    $me->Check_Options(['input',]);
+    if ($me->{input} =~ /\:|\,/) {
+        $me->Fastqc_Pairwise(%args);
+    } else {
+        $me->Fastqc_Single(%args);
+    }
+    return($me);
+}
 
 =item C<Fastqc_Pairwise>
 

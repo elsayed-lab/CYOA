@@ -29,32 +29,47 @@ sub Cutadapt {
     my $input = $me->{input};
     my $basename = basename($input, @{$me->{suffixes}});
     $basename = basename($basename, @{$me->{suffixes}});
-    my $output = qq"${basename}-trimmed.fastq";
-    my $cutadapt_flags = "";
+    my $adapter_flags = "";
     my $minlength = 7;
-    my $maxlength = 40;
+    my $maxlength = 42;
     if ($type eq 'tnseq') {
-        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
+        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
         $maxlength = 20;
     } elsif ($type eq 'riboseq') {
-        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
-        $minlength = 20;
+        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
+        $minlength = 16;
+        if ($input =~ /\.csfasta/) {
+            $adapter_flags = qq" -a CGCCTTGGCCGTACAGCAGCATATTGGATAAGAGAATGAGGAACCCGGGGCAG -a GCGGAACCGGCATGTCGTCGGGCATAACCCTCTCTTACTCCTTGGGCCCCGTC ";
+        }
     } else {
-        $cutadapt_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT ";
+        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT ";
     }
 
     my $comment = qq!## This script makes use of biopieces and cutadapt to trim away adapters
 ## and separate the sequence file into a few pieces depending on size
 ## and adapter status.  It also performs some simple graphs of the data.!;
     my $out_dir = qq"$me->{basedir}/outputs/cutadapt";
+    my $type_flag = '';
+    my $out_suffix = 'fastq';
+    my $input_flags = qq"less ${input} | cutadapt - ";
+    if ($input =~ /\.csfasta/) {
+        $type_flag = '-c -t --strip-f3';
+        $me->Check_Options(["qual"]);
+        ## $input_flags = qq"less ${input} | sed 's/^T//g' | cutadapt - $me->{qual} ";
+        $input_flags = qq"less ${input} | cutadapt - $me->{qual} "; ## If we are keeping quality files
+        ## $input_flats = qq"less ${input} | cutadapt - ";
+        $out_suffix = 'fastq';
+    }
+    my $output = qq"${basename}-trimmed.${out_suffix}";
     my $job_string = qq!
 mkdir -p $out_dir && \\
- lesspipe ${input} | cutadapt - ${cutadapt_flags} -e 0.1 -n 3 -m ${minlength} -M ${maxlength} \\
-  --too-short-output=${out_dir}/${basename}_tooshort.fastq \\
-  --too-long-output=${out_dir}/${basename}_toolong.fastq \\
-  --untrimmed-output=${out_dir}/${basename}_untrimmed.fastq \\
+ ${input_flags} ${type_flag} ${adapter_flags} -e 0.1 -n 3 -m ${minlength} -M ${maxlength} \\
+  --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
+  --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
+  --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
   2>outputs/cutadapt.err 1>${output}
 !;
+    print "TESTME: $job_string\n";
     my $cutadapt = $me->Qsub(job_name => "cutadapt",
                              qsub_wall => "8:00:00",
                              job_string => $job_string,
@@ -66,17 +81,17 @@ mkdir -p $out_dir && \\
 	);
     my $comp_short = $me->Recompress(job_name => "xzcutshort",
                                      depends => $cutadapt->{pbs_id},
-                                     input => qq"cutadapt/${basename}_tooshort.fastq",
+                                     input => qq"${out_dir}/${basename}_tooshort.fastq",
                                      comment => qq"## Compressing the tooshort sequences.",
 	);
     my $comp_long = $me->Recompress(job_name => "xzcutlong",
                                     depends => $cutadapt->{pbs_id},
-                                    input => qq"cutadapt/${basename}_toolong.fastq",
+                                    input => qq"${out_dir}/${basename}_toolong.fastq",
                                     comment => qq"## Compressing the toolong sequences.",
 	);
     my $comp_un = $me->Recompress(job_name => "xzuncut",
                                   depends => $cutadapt->{pbs_id},
-                                  input => qq"cutadapt/${basename}_untrimmed.fastq",
+                                  input => qq"${out_dir}/${basename}_untrimmed.fastq",
                                   comment => qq"## Compressing the toolong sequences.",
 	);
     my $comp_original = $me->Recompress(job_name => "xzorig",
@@ -85,6 +100,7 @@ mkdir -p $out_dir && \\
                                         output => qq"sequences/${input}.xz",
                                         comment => qq"## Compressing the original sequence.",
 	);
+    return($cutadapt);
 }
 
 =item C<Trimomatic>

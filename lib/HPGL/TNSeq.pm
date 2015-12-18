@@ -11,6 +11,7 @@ use Bio::SeqIO;
 use Bio::Tools::GFF;
 use Bio::DB::Sam;
 use Cwd qw(abs_path getcwd);
+use String::Approx;
 
 =head1 Name
     HPGL::TNSeq - some functions for working with TNSeq data
@@ -123,11 +124,10 @@ sub Sort_TNSeq_File {
     my $input = $args{file};
     my $indexes = $me->{indexes};
 
-    use String::Approx;
     return(undef) unless ($input =~ /\.fastq/);
     print STDOUT "Starting to read: $input\n";
     ## Does FileHandle work here?
-    open(INPUT, "lesspipe $input |");  ## PerlIO::gzip is failing on some files.
+    open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
     while (my $in_seq = $in->next_dataset()) {
         $me->{indexes}->{total}->{read}++;
@@ -209,7 +209,7 @@ sub Sort_TNSeq_File_Approx {
     return(undef) unless ($input =~ /\.fastq/);
     print STDOUT "Starting to read: $input\n";
     ## Does FileHandle work here?
-    open(INPUT, "lesspipe $input |");  ## PerlIO::gzip is failing on some files.
+    open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
     my $count = 0;
     READS: while (my $in_seq = $in->next_dataset()) {
@@ -431,6 +431,7 @@ sub Essentiality_TAs {
     print STDERR "Printing list of #TAs observed by position to ${tas_file}.\n";
     my $ta_count = new FileHandle;
     $ta_count->open(">${tas_file}");
+    print $ta_count qq"Position\tn_fwd\tn_rev\tn_both\n";
     foreach my $c (0 .. $#data) {
         if ($data[$c]->{fwd} or $data[$c]->{rev} or $data[$c]->{mismatch} or $data[$c]->{ta}) {
             my $fwd = $data[$c]->{fwd};
@@ -443,6 +444,8 @@ sub Essentiality_TAs {
 
     my $inter_tas = new FileHandle;
     my $cds_tas = new FileHandle;
+    my $wig = new FileHandle;
+    $wig->open(">${output_directory}/${input_name}.wig");
     $inter_tas->open(">${output_directory}/${input_name}_interCDS_tas.txt");
     $cds_tas->open(">${output_directory}/${input_name}_gene_tas.txt");
     my $file_start = qq"#type=COPY_NUMBER
@@ -450,15 +453,19 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
 ";
     print $inter_tas $file_start;
     print $cds_tas $file_start;
+    print $wig "Start\tReads\n";
 
     print STDERR "Printing #TAs observed by (inter)CDS region to ${input_name}_(gene|interCDS)_tas.txt\n";
+    my $subtotal = 0;
     foreach my $c (0 .. $#data) {
         if ($data[$c]->{ta}) {
             my $fwd = $data[$c]->{fwd};
             my $rev = $data[$c]->{rev};
             my $mis = $data[$c]->{mismatch};
             my $total = $fwd + $rev;
+            print $wig "$c\t$total\n";
             my $d = $c + 2;
+            $subtotal = $subtotal + $total;
             my $feature = "unfound";
             ## $c and $d outline the position of the TA
             ## So I want to figure out if the TA is inside an ORF or intercds, and its name...
@@ -480,8 +487,69 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
             }
         }
     }
+    $wig->close();
     $inter_tas->close();
     $cds_tas->close();
+    ## This should return something interesting!
+    return($subtotal);
+}
+
+sub Run_Essentiality {
+    my $me = shift;
+    my %args = @_;
+    my @param_list = ('1','2','4','8','16','32');
+    my $runs = 1000;
+    my $input = $me->{input};
+    my $output = basename($input, ('.txt'));
+
+    ## Set up the tn_hmm job -- these inputs are likely wrong
+    my $input_wig = $args{wig};
+    $input_wig = basename($input, ('.txt')) . '.wig';
+    my $input_gff = $me->{gff};
+    my $output_file = qq"tn_hmm-${output}.csv";
+    my $error_file =  qq"tn_hmm-${output}.err";
+    my $comment = qq"## Performing tn_hmm on ${input_wig} using ${input_gff}\n";
+    my $job_string = qq!
+tn-hmm.py -f ${input_wig} -gff ${input_gff} \\
+  1>outputs/essentiality/${output_file} \\
+  2>outputs/essentiality/${error_file}
+
+process_genes.py -f outputs/essentiality/${output_file} \\
+  1>outputs/essentiality/genes_${output_file} \\
+  2>outputs/essentiality/genes_${error_file}
+
+process_segments.py -f outputs/essentiality/${output_file} \\
+  1>outputs/essentiality/segments_${output_file} \\
+  2>outputs/essentiality/segments_${error_file}
+!;
+    ## tn-hmm requires a wig file and gff
+    my $tn_hmm = $me->Qsub(job_name => "tn_hmm",
+                           job_string => $job_string,
+                           comment => $comment,
+                           output => $output_file,
+        );
+
+    foreach my $param (@param_list) {
+        ## The inputs for this are:
+        ##   1. the tas file for either cds or intercds provided by count_tas
+        my $output_file = qq"mh_ess-${output}_m${param}.csv";
+        my $error_file = qq"mh_ess-${output}_m${param}.err";
+        $job_string = qq!
+gumbelMH.py -f ${input} -m ${param} -s ${runs} \\
+  1>outputs/essentiality/${output_file} \\
+  2>outputs/essentiality/${error_file}
+!;
+        my $comment = qq!# Run mh-ess using the min hit: $param!;
+        my $mh_ess = $me->Qsub(job_name => "mh_ess-${param}",
+                               depends => $args{depends},
+                               job_string => $job_string,
+                               comment => $comment,
+                               output => $output_file,
+                               prescript => $args{prescript},
+                               postscript => $args{postscript},
+            );
+    }
+    ## This should return something interesting, but it doesn't
 }
 
 sub Count_TAs {

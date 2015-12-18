@@ -37,6 +37,7 @@ sub Recompress {
         $job_string = qq!bunzip2 -f $input1 $input2 && xz -f -9e $in1 $in2\n!;
     } elsif ($input1 =~ /\.fast[a|q]$/) {
         $job_string = qq!pxz -f -9e $in1 $in2\n!;
+        print STDERR "TESTME: $job_string | $in1 | $in2 |\n";
     } else {
         $job_string = qq!pxz -f -9e $in1 $in2\n!;
     }

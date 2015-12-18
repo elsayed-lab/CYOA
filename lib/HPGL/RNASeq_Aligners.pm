@@ -225,7 +225,7 @@ sub BT1_Index {
     my %args = @_;
     my $basename = $me->{basename};
     my $dep = "";
-    $dep = $args{depends};
+    $dep = $args{depends} if (defined($args{depends}));
     my $libtype = $me->{libtype};
     $libtype = $args{libtype} if ($args{libtype});
     my $job_string = qq!bowtie-build $me->{libdir}/${libtype}/$me->{species}.fasta $me->{libdir}/${libtype}/indexes/$me->{species}

@@ -51,23 +51,31 @@ my $menus = {
     TNSeq => {
         name => 'tnseq',
         message => "You have enterred a world of jumping DNA, be ware and go to page 342.",
-        choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','Essentiality_TAs','BT_Multi'],},
+        choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','BT_Multi','Essentiality_TAs','Run_Essentiality',],},
     RiboSeq => {
         name => 'riboseq',
         message => "Awake Awake Fear Fire Foes!  Go to page 4",
-        choices => ['Biopieces_Graph','Cutadapt','BT_Multi','Calibrate','Count_States','Graph_Reads'],},
+        choices => ['Biopieces_Graph','Cutadapt','BT_Multi','Calibrate','Count_States','Graph_Reads',],},
     Alignment => {
         name => 'alignment',
         message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 128.",
-        choices => ['Blast_Parse','Split_Align','Split_Align_Blast','Split_Align_Fasta','Parse_Blast'],},
+        choices => ['Split_Align_Blast','Split_Align_Fasta','Concatenate_Searches','Parse_Fasta','Parse_Blast','Merge_Parse_Blast'],},
     Conversion => {
         name => 'convert',
-        message => qq"And it rained a fever.
- And it rained a silence.
- And it rained a sacrifice.
- And it rained a miracle.
- And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
-        choices => ['Sam2Bam','Gb2Gff','TriTryp2Text','TriTryp_Download',],},
+        message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
+        choices => ['Sam2Bam','Gb2Gff','Gff2Fasta', 'TriTryp2Text','TriTryp_Download',],},
+    Assembly => {
+        name => 'assembly',
+        message => qq"The wise man fears the wrath of a gentle heart.",
+        choices => ['Trinity', 'Trinity_Post',]},
+    Pipeline => {
+        name => 'pipeline',
+        message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.",
+        choices => ['Pipeline_Riboseq','Pipeline_TNseq','Pipline_RNAseq_Bowtie','Pipline_RNAseq_Bowtie2','Pipline_RNAseq_Tophat','Pipline_RNAseq_BWA','Pipline_RNAseq_Kallisto',]},
+    Test => {
+        name => 'test',
+        message => qq"All happy families are happy in the same way.",
+        choices => ['Test_Job',],},
 };
 ## The general idea is to have a toplevel 'task' to perform
 ## Something like TNSeq, RNASeq, etc
@@ -145,39 +153,10 @@ sub Match_Method {
     my $h = $args{hpgl};
     my $m = '--' . $args{method};
     my @method = ($m,);
-
-    my %todo = (
-        );
+    my %methods = %{$h->{methods}};
     ## This way, we can trivially make an array to pass to GetOptionsFromArray()
-    my %methods = (
-	"biopieces+" => \$todo{Biopieces_Graph},
-	"blastparse+" => \$todo{Blast_Parse},
-	"bowtierrna+" => \$todo{Bowtie_RRNA},
-        "btmulti+" => \$todo{BT_Multi},
-	"calibrate+" => \$todo{Calibrate},
-	"countstates+" => \$todo{Count_States},
-	"cutadapt+" => \$todo{Cutadapt},
-        "essentialitytas+" => \$todo{Essentiality_TAs},
-        "fastqc+" => \$todo{FastQC},
-	"gb2gff+" => \$todo{Gb2Gff},
-	"graphreads+" => \$todo{Graph_Reads},
-	"htmulti+" => \$todo{HT_Multi},
-	"kallisto+" => \$todo{Kallisto},
-	"parseblast+" => \$todo{Parse_Blast},
-	"sam2bam+" => \$todo{Sam2Bam},
-        "sortindexes+" => \$todo{Sort_Indexes},
-	"splitalign+" => \$todo{Split_Align},
-	"blastsplitalign+" => \$todo{Split_Align_Blast},
-        "fastasplitalign+" => \$todo{Split_Align_Fasta},
-	"tophat+" => \$todo{Tophat},
-	"trinity+" => \$todo{Trinity},
-	"tritrypdownload+" => \$todo{TriTryp_Download},
-	"tritryp2text+" => \$todo{TriTryp2Text},
-	"posttrinity+" => \$todo{Trinity_Post},
-	"trimomatic+" => \$todo{Trimomatic},
-        );
-
     my $array_result = GetOptionsFromArray(\@method, %methods);
+    my %todo = %{$h->{todo}};
     ## Now some portions of $todo should be filled in with 1s
     foreach my $job (keys %todo) {
         if ($todo{$job}) {
