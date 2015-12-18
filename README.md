@@ -27,17 +27,29 @@ Final installation:
 ## Usage
 
 I have recently been using it via a small script 'cyoa' in bin/, for example:
+
 > cyoa
+
 brings up a readline menu interface asking what you want to do.
+
 > cyoa --input test-forward.fastq:test-reverse.fastq --task rnaseq --method fastqc
+
 Runs fastqc
+
 > cyoa --input test-forward.fastq:test-reverse.fastq --task rnaseq --method tophat --species lmajor
+
 Runs tophat using some generic options with databases specific for L.major.
+
 > cyoa --query test.fasta --task alignment --method blastsplit --blast_tool blastp --library nr
+
 Splits test.fasta into a bunch of pieces, aligns them against nr using blastp
+
 > cyoa --input test.fastq --task tnseq --method sort --indexfile indexes.txt
+
 Sorts test.fastq using a set of index->samples in indexes.txt
+
 > cyoa --input test_forward.fastq:test_reverse.fastq --task pipeline --method priboseq --species lmajor
+
 Performs a ribosome profiling pipeline of steps to fastqc the data,
 trim it, graph the qualities etc, rRNA search the data, align the
 non-rRNA against the lmajor genome, convert to bam, and count. It
