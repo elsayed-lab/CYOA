@@ -1,22 +1,22 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie qw":all";
 
 =head1 NAME
-    HPGL::Cleanup - Delete the various directories/files created by
-    the RNASeq tools invoked by HPGL.pm
+    CYOA::Cleanup - Delete the various directories/files created by
+    the RNASeq tools invoked by CYOA.pm
 
 =head1 SYNOPSIS
 
-    use HPGL;
-    my $hpgl = new HPGL;
+    use CYOA;
+    my $hpgl = new CYOA;
     $hpgl->Cleanup();
 
 =over4
 
 =item C<Cleanup>
 
-    delete the various directories/files from the RNASeq tools invoked by HPGL.pm
+    delete the various directories/files from the RNASeq tools invoked by CYOA.pm
 
 =cut
 sub Cleanup {
@@ -55,7 +55,7 @@ Email <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<HPGL>
+    L<CYOA>
 
 =cut
 

@@ -8,8 +8,6 @@ use warnings qw"all";
 use File::Basename;
 use HPGL;
 use Switch;
-use Term::ReadLine;
-use Term::UI;
 use Getopt::Long qw"GetOptionsFromArray";
 
 =head1 NAME
@@ -39,44 +37,12 @@ use Getopt::Long qw"GetOptionsFromArray";
 =cut
 
 ## Going to pull an initial instance of hpgl in order to handle command line arguments
-my $hpgl = new HPGL;
-my $term = new Term::ReadLine('HPGL>');
+our $hpgl = new HPGL;
+our $term = $hpgl->{term};
 ## I am going to use Getopt::Long to turn possible things TODO on, they start all off.
 ## Use this hash to define the menu system and options available to each toplevel task
-my $menus = {
-    RNASeq => {
-        name => 'rnaseq',
-        message => "The world is dark and full of terrors, take this and go to page 147.",
-        choices => ['FastQC','Biopieces_Graph','Trimomatic','BT_Multi','Bowtie_RRNA','BWA','Kallisto','Tophat','Sam2Bam','HT_Multi','Trinity','Trinity_Post'],},
-    TNSeq => {
-        name => 'tnseq',
-        message => "You have enterred a world of jumping DNA, be ware and go to page 342.",
-        choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','BT_Multi','Essentiality_TAs','Run_Essentiality',],},
-    RiboSeq => {
-        name => 'riboseq',
-        message => "Awake Awake Fear Fire Foes!  Go to page 4",
-        choices => ['Biopieces_Graph','Cutadapt','BT_Multi','Calibrate','Count_States','Graph_Reads',],},
-    Alignment => {
-        name => 'alignment',
-        message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 128.",
-        choices => ['Split_Align_Blast','Split_Align_Fasta','Concatenate_Searches','Parse_Fasta','Parse_Blast','Merge_Parse_Blast'],},
-    Conversion => {
-        name => 'convert',
-        message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
-        choices => ['Sam2Bam','Gb2Gff','Gff2Fasta', 'TriTryp2Text','TriTryp_Download',],},
-    Assembly => {
-        name => 'assembly',
-        message => qq"The wise man fears the wrath of a gentle heart.",
-        choices => ['Trinity', 'Trinity_Post',]},
-    Pipeline => {
-        name => 'pipeline',
-        message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.",
-        choices => ['Pipeline_Riboseq','Pipeline_TNseq','Pipline_RNAseq_Bowtie','Pipline_RNAseq_Bowtie2','Pipline_RNAseq_Tophat','Pipline_RNAseq_BWA','Pipline_RNAseq_Kallisto',]},
-    Test => {
-        name => 'test',
-        message => qq"All happy families are happy in the same way.",
-        choices => ['Test_Job',],},
-};
+our $menus = $hpgl->{menus};
+
 ## The general idea is to have a toplevel 'task' to perform
 ## Something like TNSeq, RNASeq, etc
 ##  Then a second-level method to perform therein, which will provide a match to the appropriate function
@@ -90,19 +56,15 @@ if (!defined($hpgl->{task})) {  ## If task is not defined, then we need to run M
 
 
 sub Main {
-    $Term::UI::VERBOSE = 0;
-    ### always pick the default (good for non-interactive terms)
-    ### -- default is '0'
-    ##$Term::UI::AUTOREPLY = 1;
     my $finished = 0;
     while ($finished != 1) {
+        my @choices = sort keys(%{$menus});
         my $top_level = $term->get_reply(
             prompt => 'Choose your adventure!',
-            choices => ['RNASeq','TNSeq','RiboSeq','Alignment','Conversion'],
+            choices => \@choices,
             default => 'TNSeq',);
 
-        my $h = new HPGL;
-        Iterate(task => $top_level, hpgl => $h);
+        Iterate(task => $top_level);
 
         my $bool = $term->ask_yn(
             prompt => 'Are you done?',
@@ -122,49 +84,65 @@ sub Main {
 sub Iterate {
     my %args = @_;
     my $type = $args{task};
-    my $h = $args{hpgl};
-    ## $h->{debug} = 1;
     my $finished = 0;
     while ($finished != 1) {
         my $task = $term->get_reply(
             prompt => $menus->{$type}->{message},
             choices => $menus->{$type}->{choices},
             );
-        print "You chose: $task\n";
-        $h->$task(type => $menus->{$type}->{name});
-
         if ($task eq 'Cutadapt' or $task =~ /Trim/) {
-            my $new_input = basename($h->{input}, @{$h->{suffixes}}) . "-trimmed.fastq";
-            $h->{input} = $new_input;
+            my $new_input = basename($hpgl->{input}, @{$hpgl->{suffixes}}) . "-trimmed.fastq";
+            $hpgl->{input} = $new_input;
             print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
         }
+        $hpgl->$task(type => $type);
 
         my $bool = $term->ask_yn(
             prompt => 'Go back to the toplevel?',
             default => 'n',
             );
-        $finished = 1 if ($bool eq '1');
+        if ($bool eq '1') {
+            $finished = 1;
+            my $reset = $term->get_reply(
+                prompt => 'How many of your parameters do you want to reset?',
+                choices => ['Everything', 'Just input', 'Nothing'],
+                default => 'Just input');
+            if ($reset eq 'Just input') {
+                $hpgl->{input} = undef;
+            } elsif ($reset eq 'Everything') {
+                $hpgl->{input} = undef;
+                $hpgl->{species} = undef;
+                ## Some other stuff which I can't remember now
+            } else {
+                ## Leave $hpgl alone
+            }
+        }
     } ## End the task while loop
 }
 
 sub Match_Method {
     my %args = @_;
     my $type = $args{task};
-    my $h = $args{hpgl};
     my $m = '--' . $args{method};
     my @method = ($m,);
-    my %methods = %{$h->{methods}};
+    my %methods = %{$hpgl->{methods}};
     ## This way, we can trivially make an array to pass to GetOptionsFromArray()
     my $array_result = GetOptionsFromArray(\@method, %methods);
-    my %todo = %{$h->{todo}};
-    ## Now some portions of $todo should be filled in with 1s
+    my %todo = %{$hpgl->{todo}};
+    ## Now some portions of $hpgl->{todo} should be filled in with 1s
     foreach my $job (keys %todo) {
         if ($todo{$job}) {
             print "You chose to perform: $job\n";
-            $h->$job(type => $type);
+            my $process = $hpgl->$job(type => $type);
+            if ($process->{pbs_id}) {
+                my $print_job = new FileHandle;
+                $print_job->open(">last_job.txt");
+                print $print_job "$process->{pbs_id}\n";
+                $print_job->close();
+            }
+            $hpgl->{todo}{$job} = 0;
         }
     }
-#    Main();
 }
 
 =back

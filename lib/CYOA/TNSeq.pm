@@ -1,4 +1,4 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie qw":all";
 use diagnostics;
@@ -14,13 +14,13 @@ use Cwd qw(abs_path getcwd);
 use String::Approx;
 
 =head1 Name
-    HPGL::TNSeq - some functions for working with TNSeq data
+    CYOA::TNSeq - some functions for working with TNSeq data
 
 =head1 SYNOPSIS
 
     The functions here were copy/pasted from some other code pieces I
     wrote while working on mgas 5448 tnseq data.  They have not been
-    incorporated into the general HPGL.pm scheme yet.
+    incorporated into the general CYOA.pm scheme yet.
 
 =head2 Methods
 
@@ -228,7 +228,6 @@ sub Sort_TNSeq_File_Approx {
         my $found_id = '';
         my $match_substring = substr($sequence, 0, 9);
         foreach my $index (@index_list) {
-            ##print "TESTME2: $match_substring vs $index\n";
             my @matches = amatch($index, [ 'S1' ], ($match_substring));
             if (scalar(@matches) == 1) {
                 $found++;
@@ -470,7 +469,6 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
             ## $c and $d outline the position of the TA
             ## So I want to figure out if the TA is inside an ORF or intercds, and its name...
           NAMES: for my $i (0 .. $#names) {
-              ## print "TESTME: inter_start: $inter_starts[$i] inter_end: $inter_ends[$i] vs. $c CDS $cds_starts[$i] $cds_ends[$i]\n";
               if ($c >= $inter_starts[$i] and $c <= $inter_ends[$i]) {
                   $feature = "inter_$names[$i]";
                   last NAMES;
@@ -499,9 +497,9 @@ sub Run_Essentiality {
     my %args = @_;
     my @param_list = ('1','2','4','8','16','32');
     my $runs = 1000;
+    $me->Check_Options(['input']);
     my $input = $me->{input};
     my $output = basename($input, ('.txt'));
-
     ## Set up the tn_hmm job -- these inputs are likely wrong
     my $input_wig = $args{wig};
     $input_wig = basename($input, ('.txt')) . '.wig';

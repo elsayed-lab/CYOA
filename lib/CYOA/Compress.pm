@@ -1,4 +1,4 @@
-package HPGL;
+package CYOA;
 =head2
     Recompress()
 =cut
@@ -30,21 +30,20 @@ sub Recompress {
     my ($in1, $in2) = "";
     $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
     $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
-
+    $in2 = "" if (!defined($in2));
     if ($input1 =~ /\.gz/) {
         $job_string = qq!gunzip -f $input1 $input2 && xz -f -9e $in1 $in2\n!;
     } elsif ($input1 =~ /\.bz2/) {
         $job_string = qq!bunzip2 -f $input1 $input2 && xz -f -9e $in1 $in2\n!;
     } elsif ($input1 =~ /\.fast[a|q]$/) {
         $job_string = qq!pxz -f -9e $in1 $in2\n!;
-        print STDERR "TESTME: $job_string | $in1 | $in2 |\n";
     } else {
         $job_string = qq!pxz -f -9e $in1 $in2\n!;
     }
     if ($args{output}) {
         $job_string .= qq!mv ${in1}.xz $args{output}\n!;
 	if ($input2) {
-	    $job_string .= qq!mv ${in2}.xz $args{output}\n!;
+	    $job_string .= qq!mv ${in2}.xz $args{output2}\n!;
 	}
     }
 

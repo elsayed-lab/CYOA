@@ -1,4 +1,4 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie;
 use File::Basename;
@@ -6,13 +6,13 @@ use Bio::FeatureIO;
 
 =head1 NAME
 
-    HPGL::Convert - Perform conversions between various formats:
+    CYOA::Convert - Perform conversions between various formats:
     sam->bam, gff->fasta, genbank->fasta, etc.
 
 =head1 SYNOPSIS
 
-    use HPGL;
-    my $hpgl = new HPGL;
+    use CYOA;
+    my $hpgl = new CYOA;
     $hpgl->Gff2Fasta(genome => 'mmusculus.fasta', gff => 'mmusculus.gff');
 
 =head2 Methods
@@ -99,11 +99,62 @@ ${cds}
     return($features_written);
 }
 
+sub Read_GFF {
+    my $me = shift;
+    my %args = @_;
+    my $chromosomes = $args{chromosomes};
+    open(GFF, "<$args{gff}");
+    use Bio::Tools::GFF;
+    my $annotation_in = new Bio::Tools::GFF(-fh => \*GFF, -gff_version => 3);
+    my $gff_out = {};
+    print "Starting to read gff: $args{gff}\n";
+  LOOP: while(my $feature = $annotation_in->next_feature()) {
+      next LOOP unless ($feature->{_primary_tag} eq $args{gff_type});
+      my $location = $feature->{_location};
+      my $start = $location->start();
+      my $end = $location->end();
+      my $strand = $location->strand();
+      my @ids = $feature->each_tag_value("ID");
+      my $id = "";
+      my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_string = $annotation_in->gff_string($feature);
+      if (!defined($chromosomes->{$gff_chr})) {
+          print STDERR "Something is wrong with $gff_chr\n";
+          next LOOP;
+      }
+      foreach my $i (@ids) {
+          $i =~ s/^cds_//g;
+          $i =~ s/\-\d+$//g;
+          $id .= "$i ";
+      }
+      $id =~ s/\s+$//g;
+      my @gff_information = split(/\t+/, $gff_string);
+      my $description_string = $gff_information[8];
+      my $orf_chromosome = $gff_chr;
+      my $annot = {
+          id => $id,
+          start => $start,  ## Genomic coordinate of the start codon
+          end => $end,      ## And stop codon
+          strand => $strand,
+          description_string => $description_string,
+          chromosome => $gff_chr,
+      };
+      $gff_out->{$gff_chr}->{$id} = $annot;
+  } ## End looking at every gene in the gff file
+    close(GFF);
+    return($gff_out);
+}
+
+
 =item C<Gff2Gtf>
 
     $hpgl->Gff2Gtf(gff => 'mmusculus.gff')
     reads a given gff file and writes a gtf file from the features
     found therein.  It returns the number of features written.
+
+    note that I only use gtf files for tophat, thus they must have a tag 'transcript_id'!
+    This is woefully untrue for the tritrypdb gff files.  Thus I need to have a regex in this
+    to make sure that web_id or somesuch is changed to transcript_id.
 
 =cut
 sub Gff2Gtf {
@@ -117,11 +168,16 @@ sub Gff2Gtf {
     my $in_gff = new Bio::FeatureIO('-file' => "$input",
                                     '-format' => 'GFF',
                                     '-version' => 3);
-    my $out_gtf = new FileHandle();
-    $out_gtf->open(">$out_file");
+    open(OUT_GTF, ">${out_file}");
+    select(OUT_GTF);
+     $| = 1;
+    ##my $out_gtf = new FileHandle();
+    ##$out_gtf->open(">$out_file");
 
     my $features_written = 0;
-    while (my $feature = $in_gff->next_feature()) {
+    my $in_features = 0;
+    FEATURES: while (my $feature = $in_gff->next_feature()) {
+        $in_features++;
         # the output handle is reset for every file
         ##According to UCSC, GTF file contains 9 column:
         ##<seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes]
@@ -141,25 +197,45 @@ sub Gff2Gtf {
         }
         my $source = $feature->source_tag();
         my $primary_id = $feature->primary_tag();
-        my $string = qq"$seqid\t$source\tCDS\t$start\t$end\t.\t$strand\t0\t";
+        my $phase = '.';
+        if ($primary_id eq 'CDS') {
+            $phase = $feature->phase();
+        }
+        next FEATURES if ($primary_id eq 'supercontig' or $primary_id eq 'region' or $primary_id eq 'chromosome');
+        ##        my $string = qq"${seqid}\t${source}\tCDS\t$start\t$end\t.\t$strand\t0\t";
+        my $string = qq"${seqid}\t${source}\t${primary_id}\t${start}\t${end}\t.\t${strand}\t${phase}\t";
 
         my $last_column = "";
         my $annot = $feature->{annotation};
         my $stringified;
         my $key;
+        my $transcript_string = "";
+        my $geneid_string = "";
         foreach $key ($annot->get_all_annotation_keys()) {
             my @values = $annot->get_Annotations($key);
             foreach my $value (@values) {
                 $stringified = $value->{value};
                 $stringified = $value->{term}->{name} unless($stringified);
-##                print "TSTME: $value $key $stringified\n";
                 $last_column .= qq!${key} "${stringified}"; !;
             }
+            if ($key eq 'ID') {
+                $transcript_string = qq!transcript_id "${stringified}"; !;
+            }
+            if ($key eq 'seq_id') {
+                $geneid_string = qq!gene_id "${stringified}"; !;
+            }
         }
-        $string .= "$last_column\n";
-        print $out_gtf $string;
-    }
-    $out_gtf->close();
+        my $seq_string = $string . ${transcript_string} . ${geneid_string} . $last_column;
+        $seq_string =~ s/\s+$//g;
+        ##print STDOUT "$seq_string\n";
+        print "$seq_string\n";
+        ##print OUT_GTF $seq_string;
+        $features_written++;
+    } ## End iterating over every FEATURES
+    ##    $out_gtf->close();
+    close(OUT_GTF);
+    select(STDOUT);
+    print STDERR "Finished writing gtf file.\n";
     return($features_written);
 }
 
@@ -262,7 +338,8 @@ rm $output && rm $input && mv ${sorted}.bam $output && samtools index $output
 bamtools stats -in $output 2>${output}.stats 1>&2
 !;
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
-## Also printing alignment statistics to ${output}.stats!;
+## Also printing alignment statistics to ${output}.stats
+## This job depended on: $depends!;
     my $samtools = $me->Qsub(job_name => "sam",
                              depends => $depends,
                              job_string => $job_string,
@@ -318,6 +395,10 @@ sub Gb2Gff {
         my @feature_list = ();
         # defined a default name
 
+        ## $feature is an object of type: Bio::SeqFeatureI
+        ## Some of the things you can call on it are:
+        ## display_name(), primary_tag(), has_tag(something), get_tag_values(), get_all_tags(), attach_seq(Bio::Seq),
+        ## seq(), entire_seq(), seq_id(), gff_string(), spliced_seq(), primary_id(), phase(), 
         foreach my $feature ($seq->top_SeqFeatures()) {
             $gffout->write_feature($feature);
             my $feat_count = 0;
@@ -328,10 +409,20 @@ sub Gb2Gff {
             if ($feat_object->primary_tag eq "CDS") {
                 $cds_gff->write_feature($feat_object);
                 $feat_count++;
+                my $id_string = "";
+                my $id_hash = {};
+                foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
+                    my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
+                    ##print Dumper $feat_object->{_gsf_tag_hash}->{$thing};
+                    ##print "WTF: $arr[0]\n";
+                    $id_hash->{$thing} = $arr[0];
+                }
+                my $id = qq"$id_hash->{protein_id}";
+                my $desc = qq"$id_hash->{gene} ; $id_hash->{db_xref} ; $id_hash->{product}";
+                ## print "TESTME: $id\n";
                 my $start = $feat_object->start;
                 my $end = $feat_object->end;
                 my $len = $feat_object->length;
-                my $id = $feat_object->{_gsf_tag_hash}->{locus_tag}->[0];
                 my $seq = $feat_object->spliced_seq->seq;
                 my $pep = $feat_object->spliced_seq->translate->seq;
                 my $size = {
@@ -342,12 +433,10 @@ sub Gb2Gff {
                     feat => $feat_object,
                 };
                 push(@feature_list, $size);
-                my $seq_object = new Bio::PrimarySeq(-id => $id, -seq => $seq);
-                my $pep_object = new Bio::PrimarySeq(-id => $id, -seq => $pep);
+                my $seq_object = new Bio::PrimarySeq(-id => $id, -seq => $seq, description => $desc);
+                my $pep_object = new Bio::PrimarySeq(-id => $id, -seq => $pep, description => $desc);
                 $cds_fasta->write_seq($seq_object);
-                ##print "TESTME: $seq_object\n";
                 my $ttseq = $seq_object->seq;
-                ##print "TESTME: $id $ttseq\n";
                 $pep_fasta->write_seq($pep_object);
             } elsif ($feat_object->primary_tag eq "gene") {
                 $gene_gff->write_feature($feat_object);
@@ -483,7 +572,7 @@ sub TriTryp_Download {
     my $species = $args{species};
 
     my $ua = new LWP::UserAgent;
-    $ua->agent("HPGL/downloader ");
+    $ua->agent("CYOA/downloader ");
 
     my $final_text_request;
     my $final_fasta_request;
@@ -663,7 +752,6 @@ sub TriTryp_Master {
     my @key_list = ();
     my $in = new FileHandle;
     my $out = new FileHandle;
-    print "TESTME: reading $input\n";
     $in->open("<$input");
     my $count = 0;
     my $waiting_for_next_gene = 0;

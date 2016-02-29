@@ -1,15 +1,15 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie;
 
 =head1 NAME
 
-    HPGL::RNASeq_Assembly - Perform some denovo assembly tasks
+    CYOA::RNASeq_Assembly - Perform some denovo assembly tasks
 
 =head1 SYNOPSIS
 
-    use HPGL;
-    my $hpgl = new HPGL;
+    use CYOA;
+    my $hpgl = new CYOA;
     $hpgl->Trinity();
 
 =head2 Methods

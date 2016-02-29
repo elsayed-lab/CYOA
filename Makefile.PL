@@ -1,8 +1,8 @@
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME => 'HPGL',
-    VERSION_FROM => 'lib/HPGL.pm',  ## Finds $VERSION
+    NAME => 'CYOA',
+    VERSION_FROM => 'lib/CYOA.pm',  ## Finds $VERSION
     PREREQ_PM => {
 		   Log::Log4perl => 0,
 		   Error => 0,
@@ -21,6 +21,7 @@ WriteMakefile(
                    autodie => 0,
                    },
 ##    ABSTRACT_FROM => 'lib/HPGL.pm',
+    EXE_FILES    => [ qw(bin/cyoa) ],
     AUTHOR => 'Ashton Trey Belew <abelew@gmail.com>'
     );
 

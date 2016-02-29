@@ -1,14 +1,48 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie qw":all";
 
+=head1 NAME
+    CYOA::Ceph - upload/download  sequences from the umiacs amazon S3 service
 
+=head1 SYNOPSIS
+
+    use CYOA;
+    my $hpgl = new CYOA;
+    $hpgl->Dump_Reads();
+
+=over 4
+
+=Methods
+
+=cut
+
+=item C<Ceph_Upload>
+
+    Upload data
+
+=cut
+sub Ceph_Upload {
+    ## ?
+}
+
+
+
+=item C<Dump_Reads>
+
+    $hpgl->Dump_Reads()
+    dumps reads from the given hpgl directory into the current working
+    directory into concatenated files.  This is in opposition to
+    Download_Reads which keeps them as separate files.
+
+=cut
 sub Dump_Reads {
-    my %options;
+    my $me = shift;
+    my %args = @_;
+    $me->Check_Options(['hpgl',]);
     my $casava_passed = 0;
     my $line_count = 0;
     my $connection;
-    main();
 
     sub main {
         %options = Parse_Options();
@@ -21,7 +55,7 @@ sub Dump_Reads {
     sub Connect {
         my $connection = new Net::Amazon::S3({aws_access_key_id => $options{access_key},
                                               aws_secret_access_key => $options{secret_key},
-                                              host => 'gembox.cbcb.umd.edu',
+                                              host => $options{host},
                                               secure => 1,
                                               retry => 0,});
         die("The Amazon::S3 connection failed.") if (!defined($connection));
@@ -236,8 +270,9 @@ or the download failed and should be reperformed.\n";
             file => undef,
             verbose => 1,
             multi => 0,
-            access_key => 'PQOD56HDPQOXJPYQYHH9',
-            secret_key => 'kNl27xjeVSnChzEww9ziq1VkgUMNmNonNYjxWkGw',
+            host => $ENV{CEPH_HOST},
+            access_key => $ENV{CEPH_RO_ID},
+            secret_key => $ENV{CEPH_RO_KEY},
             );
         my $opt = GetOptions(
             "bucket|b:s" => \$options{bucket},

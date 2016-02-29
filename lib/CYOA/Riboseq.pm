@@ -1,4 +1,4 @@
-package HPGL;
+package CYOA;
 use common::sense;
 use autodie qw":all";
 
@@ -167,7 +167,6 @@ new observations.\n";
           $candidate_count = floor($candidate_count / $multiplier);
           my $string = qq"$entries->{$candidate}->{id}\t$candidate_count\n";
           print $count $string;
-          print "TESTME: $string";
       }
         $count->close();
     }
@@ -362,51 +361,6 @@ new observations.\n";
         }
         $out->close();
     }
-
-    sub Read_GFF {
-        open(GFF, "<$options{gff}");
-        use Bio::Tools::GFF;
-        my $annotation_in = new Bio::Tools::GFF(-fh => \*GFF, -gff_version => 3);
-        my $gff_out = {};
-        print "Starting to read gff: $options{gff}\n";
-      LOOP: while(my $feature = $annotation_in->next_feature()) {
-          next LOOP unless ($feature->{_primary_tag} eq $options{gff_type});
-          my $location = $feature->{_location};
-          my $start = $location->start();
-          my $end = $location->end();
-          my $strand = $location->strand();
-          my @ids = $feature->each_tag_value("ID");
-          my $id = "";
-          my $gff_chr = $feature->{_gsf_seq_id};
-          my $gff_string = $annotation_in->gff_string($feature);
-          if (!defined($chromosomes->{$gff_chr})) {
-              print STDERR "Something is wrong with $gff_chr\n";
-              next LOOP;
-          }
-          foreach my $i (@ids) {
-              $i =~ s/^cds_//g;
-              $i =~ s/\-\d+$//g;
-              $id .= "$i ";
-          }
-          $id =~ s/\s+$//g;
-          my @gff_information = split(/\t+/, $gff_string);
-          my $description_string = $gff_information[8];
-          my $orf_chromosome = $gff_chr;
-          my $annot = {
-              id => $id,
-              start => $start,  ## Genomic coordinate of the start codon
-              end => $end,      ## And stop codon
-              strand => $strand,
-              description_string => $description_string,
-              chromosome => $gff_chr,
-          };
-          $gff_out->{$gff_chr}->{$id} = $annot;
-      } ## End looking at every gene in the gff file
-        close(GFF);
-        return($gff_out);
-    }
-}
-
 
 
 sub Graph_Reads {

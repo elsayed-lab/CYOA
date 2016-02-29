@@ -1,4 +1,4 @@
-package HPGL::SeqMisc;
+package CYOA::SeqMisc;
 use common::sense;
 use autodie qw":all";
 use File::Temp qw / tmpnam /;
@@ -9,7 +9,7 @@ our @EXPORT_OK = qw"$references";
 ## containing the sequence to be shuffled.
 
 =head1 NAME
-    HPGL::SeqMisc - Given a primary sequence, collect some information including:
+    CYOA::SeqMisc - Given a primary sequence, collect some information including:
     amino acids in all reading frames, nucleotide/aa/dinucleotide/codon
     frequencies.  Weights (in Daltons), pI of amino acids, volume of
     amino acids, polarity of amino acids, hydrophobicity, solubility,
@@ -26,9 +26,9 @@ our @EXPORT_OK = qw"$references";
 
 =head1 SYNOPSIS
 
-    use HPGL;
-    use HPGL::SeqMisc;
-    my $misc = new HPGL::SeqMisc(sequence => 'aaaa');
+    use CYOA;
+    use CYOA::SeqMisc;
+    my $misc = new CYOA::SeqMisc(sequence => 'aaaa');
     print $misc->{gc_content};
 
 =head2 Data Structures
@@ -724,7 +724,7 @@ sub Same31Random {
 	($third, $first) = split(//, shift(@dint31seq));
 	push(@return, $third);
     }    ## End while.
-    return ( \@return );
+    return (\@return);
 }
 
 ####  SameDint takes two args: saved_positions and freq_positions
@@ -1042,7 +1042,6 @@ sub Codon_Distribution {
     my $dist = 0;
     LOOP: while (@seq) {
 	my $current = shift(@seq);
-#	print "TESTME: $current\n";
 	foreach my $res (@{$residues}) {
 	    if ($current eq $res) {
 		$dist_array = $me->Add_One($dist, $dist_array);
