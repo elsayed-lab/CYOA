@@ -2,6 +2,6 @@
 BEGIN {
 }
 use Test::More qw(no_plan);
-use HPGL::MyDeps;
+use CYOA::MyDeps;
 MyDeps::Test();
 

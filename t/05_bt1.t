@@ -1,19 +1,19 @@
 # -*-Perl-*-
 BEGIN {
     use Test::More qw"no_plan";
-    use HPGL;
+    use CYOA;
     use File::Path qw"remove_tree";
     use File::Copy qw"cp";
     use String::Diff qw( diff_fully diff diff_merge diff_regexp );
 }
 diag("Copying data file to cwd().");
 ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
-my $hpgl = new HPGL(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
+my $cyoa = new CYOA(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
 mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
 diag("Does bowtie execute?");
-ok($hpgl->Bowtie(),     'Run Bowtie1');
+ok($cyoa->Bowtie(),     'Run Bowtie1');
 diag("Can I collect bowtie statistics into bowtie_stats.csv?");
-ok(my $actual_csv = $hpgl->Last_Stat(input => 'outputs/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
+ok(my $actual_csv = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),      'Collect Bowtie1 Statistics');
 diag("Does the last entry of bowtie_stats.csv match the expected output?");
 my $expected_csv = qq"test_forward,v0M1,10000,10000,30,9970,0,33333.3333333333,test_forward-v0M1.count.xz";
 ok($actual_csv eq $expected_csv,      'Are the bowtie results the expected value?');

@@ -1,19 +1,19 @@
 # -*-Perl-*-
 BEGIN {
     use Test::More qw"no_plan";
-    use HPGL;
+    use CYOA;
     use File::Path qw"remove_tree";
     use File::Copy qw"cp";
     use String::Diff qw( diff_fully diff diff_merge diff_regexp );
 }
 diag("Copy data file to cwd().");
 ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
-my $hpgl = new HPGL(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
+my $cyoa = new CYOA(input => qq"test_forward.fastq.gz", pbs => 0, species => 'phix', libdir => 't/data');
 mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
 diag("Does topthat execute?");
-ok($hpgl->Tophat(),     'Run Tophat');
+ok($cyoa->Tophat(),     'Run Tophat');
 diag("Can I collect tophat statistics into tophat_stats.csv?");
-ok(my $actual_csv = $hpgl->Last_Stat(input => 'outputs/tophat_stats.csv'),      'Collect Tophat Statistics');
+ok(my $actual_csv = $cyoa->Last_Stat(input => 'outputs/tophat_stats.csv'),      'Collect Tophat Statistics');
 diag("Does the last entry of tophat_stats.csv match the expected output?");
 my $expected_csv = qq"test_forward,0,10000,40,9960,25000,accepted_hits.count.xz";
 ok($actual_csv eq $expected_csv,      'Are the tophat results the expected value?');

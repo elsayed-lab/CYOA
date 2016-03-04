@@ -1,7 +1,7 @@
 # -*-Perl-*-
 BEGIN {
     use Test::More qw"no_plan";
-    use HPGL;
+    use CYOA;
     use File::Copy qw"cp";
     use Archive::Extract;
     use String::Diff qw( diff_fully diff diff_merge diff_regexp );
@@ -11,10 +11,10 @@ ok(cp("t/data/genome/mgas_5005.gb.xz", "mgas_5005.gb.xz"));
 my $ae = new Archive::Extract(archive => "mgas_5005.gb.xz");
 diag("Can I extract the compressed genbank archive?");
 ok($ae->extract());
-diag("Can I create a new HPGL using the genbank file?");
-my $hpgl = new HPGL(input => qq"mgas_5005.gb", pbs => 0);
+diag("Can I create a new CYOA using the genbank file?");
+my $cyoa = new CYOA(input => qq"mgas_5005.gb", pbs => 0);
 diag("Can I run Gb2Gff()?");
-my $gff = $hpgl->Gb2Gff();
+my $gff = $cyoa->Gb2Gff();
 diag("Do I get the expected number of sequences, nucleotides, and features?");
 ok($gff->{num_sequences} eq '1');
 ok($gff->{total_nt} eq '1838562');
