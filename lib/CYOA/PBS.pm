@@ -158,40 +158,52 @@ fi
       $job_id = $line;
     }
     close($fh);
-    if (!defined($job_id)) {
-        warn("The job id did not get defined.  qsub likely failed.");
-        return(undef);
-    }
-    my @jobid_list = split(/\./, $job_id);
-    my $short_jobid = shift(@jobid_list);
+    my $job;
+    if ($me->{pbs}) {
+        if (!defined($job_id)) {
+            warn("The job id did not get defined.  qsub likely failed.");
+            return(undef);
+        }
+        my @jobid_list = split(/\./, $job_id);
+        my $short_jobid = shift(@jobid_list);
 
-    print "Starting a new job: ${short_jobid} ${jobid_name}";
-    if ($depends) {
-        my @short_dep = split(/\./, $depends);
-        my $shortened_dep = shift(@short_dep);
-        print ", depending on ${shortened_dep}.";
-    }
-    print "\n";
+        print "Starting a new job: ${short_jobid} ${jobid_name}";
+        if ($depends) {
+            my @short_dep = split(/\./, $depends);
+            my $shortened_dep = shift(@short_dep);
+            print ", depending on ${shortened_dep}.";
+        }
+        print "\n";
 
-    my $job = { id => $jobid_name,
-                submitter => $qsub,
-                mem => $qsub_mem,
-                walltime => $qsub_wall,
-                cpus => $qsub_cpus,
-                jobname => $job_name,
-                log => $qsub_log,
-                depends_string => $depends_string,
-                queue => $qsub_queue,
-                qsub_args => $qsub_args,
-                basedir => $me->{basedir},
-                pbs_id => $job_id,
-                script_file => $script_file,
-                script_start => $script_start,
-                script_body => $args{job_string},
-                output => $job_output,
-                input => $job_input,
-    };
-    return($job);
+        $job = {
+            id => $jobid_name,
+            submitter => $qsub,
+            mem => $qsub_mem,
+            walltime => $qsub_wall,
+            cpus => $qsub_cpus,
+            jobname => $job_name,
+            log => $qsub_log,
+            depends_string => $depends_string,
+            queue => $qsub_queue,
+            qsub_args => $qsub_args,
+            basedir => $me->{basedir},
+            pbs_id => $job_id,
+            script_file => $script_file,
+            script_start => $script_start,
+            script_body => $args{job_string},
+            output => $job_output,
+            input => $job_input,
+        };
+    } else {
+        $job = {
+            script_file => $script_file,
+            script_start => $script_start,
+            script_body => $args{job_string},
+            output => $job_output,
+            input => $job_input,
+        };
+    }
+        return($job);
 }
 
 sub Qsub_Arbitrary {

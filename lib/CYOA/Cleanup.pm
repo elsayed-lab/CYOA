@@ -37,14 +37,8 @@ sub Cleanup {
     my $trimmed_unpaired = $unzipped;
     $trimmed_unpaired =~ s/\.fastq/-trimmed_unpaired\.fastq/g;
     my $job_string = qq!rm -rf outputs scripts sequences $input_files $unzipped $trimmed_input $trimmed_paired $trimmed_unpaired!;
-    my $clean = $me->Qsub(job_name => "clean",
-                          qsub_queue => 'throughput',
-                          depends => $depends,
-                          job_string => $job_string,
-			  prescript => $args{prescript},
-			  postscript => $args{postscript},
-        );
-    return($clean);
+    print "Execute: $job_string\n";
+    return(1);
 }
 
 =back
@@ -60,3 +54,5 @@ Email <abelew@gmail.com>
 =cut
 
 1;
+
+
