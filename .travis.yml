@@ -1,4 +1,6 @@
 language: perl
+perl:
+  - "5.22"
 
 script:
   - make test
