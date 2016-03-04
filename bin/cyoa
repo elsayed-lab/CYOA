@@ -6,7 +6,7 @@ use diagnostics;
 use warnings qw"all";
 
 use File::Basename;
-use HPGL;
+use CYOA;
 use Switch;
 use Getopt::Long qw"GetOptionsFromArray";
 
@@ -30,28 +30,28 @@ use Getopt::Long qw"GetOptionsFromArray";
     The global variable $menus keeps a set of silly choose your own
     adventure quotes along with the possible task->method listings.
     The choices slot in each key of the hash is a list of function
-    names found in HPGL::something.  The assumption is that all the
+    names found in CYOA::something.  The assumption is that all the
     functions use Check_Options() to ensure that they receive all the
     relevant parameters.
 
 =cut
 
-## Going to pull an initial instance of hpgl in order to handle command line arguments
-our $hpgl = new HPGL;
-our $term = $hpgl->{term};
+## Going to pull an initial instance of cyoa in order to handle command line arguments
+our $cyoa = new CYOA;
+our $term = $cyoa->{term};
 ## I am going to use Getopt::Long to turn possible things TODO on, they start all off.
 ## Use this hash to define the menu system and options available to each toplevel task
-our $menus = $hpgl->{menus};
+our $menus = $cyoa->{menus};
 
 ## The general idea is to have a toplevel 'task' to perform
 ## Something like TNSeq, RNASeq, etc
 ##  Then a second-level method to perform therein, which will provide a match to the appropriate function
-if (!defined($hpgl->{task})) {  ## If task is not defined, then we need to run Main()
+if (!defined($cyoa->{task})) {  ## If task is not defined, then we need to run Main()
     Main();
-} elsif (!defined($hpgl->{method})) { ## If task is defined, but method is not, use the menu system to get that information
-    Iterate(task => $hpgl->{task}, hpgl => $hpgl);
+} elsif (!defined($cyoa->{method})) { ## If task is defined, but method is not, use the menu system to get that information
+    Iterate(task => $cyoa->{task}, cyoa => $cyoa);
 } else {
-    Match_Method(task => $hpgl->{task}, hpgl => $hpgl, method => $hpgl->{method});
+    Match_Method(task => $cyoa->{task}, cyoa => $cyoa, method => $cyoa->{method});
 }
 
 
@@ -91,11 +91,11 @@ sub Iterate {
             choices => $menus->{$type}->{choices},
             );
         if ($task eq 'Cutadapt' or $task =~ /Trim/) {
-            my $new_input = basename($hpgl->{input}, @{$hpgl->{suffixes}}) . "-trimmed.fastq";
-            $hpgl->{input} = $new_input;
+            my $new_input = basename($cyoa->{input}, @{$cyoa->{suffixes}}) . "-trimmed.fastq";
+            $cyoa->{input} = $new_input;
             print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
         }
-        $hpgl->$task(type => $type);
+        $cyoa->$task(type => $type);
 
         my $bool = $term->ask_yn(
             prompt => 'Go back to the toplevel?',
@@ -108,13 +108,13 @@ sub Iterate {
                 choices => ['Everything', 'Just input', 'Nothing'],
                 default => 'Just input');
             if ($reset eq 'Just input') {
-                $hpgl->{input} = undef;
+                $cyoa->{input} = undef;
             } elsif ($reset eq 'Everything') {
-                $hpgl->{input} = undef;
-                $hpgl->{species} = undef;
+                $cyoa->{input} = undef;
+                $cyoa->{species} = undef;
                 ## Some other stuff which I can't remember now
             } else {
-                ## Leave $hpgl alone
+                ## Leave $cyoa alone
             }
         }
     } ## End the task while loop
@@ -125,22 +125,22 @@ sub Match_Method {
     my $type = $args{task};
     my $m = '--' . $args{method};
     my @method = ($m,);
-    my %methods = %{$hpgl->{methods}};
+    my %methods = %{$cyoa->{methods}};
     ## This way, we can trivially make an array to pass to GetOptionsFromArray()
     my $array_result = GetOptionsFromArray(\@method, %methods);
-    my %todo = %{$hpgl->{todo}};
-    ## Now some portions of $hpgl->{todo} should be filled in with 1s
+    my %todo = %{$cyoa->{todo}};
+    ## Now some portions of $cyoa->{todo} should be filled in with 1s
     foreach my $job (keys %todo) {
         if ($todo{$job}) {
             print "You chose to perform: $job\n";
-            my $process = $hpgl->$job(type => $type);
+            my $process = $cyoa->$job(type => $type);
             if ($process->{pbs_id}) {
                 my $print_job = new FileHandle;
                 $print_job->open(">last_job.txt");
                 print $print_job "$process->{pbs_id}\n";
                 $print_job->close();
             }
-            $hpgl->{todo}{$job} = 0;
+            $cyoa->{todo}{$job} = 0;
         }
     }
 }
@@ -153,7 +153,7 @@ Email abelew@gmail.com
 
 =head1 SEE ALSO
 
-    L<HPGL> L<HPGL::Convert> L<HPGL::RNASeq_Trim>
+    L<CYOA> L<CYOA::Convert> L<CYOA::RNASeq_Trim>
 
 =cut
 

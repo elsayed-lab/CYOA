@@ -1,0 +1,7 @@
+language: perl
+
+script:
+  - make test
+
+notifications:
+  email: false

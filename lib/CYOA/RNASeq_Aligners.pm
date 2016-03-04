@@ -739,7 +739,7 @@ sub Tophat {
     my $inputs = $me->{input};
     my @in = split(/:/, $inputs);
     $inputs =~ s/:/ /g;
-
+    my $number_inputs = scalar(@in);
     my $tophat_args = ' -g 1 ';
     if ($args{tophat_args}) {
         $tophat_args = $args{tophat_args};
@@ -797,15 +797,22 @@ sub Tophat {
         $job_string .= qq! --no-novel-juncs \\
 !;
     }
-    $job_string .= qq!$me->{libdir}/genome/indexes/$me->{species} \\
-  ${inputs} && \\
-  samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam ${tophat_dir}/accepted_sorted && \\
-  mv ${tophat_dir}/accepted_sorted.bam ${tophat_dir}/accepted_hits.bam && \\
-  samtools index ${tophat_dir}/accepted_hits.bam && \\
-  samtools sort -l 9 -n ${tophat_dir}/unmapped.bam ${tophat_dir}/unmapped_sorted && \\
-  mv ${tophat_dir}/unmapped_sorted.bam ${tophat_dir}/unmapped.bam && \\
-  samtools index ${tophat_dir}/unmapped.bam
+    $job_string .= qq!  $me->{libdir}/genome/indexes/$me->{species} \\
+  ${inputs} 2>outputs/tophat.out 1>&2 && \\
+ samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam ${tophat_dir}/accepted_sorted && \\
+ mv ${tophat_dir}/accepted_sorted.bam ${tophat_dir}/accepted_hits.bam && \\
+ samtools index ${tophat_dir}/accepted_hits.bam && \\
+ samtools sort -l 9 -n ${tophat_dir}/unmapped.bam ${tophat_dir}/unmapped_sorted && \\
+ mv ${tophat_dir}/unmapped_sorted.bam ${tophat_dir}/unmapped.bam && \\
+ samtools index ${tophat_dir}/unmapped.bam
 !;
+    if ($number_inputs > 1) {
+        $job_string .= qq!
+if [ -r "${tophat_dir}/accepted_hits.bam" ]; then
+  samtools view -b -f 2 ${tophat_dir}/accepted_hits.bam > ${tophat_dir}/accepted_paired.bam && samtools index ${tophat_dir}/accepted_paired.bam
+fi
+!;
+    }
     my $comment = qq!## I still have no clue what I am doing when I use tophat...
 ## However, I know that -g 1 will allow only 1 hit in the case of multihits, but randomly place it
 ## From the manual:  "If there are more alignments with the same score than this
@@ -827,6 +834,7 @@ sub Tophat {
 			   postscript => $args{postscript},
         );
 
+    ## Set the input for htseq
     my $accepted = "${tophat_dir}/accepted_hits.bam";
     $accepted = $args{accepted_hits} if ($args{accepted_hits});
     my $count_table = "accepted_hits.count";
@@ -834,11 +842,14 @@ sub Tophat {
 
     my $htmulti = $me->HTSeq(depends => $tophat->{pbs_id},
                              input => $accepted,
-                             job_name => qq"hts_$me->{species}",
-                             ##output => $count_table,
-        );
+                             job_name => qq"hts_$me->{species}",);
     $tophat->{htseq} = $htmulti;
-
+    ## Perform a separate htseq run using only the successfully paired hits
+    if ($number_inputs > 1) {
+        my $ht_paired = $me->HTSeq(depends => $tophat->{pbs_id},
+                                   input => qq"${tophat_dir}/accepted_paired.bam",
+                                   job_name => qq"htsp_$me->{species}",);
+    }
     ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
     my $unaccepted = $accepted;

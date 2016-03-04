@@ -363,15 +363,7 @@ sub Gb2Gff {
     my $me = shift;
     my %args = @_;
     my $input = $me->{input};
-
-    if (!defined($input)) {
-        my $term = new Term::ReadLine('>');
-        my $attribs = $term->Attribs;
-        $attribs->{completion_suppress_append} = 1;
-        my $OUT = $term->OUT || \*STDOUT;
-        $input = $term->readline("Please provide an input genbank file: ");
-        $input =~ s/\s+$//g;
-    }
+    $me->Check_Options(['input']);
     my @suffix = (".gb", ".genbank");
     my $base = basename($input, @suffix);
 
@@ -518,36 +510,15 @@ sub Gb2Gff {
 sub TriTryp2Text {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(["input","species"]);
     use List::MoreUtils qw"uniq";
 
-    my $input = $me->{input};
-    if (!defined($input)) {
-        my $term = new Term::ReadLine('>');
-        my $attribs = $term->Attribs;
-        $attribs->{completion_suppress_append} = 1;
-        my $OUT = $term->OUT || \*STDOUT;
-        $input = $term->readline("Please provide an input tritryp text file: ");
-        $input =~ s/\s+$//g;
-    }
-    my $species = $me->{species};
-    if (!defined($species)) {
-        my $term = new Term::ReadLine('>');
-        my $attribs = $term->Attribs;
-        $attribs->{completion_suppress_append} = 1;
-        my $OUT = $term->OUT || \*STDOUT;
-        $species = $term->readline("Please provide a basename for the output files (I am just using species): ");
-        $species =~ s/\s+$//g;
-    }
-    my $base = $species;
-
-    my $master_table = $me->TriTryp_Master(input => $input, base => $species);
-    my ($ortho_table, $go_table);
-    if ($args{ortho}) {
-        $ortho_table = $me->TriTryp_Ortho(input => $input, base => $species);
-    }
-    if ($args{go}) {
-        $go_table = $me->TriTryp_GO(input => $input, base => $species);
-    }
+    print STDOUT "Printing master table from $me->{input}\n";
+    my $master_table = $me->TriTryp_Master(input => $me->{input}, base => $me->{species});
+    print STDOUT "Printing ortholog table from $me->{input}\n";
+    my $ortho_table = $me->TriTryp_Ortho(input => $me->{input}, base => $me->{species});
+    print STDOUT "Printing ontology table from $me->{input}\n";
+    my $go_table = $me->TriTryp_GO(input => $me->{input}, base => $me->{species});
 
     my $ret = {
         master_lines => $master_table->{lines_written},
@@ -694,7 +665,7 @@ sub TriTryp_Ortho {
     my $current_id = "";
     my $in = new FileHandle;
     my $out = new FileHandle;
-    $in->open("<$input");
+    $in->open("less ${input} |");
     $out->open(">${base}_ortho.txt");
     my $reading_ortho = 0;
     my $ortho_count = 0;
@@ -752,7 +723,7 @@ sub TriTryp_Master {
     my @key_list = ();
     my $in = new FileHandle;
     my $out = new FileHandle;
-    $in->open("<$input");
+    $in->open("less ${input} |");
     my $count = 0;
     my $waiting_for_next_gene = 0;
     my $lines_written = 0;
@@ -823,7 +794,7 @@ sub TriTryp_GO {
     my $in = new FileHandle;
     my $out = new FileHandle;
     my $gaf = new FileHandle;
-    $in->open("<$input");
+    $in->open("less $input |");
     $out->open(">${base}_go.txt");
     $gaf->open(">${base}_go.gaf");
     my $reading_go = 0;

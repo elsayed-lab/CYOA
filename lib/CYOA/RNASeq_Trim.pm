@@ -190,7 +190,7 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
     my $trim = $me->Qsub(job_name => "trim",
-			 qsub_wall => "4:00:00",
+			 qsub_wall => "12:00:00",
 			 job_string => $job_string,
 			 input => $input,
 			 output => $output,
