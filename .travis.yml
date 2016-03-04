@@ -4,7 +4,7 @@ perl:
 
 before_install:
   - sudo apt-get -qq update && apt-cache search tophat
-  - sudo apt-get install -y samtools tophat bowtie bowtie2 python-htseq trimmomatic fastqc ncbi-blast+ curl
+##  - sudo apt-get install -y samtools tophat bowtie bowtie2 python-htseq trimmomatic fastqc ncbi-blast+ curl
 
 script:
   - make test
