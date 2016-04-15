@@ -63,7 +63,7 @@ sub Copy_Raw {
         closedir $dh;
         print "Sample ${id} finished.\n";
     } ## End each sample in the csv or commandline arguments
-    print "Read ${files_read files} including ${forward_files} forward and ${reverse_files} reverse sequences.\n";
+    print "Read ${files_read} files including ${forward_files} forward and ${reverse_files} reverse sequences.\n";
     return($files_read);
 }
 

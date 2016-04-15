@@ -670,14 +670,14 @@ sub Kallisto {
     my $me = shift;
     my %args = @_;
     my %ka_jobs = ();
-    my $species = $me->{species};
-    my $ka_input = $me->{input};
     my $ka_depends_on;
     $ka_depends_on = $args{depends} if ($args{depends});
     my $libtype = 'genome';
     $libtype = $args{libtype} if ($args{libtype});
-    $me->Check_Options(["species"]);
+    $me->Check_Options(["species", "input"]);
     my $basename = $me->{basename};
+    my $species = $me->{species};
+    my $ka_input = $me->{input};
 
     my $jobname = qq"kall_${species}";
     $jobname = $args{jobname} if ($args{jobname});
@@ -688,6 +688,7 @@ sub Kallisto {
         $me->{input} = $ka_input;
         $ka_depends_on = $uncomp->{pbs_id};
     }
+    $ka_input =~ s/\:/ /g;
 
     ## Check that the indexes exist
     my $ka_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}.idx";
@@ -697,15 +698,16 @@ sub Kallisto {
         $ka_depends_on = $index_job->{pbs_id};
     }
 
+    my $outdir = qq"outputs/kallisto_${species}";
     my $error_file = qq"outputs/kallisto/${basename}-kallisto.err";
     my $output_file = qq"outputs/kallisto/${basename}-kallisto.out";
-    my $comment = qq!## This is a kallisto pseudoalignment of $ka_input against
-## $ka_reflib.
-## This jobs depended on: $ka_depends_on
+    my $comment = qq!## This is a kallisto pseudoalignment of ${ka_input} against
+## ${ka_reflib}.
+## This jobs depended on: ${ka_depends_on}
 !;
-    my $job_string = qq!mkdir -p outputs/kallisto && sleep 10 && \\
-kallisto quant --plaintext -t 4 -b 100 -o outputs/kallisto -i $ka_reflib \\
-  $ka_input 2>${error_file} 1>${output_file}
+    my $job_string = qq!mkdir -p ${outdir} && sleep 10 && \\
+kallisto quant --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
+  ${ka_input} 2>${error_file} 1>${output_file}
 !;
     my $ka_job = $me->Qsub(job_name => qq"${jobname}",
                            depends => $ka_depends_on,
