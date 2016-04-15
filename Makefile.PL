@@ -33,6 +33,7 @@ my $prereq = {
     'Modern::Perl' => 0,
     'Net::Amazon::S3' => 0,
     'PerlIO' => 0,
+    'PerlIO::gzip' => 0,
     'Pod::Usage' => 0,
     'Storable' => 0,
     'String::Diff' => 0,
