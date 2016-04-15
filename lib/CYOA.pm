@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use AppConfig qw":argcount :expand";
 use Archive::Extract;
-use Bio::DB::Sam;
+##use Bio::DB::Sam;
 use Bio::SeqIO;
 use Bio::DB::Universal;
 use Bio::Root::RootI;

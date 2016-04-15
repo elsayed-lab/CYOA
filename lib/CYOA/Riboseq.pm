@@ -2,7 +2,7 @@ package CYOA;
 use common::sense;
 use autodie qw":all";
 
-use Bio::DB::Sam;
+##use Bio::DB::Sam;
 use Bio::Tools::GFF;
 use PerlIO;
 use Data::Dumper;
@@ -58,6 +58,7 @@ new observations.\n";
     }
 
     sub Read_Bam {
+        eval "use Bio::DB::Sam; 1";
         my %args = @_;
         system("mkdir -p $options{outdir}") if (!-d $options{outdir});
         my $sam = new Bio::DB::Sam(-bam => $options{input}, -fasta=> $options{fasta},);

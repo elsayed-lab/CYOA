@@ -9,7 +9,7 @@ use File::Path qw"make_path";
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
-use Bio::DB::Sam;
+##use Bio::DB::Sam;
 use Cwd qw(abs_path getcwd);
 use String::Approx;
 
@@ -556,6 +556,7 @@ sub Count_TAs {
     my $length = $args{length};
     my $input = $me->{input};
     my $data = $args{data};
+    eval "use Bio::DB::Sam; 1";
     my $sam = new Bio::DB::Sam(-bam => ${input},
                                -fasta => $me->{fasta},);
     my @targets = $sam->seq_ids;
