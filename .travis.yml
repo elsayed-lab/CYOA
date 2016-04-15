@@ -3,7 +3,7 @@ perl:
   - "5.22"
 
 before_install:
-  - sudo apt-get update -qq && sudo apt-get install -y samtools tophat bowtie bowtie2 python-htseq trimmomatic fastqc ncbi-blast+ curl
+  - sudo apt-get update -qq && apt-cache search samtools && apt-cache search bowtie && apt-cache search python-htseq && sudo apt-get install -y samtools tophat bowtie bowtie2 python-htseq trimmomatic fastqc ncbi-blast+ curl
 
 script:
   - make test
