@@ -1,9 +1,14 @@
-# HPGL
+CYOA: Choose your own Adventure in Sequence processing.
+=======================================================
 
-Some simple Perl wrappers for (pre)processing our RNAseq data.
+Over the few years I have been playing in Dr. El-Sayed's lab, I found myself copy-pasting snippets
+of Perl for common tasks like sequence alignment, setting up PBS jobs, counting reads, whatever.
+Eventually, having a large number of these repetitive scripts came to seem stupid.  Therefore I
+combined them into a single Perl package and attempted to give them a single interface: cyoa.
 
-## Installation
+# Installation
 
+> git clone git@github.com:abelew/CYOA.git
 > perl Makefile.PL
 
 If you have some free time:
@@ -24,13 +29,19 @@ That will test (currently) the ability to:
 Final installation:
 > make install
 
-## Usage
+# Usage
 
 I have recently been using it via a small script 'cyoa' in bin/, for example:
 
 > cyoa
 
 brings up a readline menu interface asking what you want to do.
+
+> cyoa --query lmajor_cds.fasta --library lmajor_cds.fasta --task align --method fastasplit
+
+Splits the set of annotated coding sequences from lmajor into 200 pieces and aligns them against the
+library of lmajor_cds sequences.  Upon completion, it counts the number of hits and therefore provides a
+rough metric of the set of multi-copy genes.
 
 > cyoa --input test-forward.fastq:test-reverse.fastq --task rnaseq --method fastqc
 

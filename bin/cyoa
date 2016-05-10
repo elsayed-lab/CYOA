@@ -91,9 +91,12 @@ sub Iterate {
             choices => $menus->{$type}->{choices},
             );
         if ($task eq 'Cutadapt' or $task =~ /Trim/) {
-            my $new_input = basename($cyoa->{input}, @{$cyoa->{suffixes}}) . "-trimmed.fastq";
-            $cyoa->{input} = $new_input;
-            print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
+            print "TESTME: $cyoa->{input}\n";
+            if ($cyoa->{input}) {
+                my $new_input = basename($cyoa->{input}, @{$cyoa->{suffixes}}) . "-trimmed.fastq";
+                $cyoa->{input} = $new_input;
+                print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
+            }
         }
         $cyoa->$task(type => $type);
 
