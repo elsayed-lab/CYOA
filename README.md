@@ -8,8 +8,7 @@ combined them into a single Perl package and attempted to give them a single int
 
 # Installation
 
-> git clone git@github.com:abelew/CYOA.git
-> perl Makefile.PL
+> git clone git@github.com:abelew/CYOA.git && cd CYOA && perl Makefile.PL && make && make install
 
 If you have some free time:
 > make test
