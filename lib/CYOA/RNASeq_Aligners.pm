@@ -35,6 +35,7 @@ use autodie;
 sub Bowtie {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species","input"]);
     my %bt_jobs = ();
     my $bt_input = $me->{input};
     my $bt_depends_on;
@@ -50,19 +51,34 @@ sub Bowtie {
     $libtype = $args{libtype} if ($args{libtype});
     my $count = 1;
     $count = $args{count} if (defined($args{count}));
+    my $bt_dir = qq"outputs/bowtie_$me->{species}";
+    if ($args{bt_dir}) {
+        $bt_dir = $args{bt_dir};
+    }
 
     if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
         print "The input needs to be uncompressed, doing that now.\n" if ($me->{debug});
-        my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
+        ## Previously this step was done on the cluster, but I submitted too many and made the file servers mad
+        ## In addition, these jobs are often done as part of a group and I don't want a race condition
+        ##my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
+        print "Uncompressing input files before submitting to the cluster.\n";
+        if (${bt_input} =~ /\.gz/) {
+            qx"nice -n 10 gunzip -f ${bt_input}";
+        } elsif (${bt_input} =~ /\.bz2/) {
+            qx"nice -n 10 bunzip2 -f ${bt_input}";
+        } elsif (${bt_input} =~ /\.xz/) {
+            qx"nice -n 10 xz -d -f ${bt_input}";
+        }
         $bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
         $me->{input} = $bt_input;
-        $bt_depends_on = $uncomp->{pbs_id};
+        ##bt_depends_on = $uncomp->{pbs_id};
     }
 
     ## Check that the indexes exist
     my $bt_reflib = "$me->{libdir}/${libtype}/indexes/$me->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
-    if (!-r $bt_reftest) {
+    if (!-r $bt_reftest && !$me->{bt1_indexjobs}) {
+        $me->{bt1_indexjobs} = 1;
         my $index_job = $me->BT1_Index(depends => $bt_depends_on, libtype => $libtype);
         $bt_jobs{index} = $index_job;
         $bt_depends_on = $index_job->{pbs_id};
@@ -71,22 +87,21 @@ sub Bowtie {
     $bowtie_input_flag = "-f" if ($me->{input} =~ /\.fasta$/);
 
     my $cpus = $me->{cpus};
-    my $error_file = qq"outputs/bowtie/${basename}-${bt_type}.err";
+    my $error_file = qq"${bt_dir}/${basename}-${bt_type}.err";
     my $comment = qq!## This is a bowtie1 alignment of $bt_input against
 ## $bt_reflib using arguments: $bt_args.
 ## This jobs depended on: $bt_depends_on
 !;
-    my $aligned_filename = qq"outputs/bowtie/${basename}-${bt_type}_aligned_${species}.fastq";
-    my $unaligned_filename = qq"outputs/bowtie/${basename}-${bt_type}_unaligned_${species}.fastq";
-    my $sam_filename = qq"outputs/bowtie/${basename}-${bt_type}.sam";
-    my $job_string = qq!mkdir -p outputs/bowtie && sleep 10 && bowtie $bt_reflib $bt_args \\
-  -p ${cpus} \\
-  $bowtie_input_flag $bt_input \\
+    my $aligned_filename = qq"${bt_dir}/${basename}-${bt_type}_aligned_${species}.fastq";
+    my $unaligned_filename = qq"${bt_dir}/${basename}-${bt_type}_unaligned_${species}.fastq";
+    my $sam_filename = qq"${bt_dir}/${basename}-${bt_type}.sam";
+    my $job_string = qq!mkdir -p ${bt_dir} && sleep 10 && bowtie $bt_reflib $bt_args \\
+  -p ${cpus} $bowtie_input_flag $bt_input \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>outputs/bowtie/${basename}-${bt_type}.out
+  1>${bt_dir}/${basename}-${bt_type}.out
 !;
 ##    my $bt_job = $me->Qsub(job_name => qq"bt1_${bt_type}",
     my $bt_job = $me->Qsub(job_name => $jobname,
@@ -99,16 +114,17 @@ sub Bowtie {
                            aligned => $aligned_filename,
 			   prescript => $args{prescript},
 			   postscript => $args{postscript},
+                           qsub_queue => "workstation",
         );
     $bt_jobs{bowtie} = $bt_job;
 
     my $un_comp = $me->Recompress(depends => $bt_job->{pbs_id},
                                   job_name => "xzun",
                                   comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt_args\n",
-                                  input => "outputs/bowtie/${basename}-${bt_type}_unaligned_${species}.fastq");
+                                  input => "${bt_dir}/${basename}-${bt_type}_unaligned_${species}.fastq");
     $bt_jobs{unaligned_compression} = $un_comp;
 
-    my $al_comp = $me->Recompress(input => "outputs/bowtie/${basename}-${bt_type}_aligned_${species}.fastq",
+    my $al_comp = $me->Recompress(input => "${bt_dir}/${basename}-${bt_type}_aligned_${species}.fastq",
                                   comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt_args",
                                   job_name => "xzal",
                                   depends => $bt_job->{pbs_id},);
@@ -134,12 +150,16 @@ sub Bowtie {
         if ($libtype eq 'rRNA') {
             $htmulti = $me->HTSeq(depends => $sam_job->{pbs_id},
                                   suffix => $bt_type,
+                                  htseq_type => $me->{htseq_type},
                                   libtype => $libtype,
+                                  qsub_queue => "workstation",
                                   input => $sam_job->{output},);
         } else {
             $htmulti = $me->HT_Multi(depends => $sam_job->{pbs_id},
                                      suffix => $bt_type,
+                                     htseq_type => $me->{htseq_type},
                                      libtype => $libtype,
+                                     qsub_queue => "workstation",
                                      input => $sam_job->{output},);
             $bt_jobs{htseq} = $htmulti;
         }
@@ -166,6 +186,7 @@ sub Bowtie {
 sub Bowtie2 {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species","input", "htseq_type"]);
     my %bt_jobs = ();
     my $libtype = 'genome';
     my $bt_input = $me->{input};
@@ -178,6 +199,11 @@ sub Bowtie2 {
     $jobname = $args{jobname} if ($args{jobname});
     my $count = 1;
     $count = $args{count} if (defined($args{count}));
+
+    my $bt_dir = qq"outputs/bowtie2_$me->{species}";
+    if ($args{bt_dir}) {
+        $bt_dir = $args{bt_dir};
+    }
 
     if ($bt_input =~ /\.bz2$|\.xz$/ ) {
         print "The input needs to be uncompressed, doing that now.\n" if ($me->{debug});
@@ -204,22 +230,22 @@ sub Bowtie2 {
     $bowtie_input_flag = "-f " if ($me->{input} =~ /\.fasta$/);
 
     my $cpus = $me->{cpus};
-    my $error_file = qq"outputs/bowtie2/${basename}.err";
+    my $error_file = qq"${bt_dir}/${basename}.err";
     my $comment = qq!## This is a bowtie2 alignment of $bt_input against
 ## $bt_reflib using arguments: $bt2_args.
 ## This jobs depended on: $bt_depends_on
 !;
-    my $aligned_filename = qq"outputs/bowtie2/${basename}_aligned_${species}.fastq";
-    my $unaligned_filename = qq"outputs/bowtie2/${basename}_unaligned_${species}.fastq";
-    my $sam_filename = qq"outputs/bowtie2/${basename}.sam";
-    my $job_string = qq!mkdir -p outputs/bowtie2 && sleep 10 && bowtie2 -x $bt_reflib $bt2_args \\
+    my $aligned_filename = qq"${bt_dir}/${basename}_aligned_${species}.fastq";
+    my $unaligned_filename = qq"${bt_dir}/${basename}_unaligned_${species}.fastq";
+    my $sam_filename = qq"${bt_dir}/${basename}.sam";
+    my $job_string = qq!mkdir -p ${bt_dir} && sleep 10 && bowtie2 -x $bt_reflib $bt2_args \\
   -p ${cpus} \\
   $bowtie_input_flag $bt_input \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>outputs/bowtie2/${basename}.out
+  1>${bt_dir}/${basename}.out
 !;
 ##    my $bt_job = $me->Qsub(job_name => qq"bt1_${bt_type}",
     my $bt2_job = $me->Qsub(job_name => $jobname,
@@ -238,10 +264,10 @@ sub Bowtie2 {
     my $un_comp = $me->Recompress(depends => $bt2_job->{pbs_id},
                                   job_name => "xzun",
                                   comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt2_args\n",
-                                  input => "outputs/bowtie2/${basename}_unaligned_${species}.fastq");
+                                  input => "${bt_dir}/${basename}_unaligned_${species}.fastq");
     $bt_jobs{unaligned_compression} = $un_comp;
 
-    my $al_comp = $me->Recompress(input => "outputs/bowtie2/${basename}_aligned_${species}.fastq",
+    my $al_comp = $me->Recompress(input => "${bt_dir}/${basename}_aligned_${species}.fastq",
                                   comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt2_args",
                                   job_name => "xzal",
                                   depends => $bt2_job->{pbs_id},);
@@ -288,7 +314,10 @@ sub Bowtie2 {
 sub BT_Multi {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["species","input"]);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task rnaseq --method btmulti --input file1:file2 --species critter\n";
+    }
+    $me->Check_Options(args => \%args, needed => ["species","input", "htseq_type"]);
     my $basename = $me->{basename};
     my $species = $me->{species};
     my $depends_on = $args{depends};
@@ -320,16 +349,17 @@ sub BT_Multi {
 sub Bowtie_RRNA {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["species"]);
+    $me->Check_Options(args => \%args, needed => ["species"]);
     my $basename = $me->{basename};
     $me->{basename} = qq"rRNA_${basename}";
     my $exclude = 0;
     $exclude = $args{exclude} if ($args{exclude});
     my $species = $me->{species};
     my $depends_on = $args{depends};
+    my ${bt_dir} = qq"outputs/bowtie_$me->{species}";
     if ($exclude) {
         my $in = $me->{input};
-        $args{postscript} = qq"mv $in includerrna_${in} && mv outputs/bowtie/${basename}-rRNA_unaligned_${species}.fastq $in";
+        $args{postscript} = qq"mv $in includerrna_${in} && mv ${bt_dir}/${basename}-rRNA_unaligned_${species}.fastq $in";
     }
     my $job = $me->Bowtie(depends => $depends_on,
                           job_name => qq"btrrna",
@@ -352,6 +382,7 @@ sub Bowtie_RRNA {
 sub BT1_Index {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species"]);
     my $basename = $me->{basename};
     my $dep = "";
     $dep = $args{depends} if (defined($args{depends}));
@@ -417,7 +448,7 @@ sub BWA {
     my %args = @_;
     my %bwa_jobs = ();
     my $bwa_depends_on;
-    $me->Check_Options(['species', 'input']);
+    $me->Check_Options(args => \%args, needed => ["species"]);
     my $basename = $me->{basename};
     my $inputs = $me->{input};
     my @in = split(/\:/, $inputs);
@@ -636,18 +667,18 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
 sub Kallisto_Index {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species","input"]);
     my $basename = $me->{basename};
     my $dep = "";
     $dep = $args{depends};
     my $libtype = $me->{libtype};
-    my $libdir = File::Spec->rel2abs($me->{libdir});
-    my $input_file = qq"${libdir}/genome/$me->{species}_cds.fasta";
-    unless (-r qq"${input_file}") {
-        die("The indexing operation for kallisto will fail because ${input_file} does not exist.")
+    my $input = File::Spec->rel2abs($me->{input});
+    unless (-r qq"${input}") {
+        die("The indexing operation for kallisto will fail because ${input} does not exist.")
     }
 
     my $job_string = qq!
-kallisto index -i $me->{libdir}/${libtype}/indexes/$me->{species}.idx $me->{libdir}/genome/$me->{species}_cds.fasta
+kallisto index -i $me->{libdir}/${libtype}/indexes/$me->{species}.idx ${input}
 !;
     my $comment = qq!## Generating kallisto indexes for species: $me->{species} in $me->{libdir}/${libtype}/indexes!;
     my $jobid = $me->Qsub(job_name => "kalidx",
@@ -669,24 +700,34 @@ kallisto index -i $me->{libdir}/${libtype}/indexes/$me->{species}.idx $me->{libd
 sub Kallisto {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species","input"]);
     my %ka_jobs = ();
     my $ka_depends_on;
     $ka_depends_on = $args{depends} if ($args{depends});
     my $libtype = 'genome';
     $libtype = $args{libtype} if ($args{libtype});
-    $me->Check_Options(["species", "input"]);
     my $basename = $me->{basename};
     my $species = $me->{species};
     my $ka_input = $me->{input};
 
     my $jobname = qq"kall_${species}";
     $jobname = $args{jobname} if ($args{jobname});
+    my $ka_args = qq"";
 
-    if ($ka_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+    if ($ka_input =~ /\.bz2$|\.xz$/ ) {
         my $uncomp = $me->Uncompress(input => $ka_input, depends => $ka_depends_on);
         $ka_input =  basename($ka_input, ('.gz','.bz2','.xz'));
         $me->{input} = $ka_input;
         $ka_depends_on = $uncomp->{pbs_id};
+    }
+    my @input_test = split(/\:/, $ka_input);
+    if (scalar(@input_test) == 1) {
+        $ka_args .= " --single -l 40 -s 10 ";
+    } elsif (scalar(@input_test) == 2) {
+        ## Do nothing
+        print "There are 2 inputs\n";
+    } else {
+        print "There are not 1 nor 2 inputs.\n";
     }
     $ka_input =~ s/\:/ /g;
 
@@ -699,21 +740,35 @@ sub Kallisto {
     }
 
     my $outdir = qq"outputs/kallisto_${species}";
-    my $error_file = qq"outputs/kallisto/${basename}-kallisto.err";
-    my $output_file = qq"outputs/kallisto/${basename}-kallisto.out";
+    my $error_file = qq"${outdir}/kallisto_${species}.stderr";
+    my $output_sam = qq"${outdir}/kallisto_${species}.sam";
+    my $output_bam = qq"${outdir}/kallisto_${species}.bam";
+    my $output_stats = qq"${outdir}/kallisto_${species}.stats";
+    my $sorted_bam = qq"${outdir}/kallisto_${species}-sorted";
     my $comment = qq!## This is a kallisto pseudoalignment of ${ka_input} against
 ## ${ka_reflib}.
 ## This jobs depended on: ${ka_depends_on}
+## Other candidates for making a pretty count table include:
+##  perl -F'\\t' -a -n -e 'print "\$F[0] \$F[3]\\n"' ${outdir}/abundance.tsv > ${outdir}/abundance.count
+##   awk '{printf("%s %s\\n", \$1, \$4)}' ${outdir}/abundance.tsv > ${outdir}/abundance.count
+## The sam->bam conversion is copy/pasted from Sam2Bam() but I figured why start another job
+## because kallisto is so fast
 !;
     my $job_string = qq!mkdir -p ${outdir} && sleep 10 && \\
-kallisto quant --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
-  ${ka_input} 2>${error_file} 1>${output_file}
+kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
+  ${ka_input} 2>${error_file} 1>${output_sam} && \\
+  cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/abundance.count && \\
+  samtools view -u -t ${ka_reflib} -S ${output_sam} 1>${output_bam} && \\
+  samtools sort -l 9 ${output_bam} ${sorted_bam} && \\
+  rm ${output_bam} && mv ${sorted_bam}.bam ${output_bam} && samtools index ${output_bam} && \\
+  bamtools stats -in ${output_bam} 2>${output_stats} 1>&2
 !;
     my $ka_job = $me->Qsub(job_name => qq"${jobname}",
                            depends => $ka_depends_on,
                            job_string => $job_string,
                            input => $ka_input,
                            comment => $comment,
+                           qsub_queue => "workstation",
 			   prescript => $args{prescript},
 			   postscript => $args{postscript},
         );
@@ -732,7 +787,7 @@ kallisto quant --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
 sub Tophat {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["species"]);
+    $me->Check_Options(args => \%args, needed => ["species","input","htseq_type"]);
     my $depends = "";
     my $tophat_cpus = 4;
     if ($args{depends}) {
@@ -742,7 +797,7 @@ sub Tophat {
     my @in = split(/:/, $inputs);
     $inputs =~ s/:/ /g;
     my $number_inputs = scalar(@in);
-    my $tophat_args = ' -g 1 ';
+    my $tophat_args = ' -g 1 --microexon-search --b2-very-sensitive ';
     if ($args{tophat_args}) {
         $tophat_args = $args{tophat_args};
     }
@@ -793,7 +848,7 @@ sub Tophat {
     my $jobname = qq"th_$me->{species}";
     my $job_string = qq!mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
   -G ${gtf_file} \\
-  --b2-very-sensitive -p ${tophat_cpus} -o ${tophat_dir} \\
+  -p ${tophat_cpus} -o ${tophat_dir} \\
 !;
     if ($spliced) {
         $job_string .= qq! --no-novel-juncs \\
@@ -824,14 +879,14 @@ fi
 ## --mate-std-dev sets the deviation of -r
 ## --microexon-search will tell it to search short exons for reads >=50
 !;
-    my $tophat = $me->Qsub(job_name => $jobname,
-                           qsub_cpus => $tophat_cpus,
-                           qsub_queue => $tophat_queue,
-                           qsub_wall => $tophat_walltime,
-                           qsub_mem => $tophat_mem,
-                           depends => $depends,
-                           job_string => $job_string,
-                           comment => $comment,
+    my $tophat = $me->Qsub(job_name => ${jobname},
+                           qsub_cpus => ${tophat_cpus},
+                           qsub_queue => ${tophat_queue},
+                           qsub_wall => ${tophat_walltime},
+                           qsub_mem => ${tophat_mem},
+                           depends => ${depends},
+                           job_string => ${job_string},
+                           comment => ${comment},
 			   prescript => $args{prescript},
 			   postscript => $args{postscript},
         );
@@ -841,16 +896,17 @@ fi
     $accepted = $args{accepted_hits} if ($args{accepted_hits});
     my $count_table = "accepted_hits.count";
     $count_table = $args{count_table} if ($args{count_table});
-
-    my $htmulti = $me->HTSeq(depends => $tophat->{pbs_id},
-                             input => $accepted,
-                             job_name => qq"hts_$me->{species}",);
+    my $htmulti = $me->HT_Multi(depends => $tophat->{pbs_id},
+                                input => $accepted,
+                                htseq_type => $me->{htseq_type},
+                                job_name => qq"hts_$me->{species}",);
     $tophat->{htseq} = $htmulti;
     ## Perform a separate htseq run using only the successfully paired hits
     if ($number_inputs > 1) {
-        my $ht_paired = $me->HTSeq(depends => $tophat->{pbs_id},
-                                   input => qq"${tophat_dir}/accepted_paired.bam",
-                                   job_name => qq"htsp_$me->{species}",);
+        my $ht_paired = $me->HT_Multi(depends => $tophat->{pbs_id},
+                                      htseq_type => $me->{htseq_type},
+                                      input => qq"${tophat_dir}/accepted_paired.bam",
+                                      job_name => qq"htsp_$me->{species}",);
     }
     ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
@@ -891,10 +947,14 @@ sub BT1_Stats {
     my $jobid = qq"${basename}_stats";
     my $count_table = "";
     $count_table = $args{count_table} if ($args{count_table});
+    my $stat_output = qq"outputs/bowtie_stats.csv";
     my $comment = qq!
 ## This is a stupidly simple job to collect alignment statistics.
 !;
     my $job_string = qq!
+if [ \! -r "${stat_output}" ]; then
+  echo "name,type,original_reads,reads,one_hits,failed,samples,rpm,count_table" > $stat_output
+fi
 original_reads_tmp=\$(grep "^Input Reads" $trim_input | awk '{print \$3}' | sed 's/ //g')
 original_reads=\${original_reads_tmp:-0}
 reads_tmp=\$(grep "^# reads processed" $bt_input | awk -F: '{print \$2}' | sed 's/ //g')
@@ -908,7 +968,7 @@ sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
 stat_string=\$(printf "${basename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> outputs/bowtie_stats.csv
+echo "\$stat_string" >> ${stat_output}
 !;
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,

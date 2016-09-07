@@ -39,7 +39,7 @@ sub Ceph_Upload {
 sub Dump_Reads {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['hpgl',]);
+    $me->Check_Options(args => \%args, needed => ['hpgl',]);
     my $casava_passed = 0;
     my $line_count = 0;
     my $connection;

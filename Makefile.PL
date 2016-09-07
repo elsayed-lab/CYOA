@@ -44,13 +44,13 @@ my $prereq = {
 };
 
 my @args = (
-    NAME           => 'CYOA',
-    VERSION_FROM   => 'lib/CYOA.pm',
-    ABSTRACT       => 'Choose your own adventure in sequence processing.',
-    AUTHOR         => 'abelew@gmail.com',
-    LICENSE        => 'gplv2',
-    test           => {TESTS => 't/*.t'}
-    );
+    NAME => 'CYOA',
+    VERSION_FROM => 'lib/CYOA.pm',
+    ABSTRACT => 'Choose your own adventure in sequence processing.',
+    AUTHOR => 'abelew@gmail.com',
+    LICENSE => 'gplv2',
+    EXE_FILES => [ qw"bin/cyoa" ],
+    test => {TESTS => 't/*.t'},);
 
 if ($eumm_version >= 6.46) {
     push @args,

@@ -9,6 +9,8 @@ use Bio::SearchIO::fasta;
 use Bio::Tools::Run::StandAloneBlast;
 use POSIX qw"ceil";
 
+our $out_fmt = 5;
+
 =head1 NAME
     CYOA::Alignment - Perform Sequence alignments with tools like Blast/Fasta
 
@@ -186,7 +188,10 @@ sub Run_Parse_Blast {
 sub Split_Align_Blast {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["query","library", "blast_tool"]);
+    if ($args{interactive}) {
+        print "Run this with: cyoa --task align --method splitblast --query something.fasta --library blastdb --blast_tool tblastx\n";
+    }
+    $me->Check_Options(args => \%args, needed => ["query","library", "blast_tool"]);
     $args{query} = $me->{query} if ($me->{query});
     $args{library} = $me->{library} if ($me->{library});
     $args{blast_tool} = $me->{blast_tool} if ($me->{blast_tool});
@@ -203,13 +208,13 @@ sub Split_Align_Blast {
     ## This might be wrong (tblastx)
     print STDERR qq"A quick reminder because I (atb) get confused easily:
 tblastn is a protein fasta query against a nucleotide blast database.
-tblastx is a nucleotide fasta query (which is translated on the fly) against a protein blast db.
+tblastx is a nucleotide fasta query (which is translated on the fly) against a nucleotide blast db.
 blastx is a nucleotide fasta query against a protein blast db.
 blastn is normal nucleotide/nucleotide
 blastp is normal protein/protein.
 ";
     ## Also set the default blastdb if it didn't get set.
-    if ($args{blast_tool} eq 'blastn' or $args{blast_tool} eq 'tblastx') {
+    if ($args{blast_tool} eq 'blastn' or $args{blast_tool} eq 'tblastn' or $args{blast_tool} eq 'tblastx') {
         $args{peptide} = 'F';
         $args{library} = 'nt' if (!defined($args{library}));
     } else {
@@ -229,14 +234,14 @@ blastp is normal protein/protein.
         print "Going to make $args{number} directories with $num_per_split sequences each.\n";
         my $actual = $me->Make_Directories(%args);
         print "Actually used ${actual} directories to write files.\n";
-        my $alignment = $me->Make_Blast_Job(number => $actual, library => $lib, output_type => 5);  # Forcing the blast output type to be 5: blastxml
+        my $alignment = $me->Make_Blast_Job(number => $actual, library => $lib, output_type => ${out_fmt});
         $concat_job = $me->Concatenate_Searches(depends => $alignment->{pbs_id}, output => ${output},);
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         $args{number} = 1;
         my $num_per_split = $me->Get_Split(%args);
         my $actual = $me->Make_Directories(%args);
-        my $alignment = $me->Make_Blast_Job(number => $actual, library => $lib, output_type => 5);
+        my $alignment = $me->Make_Blast_Job(number => $actual, library => $lib, output_type => ${out_fmt});
         $concat_job = $me->Concatenate_Searches(output=> ${output},);
     }
 
@@ -276,7 +281,8 @@ sub Make_Blast_Job {
     }
     my $job_string = '';
     ## I have been getting null pointers, there is a bug report suggesting this is because of xml output
-    $args{output_type} = 1;
+    ## $args{output_type} = 1;
+    $args{output_type} = ${out_fmt};
     if ($me->{pbs}) {
         $job_string = qq!
 cd $me->{basedir}
@@ -314,7 +320,10 @@ $me->{blast_tool} -outfmt $args{output_type} \\
 sub Merge_Parse_Blast {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['output']);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task align --method mergeparse --output filename\n";
+    }
+    $me->Check_Options(args => \%args, needed => ['output']);
     my $concat = $me->Concatenate_Searches();
     $me->{input} = $concat->{output};
     my $job_string = qq?
@@ -341,18 +350,22 @@ my \$h = new CYOA;
 sub Parse_Blast {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["input",]);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task align --method parseblast --intput filename.\n";
+    }
+    $me->Check_Options(args => \%args, needed => ["input",]);
     my $input = $me->{input};
     my $output = qq"${input}";
     my $best = $args{best_only};
     $best = 0 if (!defined($best));
     my $search_type = $args{search_type};
     $search_type = 'blastxml' if (!defined($search_type));
-    $output =~ s/\.txt\.gz/_parsed\.txt/g;
-    print "Writing parsed output to $output\n";
-    my $count_table = qq"${input}";
-    $count_table =~ s/\.txt\.gz/_counts\.txt/g;
-    print "Writing count table to $count_table\n";
+    $output =~ s/\.txt\.gz//g;
+    $output .= "_parsed.txt";
+    print "Writing parsed output to ${output}\n";
+    my $count_table = qq"${output}";
+    $count_table =~ s/_parsed\.txt/_counts\.txt/g;
+    print "Writing count table to ${count_table}\n";
     $args{num_sequences} = 'unknown' if (!defined($args{num_sequences}));
     my $counts = new FileHandle;
     $counts->open(">$count_table");
@@ -365,16 +378,17 @@ sub Parse_Blast {
     my $in = new FileHandle;
     $in->open("less ${input} |");
     $XML::SAX::ParserPackage = 'XML::SAX::PurePerl';
-    ##my $searchio = new Bio::SearchIO(-fh => $in);
+    my $searchio = new Bio::SearchIO(-fh => $in);
     ## Perform a test for the output format, this will close the filehandle, so reopen it after
-    ##my $guessed_format = $searchio->format();
-    ##print STDERR "Guessed the format is: $guessed_format\n";
+    my $guessed_format = $searchio->format();
+    print STDERR "Guessed the format is: $guessed_format\n";
     ##$guessed_format = 'blastxml';
     ##print STDERR "It turns out that searchio->format() is crap, setting format to 'blastxml'\n";
-    ##$searchio = undef;
-    ##$in->close();
-    ##$in = new FileHandle;
-    ##$in->open("less ${input} |");
+    $searchio = undef;
+    $in->close();
+    $in = new FileHandle;
+    $in->open("less ${input} |");
+
     my $searchio = new Bio::SearchIO(-fh => $in, -format => $search_type, -best => ${best},);
 ##    if ($args{output_type} eq '0') { ## use old blast format
 ##        $searchio = new Bio::SearchIO(-format => 'blast', -fh => $in, -best => 1,);

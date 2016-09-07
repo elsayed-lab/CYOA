@@ -28,7 +28,7 @@ use String::Approx;
 
 =item C<Sort_Indexes>
 
-    $hpgl->Sort_Indexes(inputdir => '.');
+    $hpgl->Do_Sort_Indexes(inputdir => '.');
     will assume there is a $(pwd)/indexes.txt with a list of
     sequencing index to sample names, it will then read all the fastq
     files in the inputdir and sort them into piles by index.  Most
@@ -36,7 +36,7 @@ use String::Approx;
     libraries used by the McIver lab are not quite standard.
 
 =cut
-sub Sort_Indexes {
+sub Do_Sort_Indexes {
     my $me = shift;
     my %args = @_;
     my $index_file = $me->{index_file};
@@ -46,7 +46,7 @@ sub Sort_Indexes {
     $input = '.' unless (defined($input));
     my $outdir = $me->{output_dir};
     $outdir = $args{output_dir} if (defined($args{output_dir}));
-    $outdir = 'sorted' unless (defined($outdir));
+    $outdir = 'outputs' unless (defined($outdir));
     $me->{outdir} = $outdir;
     my $index_hash = {
     };
@@ -60,7 +60,6 @@ It therefore makes some assumptions about the beginnings of reads and requires t
         exit(0);
     }
 
-    ## Make sure we have a directory to read sequences from
     if (!defined($input) or !-r $input) {
         my $term = new Term::ReadLine('>');
         my $attribs = $term->Attribs;
@@ -95,18 +94,110 @@ It therefore makes some assumptions about the beginnings of reads and requires t
 The total number of reads read in $input: $me->{indexes}->{total}->{read}.
 The total number of reads sorted in $input: $me->{indexes}->{total}->{written}.
 ";
-    print STDOUT $message;
     print $log $message;
     my %final = %{$me->{indexes}};
     foreach my $k (keys %final) {
         next if ($k eq 'total');
         $message = qq"Index $k had $me->{indexes}->{$k}->{written} reads written from $input to $me->{indexes}->{$k}->{filename}.\n";
-        print STDOUT $message;
         print $log $message;
         $me->{indexes}->{$k}->{handle}->close();
     }
     $log->close();
     return($me->{indexes}->{total});
+}
+
+sub TA_Check {
+    my $me = shift;
+    my %args = @_;
+    ## If options are required, feed them back into %args here?
+    $me->Check_Options(args => \%args, needed => ['input']);
+    my $job_string = qq?
+use CYOA;
+my \$h = new CYOA;
+\$h->Do_TA_Check(input => '$me->{input}', ?;
+    foreach my $option (keys %args) {
+        $job_string .= qq"${option} => '$args{$option}',";
+    }
+    $job_string .= qq");";
+    my $sort_job = $me->Qsub_Perl(job_name => "ta_check",
+                                  job_string => $job_string,
+                                  qsub_queue => "throughput",
+                                  qsub_wall => "10:00:00",
+                                  qsub_mem => 8,
+                                  qsub_cpus => 1,
+                                  depends => $args{depends},
+                                  comment => "# Check for tailing TAs!",);
+    return($sort_job);
+}
+
+sub Do_TA_Check {
+    my $me = shift;
+    my %args = @_;
+    my $input = $args{input};
+    my $input_base = basename($input, ('.gz', '.xz', '.bz2'));
+    $input_base = basename($input_base, ('.fastq', '.fasta'));
+    my $with_ta = new FileHandle;
+    $with_ta->open("| gzip -9 > ${input_base}_ta.fastq.gz");
+    my $without_ta = new FileHandle;
+    $without_ta->open("| gzip -9 > ${input_base}_nota.fastq.gz");
+
+    open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
+    my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
+    my $count = 0;
+    my $with_ta_count = 0;
+    my $without_ta_count = 0;
+    READS: while (my $in_seq = $in->next_dataset()) {
+        $count++;
+        my $id = $in_seq->{'-descriptor'};
+        my $sequence = $in_seq->{'-seq'};
+        my $qual = $in_seq->{'-raw_quality'};
+        if ($sequence =~ /TA$/) {
+            $with_ta_count++;
+            my $fastq_string = qq"\@${id}
+${sequence}
++
+${qual}
+";
+            print $with_ta $fastq_string;
+        } else {
+            $without_ta_count++;
+            my $fastq_string = qq"\@${id}
+${sequence}
++
+${qual}
+";
+            print $without_ta $fastq_string;
+        }
+    }
+    my $counters = {
+        total => $count,
+        with => $with_ta_count,
+        without => $without_ta_count,};
+    return($counters);
+}
+
+sub Sort_Indexes {
+    my $me = shift;
+    my %args = @_;
+    ## If options are required, feed them back into %args here?
+
+    ##
+    my $job_string = qq?
+use CYOA;
+my \$h = new CYOA;
+\$h->Do_Sort_Indexes(?;
+    foreach my $option (keys %args) {
+        $job_string .= qq"${option} => '$args{$option}',";
+    }
+    $job_string .= qq");";
+    my $sort_job = $me->Qsub_Perl(job_name => "sort_indexes",
+                                  job_string => $job_string,
+                                  qsub_queue => "workstation",
+                                  qsub_wall => "60:00:00",
+                                  qsub_mem => 8,
+                                  qsub_cpus => 1,
+                                  comment => "# Sort those indexes!",);
+    return($sort_job);
 }
 
 =item C<Sort_TNSeq_File>
@@ -125,13 +216,15 @@ sub Sort_TNSeq_File {
     my $indexes = $me->{indexes};
 
     return(undef) unless ($input =~ /\.fastq/);
-    print STDOUT "Starting to read: $input\n";
+    my $out = new FileHandle;
+    $out->open(">$me->{outdir}/tnseq_sorting_out.txt");
+    print $out "Starting to read: $input\n";
     ## Does FileHandle work here?
     open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
     while (my $in_seq = $in->next_dataset()) {
         $me->{indexes}->{total}->{read}++;
-        print "Read $me->{indexes}->{total}->{read} entries.\n" if ($me->{debug});
+        print $out "Read $me->{indexes}->{total}->{read} entries.\n" if ($me->{debug});
         my $id = $in_seq->{'-descriptor'};
         my $sequence = $in_seq->{'-seq'};
         my $qual = $in_seq->{'-raw_quality'};
@@ -171,7 +264,7 @@ sub Sort_TNSeq_File {
 
                 $me->{indexes}->{total}->{written}++;
                 if (($me->{indexes}->{total}->{written} % 10000) == 0) {
-                    print "Wrote $me->{indexes}->{total}->{written} reads from $input\n";
+                    print $out "Wrote $me->{indexes}->{total}->{written} reads from $input\n";
                     ## dump_sizes();
                 }
                 my $fastq_string = qq"\@$id
@@ -197,6 +290,7 @@ $qual
     } ## End reading the fastq file
     $me->{indexes} = $indexes;
     close(INPUT);
+    $out->close();
 }
 
 sub Sort_TNSeq_File_Approx {
@@ -207,7 +301,9 @@ sub Sort_TNSeq_File_Approx {
 
     use String::Approx qw"amatch";
     return(undef) unless ($input =~ /\.fastq/);
-    print STDOUT "Starting to read: $input\n";
+    my $out = new FileHandle;
+    $out->open(">$me->{outdir}/tnseq_sorting_out.txt");
+    print $out "Starting to read: $input\n";
     ## Does FileHandle work here?
     open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
     my $in = new Bio::SeqIO(-fh => \*INPUT, -format => 'Fastq');
@@ -215,7 +311,7 @@ sub Sort_TNSeq_File_Approx {
     READS: while (my $in_seq = $in->next_dataset()) {
         $count++;
         $me->{indexes}->{total}->{read}++;
-        print "Read $me->{indexes}->{total}->{read} entries.\n" if ($me->{debug});
+        print $out "Read $me->{indexes}->{total}->{read} entries.\n" if ($me->{debug});
         my $id = $in_seq->{'-descriptor'};
         my $sequence = $in_seq->{'-seq'};
         my $qual = $in_seq->{'-raw_quality'};
@@ -239,7 +335,7 @@ sub Sort_TNSeq_File_Approx {
             my $new_quality = substr($qual, 9,);
             $me->{indexes}->{total}->{written}++;
             if (($me->{indexes}->{total}->{written} % 10000) == 0) {
-                print "Wrote $me->{indexes}->{total}->{written} reads from ${input}\n";
+                print $out "Wrote $me->{indexes}->{total}->{written} reads from ${input}\n";
             }
             my $fastq_string = qq"\@$id
 $new_sequence
@@ -271,6 +367,7 @@ $qual
     } ## End reading the fastq file
     $me->{indexes} = $indexes;
     close(INPUT);
+    $out->close();
 }
 
 =item C<Sort_TNSeq_Dir>
@@ -292,7 +389,7 @@ sub Sort_TNSeq_Dir {
     unless ($searchdir =~ /^\//) {
         $searchdir = qq"${cwd_dir}/${searchdir}";
     }
-    print "Searching: $searchdir  for files to read.\n";
+    ## print "Searching: $searchdir  for files to read.\n";
     my @directory = ($searchdir);
     my @file_list = ();
     find(sub { push(@file_list, $File::Find::name) if ($File::Find::name =~ /\.fastq\.gz/ and $file::Find::name !=~ /$me->{outdir}/); }, @directory);
@@ -300,7 +397,6 @@ sub Sort_TNSeq_Dir {
         next if ($file =~ /$me->{outdir}/);
         ## This might be incorrect, CHECKME!
         $file =~ s/\/\.\//\//;
-        print "Processing $file\n";
         $me->Sort_TNSeq_File_Approx(file => $file);
     }
 }
@@ -347,13 +443,13 @@ sub Read_Indexes {
     $index_file->open("<$args{index_file}");
     while (my $line = <$index_file>) {
         chomp $line;
+        next if ($line =~ /^#/);
         next unless ($line =~ /^A|T|G|C|a|t|g|c/);
         my ($ind, $sample) = split(/\s+|\,|;/, $line);
         my $output_filename = qq"$me->{outdir}/${sample}.fastq.gz";
         unlink($output_filename) if (-r $output_filename);
         my $handle = new FileHandle;
         $handle->open("| gzip >> $output_filename");
-        print "Opened for writing: $output_filename\n" if ($me->{debug});
         $indexes->{$ind} = {
             name => $sample,
             filename => $output_filename,
@@ -397,15 +493,16 @@ sub Essentiality_TAs {
     my $output_directory = qq"outputs/essentiality";
     make_path($output_directory);
     ## A smarter way of handling counting inter-cds regions would be to use the Read_GFF() functions to pull the intercds regions rather than the hackish @inter_starts @inter_ends.
-    $me->Check_Options(['species','input']);
+    $me->Check_Options(args => \%args, needed => ['species','input']);
     my $input = $me->{input};
     $input = $args{input} if (defined($args{input}));
 
-    print STDERR "Hey, debug is on! $me->{debug}\n" if ($me->{debug});
     my $input_name = basename($input, ('.bam'));
     ## This is a bit of a mess, I need to clean up how these arguments are passed.
     my $output = $me->{output};
     $output = qq"${input}_out" unless (defined($args{output}));
+    my $out = new FileHandle;
+    $out->open(">${output}.log");
 
     my $genome_fasta = qq"$me->{libdir}/$me->{libtype}/$me->{species}.fasta";
     my $genome_gff = $genome_fasta;
@@ -422,12 +519,12 @@ sub Essentiality_TAs {
     my @inter_starts = @{$cds_gff->{stats}->{inter_starts}};
     my @inter_ends = @{$cds_gff->{stats}->{inter_ends}};
 
-    print STDERR "Counting TAs in ${input}, this takes a while.\n";
+    print $out "Counting TAs in ${input}, this takes a while.\n";
     my $datum = $me->Count_TAs(data => \@data);
     @data = @{$datum};
 
     my $tas_file = qq"${output_directory}/${input_name}_tas.txt";
-    print STDERR "Printing list of #TAs observed by position to ${tas_file}.\n";
+    print $out "Printing list of #TAs observed by position to ${tas_file}.\n";
     my $ta_count = new FileHandle;
     $ta_count->open(">${tas_file}");
     print $ta_count qq"Position\tn_fwd\tn_rev\tn_both\n";
@@ -454,7 +551,7 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
     print $cds_tas $file_start;
     print $wig "Start\tReads\n";
 
-    print STDERR "Printing #TAs observed by (inter)CDS region to ${input_name}_(gene|interCDS)_tas.txt\n";
+    print $out "Printing #TAs observed by (inter)CDS region to ${input_name}_(gene|interCDS)_tas.txt\n";
     my $subtotal = 0;
     foreach my $c (0 .. $#data) {
         if ($data[$c]->{ta}) {
@@ -488,6 +585,7 @@ Chromosome\tStart\tEnd\tFeature reads\t TAs
     $wig->close();
     $inter_tas->close();
     $cds_tas->close();
+    $out->close();
     ## This should return something interesting!
     return($subtotal);
 }
@@ -497,7 +595,7 @@ sub Run_Essentiality {
     my %args = @_;
     my @param_list = ('1','2','4','8','16','32');
     my $runs = 1000;
-    $me->Check_Options(['input']);
+    $me->Check_Options(args => \%args, needed => ['input']);
     my $input = $me->{input};
     my $output = basename($input, ('.txt'));
     ## Set up the tn_hmm job -- these inputs are likely wrong
@@ -572,7 +670,10 @@ sub Count_TAs {
     my @aligns = split(/\t/, $alignfun[0]);
     my @unaligns = split(/\t/, $alignfun[1]);
     my $number_reads = $aligns[2] + $unaligns[3];
-    print STDERR "There are $number_reads alignments in ${input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
+    my $output_name = qq"${input}.out";
+    my $out = new FileHandle;
+    $out->open(">$output_name");
+    print $out "There are $number_reads alignments in ${input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
   BAMLOOP: while (my $align = $bam->read1) {
       $align_count++;
       ##if ($me->{debug}) {  ## Stop after a relatively small number of reads when debugging.
@@ -580,7 +681,7 @@ sub Count_TAs {
       ##}
       if (($align_count % 1000000) == 0) {
           $million_aligns++;
-          print STDERR "Finished $million_aligns million alignments out of ${number_reads}.\n";
+          print $out "Finished $million_aligns million alignments out of ${number_reads}.\n";
       }
       my $seqid = $target_names->[$align->tid];
       ## my $start = $align->pos + 1;
@@ -625,11 +726,11 @@ sub Count_TAs {
       my $ref_reverse_hit = 0;
       ## $data was passed to this function and
       if (!defined($data->[$start]->{nt})) {
-          print "WTF UNDEF $start\n";
+          print $out "Undefined start:${start}, setting it to 'N'.\n";
           $data->[$start]->{nt} = 'N';
       }
       if (!defined($data->[$start + 1]->{nt})) {
-          print "WTF UNDEF $start\n";
+          print $out "Undefined start:${start}, setting it to 'N'.\n";
           $data->[$start + 1]->{nt} = 'N';
       }
       if ($data->[$start]->{nt} eq 'T' and $data->[$start + 1]->{nt} eq 'A') {
@@ -641,54 +742,55 @@ sub Count_TAs {
 
       if ($forward_hit == 0 and $reverse_hit == 0) {
           if ($ref_forward_hit == 1) {
-              print "$start Mismatch reference forward hit $qual $cigar.\n" if ($me->{debug});
+              print $out "$start Mismatch reference forward hit $qual $cigar.\n" if ($me->{debug});
               $data->[$start]->{fwd}++;
               $data->[$start]->{mismatch}++;
           } elsif ($ref_reverse_hit == 1) {
-              print "$new_end Mismatch reference reverse hit $qual $cigar.\n" if ($me->{debug});
+              print $out "$new_end Mismatch reference reverse hit $qual $cigar.\n" if ($me->{debug});
               $data->[$new_end]->{rev}++;
               $data->[$new_end]->{mismatch}++;
           } else {
-              print "$start $end No easily observable hit $qual $cigar.\n" if ($me->{debug});
+              print $out "$start $end No easily observable hit $qual $cigar.\n" if ($me->{debug});
               $data->[$start]->{mismatch}++;
               $data->[$new_end]->{mismatch}++;
           }
       } elsif ($forward_hit == 1 and $reverse_hit == 0) {
           if ($ref_forward_hit == 1) {
-              print "$start fwd_only Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
+              print $out "$start fwd_only Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
               $data->[$start]->{fwd}++;
           } else {
-              print "$start Mismatch forward hit Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
+              print $out "$start Mismatch forward hit Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
               $data->[$start]->{mismatch}++;
           }
       } elsif ($forward_hit == 0 and $reverse_hit == 1) {
           if ($ref_reverse_hit == 1) {
-              print "$new_end rev_only Query: ${seq} Ref:$data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
+              print $out "$new_end rev_only Query: ${seq} Ref:$data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
               $data->[$new_end]->{rev}++;
           } else {
-              print "$new_end Mismatch reverse hit Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
+              print $out "$new_end Mismatch reverse hit Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $qual $cigar\n" if ($me->{debug});
               $data->[$new_end]->{mismatch}++;
           }
       } elsif ($forward_hit == 1 and $reverse_hit == 1) {
-          	     if ($ref_forward_hit == 1 and $ref_reverse_hit == 1) {
-		 print "$start $new_end fwd and reverse hits: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
-		 $data->[$start]->{fwd}++;
-##		 $data->[$new_end]->{rev}++  ## Removing this because double count
-	     } elsif ($ref_forward_hit == 1) {
-		 print "$start fwd hit confirmed: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
-		 $data->[$start]->{fwd}++;
-	     } elsif ($ref_reverse_hit == 1) {
-		 print "$new_end rev hit confirmed: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
-		 $data->[$new_end]->{rev}++;
-	     } else {
-		 print "$start $new_end Neither: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
-		 $data->[$start]->{mismatch}++;
-##		 $data->[$new_end]->{mismatch}++;  ## No double count here either
-	     }
-	 } else {
-	     die("This else statement should never happen.\n");
-	 }
+          if ($ref_forward_hit == 1 and $ref_reverse_hit == 1) {
+              print $out "$start $new_end fwd and reverse hits: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
+              $data->[$start]->{fwd}++;
+              ## $data->[$new_end]->{rev}++  ## Removing this because double count
+          } elsif ($ref_forward_hit == 1) {
+              print $out "$start fwd hit confirmed: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
+              $data->[$start]->{fwd}++;
+          } elsif ($ref_reverse_hit == 1) {
+              print $out "$new_end rev hit confirmed: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
+              $data->[$new_end]->{rev}++;
+          } else {
+              print $out "$start $new_end Neither: Query: ${seq} Ref:$data->[$start]->{nt}$data->[$start + 1]->{nt} $data->[$new_end]->{nt}$data->[$end]->{nt} $qual $cigar\n" if ($me->{debug});
+              $data->[$start]->{mismatch}++;
+              ## $data->[$new_end]->{mismatch}++;  ## No double count here either
+          }
+      } else {
+          die("This else statement should never happen.\n");
+      }
   }  ## End reading each bam entry
+    $out->close();
     return($data);
 } ## End Count_Tas
 
@@ -708,7 +810,7 @@ sub Allocate_Genome {
         my $seq = $in_seq->seq;
         my @seq_array = split(//, $seq);
         my $count = 0;
-        print "Allocating array of length $genome->{length}\n";
+        ## print "Allocating array of length $genome->{length}\n";
       LOOP: foreach my $base (@seq_array) {
           $data->[$count]->{nt} = $base;
           my $next;
@@ -716,7 +818,7 @@ sub Allocate_Genome {
           if (defined($seq_array[$count + 1])) {
               $next = $seq_array[$count + 1];
           } else { ## This should only happen at the end of the genome.
-              print "Setting $count + 1 to 'N', end of genome.\n";
+              ## print "Setting $count + 1 to 'N', end of genome.\n";
               $seq_array[$count + 1] = 'N';
               $next = 'N';
               last LOOP;
@@ -731,10 +833,10 @@ sub Allocate_Genome {
           $data->[$count]->{mismatch} = 0;
           $count++;
       }
-        print "Finished allocating array.\n";
+        ## print "Finished allocating array.\n";
     }
     $genome->{data} = $data;
-    print "Found $genome->{sequences} sequence(s) in $me->{fasta} with $genome->{length} characters.\n";
+    ## print "Found $genome->{sequences} sequence(s) in $me->{fasta} with $genome->{length} characters.\n";
     return($genome);
 }
 

@@ -23,7 +23,10 @@ package CYOA;
 sub Biopieces_Graph {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['input']);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task rnaseq --method biopieces --input filename.fastq.gz\n";
+    }
+    $me->Check_Options(args => \%args, needed => ['input']);
     my $input = $me->{input};
     my $bp_depends_on;
     my $basename = $me->{basename};
@@ -36,32 +39,42 @@ sub Biopieces_Graph {
             my $short_in = basename($in, ('.gz','.fastq'));
             $short_in = basename($short_in, ('.gz','.fastq'));
             my $job_string = qq!
+## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
 mkdir -p outputs/biopieces
 less ${in} | read_fastq -i - -e base_33 |\\
- plot_scores -T \'Quality Scores\' -t svg -o outputs/biopieces/${short_in}_quality_scores.svg |\\
+ plot_scores -T 'Quality Scores' -t svg -o outputs/biopieces/${short_in}_quality_scores.svg |\\
  plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/biopieces/${short_in}_ntdist.svg |\\
- plot_lendist -x -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${short_in}_lendist.svg |\\
- analyze_gc | bin_vals -b 5 -k GC\% | plot_distribution -k GC\%_BIN -t svg -o outputs/biopieces/${short_in}_gc_dist.svg |\\
- analyze_gc | mean_vals -k GC\% -o outputs/biopieces/${short_in}_gc.txt |\\
+ plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${short_in}_lendist.svg |\\
+ analyze_gc |\\
+     bin_vals -b 20 -k 'GC%' |\\
+     plot_distribution -k 'GC%_BIN' -t svg -o outputs/biopieces/${short_in}_gcdist.svg |\\
+ analyze_gc |\\
+     mean_vals -k 'GC%' -o outputs/biopieces/${short_in}_gc.txt |\\
  count_records -o outputs/biopieces/${short_in}_count.txt -x
 !;
             $bp = $me->Qsub(job_name => "biop",
-                               depends => $bp_depends_on,
-                               job_string => $job_string,
-                               comment => $comment,
-                               input => $in,
-                               prescript => $args{prescript},
-                               postscript => $args{postscript},
+                            depends => $bp_depends_on,
+                            job_string => $job_string,
+                            comment => $comment,
+                            input => $in,
+                            qsub_queue => "workstation",
+                            prescript => $args{prescript},
+                            postscript => $args{postscript},
                 );
         }
     } else {  ## A single input was provided
         my $job_string = qq!
+## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
+mkdir -p outputs/biopieces
 less ${input} | read_fastq -i - -e base_33 |\\
- plot_scores -T \'Quality Scores\' -t svg -o outputs/biopieces/${basename}_quality_scores.svg |\\
+ plot_scores -T 'Quality Scores' -t svg -o outputs/biopieces/${basename}_quality_scores.svg |\\
  plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/biopieces/${basename}_ntdist.svg |\\
- plot_lendist -x -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${basename}_lendist.svg |\\
- analyze_gc | bin_vals -b 5 -k GC\% | plot_distribution -k GC\%_BIN -t svg -o outputs/biopieces/${basename}_gc_dist.svg |\\
- analyze_gc | mean_vals -k GC\% -o outputs/biopieces/${basename}_gc.txt |\\
+ plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${basename}_lendist.svg |\\
+ analyze_gc |\\
+     bin_vals -b 20 -k 'GC%' |\\
+     plot_distribution -k 'GC%_BIN' -t svg -o outputs/biopieces/${basename}_gcdist.svg |\\
+ analyze_gc |\\
+     mean_vals -k 'GC%' -o outputs/biopieces/${basename}_gc.txt |\\
  count_records -o outputs/biopieces/${basename}_count.txt -x
 !;
         $bp = $me->Qsub(job_name => "biop",
@@ -69,6 +82,7 @@ less ${input} | read_fastq -i - -e base_33 |\\
                         job_string => $job_string,
                         comment => $comment,
                         input => $input,
+                        qsub_queue => "workstation",
                         prescript => $args{prescript},
                         postscript => $args{postscript},
             );
@@ -79,7 +93,7 @@ less ${input} | read_fastq -i - -e base_33 |\\
 sub Fastqc {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['input',]);
+    $me->Check_Options(args => \%args, needed => ['input',]);
     my $fastqc_job;
     if ($me->{input} =~ /:|\,/) {
         $fastqc_job = $me->Fastqc_Pairwise(%args);
@@ -97,6 +111,9 @@ sub Fastqc {
 sub Fastqc_Pairwise {
     my $me = shift;
     my %args = @_;
+    if ($args{interactive}) {
+        print "Run with: cyoa --task rnaseq --method trim --input r1.fastq.gz:r2.fastq.gz\n";
+    }
     my $type = $args{type};
     $type = "unfiltered" unless ($type);
     my $input = $me->{input};
@@ -164,11 +181,14 @@ sub Fastqc_Pairwise {
 sub Fastqc_Single {
     my $me = shift;
     my %args = @_;
+    if ($args{interactive}) {
+        print "Run with: cyoa --task rnaseq --method trim --input filename.fastq.gz\n";
+    }
     my $filtered = $args{filtered};
     $filtered = "unfiltered" unless ($filtered);
     my $input = $me->{input};
     my $basename = $me->{basename};
-    my $outdir = qq"$me->{basename}/outputs/${basename}-${filtered}_fastqc";
+    my $outdir = qq"outputs/fastqc";
     my $job_string = qq!mkdir -p ${outdir} &&\\
   fastqc --extract -o ${outdir} ${input} \\
   2>outputs/${basename}-${filtered}_fastqc.out 1>&2
@@ -184,6 +204,7 @@ sub Fastqc_Single {
 			  prescript => $args{prescript},
 			  postscript => $args{postscript},
         );
+    $outdir .= "/" . basename($input, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $fqc_stats = $me->Fastqc_Stats(basename => $basename, indir => $outdir, depends => $fqc->{pbs_id});
     $fqc->{stats} = $fqc_stats;
     return($fqc);
@@ -214,7 +235,7 @@ sub Fastqc_Stats {
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $job_string = qq!
 if [ \! -r $stat_output ]; then
-  echo "total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
+  echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
 fi
 total_reads_tmp=\$(grep "^Total Sequences" $input_file | awk -F '\\\\t' '{print \$2}')
 total_reads=\${total_reads_tmp:-0}

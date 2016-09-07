@@ -44,7 +44,8 @@ sub Qsub {
     $depends = $me->{depends} if (!$depends and $me->{depends});
     ## Set up the job name.  This is only allowed to come from %args.
     my $job_name;
-    my $name_suffix = substr($me->{basename}, 0, 8);
+    ##my $name_suffix = substr($me->{basename}, 0, 8);
+    my $name_suffix = $me->{basename};
     $name_suffix =~ s/_|\-//g;
     if ($args{job_name}) {
         my $name_prefix = $args{job_name};
@@ -74,6 +75,7 @@ sub Qsub {
     $job_output = $args{output} if (defined($args{output}));
     my $job_input = "";
     $job_input = $args{input} if (defined($args{input}));
+
     my $depends_string = $me->{qsub_depends};
     if (defined($args{depends_type})) {
         if ($args{depends_type} eq 'array') {
@@ -87,7 +89,7 @@ sub Qsub {
     my $mycwd = cwd();
     make_path("$me->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs/status");
     make_path("$qsub_logdir", {verbose => 0}) unless (-r qq"$qsub_logdir");
-    make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
+    ## make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
     make_path("$me->{basedir}/scripts", {verbose => 0}) unless (-r qq"$me->{basedir}/scripts");
     my $script_base = basename($script_file);
     my $script_start = qq?#PBS -V -S ${qsub_shell} -q ${qsub_queue}
@@ -99,7 +101,7 @@ cd $me->{basedir} || exit
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/${job_name}.status
-echo "###Finished \${PBS_JODID} $script_base at \$(date), it took \$(( \$SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( \$SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
@@ -146,7 +148,7 @@ fi
     $script->open(">$script_file");
     print $script $total_script_string;
     $script->close();
-
+    chmod(0755, $script_file);
     my $qsub = qq"${qsub_shell} $script_file";
     if ($me->{pbs}) {
         $qsub = qq"qsub -W $depends_string $script_file";
@@ -214,7 +216,7 @@ sub Qsub_Arbitrary {
     if (!$depends) {
         $depends = $args{depends};
     }
-    $me->Check_Options(['job_string']);
+    $me->Check_Options(args => \%args, needed => ['job_string']);
     my $job_name = $me->{job_name};
     $job_name = 'arbitrary' if (!$job_name);
     my $job = $me->Qsub(job_name => $job_name,
@@ -241,11 +243,13 @@ sub Qsub_Perl {
     } else {
         $job_name = $name_suffix;
     }
+    use File::Which qw(which);
+    my $qsub_shell = which 'perl';
+
     my $qsub_args = $me->{qsub_args};
     $qsub_args = $args{qsub_args} if ($args{qsub_args});
     my $qsub_queue = $me->{qsub_queue};
     $qsub_queue = $args{qsub_queue} if ($args{qsub_queue});
-    my $qsub_shell = '/usr/bin/env perl';
     my $qsub_mem = $me->{qsub_mem};
     $qsub_mem = $args{qsub_mem} if ($args{qsub_mem});
     my $qsub_wall = $me->{qsub_wall};
@@ -255,28 +259,35 @@ sub Qsub_Perl {
     my $qsub_logdir = $me->{qsub_logdir};
     $qsub_logdir = $args{qsub_logdir} if ($args{qsub_logdir});
     my $qsub_log = qq"${qsub_logdir}/${job_name}.qsubout";
+
     my $depends_string = $me->{qsub_depends};
-    $depends_string .= $args{depends} if (defined($args{depends}));
-    my $job_output = "";
-    $job_output = $args{output} if (defined($args{output}));
-    my $job_input = "";
-    $job_input = $args{input} if (defined($args{input}));
+    if (defined($args{depends_type})) {
+        if ($args{depends_type} eq 'array') {
+            $depends_string = $me->{qsub_dependsarray};
+        }
+    }
+    $depends_string .= $depends if (defined($depends));
+
+    my $jobid_name = qq"$me->{basename}-$args{job_name}";
     my $script_file = qq"$me->{basedir}/scripts/${job_name}.pl";
     my $mycwd = cwd();
-    make_path("$me->{basedir}/outputs", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs");
-    make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
+
+    make_path("$me->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs/status");
+    make_path("$qsub_logdir", {verbose => 0}) unless (-r qq"$qsub_logdir");
+    ## make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
     make_path("$me->{basedir}/scripts", {verbose => 0}) unless (-r qq"$me->{basedir}/scripts");
-    my $script_start = qq?#!${qsub_shell}
-#PBS -V -S ${qsub_shell} -q ${qsub_queue} -d $me->{basedir}
-#PBS -N $job_name -l mem=${qsub_mem}gb -l walltime=$qsub_wall -l ncpus=$qsub_cpus
-#PBS -o $qsub_log $qsub_args
+    my $script_base = basename($script_file);
+    my $script_start = qq?#!/usr/bin/env perl
+use strict;
 open(OUT, ">>outputs/log.txt");
 my \$d = qx'date';
 print OUT "###Started $script_file at \${d}";
 chdir("$me->{basedir}");
 ?;
+    my $date = "TODO";
     my $script_end = qq!## The following lines give status codes and some logging
-print OUT "####This job consisted of the following:";
+print OUT "####Finished \$ENV{PBS_JOBID} ${script_base} at ${date}.";
+close(OUT);
 !;
     print "The job is:
 $args{job_string}" if ($me->{debug});
@@ -292,21 +303,14 @@ $args{job_string}" if ($me->{debug});
     $script->open(">$script_file");
     print $script $total_script_string;
     $script->close();
+    chmod(0755, $script_file);
 
-    my $qsub = qq"$qsub_shell $script_file";
-    if ($me->{pbs}) {
-        $qsub = qq"qsub -W $depends_string $script_file";
-    }
-    my $job_id;
-    ##sleep(1);
-    my $qsub_pid = open(my $fh, "-|", $qsub);
-    while(my $line = <$fh>) {
-      chomp($line);
-      $job_id = $line;
-    }
-    close($fh);
-    my $jobid_name = qq"$me->{basename}-$args{job_name}";
-    print "Starting a new job: $jobid_name\nEOJ\n\n";
+    my $bash_script = $script_file;
+    $bash_script =~ s/\.pl/\.sh/g;
+    my %new_args = %args;
+    $new_args{job_string} = qq"${script_file}\n";
+    $me->Qsub(%new_args);
+
     my $job = { id => $jobid_name,
                 submitter => $qsub,
                 mem => $qsub_mem,

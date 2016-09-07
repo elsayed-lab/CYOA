@@ -26,7 +26,11 @@ use Text::CSV;
 sub Copy_Raw {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['raw_dir']);
+    $me->Check_Options(args => \%args, needed => ['raw_dir']);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task prepare --method copy --csv all_samples.csv --raw_dir /some/directory
+or: cyoa --task prepare --method copy --raw_dir /some/directory --hpgl HPGL0xxx\n";
+    }
     my $data = {};
     if ($me->{hpgl}) {
         my $hpgl = $me->{hpgl};
@@ -75,6 +79,11 @@ sub Copy_Raw {
 sub Read_Samples {
     my $me = shift;
     my %args = @_;
+    if (!-r $me->{csv_file}) {
+        print "Unable to find $me->{csv_file}.\n";
+        $me->{csv_file} = undef;
+    }
+    $me->Check_Options(args => \%args, needed => ['csv_file']);
     my $fh = new FileHandle;
     $fh->open("<$me->{csv_file}");
     my $csv = Text::CSV->new ({binary => 1});

@@ -33,11 +33,12 @@ use Bio::FeatureIO;
 sub Gff2Fasta {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["gff","genome"]);
+    $me->Check_Options(args => \%args, needed => ["gff","genome", "tag"]);
     my $genome = $me->{genome};
     $genome = $args{genome} if (!defined($genome));
     my $gff = $me->{gff};
     $gff = $args{gff} if (!defined($gff));
+    my $tag = $me->{tag};
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $me->Read_Genome(genome => $genome);
 
@@ -49,15 +50,12 @@ sub Gff2Fasta {
     my $nt_out_name = qq"${genome_basename}_cds_nt.fasta";
     $out_fasta_amino->open(">${aa_out_name}");
     $out_fasta_nt->open(">${nt_out_name}");
-    my $tag = 'ID';
-    $tag = $me->{tag} if ($me->{tag});
-    my $feature_type = 'CDS';
-    $feature_type = $me->{feature_type} if ($me->{feature_type});
-    $feature_type = $args{feature_type} if ($args{feature_type});
+    my @tag_list = ('ID','gene_id','locus_tag','transcript_id');
+    my $feature_type = $me->HT_Types(annotation => $me->{gff});
     my $annotation_in = new Bio::Tools::GFF(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
   LOOP: while(my $feature = $annotation_in->next_feature()) {
-      ##print "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
+      print STDOUT "TAGS: $feature->{_primary_tag} vs $me->{feature_type}\n" if ($me->{debug} == 1);
       next LOOP unless ($feature->{_primary_tag} eq $feature_type);
       my $location = $feature->{_location};
       my $start = $location->start();
@@ -65,7 +63,18 @@ sub Gff2Fasta {
       my $strand = $location->strand();
       my @something = $feature->each_tag_value();
       ##print Dumper $feature if ($me->{debug} == 1);
-      my @ids = $feature->each_tag_value($tag);
+      my $chosen_tag = $me->{tag};
+      my @ids;
+      use TryCatch;
+      try {
+          @ids = $feature->each_tag_value($chosen_tag);
+      }
+      catch {
+          next LOOP;
+      }
+
+      print @ids;
+      print "DID IT WIRK?\n";
       my $gff_chr = $feature->{_gsf_seq_id};
       my $gff_string = $annotation_in->{$gff_chr};
       if (!defined($chromosomes->{$gff_chr})) {
@@ -144,7 +153,6 @@ sub Read_GFF {
     close(GFF);
     return($gff_out);
 }
-
 
 =item C<Gff2Gtf>
 
@@ -278,7 +286,8 @@ sub Read_Genome {
 =cut
 sub Sam2Bam {
     my $me = shift;
-    $me->Check_Options(["species"]);
+    my %args = @_;
+    $me->Check_Options(args => \%args, needed => ["species"]);
     my %args = @_;
     my $basename = $me->{basename};
     my @input_list = ();
@@ -363,7 +372,7 @@ sub Gb2Gff {
     my $me = shift;
     my %args = @_;
     my $input = $me->{input};
-    $me->Check_Options(['input']);
+    $me->Check_Options(args => \%args, needed => ['input']);
     my @suffix = (".gb", ".genbank");
     my $base = basename($input, @suffix);
 
@@ -390,7 +399,7 @@ sub Gb2Gff {
         ## $feature is an object of type: Bio::SeqFeatureI
         ## Some of the things you can call on it are:
         ## display_name(), primary_tag(), has_tag(something), get_tag_values(), get_all_tags(), attach_seq(Bio::Seq),
-        ## seq(), entire_seq(), seq_id(), gff_string(), spliced_seq(), primary_id(), phase(), 
+        ## seq(), entire_seq(), seq_id(), gff_string(), spliced_seq(), primary_id(), phase(),
         foreach my $feature ($seq->top_SeqFeatures()) {
             $gffout->write_feature($feature);
             my $feat_count = 0;
@@ -411,7 +420,6 @@ sub Gb2Gff {
                 }
                 my $id = qq"$id_hash->{protein_id}";
                 my $desc = qq"$id_hash->{gene} ; $id_hash->{db_xref} ; $id_hash->{product}";
-                ## print "TESTME: $id\n";
                 my $start = $feat_object->start;
                 my $end = $feat_object->end;
                 my $len = $feat_object->length;
@@ -510,7 +518,7 @@ sub Gb2Gff {
 sub TriTryp2Text {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["input","species"]);
+    $me->Check_Options(args => \%args, needed => ["input","species"]);
     use List::MoreUtils qw"uniq";
 
     print STDOUT "Printing master table from $me->{input}\n";

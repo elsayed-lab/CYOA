@@ -21,11 +21,20 @@ package CYOA;
 sub Cutadapt {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(['input']);
+    if ($me->{task}) {
+        $me->{type} = $me->{task};
+    }
+    $me->Check_Options(args => \%args, needed => ['input', 'type']);
+    $me->{type} = lc($me->{type});
+    my $type;
+    if ($me->{type}) {
+        $type = $me->{type};
+    } elsif ($args{type}) {
+        $type = $args{type};
+    } else {
+        $type = 'tnseq';
+    }
 
-    my $type = $me->{type};
-    $type = $args{type} if (defined($args{type}));
-    $type = 'tnseq' unless(defined($type));
     my $input = $me->{input};
     my $basename = basename($input, @{$me->{suffixes}});
     $basename = basename($basename, @{$me->{suffixes}});
@@ -54,13 +63,13 @@ sub Cutadapt {
     my $input_flags = qq"less ${input} | cutadapt - ";
     if ($input =~ /\.csfasta/) {
         $type_flag = '-c -t --strip-f3';
-        $me->Check_Options(["qual"]);
+        $me->Check_Options(args => \%args, needed => ["qual"]);
         ## $input_flags = qq"less ${input} | sed 's/^T//g' | cutadapt - $me->{qual} ";
         $input_flags = qq"less ${input} | cutadapt - $me->{qual} "; ## If we are keeping quality files
         ## $input_flats = qq"less ${input} | cutadapt - ";
         $out_suffix = 'fastq';
     }
-    my $output = qq"${basename}-trimmed.${out_suffix}";
+    my $output = qq"${basename}-trimmed_ca.${out_suffix}";
     my $job_string = qq!
 mkdir -p ${out_dir} && \\
  ${input_flags} ${type_flag} ${adapter_flags} -e 0.1 -n 3 -m ${minlength} -M ${maxlength} \\
@@ -71,6 +80,7 @@ mkdir -p ${out_dir} && \\
 !;
     my $cutadapt = $me->Qsub(job_name => "cutadapt",
                              qsub_wall => "8:00:00",
+                             qsub_queue => "workstation",
                              job_string => $job_string,
                              input => $input,
                              output => $output,
@@ -78,22 +88,36 @@ mkdir -p ${out_dir} && \\
 			     prescript => $args{prescript},
 			     postscript => $args{postscript},
 	);
+    if ($me->{task} eq 'tnseq') {
+        my $ta_check = $me->TA_Check(job_name => "tacheck",
+                                     depends => $cutadapt->{pbs_id},
+                                     input => qq"${output}",
+                                     comment => qq"## Check that TAs exist.",);
+    }
     my $comp_short = $me->Recompress(job_name => "xzcutshort",
+                                     qsub_queue => "workstation",
+                                     qsub_wall => "04:00:00",
                                      depends => $cutadapt->{pbs_id},
                                      input => qq"${out_dir}/${basename}_tooshort.fastq",
                                      comment => qq"## Compressing the tooshort sequences.",
 	);
     my $comp_long = $me->Recompress(job_name => "xzcutlong",
+                                    qsub_queue => "workstation",
+                                    qsub_wall => "04:00:00",
                                     depends => $cutadapt->{pbs_id},
                                     input => qq"${out_dir}/${basename}_toolong.fastq",
                                     comment => qq"## Compressing the toolong sequences.",
 	);
     my $comp_un = $me->Recompress(job_name => "xzuncut",
+                                  qsub_queue => "workstation",
+                                  qsub_wall => "04:00:00",
                                   depends => $cutadapt->{pbs_id},
                                   input => qq"${out_dir}/${basename}_untrimmed.fastq",
                                   comment => qq"## Compressing the toolong sequences.",
 	);
     my $comp_original = $me->Recompress(job_name => "xzorig",
+                                        qsub_queue => "workstation",
+                                        qsub_wall => "04:00:00",
                                         depends => $cutadapt->{pbs_id},
                                         input => qq"$input",
                                         output => qq"sequences/${input}.xz",
@@ -114,6 +138,7 @@ mkdir -p ${out_dir} && \\
 sub Trimomatic {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ['input',]);
     my $trim;
     if ($me->{input} =~ /:|\,/) {
 	$trim = $me->Trimomatic_Pairwise(%args);
@@ -132,6 +157,7 @@ sub Trimomatic {
 sub Trimomatic_Pairwise {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ['input',]);
     my $input = $me->{input};
     $input = $args{input} if ($args{input} and !$input);
     my @input_list = split(/:|\,/, $input);
@@ -195,6 +221,7 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
 			 input => $input,
 			 output => $output,
 			 comment => $comment,
+                         qsub_queue => "workstation",
 			 prescript => $args{prescript},
 			 postscript => $args{postscript},
         );
@@ -214,6 +241,10 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
 sub Trimomatic_Single {
     my $me = shift;
     my %args = @_;
+    $me->Check_Options(args => \%args, needed => ['input',]);
+    if ($args{interactive}) {
+        print "Run with: cyoa --task rnaseq --method trim --input $me->{input}\n";
+    }
     my $input = $me->{input};
     my $basename = $me->{basename};
     $basename = basename($basename, (".gz"));

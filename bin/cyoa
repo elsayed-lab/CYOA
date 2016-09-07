@@ -64,7 +64,7 @@ sub Main {
             choices => \@choices,
             default => 'TNSeq',);
 
-        Iterate(task => $top_level);
+        Iterate(task => $top_level, interactive => 1,);
 
         my $bool = $term->ask_yn(
             prompt => 'Are you done?',
@@ -91,14 +91,13 @@ sub Iterate {
             choices => $menus->{$type}->{choices},
             );
         if ($task eq 'Cutadapt' or $task =~ /Trim/) {
-            print "TESTME: $cyoa->{input}\n";
             if ($cyoa->{input}) {
                 my $new_input = basename($cyoa->{input}, @{$cyoa->{suffixes}}) . "-trimmed.fastq";
                 $cyoa->{input} = $new_input;
                 print "I perceive that thou dost perform a trimming operation, resetting the input to $new_input.\n";
             }
         }
-        $cyoa->$task(type => $type);
+        $cyoa->$task(type => $type, interactive => $args{interactive},);
 
         my $bool = $term->ask_yn(
             prompt => 'Go back to the toplevel?',
@@ -136,7 +135,7 @@ sub Match_Method {
     foreach my $job (keys %todo) {
         if ($todo{$job}) {
             print "You chose to perform: $job\n";
-            my $process = $cyoa->$job(type => $type);
+            my $process = $cyoa->$job(type => $type, interactive => $args{interactive},);
             if ($process->{pbs_id}) {
                 my $print_job = new FileHandle;
                 $print_job->open(">last_job.txt");

@@ -21,9 +21,10 @@ sub Concatenate_Searches {
     my $output = qq"$me->{basedir}/outputs/split_search.txt";
     $output = $me->{output} if (defined($me->{output}));
     $output = $args{output} if (defined($args{output}));
+    $output .= ".gz" unless ($output =~ /\.gz$/);
     my $comment_string = qq"## Concatenating the output files into ${output}\n";
     my $job_string = qq!
-rm -f ${output}.gz && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${output}; done
+rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${output}; done
 !;
     my $concatenate_job = $me->Qsub(job_name => "concat",
                                     depends => $args{depends},
@@ -230,7 +231,6 @@ sub Duplicate_Remove {
         print OUT qq"${self}\n";
         ## Now remove all instances of the 'others' from the list and future consideration.
         my $other_length = scalar(@{$others});
-        print "TESTME: $other_length @{$others}\n";
       OTHERS: foreach my $other (@{$others}) {
           my ($other_name, $other_ident, $other_e) = split(/:/, $other);
           print "Checking for $other_name in entries.\n";
@@ -240,7 +240,6 @@ sub Duplicate_Remove {
           print "The length of entries is now: $length\n";
         CHECK: foreach my $tmp_entry (@tmp) {
             my $self_check = $tmp_entry->{self};
-            ##print "TEST: $self_check $other_name\n";
             if ($self_check eq $other_name) {
                 ## print "FOUND! $self_check $other_name\n";
                 next CHECK;

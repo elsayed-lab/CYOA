@@ -44,6 +44,7 @@ use CYOA::RNASeq_Trim;
 use CYOA::RNASeq_Aligners;
 use CYOA::RNASeq_Count;
 use CYOA::SeqMisc;
+use CYOA::SNP;
 use CYOA::TNSeq;
 
 our $AUTOLOAD;
@@ -186,6 +187,8 @@ sub new {
     $me->{align_bestonly} = 0 if (!defined($me->{aligne_bestonly}));
     ## This isn't actually user-configurable, I should move it, but it is used to count the number of sequences to be aligned by fasta/blast
     $me->{align_numseq} = 0 if (!defined($me->{align_numseq}));
+    ## Used for mimapping for now, but should also be used for tnseq/riboseq/etc
+    $me->{bamfile} = undef;
     ## The range of bam sizes considered as 'small' read lengths (ribosome profiling)
     $me->{bam_small} = '21-26' if (!defined($me->{bam_small}));
     ## The range of bam sizes considered as 'medium' read lengths (ribosome profiling)
@@ -202,8 +205,10 @@ sub new {
     $me->{blast_peptide} = 'F' if (!defined($me->{blast_peptide}));
     ## A series of default bowtie1 arguments
     $me->{bt_args} = {
+        def => ' ',
         v0M1 => ' --best -v 0 -M 1 ',
-        v1M1 => ' --best -v 1 -M 1 ',
+        ## v1M1 => ' --best -v 1 -M 1 ',
+        v1M1l10 => ' --best -v 1 -M 1 -y -l 15 ',
         v2M1 => ' --best -v 2 -M 1 ',
     } if (!defined($me->{bt_args}));
     $me->{bt2_args} = ' --very-sensitive ' if (!defined($me->{bt2_args}));
@@ -238,7 +243,7 @@ sub new {
     ## The identifier flag passed to htseq (probably should be moved to feature_type)
     $me->{htseq_args} = {
         hsapiens => " ",
-        mmusculus => " ",
+        mmusculus => " -i ID ",
         lmajor => " -i ID ",
         default => " --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union ",
         all => " -i ID ",
@@ -246,6 +251,7 @@ sub new {
     ## Use htseq stranded options?
     $me->{htseq_stranded} = 'no' if (!defined($me->{htseq_stranded}));
     ## An index file for tnseq (change this variable to tnseq_index I think)
+    $me->{htseq_type} = undef;
     $me->{index_file} = 'indexes.txt' if (!defined($me->{index_file}));
     ## The default input file
     $me->{input} = undef;
@@ -265,16 +271,18 @@ sub new {
     ## What type of library are we going to search for?
     $me->{libtype} = 'genome' if (!defined($me->{libtype}));
     $me->{method} = undef;
+    ## Currently only used for snp calling, but name is probably a useful arg for many things.
+    $me->{name} = undef;
     ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
     $me->{orientation} = 'start' if (!defined($me->{orientation}));
     ## Paired reads?
     $me->{paired} = 0 if (!defined($me->{paired}));
     ## Use pbs?
-    $me->{pbs} = 1 if (!defined($me->{pbs}));
+    $me->{pbs} = undef;
     ## What arguments will be passed to qsub by default?
     $me->{qsub_args} = '-j oe -V -m n' if (!defined($me->{qsub_args}));
     ## What queue will jobs default to?
-    $me->{qsub_queue} = 'throughput' if (!defined($me->{qsub_queue}));
+    $me->{qsub_queue} = 'workstation' if (!defined($me->{qsub_queue}));
     ## Other possible queues
     $me->{qsub_queues} = ['throughput','workstation','long','large'] if (!defined($me->{qsub_queues}));
     $me->{qsub_shell} = '/usr/bin/bash' if (!defined($me->{qsub_shell}));
@@ -303,8 +311,15 @@ sub new {
     $me->{taxid} = '353153' if (!defined($me->{taxid}));
     $me->{tnseq_trim} = 0 if (!defined($me->{tnseq_trim}));
     $me->{trimmer} = 'trimmomatic' if (!defined($me->{trimmer}));
-    $me->{type} = 'rnaseq' if (!defined($me->{type}));
+    $me->{type} = undef;
     $me->{verbose} = 0 if (!defined($me->{verbose}));
+
+    ## These are used for mature miRNA mapping
+    $me->{mi_genome} = undef;
+    $me->{mature_fasta} = undef;
+    $me->{mirbase_data} = undef;
+    ## End of miRNA mapping options
+
     ## Some variables depend on others, put them here.
     $me->{qsub_logdir} = qq"$me->{basedir}/outputs/qsub" if (!defined($me->{qsub_logdir}));
     my $blast_species = $me->{species};
@@ -381,10 +396,13 @@ sub new {
         $me->{basename} = $base;
     }
 
-    if ($me->{pbs}) {
-        my $qsub_path = which 'qsub';
-        $me->{pbs} = 0 unless ($qsub_path);
+    my $qsub_path = which 'qsub';
+    if ($qsub_path) {
+        $me->{pbs} = 1;
+    } else {
+        $me->{pbs} = 0;
     }
+
     my %needed_programs = ('trimomatic' => 'http://www.usadellab.org/cms/?page=trimmomatic',
                            'cutadapt' => 'https://pypi.python.org/pypi/cutadapt/',
                            'bowtie' => 'http://bowtie-bio.sourceforge.net/index.shtml',
@@ -435,8 +453,13 @@ sub new {
         "gff2fasta+" => \$me->{todo}{Gff2Fasta},
 	"graphreads+" => \$me->{todo}{Graph_Reads},
 	"htmulti+" => \$me->{todo}{HT_Multi},
+        "indexbt1+" => \$me->{todo}{BT1_Index},
+        "indexbt2+" => \$me->{todo}{BT2_Index},
+        "indexbwa+" => \$me->{todo}{BWA_Index},
+        "indexkallisto+" => \$me->{todo}{Kallisto_Index},
 	"kallisto+" => \$me->{todo}{Kallisto},
         "mergeparse+" => \$me->{todo}{Merge_Parse_Blast},
+        "mimap+" => \$me->{todo}{Mi_Map},
         "pbt1+" => \$me->{todo}{RNAseq_Pipeline_Bowtie},
         "pbt2+" => \$me->{todo}{RNAseq_Pipeline_Bowtie2},
         "pbwa+" => \$me->{todo}{RNAseq_Pipeline_BWA},
@@ -446,11 +469,13 @@ sub new {
         "priboseq+" => \$me->{todo}{Riboseq_Pipeline},
 	"parseblast+" => \$me->{todo}{Parse_Blast},
 	"posttrinity+" => \$me->{todo}{Trinity_Post},
-        "readsamples+" => \$me->{todo}{Read_Samples},
         "runessentiality+" => \$me->{todo}{Run_Essentiality},
 	"sam2bam+" => \$me->{todo}{Sam2Bam},
+        "snpsearch+" => \$me->{todo}{SNP_Search},
+        "snpratio+" => \$me->{todo}{SNP_Ratio},
         "sortindexes+" => \$me->{todo}{Sort_Indexes},
 	"splitalign+" => \$me->{todo}{Split_Align},
+        "tacheck+" => \$me->{todo}{TA_Check},
         "test+" => \$me->{todo}{Test_Job},
 	"tophat+" => \$me->{todo}{Tophat},
 	"trimomatic+" => \$me->{todo}{Trimomatic},
@@ -467,35 +492,46 @@ sub new {
             choices => ['Read_Samples', 'Copy_Raw','Dump_Reads','Ceph_Upload',],},
         RNASeq => {
             name => 'rnaseq',
-            message => "The world is dark and full of terrors, take this and go to page 147.",
-            choices => ['FastQC','Biopieces_Graph','Trimomatic','BT_Multi','Bowtie_RRNA','BWA','Kallisto','Tophat','Sam2Bam','HT_Multi','Trinity','Trinity_Post'],},
+            message => "The world is dark and full of terrors, take this and go to page 6022140.",
+            choices => ['Fastqc','Biopieces_Graph','Trimomatic','Bowtie', 'Bowtie2', 'BT_Multi','Bowtie_RRNA',
+                        'BWA','Kallisto','Tophat','Sam2Bam','HT_Multi','Trinity','Trinity_Post',
+                        'BT1_Index', 'BT2_Index', 'BWA_Index', 'Kallisto_Index', 'SNP_Search',],},
         TNSeq => {
             name => 'tnseq',
-            message => "You have enterred a world of jumping DNA, be ware and go to page 342.",
-            choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','BT_Multi','Essentiality_TAs','Run_Essentiality',],},
+            message => "You have enterred a world of jumping DNA, be ware and go to page 42.",
+            choices => ['Sort_Indexes','Biopieces_Graph','Cutadapt','BT_Multi','Essentiality_TAs',
+                        'TA_Check', 'Run_Essentiality',],},
         RiboSeq => {
             name => 'riboseq',
-            message => "Awake Awake Fear Fire Foes!  Go to page 4",
+            message => "Awake Awake Fear Fire Foes!  Go to page 5291772",
             choices => ['Biopieces_Graph','Cutadapt','BT_Multi','Calibrate','Count_States','Graph_Reads',],},
         Alignment => {
             name => 'alignment',
-            message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 128.",
+            message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 6626070.",
             choices => ['Split_Align_Blast','Split_Align_Fasta','Concatenate_Searches','Parse_Fasta','Parse_Blast','Merge_Parse_Blast'],},
         Conversion => {
             name => 'convert',
-            message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 222.",
+            message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 2584981.",
             choices => ['Sam2Bam','Gb2Gff','Gff2Fasta', 'TriTryp2Text','TriTryp_Download',],},
+        Counting => {
+            name => 'count',
+            message => qq"Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812",
+            choices => ['HT_Multi', 'Mi_Map', 'Count_States'], },
         Assembly => {
             name => 'assembly',
-            message => qq"The wise man fears the wrath of a gentle heart.",
+            message => qq"The wise man fears the wrath of a gentle heart. Go to page 314159.",
             choices => ['Trinity', 'Trinity_Post',]},
         Pipeline => {
             name => 'pipeline',
-            message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.",
+            message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033",
             choices => ['Pipeline_Riboseq','Pipeline_TNseq','Pipline_RNAseq_Bowtie','Pipline_RNAseq_Bowtie2','Pipline_RNAseq_Tophat','Pipline_RNAseq_BWA','Pipline_RNAseq_Kallisto',]},
+        SNP => {
+            name => 'snp',
+            message => qq"When my god comes back I'll be waiting for him with a shotgun.  And I'm keeping the last shell for myself. (inexact quote)  Go to page 667408",
+            choices => ['SNP_Search','SNP_Ratio'], },
         Test => {
             name => 'test',
-            message => qq"All happy families are happy in the same way.",
+            message => qq"All happy families are happy in the same way. Go to page 5670367.",
             choices => ['Test_Job',],},
     };
     return($me);
@@ -503,7 +539,7 @@ sub new {
 
 =item C<Help>
 
-    Help() returns 0.
+    Help() always gives 0.
     Before it returns, it will hopefully print some useful information
     regarding ways to invoke CYOA.pm.
 
@@ -530,9 +566,20 @@ sub Help {
 =cut
 sub Check_Options {
     my $me = shift;
-    my $needed_list = shift;
+    my %args = @_;
+    my $argref = {};
+    if (defined($args{args})) {
+        $argref = $args{args};
+    }
+    my $needed_list = [];
+    if (defined($args{needed})) {
+        $needed_list = $args{needed};
+    }
     my @options = @{$needed_list};
     foreach my $option (@options) {
+        if (defined($argref->{$option})) {
+            $me->{$option} = $argref->{$option};
+        }
         if (!defined($me->{$option})) {
             my $query = qq"The option: ${option} was missing, please fill it in:";
             my $response = $me->{term}->readline($query);

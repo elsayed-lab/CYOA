@@ -67,6 +67,9 @@ use POSIX qw"ceil";
 sub Parse_Fasta {
     my $me = shift;
     my %args = @_;
+    if ($args{interactive}) {
+        print "Run this with: cyoa --task align --method fastaparse --input filename.\n";
+    }
     my $best = 1;
     $best = $args{best} if (defined($args{best}));
     my $sig = 0.0001;
@@ -77,8 +80,8 @@ sub Parse_Fasta {
     $output = $args{output} unless ($output);
     unless ($output) {
         $output = $input;
-        $output =~ s/\..+/\.parsed/g;
-        print "TESTME: $output\n";
+        $output =~ s/\..+//g;
+        $output .= "_parsed.txt";
     }
     my $out = new FileHandle;
     $out->open(">$output");
@@ -138,7 +141,10 @@ sub Parse_Fasta {
 sub Split_Align_Fasta {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(["query","library"]);
+    if ($args{interactive}) {
+        print "Run this with: cyoa --task align --method fastasplit --query filename.fasta --library another.fasta.\n";
+    }
+    $me->Check_Options(args => \%args, needed => ["query","library"]);
     $args{query} = $me->{query} if ($me->{query});
     $args{library} = $me->{library} if ($me->{library});
     ## $args{param} = ' -e 10 ' unless (defined($args{param}));
