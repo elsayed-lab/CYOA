@@ -1,6 +1,8 @@
 package CYOA;
+
+## ABSTRACT:  Kitty!
 use autodie qw":all";
-use common::sense;
+use Modern::Perl;
 use diagnostics;
 use warnings qw"all";
 use AppConfig qw":argcount :expand";

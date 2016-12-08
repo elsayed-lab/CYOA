@@ -6,6 +6,10 @@ of Perl for common tasks like sequence alignment, setting up PBS jobs, counting 
 Eventually, having a large number of these repetitive scripts came to seem stupid.  Therefore I
 combined them into a single Perl package and attempted to give them a single interface: cyoa.
 
+# Rebuilding the distribution
+
+> dzil build
+
 # Installation
 
 > git clone git@github.com:abelew/CYOA.git && cd CYOA && perl Makefile.PL && make && make install
