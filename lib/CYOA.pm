@@ -208,8 +208,8 @@ sub new {
         def => ' ',
         v0M1 => ' --best -v 0 -M 1 ',
         ## v1M1 => ' --best -v 1 -M 1 ',
-        v1M1l10 => ' --best -v 1 -M 1 -y -l 15 ',
-        v2M1 => ' --best -v 2 -M 1 ',
+        ##v1M1l10 => ' --best -v 1 -M 1 -y -l 15 ',
+        ##v2M1 => ' --best -v 2 -M 1 ',
     } if (!defined($me->{bt_args}));
     $me->{bt2_args} = ' --very-sensitive ' if (!defined($me->{bt2_args}));
     ## A boolean to decide whether to use multiple bowtie1 argument sets
@@ -276,6 +276,7 @@ sub new {
     ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
     $me->{orientation} = 'start' if (!defined($me->{orientation}));
     ## Paired reads?
+    $me->{output} = undef;
     $me->{paired} = 0 if (!defined($me->{paired}));
     ## Use pbs?
     $me->{pbs} = undef;
@@ -436,6 +437,7 @@ sub new {
 	"blastparse+" => \$me->{todo}{Blast_Parse},
 	"blastsplitalign+" => \$me->{todo}{Split_Align_Blast},
 	"bowtierrna+" => \$me->{todo}{Bowtie_RRNA},
+        "bt2+" => \$me->{todo}{Bowtie2},
         "btmulti+" => \$me->{todo}{BT_Multi},
 	"calibrate+" => \$me->{todo}{Calibrate},
         "copyraw+" => \$me->{todo}{Copy_Raw},
@@ -453,6 +455,7 @@ sub new {
         "gff2fasta+" => \$me->{todo}{Gff2Fasta},
 	"graphreads+" => \$me->{todo}{Graph_Reads},
 	"htmulti+" => \$me->{todo}{HT_Multi},
+        "htseq+" => \$me->{todo}{HTSeq},
         "indexbt1+" => \$me->{todo}{BT1_Index},
         "indexbt2+" => \$me->{todo}{BT2_Index},
         "indexbwa+" => \$me->{todo}{BWA_Index},
@@ -495,7 +498,8 @@ sub new {
             message => "The world is dark and full of terrors, take this and go to page 6022140.",
             choices => ['Fastqc','Biopieces_Graph','Trimomatic','Bowtie', 'Bowtie2', 'BT_Multi','Bowtie_RRNA',
                         'BWA','Kallisto','Tophat','Sam2Bam','HT_Multi','Trinity','Trinity_Post',
-                        'BT1_Index', 'BT2_Index', 'BWA_Index', 'Kallisto_Index', 'SNP_Search',],},
+                        'BT1_Index', 'BT2_Index', 'BWA_Index', 'Kallisto_Index', 'SNP_Search',
+                        'Mi_Map'],},
         TNSeq => {
             name => 'tnseq',
             message => "You have enterred a world of jumping DNA, be ware and go to page 42.",
@@ -516,7 +520,7 @@ sub new {
         Counting => {
             name => 'count',
             message => qq"Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812",
-            choices => ['HT_Multi', 'Mi_Map', 'Count_States'], },
+            choices => ['HTSeq', 'HT_Multi', 'Mi_Map', 'Count_States'], },
         Assembly => {
             name => 'assembly',
             message => qq"The wise man fears the wrath of a gentle heart. Go to page 314159.",

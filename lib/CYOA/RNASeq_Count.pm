@@ -195,24 +195,6 @@ sub HTSeq {
     my $species = $me->{species};
     my $stranded = $me->{htseq_stranded};
     my $htseq_type = $args{htseq_type};
-
-    ## Set the '-t FEATURETYPE --type' argument used by htseq-count
-    ## This may be provided by a series of defaults in %HT_Multi::gff_types, overridden by an argument
-    ## Or finally auto-detected by HT_Types().
-    ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
-    if (!defined($htseq_type)) {
-        $htseq_type = $me->{htseq_type};
-    }
-    if ($htseq_type eq '' or $htseq_type eq 'auto') {
-        $htseq_type = $me->HT_Types(annotation => $annotation, type => $htseq_type);
-    }
-
-    my $htseq_args = "";
-    if (defined($me->{htseq_args}->{$species})) {
-        $htseq_args = $me->{htseq_args}->{$species};
-    } else {
-        $htseq_args = $me->{htseq_args}->{all};
-    }
     my $htseq_jobname = qq"hts_${species}";
     $htseq_jobname = $args{jobname} if ($args{jobname});
     my $depends = "";
@@ -223,6 +205,12 @@ sub HTSeq {
     $gff = $args{htseq_gff} if ($args{htseq_gff});
     my $gtf = $gff;
     $gtf =~ s/\.gff/\.gtf/g;
+    my $htseq_args = "";
+    if (defined($me->{htseq_args}->{$species})) {
+        $htseq_args = $me->{htseq_args}->{$species};
+    } else {
+        $htseq_args = $me->{htseq_args}->{all};
+    }
     my $input = "${basename}.bam";
     $input = $args{input} if ($args{input});
     my $output = $input;
@@ -242,6 +230,17 @@ sub HTSeq {
     if (!-r "${gtf}") {
         $annotation = $gff;
     }
+    ## Set the '-t FEATURETYPE --type' argument used by htseq-count
+    ## This may be provided by a series of defaults in %HT_Multi::gff_types, overridden by an argument
+    ## Or finally auto-detected by HT_Types().
+    ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
+    if (!defined($htseq_type)) {
+        $htseq_type = $me->{htseq_type};
+    }
+    if (!defined($htseq_type) or $htseq_type eq '' or $htseq_type eq 'auto') {
+        $htseq_type = $me->HT_Types(annotation => $annotation, type => $htseq_type);
+    }
+
     my $job_string = qq!htseq-count -q -f bam -s ${stranded} ${htseq_args} -t ${htseq_type} \\
   ${input} ${annotation} \\
   1>${output} 2>${error} && \\

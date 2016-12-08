@@ -716,10 +716,12 @@ sub Kallisto {
 
     if ($ka_input =~ /\.bz2$|\.xz$/ ) {
         my $uncomp = $me->Uncompress(input => $ka_input, depends => $ka_depends_on);
-        $ka_input =  basename($ka_input, ('.gz','.bz2','.xz'));
+        $ka_input = basename($ka_input, ('.gz','.bz2','.xz'));
         $me->{input} = $ka_input;
         $ka_depends_on = $uncomp->{pbs_id};
     }
+    my $input_name = $ka_input;
+    $input_name = basename($input_name, ('.fastq'));
     my @input_test = split(/\:/, $ka_input);
     if (scalar(@input_test) == 1) {
         $ka_args .= " --single -l 40 -s 10 ";
@@ -757,7 +759,8 @@ sub Kallisto {
     my $job_string = qq!mkdir -p ${outdir} && sleep 10 && \\
 kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
   ${ka_input} 2>${error_file} 1>${output_sam} && \\
-  cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/abundance.count && \\
+  cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
+  gzip ${outdir}/${input_name}_abundance.count && \\
   samtools view -u -t ${ka_reflib} -S ${output_sam} 1>${output_bam} && \\
   samtools sort -l 9 ${output_bam} ${sorted_bam} && \\
   rm ${output_bam} && mv ${sorted_bam}.bam ${output_bam} && samtools index ${output_bam} && \\
@@ -823,6 +826,7 @@ sub Tophat {
     my $bt_reftest = qq"${bt_reflib}.1.bt2";
     my $index_job = undef;
     if (!-r $bt_reftest) {
+        print "Did not find the index for $me->{species} at: ${bt_reflib}, indexing now.\n";
         $index_job = $me->BT2_Index(depends => $depends);
         ## Use a colon separated append to make tophat depend on multiple jobs
         ## $depends .= qq":$index_job->{jobid}";
