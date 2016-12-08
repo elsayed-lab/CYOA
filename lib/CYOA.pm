@@ -1,5 +1,6 @@
 package CYOA;
 
+## LICENSE: gplv2
 ## ABSTRACT:  Kitty!
 use autodie qw":all";
 use Modern::Perl;
