@@ -1,4 +1,3 @@
-sudo: false
 language: perl
 env: PERL_CPANM_OPT=\"--notest --force --skip-satisfied\"
 perl:
@@ -6,11 +5,6 @@ perl:
 
 before_install:
   - pip install --user htseq
+  - sudo apt-get update -qq
+  - sudo apt-get -y install libhts1 libhts-dev samtools liblzma-dev libbam-dev python-numpy python-htseq
 
-addons:
-  apt:
-    packages:
-    - samtools
-    - liblzma-dev
-    - libbam-dev
-    - python-numpy
