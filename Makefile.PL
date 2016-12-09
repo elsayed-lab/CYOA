@@ -43,6 +43,7 @@ my %prereq = (
     'Term::UI' => 0,
     'Test::More' => 0,
     'Text::CSV' => 0,
+    'TryCatch' => 0,
 );
 
 my @args = (
