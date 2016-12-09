@@ -5,7 +5,7 @@ perl:
    - '5.22'
 
 before_install:
-  - pip install htseq
+  - pip install --user htseq
 
 addons:
   apt:
@@ -13,6 +13,4 @@ addons:
     - samtools
     - liblzma-dev
     - libbam-dev
-    - libhts1
-    - libhts-dev
     - python-numpy
