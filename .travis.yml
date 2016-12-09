@@ -5,5 +5,7 @@ perl:
 
 before_install:
   - sudo apt-get update -qq
+  - apt-cache search htseq
+  - apt-cache search libhts
   - sudo apt-get -y install libhts1 libhts-dev samtools liblzma-dev libbam-dev python-numpy python-htseq
 
