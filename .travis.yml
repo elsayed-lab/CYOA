@@ -5,10 +5,12 @@ perl:
    - '5.22'
 
 before_install:
-  - pip install numpy htseq
+  - pip install numpy
+  - pip install htseq
 
 addons:
   apt:
     packages:
     - samtools
     - liblzma-dev
+    - libbam-dev
