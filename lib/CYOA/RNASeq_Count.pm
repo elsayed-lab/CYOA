@@ -1,5 +1,7 @@
 package CYOA;
 use Bio::Tools::GFF;
+use String::Approx qw"amatch";
+
 
 =head1 NAME
     CYOA::RNASeq_Count - Perform Sequence alignments counting with HTSeq
@@ -268,8 +270,7 @@ sub Mi_Map {
     my $me = shift;
     my %args = @_;
 
-    use Bio::DB::Sam;
-    use Data::Dumper;
+    eval "use Bio::DB::Sam; 1;";
     $me->Check_Options(args => \%args, needed => ["mirbase_data","mature_fasta","mi_genome","bamfile",]);
 
     my $bam_base = basename($me->{bamfile}, (".bam", ".sam"));
@@ -390,7 +391,6 @@ sub Mi_Map {
         my %args = @_;
         my $mappings = $args{mappings};
 
-        use String::Approx qw"amatch";
         my $sam = new Bio::DB::Sam(-bam => $args{bamfile}, -fasta=> $args{mi_genome},);
         my $bam = $sam->bam;
         my $header = $bam->header;

@@ -3,6 +3,9 @@ language: perl
 perl:
    - '5.22'
 
+before_install:
+  - pip install htseq
+
 addons:
   apt:
     packages:

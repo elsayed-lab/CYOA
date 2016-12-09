@@ -2,7 +2,7 @@ package CYOA;
 use common::sense;
 use autodie qw":all";
 
-##use Bio::DB::Sam;
+##use Bio::DB::Sam; ## Until I figure out how to tell travis where the samtools stuff is, this will fail on it.
 use Bio::Tools::GFF;
 use PerlIO;
 use Data::Dumper;

@@ -9,7 +9,6 @@ use File::Path qw"make_path";
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
-##use Bio::DB::Sam;
 use Cwd qw(abs_path getcwd);
 use String::Approx;
 
