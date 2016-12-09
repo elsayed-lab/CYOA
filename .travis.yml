@@ -3,8 +3,13 @@ language: perl
 perl:
    - '5.22'
 
+before_install:
+ - sudo apt-get update -qq
+ - sudo apt-get install samtools python-htseq liblzma-dev
+
 addons:
   apt:
     packages:
     - samtools
     - python-htseq
+    - liblzma-dev
