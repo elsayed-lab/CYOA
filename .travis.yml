@@ -4,7 +4,6 @@ perl:
    - '5.22'
 
 before_install:
-  - pip install --user htseq
   - sudo apt-get update -qq
   - sudo apt-get -y install libhts1 libhts-dev samtools liblzma-dev libbam-dev python-numpy python-htseq
 
