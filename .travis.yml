@@ -1,10 +1,11 @@
 sudo: false
 language: perl
+env: PERL_CPANM_OPT=\"--notest --force --skip-satisfied\"
 perl:
    - '5.22'
 
 before_install:
-  - pip install htseq
+  - pip install numpy htseq
 
 addons:
   apt:
