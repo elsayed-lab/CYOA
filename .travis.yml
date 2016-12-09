@@ -4,9 +4,6 @@ env: PERL_CPANM_OPT=\"--notest --force --skip-satisfied\"
 perl:
    - '5.22'
 
-before_install:
-  - pip install --user htseq
-
 addons:
   apt:
     packages:
@@ -14,3 +11,7 @@ addons:
     - liblzma-dev
     - libbam-dev
     - python-numpy
+
+before_install:
+  - pip install --user htseq
+
