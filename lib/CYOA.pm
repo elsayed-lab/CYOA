@@ -377,7 +377,6 @@ sub new {
     undef(%conf);
     Help() if (defined($me->{help}));
 
-    ##    $me->Check_Options(["input",]);
     my @suffixes = @{$me->{suffixes}};
     if ($me->{input}) {
         my $base = $me->{input};
@@ -599,7 +598,9 @@ sub Check_Options {
                 $me->{basename} = $base;
             }
         }
-    }
+        ## Make sure that no options start with ~ if they do, replace them with $home
+        $me->{$option} =~ s/^\~/$ENV{HOME}/g;
+    }  ## End iterating over every option
 }
 
 =item C<Get_Input>
@@ -947,4 +948,3 @@ Email abelew@gmail.com
 =cut
 
 1;
-
