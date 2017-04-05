@@ -15,25 +15,25 @@ If --parse is on, it will call Parse_Blast()
 
 =cut
 sub Concatenate_Searches {
-    my $me = shift;
-    my %args = @_;
-    my $finished = 0;
-    my $output = qq"$me->{basedir}/outputs/split_search.txt";
-    $output = $me->{output} if (defined($me->{output}));
-    $output = $args{output} if (defined($args{output}));
-    $output .= ".gz" unless ($output =~ /\.gz$/);
-    my $comment_string = qq"## Concatenating the output files into ${output}\n";
-    my $job_string = qq!
+  my $me = shift;
+  my %args = @_;
+  my $finished = 0;
+  my $output = qq"$me->{basedir}/outputs/split_search.txt";
+  $output = $me->{output} if (defined($me->{output}));
+  $output = $args{output} if (defined($args{output}));
+  $output .= ".gz" unless ($output =~ /\.gz$/);
+  my $comment_string = qq"## Concatenating the output files into ${output}\n";
+  my $job_string = qq!
 rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${output}; done
 !;
-    my $concatenate_job = $me->Qsub(job_name => "concat",
-                                    depends => $args{depends},
-                                    depends_type => 'array',
-                                    job_string => $job_string,
-                                    comment => $comment_string,
-                                    output => qq"${output}",
-        );
-    return($concatenate_job);
+  my $concatenate_job = $me->Qsub(job_name => "concat",
+                                  depends => $args{depends},
+                                  depends_type => 'array',
+                                  job_string => $job_string,
+                                  comment => $comment_string,
+                                  output => qq"${output}",
+                                 );
+  return($concatenate_job);
 }
 
 =item C<Parse_Search>

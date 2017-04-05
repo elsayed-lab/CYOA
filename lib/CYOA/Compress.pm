@@ -1,7 +1,11 @@
 package CYOA;
+
 =head2
+
     Recompress()
+
 =cut
+
 sub Recompress {
     my $me = shift;
     my %args = @_;
@@ -13,9 +17,9 @@ sub Recompress {
     }
     my ($input1, $input2);
     if ($input =~ /\:|\,/) {
-	($input1, $input2) = split(/\:|\,/, $input);
+        ($input1, $input2) = split(/\:|\,/, $input);
     } else {
-	$input1 = $input;
+        $input1 = $input;
         $input2 = "";
     }
     my $job_name = "xz";
@@ -50,17 +54,19 @@ sub Recompress {
     }
 
     my $trim_jobid = qq"${basename}_xz";
-    my $compression = $me->Qsub(job_name => $job_name,
-                                depends => $depends,
-                                qsub_queue => "workstation",
-                                qsub_cpus => 1,
-                                qsub_mem => 4,
-                                qsub_wall => "18:00:00",
-                                job_string => $job_string,
-                                input => $input,
-                                comment => $comment,
-				prescript => $args{prescript},
-				postscript => $args{postscript},
+    my $compression = $me->Qsub(
+        comment => $comment,
+        depends => $depends,
+        input => $input,
+        job_name => $job_name,
+        job_prefix => $args{job_prefix},
+        job_string => $job_string,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        qsub_cpus => 1,
+        qsub_mem => 4,
+        qsub_queue => "workstation",
+        qsub_wall => "18:00:00",
         );
     return($compression);
 }
@@ -79,12 +85,14 @@ sub Uncompress {
     }
     my $input1 = "";
     my $input2 = "";
-    if ($input =~ /\:|\,/) {
-	($input1, $input2) = split(/\:|\,/, $input);
+    if ($input =~ /\:|\;|\,|\s+/) {
+        ($input1, $input2) = split(/\:|\;|\,|\s+/, $input);
+        ## Switch various separators with a single space.
+        $input =~ s/\:|\;|\,|\s+/ /g;
     } else {
-	$input1 = $input;
+        $input1 = $input;
     }
-    my $job_name = "unxz";
+    my $job_name = "unzip";
     $job_name = $args{job_name} if ($args{job_name});
     my $depends = "";
     $depends = $args{depends} if ($args{depends});
@@ -93,29 +101,31 @@ sub Uncompress {
     my $basename = $me->{basename};
     my $job_string;
     if ($input =~ /\.gz$/) {
-        $job_string = qq!gunzip -f ${input1} ${input2}\n!;
+        $job_string = qq!gunzip -f ${input}\n!;
     } elsif ($input =~ /\.bz2$/) {
-        $job_string = qq!bunzip2 -f ${input1} ${input2}\n!;
+        $job_string = qq!bunzip2 -f ${input}\n!;
     } elsif ($input =~ /\.xz$/) {
-        $job_string = qq!xz -f -d ${input1} ${input2}\n!;
+        $job_string = qq!xz -f -d ${input}\n!;
     } else {
-        $job_string = qq!xz -f -d ${input1} ${input2}\n!;
+        $job_string = qq!xz -f -d ${input}\n!;
     }
     my $input_dir = dirname(${input1});
     $job_string .= qq" 2>${input_dir}/${job_name}.log 1>&2";
 
     my $trim_jobid = qq"${basename}_unxz";
-    my $compression = $me->Qsub(job_name => $job_name,
-                                depends => $depends,
-                                qsub_queue => "workstation",
-                                qsub_cpus => 1,
-                                qsub_mem => 4,
-                                qsub_wall => "18:00:00",
-                                job_string => $job_string,
-                                input => $input,
-                                comment => $comment,
-				prescript => $args{prescript},
-				postscript => $args{postscript},
+    my $compression = $me->Qsub(
+        comment => $comment,
+        depends => $depends,
+        input => $input,
+        job_name => $job_name,
+        job_prefix => $args{job_prefix},
+        job_string => $job_string,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        qsub_cpus => 1,
+        qsub_mem => 4,
+        qsub_queue => "workstation",
+        qsub_wall => "18:00:00",
         );
     return($compression);
 }

@@ -341,14 +341,16 @@ sub Samtools {
     $sorted =~ s/\.sam$//g;
     $sorted = qq"${sorted}-sorted";
     print "Converting to a compressed/sorted bam file.\n";
-    my $job_string = qq!samtools view -u -t $me->{libdir}/genome/$me->{species}.fasta -S $input 1>$output
-samtools sort -l 9 $output $sorted
-rm $output && rm $input && mv ${sorted}.bam $output && samtools index $output
-bamtools stats -in $output 2>${output}.stats 1>&2
+    my $job_string = qq!samtools view -u -t $me->{libdir}/genome/$me->{species}.fasta -S ${input} 1>${output}
+samtools sort -l 9 ${output} ${sorted}
+rm ${output} && rm ${input} && mv ${sorted}.bam ${output} && \\
+    samtools index ${output} && samtools view -b -f 2 ${sorted}_paired.bam
+bamtools stats -in ${output} 2>${output}.stats 1>&2
+bamtools stats -in ${sorted}_paired.bam 2>{sorted}_paired.bam.stats 1>&2
 !;
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
-## This job depended on: $depends!;
+## This job depended on: ${depends}!;
     my $samtools = $me->Qsub(job_name => "sam",
                              depends => $depends,
                              job_string => $job_string,
@@ -389,7 +391,7 @@ sub Gb2Gff {
     my $inter_gffout = new Bio::Tools::GFF(-file => ">${base}_interCDS.gff", -gff_version => 3);
     my $cds_fasta = new Bio::SeqIO(-file => qq">${base}_cds.fasta", -format => 'Fasta');
     my $pep_fasta = new Bio::SeqIO(-file => qq">${base}_pep.fasta", -format => 'Fasta');
-    while(my $seq = $seqio->next_seq) {
+    while (my $seq = $seqio->next_seq) {
         $seq_count++;
         $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);

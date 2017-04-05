@@ -5,12 +5,11 @@ use autodie;
 sub SNP_Search {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(args => \%args, needed => ["genome","query","name"]);
+    $me->Check_Options(args => \%args, needed => ["genome","query"]);
     my $genome = $me->{genome};
     my $query = $me->{query};
-    my $name = $me->{name};
-    my $new = qq"${name}_";
-    $new .= basename($query, (".bam"));
+    $query = basename(${query}, (".bam"));
+    my $new = qq"${query}_sorted";
 
     my $min_hits = 10;
     if ($args{min_hits}) {
@@ -18,32 +17,36 @@ sub SNP_Search {
     }
 
     my $job_string = qq!
-samtools sort -l 9 -@ 4 ${query} outputs/${new} 2>outputs/samtools_sort.out 1>&2
+samtools sort -l 9 -@ 4 ${query}.bam outputs/${new} 2>outputs/samtools_sort.out 1>&2
 if [ \!-r "${genome}.fai" ]; then
     samtools faidx ${genome}
 fi
-samtools mpileup -u -f ${genome} outputs/${new}.bam 2>outputs/${new}_pileup.err |\
-  bcftools view -bvcg - 1>outputs/${name}_raw.bcf 2>outputs/${new}_bcf.err &&\
-  bcftools view outputs/${name}_raw.bcf |\
-  vcfutils_hacked.pl varFilter -d ${min_hits} 1>outputs/${name}_filtered.vcf 2>outputs/${new}_filter.err &&\
+mkdir -p outputs/vcfutils
+samtools mpileup -u -f ${genome} outputs/${new}.bam 2>outputs/vcfutils/${new}_pileup.err |\\
+  bcftools view -bvcg - 1>outputs/vcfutils/${new}_raw.bcf 2>outputs/vcfutils/${new}_bcf.err &&\\
+  bcftools view outputs/vcfutils/${new}_raw.bcf |\\
+  vcfutils_hacked.pl varFilter -d ${min_hits} 1>outputs/vcfutils/${new}_vcf_summary.txt 2>outputs/vcfutils/${new}_filter.err &&\\
 rm outputs/${new}
 !;
-
-    my $pileup_job = $me->Qsub(job_name => "${name}_vcf",
-                               job_string => $job_string,
-                               qsub_mem => 10,
-                               qsub_queue => "workstation",
+    my $comment_string = qq!## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.!;
+    my $pileup_job = $me->Qsub(
+        comment => $comment_string,
+        job_name => "${query}_vcf",
+        job_prefix => "80",
+        job_string => $job_string,
+        qsub_mem => 10,
+        qsub_queue => "workstation",
         );
 
-    my $print_input = qq"outputs/${name}_raw.bcf";
-    my $print_output = qq"outputs/${name}_snp";
-    my $comment_string = qq!## This little job should make unique IDs for every detected
+    my $print_input = qq"outputs/vcfutils/${new}_raw.bcf";
+    my $print_output = qq"outputs/vcfutils/${new}_snp";
+    $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
 !;
     my $parse_job = $me->SNP_Ratio(input => $print_input,
                                    output => $print_output,
-                                   depends => $pileup_job->{pbs_id});
+                                   depends => $pileup_job->{pbs_id},);
     return($pileup_job, $parse_job);
 }
 
@@ -64,16 +67,21 @@ use CYOA;
 my \$h = new CYOA;
 \$h->Make_SNP_Ratio(input => '$print_input', output => '$print_output');
 ?;
-    my $parse_job = $me->Qsub_Perl(job_name => "${job_name}_ratio",
-                                   qsub_queue => "throughput",
-                                   depends => $depends,
-                                   job_string => $job_string,
-                                   comment => $comment_string,
+    my $parse_job = $me->Qsub_Perl(
+        comment => $comment_string,
+        depends => $depends,
+        job_name => "${job_name}_ratio",
+        job_prefix => "81",
+        job_string => $job_string,
+        qsub_queue => "throughput",
         );
-    my $un_comp = $me->Recompress(depends => $parse_job->{pbs_id},
-                                  job_name => "xz_snpparse",
-                                  comment => qq"## Compressing the snp scorer output",
-                                  input => "${print_output}");
+    my $un_comp = $me->Recompress(
+        comment => qq"## Compressing the snp scorer output",
+        depends => $parse_job->{pbs_id},
+        input => "${print_output}",
+        job_name => "xz_snpparse",
+        job_prefix => "82",
+        );
 }
 
 sub Make_SNP_Ratio {

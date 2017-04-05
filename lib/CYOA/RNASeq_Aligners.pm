@@ -35,7 +35,7 @@ use autodie;
 sub Bowtie {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(args => \%args, needed => ["species","input"]);
+    $me->Check_Options(args => \%args, needed => ["species", "input"]);
     my %bt_jobs = ();
     my $bt_input = $me->{input};
     my $bt_depends_on;
@@ -60,16 +60,16 @@ sub Bowtie {
         print "The input needs to be uncompressed, doing that now.\n" if ($me->{debug});
         ## Previously this step was done on the cluster, but I submitted too many and made the file servers mad
         ## In addition, these jobs are often done as part of a group and I don't want a race condition
-        ##my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
-        print "Uncompressing input files before submitting to the cluster.\n";
-        if (${bt_input} =~ /\.gz/) {
-            qx"nice -n 10 gunzip -f ${bt_input}";
-        } elsif (${bt_input} =~ /\.bz2/) {
-            qx"nice -n 10 bunzip2 -f ${bt_input}";
-        } elsif (${bt_input} =~ /\.xz/) {
-            qx"nice -n 10 xz -d -f ${bt_input}";
-        }
-        $bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
+        my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
+        ##print "Uncompressing input files before submitting to the cluster.\n";
+        ##if (${bt_input} =~ /\.gz/) {
+        ##    qx"nice -n 10 gunzip -f ${bt_input}";
+        ##} elsif (${bt_input} =~ /\.bz2/) {
+        ##    qx"nice -n 10 bunzip2 -f ${bt_input}";
+        ##} elsif (${bt_input} =~ /\.xz/) {
+        ##    qx"nice -n 10 xz -d -f ${bt_input}";
+        ##}
+        ##$bt_input =  basename($bt_input, ('.gz','.bz2','.xz'));
         $me->{input} = $bt_input;
         ##bt_depends_on = $uncomp->{pbs_id};
     }
@@ -95,8 +95,8 @@ sub Bowtie {
     my $aligned_filename = qq"${bt_dir}/${basename}-${bt_type}_aligned_${species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${basename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"${bt_dir}/${basename}-${bt_type}.sam";
-    my $job_string = qq!mkdir -p ${bt_dir} && sleep 10 && bowtie $bt_reflib $bt_args \\
-  -p ${cpus} $bowtie_input_flag $bt_input \\
+    my $job_string = qq!mkdir -p ${bt_dir} && sleep 10 && bowtie ${bt_reflib} ${bt_args} \\
+  -p ${cpus} ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
@@ -107,12 +107,13 @@ sub Bowtie {
     my $bt_job = $me->Qsub(job_name => $jobname,
                            depends => $bt_depends_on,
                            job_string => $job_string,
+                           job_prefix => "10",
                            input => $bt_input,
                            comment => $comment,
                            output => $sam_filename,
                            unaligned => $unaligned_filename,
                            aligned => $aligned_filename,
-			   prescript => $args{prescript},
+                           prescript => $args{prescript},
 			   postscript => $args{postscript},
                            qsub_queue => "workstation",
         );
@@ -120,6 +121,7 @@ sub Bowtie {
 
     my $un_comp = $me->Recompress(depends => $bt_job->{pbs_id},
                                   job_name => "xzun",
+                                  job_prefix => "11",
                                   comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt_args\n",
                                   input => "${bt_dir}/${basename}-${bt_type}_unaligned_${species}.fastq");
     $bt_jobs{unaligned_compression} = $un_comp;
@@ -127,6 +129,7 @@ sub Bowtie {
     my $al_comp = $me->Recompress(input => "${bt_dir}/${basename}-${bt_type}_aligned_${species}.fastq",
                                   comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt_args",
                                   job_name => "xzal",
+                                  job_prefix => "11",
                                   depends => $bt_job->{pbs_id},);
     $bt_jobs{aligned_compression} = $al_comp;
 
@@ -135,12 +138,14 @@ sub Bowtie {
     my $stats = $me->BT1_Stats(depends => $bt_job->{pbs_id},
                                job_name => "${jobname}_stats",
                                bt_type => $bt_type,
+                               job_prefix => "12",
                                count_table => qq"${basename}-${bt_type}.count.xz",
                                trim_input => ${trim_output_file},
                                bt_input => $error_file);
 
     my $sam_job = $me->Samtools(depends => $bt_job->{pbs_id},
                                 job_name => "${jobname}_s2b",
+                                job_prefix => "13",
                                 input => $bt_job->{output},);
 
     $bt_jobs{samtools} = $sam_job;
@@ -152,11 +157,13 @@ sub Bowtie {
                                   suffix => $bt_type,
                                   htseq_type => $me->{htseq_type},
                                   libtype => $libtype,
+                                  job_prefix => "14",
                                   qsub_queue => "workstation",
                                   input => $sam_job->{output},);
         } else {
             $htmulti = $me->HT_Multi(depends => $sam_job->{pbs_id},
                                      suffix => $bt_type,
+                                     job_prefix => "14",
                                      htseq_type => $me->{htseq_type},
                                      libtype => $libtype,
                                      qsub_queue => "workstation",
@@ -173,8 +180,7 @@ sub Bowtie {
     otherwise, it will do so with 0 mismatches and with multi-matches
     randomly placed 1 time among the possibilities. (options -v 0 -M 1)
 
-
-    It checks to see if a bowtie1 compatible index is in
+    It checks to see if a bowtie2 compatible index is in
     $libdir/$libtype/indexes/$species, if not it attempts to create
     them.
 
@@ -186,7 +192,7 @@ sub Bowtie {
 sub Bowtie2 {
     my $me = shift;
     my %args = @_;
-    $me->Check_Options(args => \%args, needed => ["species","input", "htseq_type"]);
+    $me->Check_Options(args => \%args, needed => ["species", "input", "htseq_type"]);
     my %bt_jobs = ();
     my $libtype = 'genome';
     my $bt_input = $me->{input};
@@ -205,10 +211,12 @@ sub Bowtie2 {
         $bt_dir = $args{bt_dir};
     }
 
-    if ($bt_input =~ /\.bz2$|\.xz$/ ) {
+    if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
         print "The input needs to be uncompressed, doing that now.\n" if ($me->{debug});
         my $uncomp = $me->Uncompress(input => $bt_input, depends => $bt_depends_on);
-        $bt_input =  basename($bt_input, ('.bz2','.xz'));
+        $bt_input =~ s/\:|\;|\,|\s+/ /g;
+        $bt_input =~ s/\.gz|\.bz|\.xz//g;
+        ##$bt_input = $bt_inputbasename($bt_input, ('.gz', '.bz2', '.xz'));
         $me->{input} = $bt_input;
         $bt_depends_on = $uncomp->{pbs_id};
     }
@@ -251,6 +259,7 @@ sub Bowtie2 {
     my $bt2_job = $me->Qsub(job_name => $jobname,
                             depends => $bt_depends_on,
                             job_string => $job_string,
+                            job_prefix => "15",
                             input => $bt_input,
                             comment => $comment,
                             output => $sam_filename,
@@ -263,13 +272,15 @@ sub Bowtie2 {
 
     my $un_comp = $me->Recompress(depends => $bt2_job->{pbs_id},
                                   job_name => "xzun",
-                                  comment => qq"## Compressing the sequences which failed to align against $bt_reflib using options $bt2_args\n",
-                                  input => "${bt_dir}/${basename}_unaligned_${species}.fastq");
+                                  job_prefix => "16",
+                                  comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
+                                  input => "${bt_dir}/${basename}_unaligned_${species}.fastq",);
     $bt_jobs{unaligned_compression} = $un_comp;
 
     my $al_comp = $me->Recompress(input => "${bt_dir}/${basename}_aligned_${species}.fastq",
-                                  comment => qq"## Compressing the sequences which successfully aligned against $bt_reflib using options $bt2_args",
+                                  comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt2_args}",
                                   job_name => "xzal",
+                                  job_prefix => "17",
                                   depends => $bt2_job->{pbs_id},);
     $bt_jobs{aligned_compression} = $al_comp;
 
@@ -277,12 +288,14 @@ sub Bowtie2 {
     my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
     my $stats = $me->BT2_Stats(depends => $bt2_job->{pbs_id},
                                job_name => "${jobname}_stats",
+                               job_prefix => "18",
                                count_table => qq"${basename}.count.xz",
                                trim_input => ${trim_output_file},
                                bt_input => $error_file);
 
     my $sam_job = $me->Samtools(depends => $bt2_job->{pbs_id},
                                 job_name => "${jobname}_s2b",
+                                job_prefix => "19",
                                 input => $bt2_job->{output},);
     $bt_jobs{samtools} = $sam_job;
     $me->{output} = $sam_job->{output};
@@ -291,10 +304,12 @@ sub Bowtie2 {
         if ($libtype eq 'rRNA') {
             $htmulti = $me->HTSeq(depends => $sam_job->{pbs_id},
                                   libtype => $libtype,
+                                  job_prefix => "20",
                                   input => $sam_job->{output},);
         } else {
             $htmulti = $me->HT_Multi(depends => $sam_job->{pbs_id},
                                      libtype => $libtype,
+                                     job_prefix => "21",
                                      input => $sam_job->{output},);
             $bt_jobs{htseq} = $htmulti;
         }
@@ -327,8 +342,8 @@ sub BT_Multi {
         my $job = $me->Bowtie(bt_type => $type,
                               depends => $depends_on,
                               jobname => qq"bt${type}_${species}",
-			      prescript => $args{prescript},
-			      postscript => $args{postscript},
+                              prescript => $args{prescript},
+                              postscript => $args{postscript},
             );
     }
 }
@@ -394,9 +409,10 @@ sub BT1_Index {
     my $bt1_index = $me->Qsub(job_name => "bt1idx",
                               depends => $dep,
                               job_string => $job_string,
+                              job_prefix => "10",
                               comment => $comment,
-			      prescript => $args{prescript},
-			      postscript => $args{postscript},
+                              prescript => $args{prescript},
+                              postscript => $args{postscript},
         );
     return($bt1_index);
 }
@@ -430,6 +446,7 @@ bowtie2-build $me->{libdir}/genome/$me->{species}.fasta $me->{libdir}/${libtype}
                             depends => $dep,
                             job_string => $job_string,
                             comment => $comment,
+                            job_prefix => "15",
                             prescript => $args{prescript},
                             postscript => $args{postscript},
         );
@@ -484,33 +501,43 @@ ${aln_string}
 ${reporter_string}
 !;
     my $bwa_job = $me->Qsub(job_name => "bwa_${species}",
-			    depends => $bwa_depends_on,
-			    job_string => $job_string,
-			    input => $inputs,
-			    comment => $comment,
-			    output => qq"outputs/bwa/${basename}_mem.sam",
-			    prescript => $args{prescript},
-			    postscript => $args{postscript},
+                            depends => $bwa_depends_on,
+                            job_string => $job_string,
+                            input => $inputs,
+                            job_prefix => "20",
+                            comment => $comment,
+                            output => qq"outputs/bwa/${basename}_mem.sam",
+                            prescript => $args{prescript},
+                            postscript => $args{postscript},
         );
     $bwa_jobs{bwa} = $bwa_job;
 
     my $mem_sam = $me->Samtools(depends => $bwa_job->{pbs_id},
                                 job_name => "s2b_mem",
+                                job_prefix => "21",
                                 input => $bwa_job->{output},);
     $bwa_jobs{samtools_mem} = $mem_sam;
-    my $mem_htmulti = $me->HT_Multi(job_name => "ht_mem", depends => $mem_sam->{pbs_id}, input => $mem_sam->{output},);
+    my $mem_htmulti = $me->HT_Multi(job_name => "ht_mem",
+                                    depends => $mem_sam->{pbs_id},
+                                    job_prefix => "22",
+                                    input => $mem_sam->{output},);
     $bwa_jobs{htseq_mem} = $mem_htmulti;
 
     my $aln_sam = $me->Samtools(depends => $bwa_job->{pbs_id},
                                 job_name => 's2b_aln',
+                                job_prefix => "23",
                                 input => qq"outputs/bwa/${basename}_aln.sam",);
     $bwa_jobs{samtools_aln} = $aln_sam;
-    my $aln_htmulti = $me->HT_Multi(jobname => "ht_aln", depends => $aln_sam->{pbs_id}, input => $aln_sam->{output},);
+    my $aln_htmulti = $me->HT_Multi(jobname => "ht_aln",
+                                    depends => $aln_sam->{pbs_id},
+                                    job_prefix => "24",
+                                    input => $aln_sam->{output},);
     $bwa_jobs{htseq_aln} = $aln_htmulti;
 
     my $trim_output_file = qq"outputs/${basename}-trimomatic.out";
     my $bwa_stats = $me->BWA_Stats(depends => $aln_sam->{pbs_id},
                                    job_name => 'bwastats',
+                                   job_prefix => "25",
                                    aln_output => $aln_sam->{output},
                                    mem_output => $mem_sam->{output},
                                    trim_input => $trim_output_file,);
@@ -570,6 +597,7 @@ echo "\$stat_string" >> outputs/bwa_stats.csv
                           depends => $depends,
                           qsub_queue => "throughput",
                           qsub_cpus => 1,
+                          job_prefix => $args{job_prefix},
                           qsub_mem => 1,
                           qsub_wall => "00:10:00",
                           job_string => $job_string,
@@ -600,9 +628,10 @@ cd \$start
     my $bwa_index = $me->Qsub(job_name => "bwaidx",
                               depends => $dep,
                               job_string => $job_string,
+                              job_prefix => "26",
                               comment => $comment,
-			      prescript => $args{prescript},
-			      postscript => $args{postscript},
+                              prescript => $args{prescript},
+                              postscript => $args{postscript},
         );
     return($bwa_index);
 }
@@ -649,6 +678,7 @@ echo "\$stat_string" >> outputs/bowtie_stats.csv
     my $stats = $me->Qsub(job_name => $job_name,
                           depends => $depends,
                           qsub_queue => "throughput",
+                          job_prefix => $args{job_prefix},
                           qsub_cpus => 1,
                           qsub_mem => 1,
                           qsub_wall => "00:10:00",
@@ -684,9 +714,10 @@ kallisto index -i $me->{libdir}/${libtype}/indexes/$me->{species}.idx ${input}
     my $jobid = $me->Qsub(job_name => "kalidx",
                           depends => $dep,
                           job_string => $job_string,
+                          job_prefix => $args{job_prefix},
                           comment => $comment,
-			  prescript => $args{prescript},
-			  postscript => $args{postscript},
+                          prescript => $args{prescript},
+                          postscript => $args{postscript},
         );
     return($jobid);
 }
@@ -771,9 +802,10 @@ kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${
                            job_string => $job_string,
                            input => $ka_input,
                            comment => $comment,
+                           job_prefix => "30",
                            qsub_queue => "workstation",
-			   prescript => $args{prescript},
-			   postscript => $args{postscript},
+                           prescript => $args{prescript},
+                           postscript => $args{postscript},
         );
     $ka_jobs{kallisto} = $ka_job;
 
@@ -888,11 +920,12 @@ fi
                            qsub_queue => ${tophat_queue},
                            qsub_wall => ${tophat_walltime},
                            qsub_mem => ${tophat_mem},
+                           job_prefix => "31",
                            depends => ${depends},
                            job_string => ${job_string},
                            comment => ${comment},
-			   prescript => $args{prescript},
-			   postscript => $args{postscript},
+                           prescript => $args{prescript},
+                           postscript => $args{postscript},
         );
 
     ## Set the input for htseq
@@ -902,6 +935,7 @@ fi
     $count_table = $args{count_table} if ($args{count_table});
     my $htmulti = $me->HT_Multi(depends => $tophat->{pbs_id},
                                 input => $accepted,
+                                job_prefix => "32",
                                 htseq_type => $me->{htseq_type},
                                 job_name => qq"hts_$me->{species}",);
     $tophat->{htseq} = $htmulti;
@@ -909,6 +943,7 @@ fi
     if ($number_inputs > 1) {
         my $ht_paired = $me->HT_Multi(depends => $tophat->{pbs_id},
                                       htseq_type => $me->{htseq_type},
+                                      job_prefix => "32",
                                       input => qq"${tophat_dir}/accepted_paired.bam",
                                       job_name => qq"htsp_$me->{species}",);
     }
@@ -921,6 +956,7 @@ fi
     my $stats = $me->Tophat_Stats(depends => $tophat->{pbs_id},
                                   job_name => "tpstats_$me->{species}",
                                   count_table => qq"${count_table}.xz",
+                                  job_prefix => "33",
                                   trim_input => ${trim_output_file},
                                   accepted_input => $accepted,
                                   unaccepted_input => $unaccepted,
@@ -979,6 +1015,7 @@ echo "\$stat_string" >> ${stat_output}
                           qsub_queue => "throughput",
                           qsub_cpus => 1,
                           qsub_mem => 1,
+                          job_prefix => $args{job_prefix},
                           qsub_wall => "00:10:00",
                           job_string => $job_string,
                           input => $bt_input,
@@ -1036,6 +1073,7 @@ echo "\$stat_string" >> outputs/tophat_stats.csv
                           qsub_queue => "throughput",
                           qsub_cpus => 1,
                           qsub_mem => 1,
+                          job_prefix => $args{job_prefix},
                           qsub_wall => "00:10:00",
                           job_string => $job_string,
                           input => $accepted_input,

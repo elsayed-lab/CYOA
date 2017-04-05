@@ -2,7 +2,6 @@ package CYOA;
 use Bio::Tools::GFF;
 use String::Approx qw"amatch";
 
-
 =head1 NAME
     CYOA::RNASeq_Count - Perform Sequence alignments counting with HTSeq
 
@@ -70,11 +69,12 @@ sub HT_Multi {
                                 htseq_gff => $gff,
                                 jobname => "ht${type}${script_suffix}_${species}",
                                 depends => $args{depends},
+                                job_prefix => $args{job_prefix},
                                 qsub_queue => 'throughput',
                                 input => $input,
                                 output => $output,
-				prescript => $args{prescript},
-				postscript => $args{postscript},
+                                prescript => $args{prescript},
+                                postscript => $args{postscript},
                                 suffix => $args{suffix},
                 );
             push(@jobs, $ht);
@@ -86,10 +86,11 @@ sub HT_Multi {
                                 jobname => "ht${type}${script_suffix}_${species}",
                                 depends => $args{depends},
                                 qsub_queue => 'throughput',
+                                job_prefix => $args{job_prefix},
                                 input => $input,
                                 output => $output,
-				prescript => $args{prescript},
-				postscript => $args{postscript},
+                                prescript => $args{prescript},
+                                postscript => $args{postscript},
                                 suffix => $args{suffix},
                 );
             push(@jobs, $ht);
@@ -257,11 +258,12 @@ sub HTSeq {
                           depends => $depends,
                           job_string => $job_string,
                           comment => $comment,
+                          job_prefix => $args{job_prefix},
                           qsub_queue => "throughput",
                           input => $input,
                           output => $output,
-			  prescript => $args{prescript},
-			  postscript => $args{postscript},
+                          prescript => $args{prescript},
+                          postscript => $args{postscript},
         );
     return($htseq);
 }
@@ -271,7 +273,8 @@ sub Mi_Map {
     my %args = @_;
 
     eval "use Bio::DB::Sam; 1;";
-    $me->Check_Options(args => \%args, needed => ["mirbase_data","mature_fasta","mi_genome","bamfile",]);
+    $me->Check_Options(args => \%args, needed => ["mirbase_data", "mature_fasta",
+                                                  "mi_genome", "bamfile",]);
 
     my $bam_base = basename($me->{bamfile}, (".bam", ".sam"));
     my $pre_map = qq"${bam_base}_mirnadb.txt";
@@ -286,13 +289,17 @@ sub Mi_Map {
     ## Step 2:  Collate those IDs against the set of miRNA_transcripts->miRNA_mature IDs using
     ## the tab delimited file downloaded from mirbase.org
     print "Starting to read miRNA mappings.\n";
-    my $sequence_mappings = Read_Mappings(mappings => $me->{mirbase_data}, output => $pre_map, seqdb => $sequence_db);
+    my $sequence_mappings = Read_Mappings(mappings => $me->{mirbase_data},
+                                          output => $pre_map,
+                                          seqdb => $sequence_db);
     ## print Dumper $sequence_mappings;
     ## At this point, we have brought together mature sequence/mature IDs to parent transcript IDs
     ## When we read the provided bam alignment, we will simultaneously read the immature miRNA database
     ## and use them to make a bridge from the mature sequence/IDs to immature miRNA IDs.
 
-    my $final_hits = Read_Bam(mappings => $sequence_mappings, mi_genome => $me->{mi_genome}, bamfile => $me->{bamfile});
+    my $final_hits = Read_Bam(mappings => $sequence_mappings,
+                              mi_genome => $me->{mi_genome},
+                              bamfile => $me->{bamfile});
     Final_Print(data => $final_hits, output => $final_map);
 
     ## Quick and dirty sequence reader
@@ -366,17 +373,20 @@ sub Mi_Map {
                   hit_id => $mimap->{$id}->{hit_id},
                   mimat => $mimap->{$id}->{mimat},
               };
-              if (defined($newdb->{$new_id})) {
+              my $ensembl_id = $element->{ensembl};
+              if (defined($newdb->{$ensembl_id})) {
                   ## Then there should be an existing element, append to it.
-                  @hit_list = @{$newdb->{$new_id}};
+                  @hit_list = @{$newdb->{$ensembl_id}};
                   push(@hit_list, $element);
-                  $newdb->{$new_id} = \@hit_list;
+                  ## $newdb->{$new_id} = \@hit_list;
+                  $newdb->{$ensembl_id} = \@hit_list;
                   print $out "$id; $element->{mirbase_id}; $element->{ensembl}; $element->{hit_id}; $element->{mimat}; $element->{sequence}\n";
 
               } else {
                   @hit_list = ();
                   push(@hit_list, $element);
-                  $newdb->{$new_id} = \@hit_list;
+                  ## $newdb->{$new_id} = \@hit_list;
+                  $newdb->{$ensembl_id} = \@hit_list;
               }
 
           } else {
@@ -390,7 +400,6 @@ sub Mi_Map {
     sub Read_Bam {
         my %args = @_;
         my $mappings = $args{mappings};
-
         my $sam = new Bio::DB::Sam(-bam => $args{bamfile}, -fasta=> $args{mi_genome},);
         my $bam = $sam->bam;
         my $header = $bam->header;
@@ -403,7 +412,7 @@ sub Mi_Map {
         ## the read_seq and read_seqid
       BAM: while (my $align = $bam->read1) {
           if ($options{debug}) {
-              last BAM if ($align_count > 2000);
+              last BAM if ($align_count > 4000);
           }
           my $read_seqid = $target_names->[$align->tid];
           ## my $read_start = $align->pos + 1;
@@ -418,28 +427,40 @@ sub Mi_Map {
 
           ## Check each element in the mappings to see if they are contained in the read's sequence and vice versa.
           ## If so, increment the count for that element and move on.
+          $read_seqid =~ s/^chr[\d+]_//g;
+          ## print "TESTME MAPPINGS: <$read_seqid> <$mappings->{$read_seqid}>\n";
+
           if ($mappings->{$read_seqid}) {
-              ##print "Found map!\n";
-              ## print Dumper $mappings->{$read_seqid};
+              ##print Dumper $mappings->{$read_seqid};
               my @element_list = @{$mappings->{$read_seqid}};
               my $found_element = 0;
+              my $element_length = scalar(@element_list);
+              ## print "Found map, checking against ${element_length} mature RNAs.\n";
+
               foreach my $c (0 .. $#element_list) {
+                  my $element_datum = $element_list[$c];
                   my $element_seq = $element_list[$c]->{sequence};
-                  ##print "Comparing: $read_seq vs. $element_seq\n";
+                  ## print "Comparing: $read_seq vs. $element_seq\n";
 
                   my @read_vs_element = amatch($read_seq, [ 'S1' ], ($element_seq));
                   my @element_vs_read = amatch($element_seq, [ 'S1' ], ($read_seq));
                   if (scalar(@read_vs_element) > 0 or scalar(@element_vs_read) > 0) {
                       $mappings->{$read_seqid}->[$c]->{count}++;
-                      ##print "Incremented $mappings->{$read_seqid}->[$c]->{mirbase_id} to $mappings->{$read_seqid}->[$c]->{count}\n";
+                      ##print "Found hit with amatch against $element_seq: ";
+                      ##use Data::Dumper;
+                      ##print Dumper $element_datum;
+                      ##print "We need to get the slot in position: {ensembl_id} -> [c] -> {id}\n";
+                      ##print "is read_seqid ensembl? $read_seqid  \n";
+                      ##print "Incremented $mappings->{$read_seqid}->[$c]->{id} to $mappings->{$read_seqid}->[$c]->{count}\n";
+                      ##print Dumper $mappings;
                       $found_element = 1;
                   }
-
-                  ##if ($read_seq =~ /$element_seq/ or $element_seq =~ /$read_seq/) {
-                  ##    $mappings->{$read_seqid}->[$c]->{count}++;
-                  ##    print "Incremented $mappings->{$read_seqid}->[$c]->{mirbase_id} to $mappings->{$read_seqid}->[$c]->{count}\n";
-                  ##    $found_element = 1;
-                  ##}
+                  ## if ($read_seq =~ /$element_seq/ or $element_seq =~ /$read_seq/) {
+                  ##     $mappings->{$read_seqid}->[$c]->{count}++;
+                  ##     print "Using an exact match: ";
+                  ##     print "Incremented $mappings->{$read_seqid}->[$c]->{mirbase_id} to $mappings->{$read_seqid}->[$c]->{count}\n";
+                  ##     $found_element = 1;
+                  ## }
               }
               ##if ($found_element == 0) {
               ##    print "No map for $read_seq\n";

@@ -52,14 +52,16 @@ less ${in} | read_fastq -i - -e base_33 |\\
      mean_vals -k 'GC%' -o outputs/biopieces/${short_in}_gc.txt |\\
  count_records -o outputs/biopieces/${short_in}_count.txt -x
 !;
-            $bp = $me->Qsub(job_name => "biop",
-                            depends => $bp_depends_on,
-                            job_string => $job_string,
-                            comment => $comment,
-                            input => $in,
-                            qsub_queue => "workstation",
-                            prescript => $args{prescript},
-                            postscript => $args{postscript},
+            $bp = $me->Qsub(
+                comment => $comment,
+                depends => $bp_depends_on,
+                input => $in,
+                job_name => "biop",
+                job_prefix => "02",
+                job_string => $job_string,
+                prescript => $args{prescript},
+                postscript => $args{postscript},
+                qsub_queue => "workstation",
                 );
         }
     } else {  ## A single input was provided
@@ -77,14 +79,16 @@ less ${input} | read_fastq -i - -e base_33 |\\
      mean_vals -k 'GC%' -o outputs/biopieces/${basename}_gc.txt |\\
  count_records -o outputs/biopieces/${basename}_count.txt -x
 !;
-        $bp = $me->Qsub(job_name => "biop",
-                        depends => $bp_depends_on,
-                        job_string => $job_string,
-                        comment => $comment,
-                        input => $input,
-                        qsub_queue => "workstation",
-                        prescript => $args{prescript},
-                        postscript => $args{postscript},
+        $bp = $me->Qsub(
+            comment => $comment,
+            depends => $bp_depends_on,
+            input => $input,
+            job_name => "biop",
+            job_prefix => "02",
+            job_string => $job_string,
+            prescript => $args{prescript},
+            postscript => $args{postscript},
+            qsub_queue => "workstation",
             );
     }
     return($bp);
@@ -146,13 +150,15 @@ sub Fastqc_Pairwise {
     my $comment = qq!## This FastQC run is against ${type} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc_jobid = qq"${basename}_fqc";
-    my $fqc = $me->Qsub(job_name => "fqc",
-                          qsub_cpus => 8,
-                          qsub_queue => "workstation",
-                          job_string => $job_string,
-                          comment => $comment,
-			  prescript => $args{prescript},
-			  postscript => $args{postscript},
+    my $fqc = $me->Qsub(
+        comment => $comment,
+        job_name => "fqc",
+        job_prefix => "00",
+        job_string => $job_string,
+        qsub_cpus => 8,
+        qsub_queue => "workstation",
+        prescript => $args{prescript},
+        postscript => $args{postscript},
         );
     my $forward_indir = qq"${outdir}/${r1}_fastqc";
     $forward_indir =~ s/\.fastq//g;
@@ -161,10 +167,12 @@ sub Fastqc_Pairwise {
     my $fqc_stats_foward = $me->Fastqc_Stats(basename => $basename,
                                              indir => $forward_indir,
                                              depends => $fqc->{pbs_id},
+                                             job_prefix => "01",
                                              paired => 1,
                                              direction => 'forward');
     my $fqc_stats_reverse = $me->Fastqc_Stats(basename => $basename,
                                               indir => $reverse_indir,
+                                              job_prefix => "01",
                                               depends => $fqc->{pbs_id},
                                               paired => 1,
                                               direction => 'reverse');
@@ -196,16 +204,21 @@ sub Fastqc_Single {
     my $comment = qq!## This FastQC run is against ${filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc_jobid = qq"${basename}_fqc";
-    my $fqc = $me->Qsub(job_name => "fqc",
-                          qsub_cpus => 8,
-                          qsub_queue => "workstation",
-                          job_string => $job_string,
-                          comment => $comment,
-			  prescript => $args{prescript},
-			  postscript => $args{postscript},
+    my $fqc = $me->Qsub(
+        comment => $comment,
+        job_name => "fqc",
+        job_prefix => "00",
+        job_string => $job_string,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        qsub_cpus => 8,
+        qsub_queue => "workstation",
         );
     $outdir .= "/" . basename($input, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
-    my $fqc_stats = $me->Fastqc_Stats(basename => $basename, indir => $outdir, depends => $fqc->{pbs_id});
+    my $fqc_stats = $me->Fastqc_Stats(basename => $basename,
+                                      indir => $outdir,
+                                      job_prefix => "01",
+                                      depends => $fqc->{pbs_id});
     $fqc->{stats} = $fqc_stats;
     return($fqc);
 }
@@ -261,15 +274,17 @@ kmer_content=\${kmer_content_tmp:-0}
 stat_string=\$(printf "${basename},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
 echo "\$stat_string" >> $stat_output
 !;
-    my $stats = $me->Qsub(job_name => $job_name,
-                          depends => $depends,
-                          qsub_queue => "throughput",
-                          qsub_cpus => 1,
-                          qsub_mem => 1,
-                          qsub_wall => "00:10:00",
-                          job_string => $job_string,
-                          input => $input_file,
-                          comment => $comment,
+    my $stats = $me->Qsub(
+        comment => $comment,
+        depends => $depends,
+        input => $input_file,
+        job_name => $job_name,
+        job_prefix => $args{job_prefix},
+        job_string => $job_string,
+        qsub_cpus => 1,
+        qsub_mem => 1,
+        qsub_queue => "throughput",
+        qsub_wall => "00:10:00",
         );
     return($stats);
 }

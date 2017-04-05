@@ -53,7 +53,8 @@ sub Qsub {
     } else {
         $job_name = $name_suffix;
     }
-
+    my $job_prefix = "";
+    $job_prefix = $args{job_prefix} if ($args{job_prefix});
     ## For arguments to qsub, start with the defaults in the constructor in $me
     ## then overwrite with any application specific requests from %args
     my $qsub_args = $me->{qsub_args};
@@ -85,14 +86,15 @@ sub Qsub {
     $depends_string .= $depends if (defined($depends));
 
     my $jobid_name = qq"$me->{basename}-$args{job_name}";
-    my $script_file = qq"$me->{basedir}/scripts/${job_name}.sh";
+    my $script_file = qq"$me->{basedir}/scripts/${job_prefix}${job_name}.sh";
     my $mycwd = cwd();
     make_path("$me->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs/status");
     make_path("$qsub_logdir", {verbose => 0}) unless (-r qq"$qsub_logdir");
     ## make_path("$me->{basedir}/sequences", {verbose => 0}) unless (-r qq"$me->{basedir}/sequences");
     make_path("$me->{basedir}/scripts", {verbose => 0}) unless (-r qq"$me->{basedir}/scripts");
     my $script_base = basename($script_file);
-    my $script_start = qq?#PBS -V -S ${qsub_shell} -q ${qsub_queue}
+    my $script_start = qq?#!/usr/bin/env bash
+#PBS -V -S ${qsub_shell} -q ${qsub_queue}
 #PBS -d $me->{basedir}
 #PBS -N ${job_name} -l mem=${qsub_mem}gb -l walltime=${qsub_wall} -l ncpus=${qsub_cpus}
 #PBS -o ${qsub_log} ${qsub_args}
@@ -101,7 +103,7 @@ cd $me->{basedir} || exit
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/${job_name}.status
-echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( \$SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
@@ -243,6 +245,8 @@ sub Qsub_Perl {
     } else {
         $job_name = $name_suffix;
     }
+    my $job_prefix = "";
+    $job_prefix = $args{job_prefix} if ($args{job_prefix});
     use File::Which qw(which);
     my $qsub_shell = which 'perl';
 
@@ -269,7 +273,7 @@ sub Qsub_Perl {
     $depends_string .= $depends if (defined($depends));
 
     my $jobid_name = qq"$me->{basename}-$args{job_name}";
-    my $script_file = qq"$me->{basedir}/scripts/${job_name}.pl";
+    my $script_file = qq"$me->{basedir}/scripts/${job_prefix}${job_name}.pl";
     my $mycwd = cwd();
 
     make_path("$me->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$me->{basedir}/outputs/status");

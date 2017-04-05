@@ -82,15 +82,17 @@ mkdir -p ${out_dir} && \\
                              qsub_wall => "8:00:00",
                              qsub_queue => "workstation",
                              job_string => $job_string,
+                             job_prefix => "07",
                              input => $input,
                              output => $output,
                              comment => $comment,
-			     prescript => $args{prescript},
-			     postscript => $args{postscript},
-	);
+                             prescript => $args{prescript},
+                             postscript => $args{postscript},
+        );
     if ($me->{task} eq 'tnseq') {
         my $ta_check = $me->TA_Check(job_name => "tacheck",
                                      depends => $cutadapt->{pbs_id},
+                                     job_prefix => "08",
                                      input => qq"${output}",
                                      comment => qq"## Check that TAs exist.",);
     }
@@ -98,31 +100,35 @@ mkdir -p ${out_dir} && \\
                                      qsub_queue => "workstation",
                                      qsub_wall => "04:00:00",
                                      depends => $cutadapt->{pbs_id},
+                                     job_prefix => "08",
                                      input => qq"${out_dir}/${basename}_tooshort.fastq",
                                      comment => qq"## Compressing the tooshort sequences.",
-	);
+        );
     my $comp_long = $me->Recompress(job_name => "xzcutlong",
                                     qsub_queue => "workstation",
                                     qsub_wall => "04:00:00",
                                     depends => $cutadapt->{pbs_id},
+                                    job_prefix => "08",
                                     input => qq"${out_dir}/${basename}_toolong.fastq",
                                     comment => qq"## Compressing the toolong sequences.",
-	);
+        );
     my $comp_un = $me->Recompress(job_name => "xzuncut",
                                   qsub_queue => "workstation",
                                   qsub_wall => "04:00:00",
                                   depends => $cutadapt->{pbs_id},
+                                  job_prefix => "08",
                                   input => qq"${out_dir}/${basename}_untrimmed.fastq",
                                   comment => qq"## Compressing the toolong sequences.",
-	);
+        );
     my $comp_original = $me->Recompress(job_name => "xzorig",
                                         qsub_queue => "workstation",
                                         qsub_wall => "04:00:00",
                                         depends => $cutadapt->{pbs_id},
                                         input => qq"$input",
+                                        job_prefix => "08",
                                         output => qq"sequences/${input}.xz",
                                         comment => qq"## Compressing the original sequence.",
-	);
+        );
     return($cutadapt);
 }
 
@@ -141,9 +147,9 @@ sub Trimomatic {
     $me->Check_Options(args => \%args, needed => ['input',]);
     my $trim;
     if ($me->{input} =~ /:|\,/) {
-	$trim = $me->Trimomatic_Pairwise(%args);
+        $trim = $me->Trimomatic_Pairwise(%args);
     } else {
-	$trim = $me->Trimomatic_Single(%args);
+        $trim = $me->Trimomatic_Single(%args);
     }
     return($trim);
 }
@@ -197,17 +203,22 @@ sub Trimomatic_Pairwise {
 ## Trimomatic_Pairwise: In case a trimming needs to be redone...
 if [[ \! -r "${r1}" ]]; then
   if [[ -r "sequences/${r1b}.fastq.xz" ]]; then
-    mv sequences/${r1b}.fastq.xz . && pxz -d ${r1b}.fastq.xz && pigz ${r1b}.fastq && mv sequences/${r2b}.fastq.xz . && pxz -d ${r2b}.fastq.xz && pigz ${r2b}.fastq
+    mv sequences/${r1b}.fastq.xz . && pxz -d ${r1b}.fastq.xz && pigz ${r1b}.fastq &&\\
+       mv sequences/${r2b}.fastq.xz . && pxz -d ${r2b}.fastq.xz && pigz ${r2b}.fastq
   else
     echo "Missing files. Did not find ${r1} nor sequences/${r1b}.fastq.xz"
     exit 1
   fi
 fi
-trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
+## Note that trimomatic prints all output and errors to STDERR, so send both to output
+trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} \\
+    ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 \\
+    1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
-  trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} SLIDINGWINDOW:4:25 1>>outputs/${basename}-trimomatic.out 2>&1
+  trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} SLIDINGWINDOW:4:25 \\
+    1>outputs/${basename}-trimomatic.out 2>&1
 fi
 sleep 10
 mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
@@ -216,18 +227,22 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
     my $trim = $me->Qsub(job_name => "trim",
-			 qsub_wall => "12:00:00",
-			 job_string => $job_string,
-			 input => $input,
-			 output => $output,
-			 comment => $comment,
+                         qsub_wall => "12:00:00",
+                         job_string => $job_string,
+                         input => $input,
+                         job_prefix => "05",
+                         output => $output,
+                         comment => $comment,
                          qsub_queue => "workstation",
-			 prescript => $args{prescript},
-			 postscript => $args{postscript},
+                         prescript => $args{prescript},
+                         postscript => $args{postscript},
         );
     ## Set the input for future tools to the output from trimming.
     $me->{input} = $output;
-    $trim_stats = $me->Trimomatic_Stats(basename => $basename, depends => $trim->{pbs_id}, pairwise => 1);
+    $trim_stats = $me->Trimomatic_Stats(basename => $basename,
+                                        job_prefix => "06",
+                                        depends => $trim->{pbs_id},
+                                        pairwise => 1);
     $trim->{stats} = $trim_stats;
     return($trim);
 }
@@ -264,18 +279,23 @@ if [[ \! -r "${input}" ]]; then
     exit 1
   fi
 fi
-trimomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
+## Note that trimomatic prints all output and errors to STDERR, so send both to output
+trimomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$me->{libdir}/adapters.fa:2:20:4 \\
+    SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $me->Qsub(job_name => "trim",
-			 qsub_wall => "4:00:00",
-			 job_string => $job_string,
-			 input => $input,
-			 output => $output,
-			 comment => $comment,
-			 prescript => $args{prescript},
-			 postscript => $args{postscript},
-	);
-    $trim_stats = $me->Trimomatic_Stats(basename => $basename, depends => $trim->{pbs_id});
+                         qsub_wall => "4:00:00",
+                         job_string => $job_string,
+                         job_prefix => "05",
+                         input => $input,
+                         output => $output,
+                         comment => $comment,
+                         prescript => $args{prescript},
+                         postscript => $args{postscript},
+        );
+    $trim_stats = $me->Trimomatic_Stats(basename => $basename,
+                                        job_prefix => "06",
+                                        depends => $trim->{pbs_id});
     ## Set the input for future tools to the output from this trimming operation.
     $me->{input} = $output;
     return($trim);
@@ -338,6 +358,7 @@ echo "\$stat_string" >> ${stat_output}
                           depends => $depends,
                           qsub_queue => "throughput",
                           qsub_cpus => 1,
+                          job_prefix => $args{job_prefix},
                           qsub_mem => 1,
                           qsub_wall => "00:10:00",
                           job_string => $job_string,
@@ -360,4 +381,3 @@ Email  <abelew@gmail.com>
 =cut
 
 1;
-

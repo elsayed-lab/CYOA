@@ -249,7 +249,8 @@ sub new {
         mmusculus => " -i ID ",
         lmajor => " -i ID ",
         default => " --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union ",
-        all => " -i ID ",
+        ## all => " -i ID ",
+        all => " ",
     } if (!defined($me->{htseq_args}));
     ## Use htseq stranded options?
     $me->{htseq_stranded} = 'no' if (!defined($me->{htseq_stranded}));
@@ -435,17 +436,17 @@ sub new {
     $me->{todo} = ();
     $me->{methods} = {
         "arbitrary+" => \$me->{todo}{Qsub_Arbitrary},
-	"biopieces+" => \$me->{todo}{Biopieces_Graph},
-	"blastparse+" => \$me->{todo}{Blast_Parse},
-	"blastsplitalign+" => \$me->{todo}{Split_Align_Blast},
-	"bowtierrna+" => \$me->{todo}{Bowtie_RRNA},
+        "biopieces+" => \$me->{todo}{Biopieces_Graph},
+        "blastparse+" => \$me->{todo}{Blast_Parse},
+        "blastsplitalign+" => \$me->{todo}{Split_Align_Blast},
+        "bowtierrna+" => \$me->{todo}{Bowtie_RRNA},
         "bt2+" => \$me->{todo}{Bowtie2},
         "btmulti+" => \$me->{todo}{BT_Multi},
-	"calibrate+" => \$me->{todo}{Calibrate},
+        "calibrate+" => \$me->{todo}{Calibrate},
         "copyraw+" => \$me->{todo}{Copy_Raw},
-	"countstates+" => \$me->{todo}{Count_States},
+        "countstates+" => \$me->{todo}{Count_States},
         "concat+" => \$me->{todo}{Concatenate_Searches},
-	"cutadapt+" => \$me->{todo}{Cutadapt},
+        "cutadapt+" => \$me->{todo}{Cutadapt},
         "downceph+" => \$me->{todo}{Ceph_Download},
         "dumpceph+" => \$me->{todo}{Ceph_Dump},
         "essentialitytas+" => \$me->{todo}{Essentiality_TAs},
@@ -453,16 +454,16 @@ sub new {
         "fastasplitalign+" => \$me->{todo}{Split_Align_Fasta},
         "fastaparse+" => \$me->{todo}{Parse_Fasta},
         "fastqc+" => \$me->{todo}{Fastqc},
-	"gb2gff+" => \$me->{todo}{Gb2Gff},
+        "gb2gff+" => \$me->{todo}{Gb2Gff},
         "gff2fasta+" => \$me->{todo}{Gff2Fasta},
-	"graphreads+" => \$me->{todo}{Graph_Reads},
-	"htmulti+" => \$me->{todo}{HT_Multi},
+        "graphreads+" => \$me->{todo}{Graph_Reads},
+        "htmulti+" => \$me->{todo}{HT_Multi},
         "htseq+" => \$me->{todo}{HTSeq},
         "indexbt1+" => \$me->{todo}{BT1_Index},
         "indexbt2+" => \$me->{todo}{BT2_Index},
         "indexbwa+" => \$me->{todo}{BWA_Index},
         "indexkallisto+" => \$me->{todo}{Kallisto_Index},
-	"kallisto+" => \$me->{todo}{Kallisto},
+        "kallisto+" => \$me->{todo}{Kallisto},
         "mergeparse+" => \$me->{todo}{Merge_Parse_Blast},
         "mimap+" => \$me->{todo}{Mi_Map},
         "pbt1+" => \$me->{todo}{RNAseq_Pipeline_Bowtie},
@@ -472,21 +473,21 @@ sub new {
         "ptophat+" => \$me->{todo}{RNAseq_Pipeline_Tophat},
         "ptnseq+" => \$me->{todo}{TNseq_Pipeline},
         "priboseq+" => \$me->{todo}{Riboseq_Pipeline},
-	"parseblast+" => \$me->{todo}{Parse_Blast},
-	"posttrinity+" => \$me->{todo}{Trinity_Post},
+        "parseblast+" => \$me->{todo}{Parse_Blast},
+        "posttrinity+" => \$me->{todo}{Trinity_Post},
         "runessentiality+" => \$me->{todo}{Run_Essentiality},
-	"sam2bam+" => \$me->{todo}{Sam2Bam},
+        "sam2bam+" => \$me->{todo}{Sam2Bam},
         "snpsearch+" => \$me->{todo}{SNP_Search},
         "snpratio+" => \$me->{todo}{SNP_Ratio},
         "sortindexes+" => \$me->{todo}{Sort_Indexes},
-	"splitalign+" => \$me->{todo}{Split_Align},
+        "splitalign+" => \$me->{todo}{Split_Align},
         "tacheck+" => \$me->{todo}{TA_Check},
         "test+" => \$me->{todo}{Test_Job},
-	"tophat+" => \$me->{todo}{Tophat},
-	"trimomatic+" => \$me->{todo}{Trimomatic},
-	"trinity+" => \$me->{todo}{Trinity},
-	"tritrypdownload+" => \$me->{todo}{TriTryp_Download},
-	"tritryp2text+" => \$me->{todo}{TriTryp2Text},
+        "tophat+" => \$me->{todo}{Tophat},
+        "trimomatic+" => \$me->{todo}{Trimomatic},
+        "trinity+" => \$me->{todo}{Trinity},
+        "tritrypdownload+" => \$me->{todo}{TriTryp_Download},
+        "tritryp2text+" => \$me->{todo}{TriTryp2Text},
         "uploadceph+" => \$me->{todo}{Ceph_Upload},
         "helpme+" => \$me->{todo}{CYOA_Help},
     };
@@ -943,7 +944,12 @@ Email abelew@gmail.com
 
 =head1 SEE ALSO
 
-    L<Bio::Seq> L<common::sense> L<autodie> L<local::lib>
+    L<Bio::Seq> L<common::sense> L<autodie> L<local::lib> L<CYOA::RNASeq_Aligners>
+    L<CYOA::RNASeq_Assembly> L<CYOA::RNASeq_Count> L<CYOA::RNASeq_Aligners> L<CYOA::RNASeq_QA>
+    L<CYOA::RNASeq_Trim> L<CYOA::Align_Blast> L<CYOA::Align_Fasta> L<CYOA::Align>
+    L<CYOA::Ceph> L<CYOA::Cleanup> L<CYOA::Compress> L<CYOA::Convert> L<CYOA::PBS>
+    L<CYOA::Prepare> L<CYOA::Riboseq> L<CYOA::SeqMisc> L<CYOA::SNP> L<CYOA::Status>
+    L<CYOA::TNSeq>
 
 =cut
 
