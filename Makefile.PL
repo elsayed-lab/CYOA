@@ -6,7 +6,6 @@ my $eumm_version = version->parse($ExtUtils::MakeMaker::VERSION);
 my %prereq = (
     'Term::ProgressBar' => 0,
     'autodie' => 0,
-    'common::sense' => 0, ## likely going to be removed in favor of modern::perl
     'local::lib' => 0,
     'AppConfig' => 0,
     'Archive::Extract' => 0,
@@ -41,18 +40,19 @@ my %prereq = (
     'String::Diff' => 0,
     'Term::ReadLine' => 0,
     'Term::UI' => 0,
+    'Test::Directory' => 0,
     'Test::More' => 0,
     'Text::CSV' => 0,
     'TryCatch' => 0,
 );
 
 my @args = (
-    NAME => 'CYOA',
-    VERSION_FROM => 'lib/CYOA.pm',
+    NAME => 'Bio::Adventure',
+    VERSION_FROM => 'lib/Bio/Adventure.pm',
     ABSTRACT => 'Choose your own adventure in sequence processing.',
     AUTHOR => 'abelew@gmail.com',
     LICENSE => 'gplv2',
-    EXE_FILES => [ qw"bin/cyoa" ],
+    EXE_FILES => [ qw"bin/cyoa2", "bin/cyoa2.pl" ],
     test => { TESTS => 't/*.t' },
 );
 

@@ -1,5 +1,5 @@
-CYOA: Choose your own Adventure in Sequence processing.
-=======================================================
+Adventure: Choose your own Adventure in Sequence processing.
+============================================================
 
 Over the few years I have been playing in Dr. El-Sayed's lab, I found myself copy-pasting snippets
 of Perl for common tasks like sequence alignment, setting up PBS jobs, counting reads, whatever.
