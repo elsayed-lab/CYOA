@@ -197,7 +197,6 @@ sub Split_Align_Fasta {
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Fasta;
-my \$h = new Bio::Adventure;
 Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type => 'global_fasta',);
 ?;
     my $parse_job = $class->Submit(

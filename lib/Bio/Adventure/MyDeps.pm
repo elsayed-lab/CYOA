@@ -54,7 +54,6 @@ our @use_deps = (
 sub Test {
     foreach my $d (@use_deps) {
 	my $response = use_ok($d);
-	diag("Testing usability of $d\n");
 	if ($response != 1) {
 	    diag("$d appears to be missing.  Please run fixdeps.pl\n");
 	}

@@ -1,18 +1,15 @@
 # -*-Perl-*-
-BEGIN {
-    use Test::More qw"no_plan";
-    use Bio::Adventure;
-    use File::Path qw"remove_tree";
-    use File::Copy qw"cp";
-    use String::Diff qw( diff_fully diff diff_merge diff_regexp );
-}
+use Test::More qw"no_plan";
+use Bio::Adventure;
+use File::Path qw"remove_tree";
+use File::Copy qw"cp";
+use String::Diff qw( diff_fully diff diff_merge diff_regexp );
 
 my $cyoa = Bio::Adventure->new();
-diag("Copying data file to cwd().");
-ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
+ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"),
+    'Copy the data files.');
 
 mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
-diag("Does bowtie execute?");
 ok(Bio::Adventure::SNP::Align_SNP_Search($cyoa,
                                          input => qq"test_forward.fastq.gz",
                                          species => 'phix_3N',
@@ -35,4 +32,3 @@ unless(ok($expected eq $actual,
     my($old, $new) = String::Diff::diff($expected, $actual);
     diag("$old\n$new\n");
 }
-

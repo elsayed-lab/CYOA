@@ -293,7 +293,7 @@ sub Get_Defaults {
                      ##v2M1 => '--best -v 2 -M 1',
                  },
         bt2_args => ' --very-sensitive -L 14 ', ## A boolean to decide whether to use multiple bowtie1 argument sets
-        bt_type => 'genome',
+        bt_type => 'v0M1',
         btmulti => 0, ## Use the following configuration file to overwrite options for these scripts
         ceph_host => 'undefined',
         ceph_id => 'undefined',

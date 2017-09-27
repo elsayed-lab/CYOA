@@ -53,6 +53,7 @@ sub Bowtie {
     my $species = $options->{species};
     my $bt_type = $options->{bt_type};
     my $bt_args = $options->{bt_args}->{$bt_type};
+    $bt_args = ' --best -v 0 -M 1 ' if (!defined($bt_args));
 
     my $sleep_time = 3;
     my %bt_jobs = ();
@@ -506,7 +507,7 @@ sub BT1_Index {
     my $job_string = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
   $options->{libdir}/$options->{libtype}/indexes/$options->{species}
 !;
-    my $comment = qq!## Generating bowtie1 indexes for species: $class->{species} in $class->{libdir}/$options->{libtype}/indexes!;
+    my $comment = qq!## Generating bowtie1 indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
         comment => $comment,
         job_name => "bt1idx",
@@ -575,7 +576,6 @@ sub BWA {
         species => 'lmajor',
         libtype => 'genome',
     );
-    my $species = $options->{species};
 
     my $sleep_time = 3;
     my %bwa_jobs = ();
@@ -584,11 +584,11 @@ sub BWA {
     $bwa_depends_on = $options->{job_depends} if ($options->{job_depends});
     my $job_basename = $options->{job_basename};
 
-    my $job_name = qq"bwa_${species}";
+    my $job_name = qq"bwa_$options->{species}";
     $job_name = $options->{job_name} if ($options->{job_name});
     my $libtype = $options->{libtype};
 
-    my $bwa_dir = qq"outputs/bwa_${species}";
+    my $bwa_dir = qq"outputs/bwa_$options->{species}";
     $bwa_dir = $options->{bwa_dir} if ($options->{bwa_dir});
 
     my $uncompress_jobid = undef;
@@ -607,7 +607,7 @@ sub BWA {
     }
 
     ## Check that the indexes exist
-    my $bwa_reflib = "$options->{libdir}/${libtype}/indexes/${species}.fasta";
+    my $bwa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     if (!-r $bwa_reftest) {
         my $index_job = Bio::Adventure::RNASeq_Map::BWA_Index(
@@ -674,7 +674,7 @@ ${reporter_string}
         comment => $comment,
         input => $bwa_input,
         job_depends => $bwa_depends_on,
-        job_name => "bwa_${species}",
+        job_name => "bwa_$options->{species}",
         job_output => qq"${bwa_dir}/${job_basename}_mem.sam",
         job_prefix => "20",
         job_string => $job_string,
@@ -808,7 +808,7 @@ if [ \! -r "$options->{libdir}/genome/$options->{species}.fa" ]; then
 fi
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes &&
-  bwa index $options->{species}.fasta
+  bwa index $options->{species}.fa
 cd \$start
 !;
     my $comment = qq!## Generating bwa indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
@@ -1152,7 +1152,7 @@ fi
             htseq_id => $options->{htseq_id},
             htseq_type => $options->{htseq_type},
             job_depends => $tophat->{job_id},
-            job_name => qq"htsp_$class->{species}",
+            job_name => qq"htsp_$options->{species}",
             job_prefix => "32",
         );
     }

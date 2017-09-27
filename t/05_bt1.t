@@ -1,18 +1,15 @@
 # -*-Perl-*-
-BEGIN {
-    use Test::More qw"no_plan";
-    use Bio::Adventure;
-    use File::Path qw"remove_tree";
-    use File::Copy qw"cp";
-    use String::Diff qw( diff_fully diff diff_merge diff_regexp );
-}
+use Test::More qw"no_plan";
+use Bio::Adventure;
+use File::Path qw"remove_tree";
+use File::Copy qw"cp";
+use String::Diff qw( diff_fully diff diff_merge diff_regexp );
 
 my $cyoa = Bio::Adventure->new();
-diag("Copying data file to cwd().");
-ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"));
+ok(cp("t/data/test_forward.fastq.gz", "test_forward.fastq.gz"),
+    'Copying data.');
 
 mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
-diag("Does bowtie execute?");
 ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
                                       input => qq"test_forward.fastq.gz",
                                       species => 'phix',
@@ -21,11 +18,9 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
                                       libdir => 't/data'),
    'Run Bowtie1');
 
-diag("Can I collect bowtie statistics into bowtie_stats.csv?");
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
-diag("Does the last entry of bowtie_stats.csv match the expected output?");
 my $expected = qq"CYOA2,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA2-v0M1.count.xz";
 ok($actual eq $expected,
    'Are the bowtie results the expected value?');
@@ -53,5 +48,8 @@ __not_aligned\t9970
 __alignment_not_unique\t0
 ";
 $actual = qx"xzcat outputs/bowtie_phix/CYOA2-v0M1.count.xz";
-diag('Is the htseq output what was expected for phix?');
-ok($expected eq $actual);
+unless(ok($expected eq $actual,
+          'Is the resulting count table as expected?')) {
+    my($old, $new) = String::Diff::diff($expected, $actual);
+    diag("--\n${old}\n--\n${new}\n");
+}

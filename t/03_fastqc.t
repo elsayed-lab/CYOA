@@ -18,4 +18,3 @@ unless(ok($expected eq $actual,
     my($old, $new) = String::Diff::diff($expected, $actual);
     diag("$old\n$new\n");
 }
-

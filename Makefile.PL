@@ -51,7 +51,7 @@ my @args = (
     VERSION_FROM => 'lib/Bio/Adventure.pm',
     ABSTRACT => 'Choose your own adventure in sequence processing.',
     AUTHOR => 'abelew@gmail.com',
-    LICENSE => 'gplv2',
+    LICENSE => 'perl',
     EXE_FILES => [ qw"bin/cyoa2", "bin/cyoa2.pl" ],
     test => { TESTS => 't/*.t' },
 );

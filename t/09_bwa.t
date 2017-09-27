@@ -1,12 +1,11 @@
 # -*-Perl-*-
-BEGIN {
-    use Test::More qw"no_plan";
-    use Bio::Adventure;
-    use File::Path qw"remove_tree";
-    use File::Copy qw"cp";
-    use String::Diff qw( diff_fully diff diff_merge diff_regexp );
-    use Archive::Extract;
-}
+use Test::More qw"no_plan";
+use Bio::Adventure;
+use File::Path qw"remove_tree";
+use File::Copy qw"cp";
+use String::Diff qw( diff_fully diff diff_merge diff_regexp );
+use Archive::Extract;
+
 my ($expected, $actual);
 my $test_num = "01";
 my $cyoa = new Bio::Adventure();
@@ -31,7 +30,7 @@ $expected = qq"CYOA2,10000,10000,44,49,0,";
 unless(ok($actual eq $expected,
           "${test_num}: Are the bwa results the expected value?")) {
     my ($old, $new) = String::Diff::diff($expected, $actual);
-    diag("exp:\n$old\nact:\n$new\n");
+    diag("expected:\n$old\nactual:\n$new\n");
 }
 $test_num++;
 
@@ -56,7 +55,7 @@ $actual = qx"xzcat outputs/bwa_phix/CYOA2_mem.count.xz";
 unless(ok($expected eq $actual,
           "${test_num}: Check bwa count tables mem version.")) {
     my ($old, $new) = String::Diff::diff($expected, $actual);
-    diag("exp:\n$old\nact:\n$new\n");
+    diag("expected:\n$old\nactual:\n$new\n");
 }
 $test_num++;
 
@@ -81,5 +80,5 @@ $actual = qx"xzcat outputs/bwa_phix/CYOA2_aln.count.xz";
 unless(ok($expected eq $actual,
           "${test_num}: Check bwa count tables aln version.")) {
     my ($old, $new) = String::Diff::diff($expected, $actual);
-    diag("$old\n$new\n");
+    diag("expected:\n$old\nactual:\n$new\n");
 }

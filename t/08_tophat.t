@@ -1,18 +1,15 @@
 # -*-Perl-*-
-BEGIN {
-    use Test::More qw"no_plan";
-    use Bio::Adventure;
-    use File::Path qw"remove_tree";
-    use File::Copy qw"cp";
-    use String::Diff qw( diff_fully diff diff_merge diff_regexp );
-}
+use Test::More qw"no_plan";
+use Bio::Adventure;
+use File::Path qw"remove_tree";
+use File::Copy qw"cp";
+use String::Diff qw( diff_fully diff diff_merge diff_regexp );
+
 my ($expected, $actual, $test_num) = "01";
 my $cyoa = new Bio::Adventure();
 
 ok(cp('t/data/test_forward.fastq.gz', 'test_forward.fastq.gz'),
    $test_num);
-
-
 
 mkdir('t/data/genome/indexes'); ## Make a directory for the phix indexes.
 ok(Bio::Adventure::RNASeq_Map::Tophat($cyoa, input => qq"test_forward.fastq.gz", pbs => 0,
