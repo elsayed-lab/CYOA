@@ -304,6 +304,8 @@ sub Trimomatic_Single {
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
     }
+    my $check = which('trimomatic');
+    die("Could not find htseq in your PATH.") unless($check);
     my $input = $options->{input};
     my $basename = $input;
     $basename = basename($basename, (".gz"));
