@@ -15,6 +15,7 @@ addons:
     - bwa
     - tophat
     - libbio-samtools-perl
+    - libbam-dev
 
 before_install:
   - pip install --user htseq
