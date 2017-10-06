@@ -26,3 +26,7 @@ cache:
 
 notifications:
   email: false
+
+env:
+  global:
+    - SAMTOOLS="/usr/include/samtools"
