@@ -1,6 +1,13 @@
 sudo: false
 language: perl
-env: PERL_CPANM_OPT=\"--notest --force --skip-satisfied\"
+
+cache:
+  bundler: true
+
+
+
+perl:
+    - "5.26"
 
 addons:
   apt:
@@ -21,9 +28,8 @@ addons:
 before_install:
   - pip install --user htseq
 
-cache:
-  timeout: 3000
-  packages: true
+script:
+  - make Makefile.PL && make && make test
 
 notifications:
   email: false
@@ -31,5 +37,5 @@ notifications:
 env:
   global:
     - SAMTOOLS="/usr/include/samtools"
-    - LESSOPEN=/usr/bin/lessfile %s
-
+    - LESSOPEN="/usr/bin/lessfile %s"
+    - PERL_CPANM_OPT="--notest --force --skip-satisfied"
