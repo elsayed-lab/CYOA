@@ -15,6 +15,9 @@ ok(-r 'scripts/00fqc_test_forward.sh',
 ok(qx"fastqc --help",
    'Can run fastqc?');
 
+my $fqc_dir = qx"find outputs/";
+diag($fqc_dir);
+
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
 
