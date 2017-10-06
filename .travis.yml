@@ -11,6 +11,9 @@ addons:
     - liblzma-dev
     - libbam-dev
     - python-numpy
+    - bowtie2
+    - bwa
+    - tophat
 
 before_install:
   - pip install --user htseq
