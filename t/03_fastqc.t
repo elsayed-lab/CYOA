@@ -9,6 +9,12 @@ my $cyoa = Bio::Adventure->new(pbs => 0);
 ok(Bio::Adventure::RNASeq_QA::Fastqc_Single($cyoa, input => qq"t/data/test_forward.fastq.gz"),
    'Run Fastqc');
 
+ok(-r 'scripts/00fqc_test_forward.sh',
+   'Fastqc script exists?');
+
+ok(qx"fastqc --help",
+   'Can run fastqc?');
+
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
 
