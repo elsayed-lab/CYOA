@@ -16,6 +16,9 @@ addons:
     - tophat
     - libbio-samtools-perl
     - libbam-dev
+    - fastqc
+    - bowtie
+    - trimmomatic
 
 before_install:
   - pip install --user htseq
