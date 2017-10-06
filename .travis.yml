@@ -33,3 +33,5 @@ notifications:
 env:
   global:
     - SAMTOOLS="/usr/include/samtools"
+    - LESSOPEN=/usr/bin/lessfile %s
+
