@@ -3,8 +3,8 @@ language: perl
 
 cache:
   bundler: true
-
-
+  directories:
+    - /home/travis/perl5
 
 perl:
     - "5.26"
