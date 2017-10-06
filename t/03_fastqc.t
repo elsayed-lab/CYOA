@@ -6,7 +6,7 @@ use String::Diff qw" diff_fully diff diff_merge diff_regexp ";
 
 my $cyoa = Bio::Adventure->new(pbs => 0);
 
-ok(Bio::Adventure::RNASeq_QA::Fastqc_Single($cyoa, input => qq"t/data/test_forward.fastq.gz"),
+ok(Bio::Adventure::RNASeq_QA::Fastqc_Single($cyoa, input => qq"share/test_forward.fastq.gz"),
    'Run Fastqc');
 
 ok(-r 'scripts/00fqc_test_forward.sh',

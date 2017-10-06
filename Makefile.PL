@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
+use File::ShareDir::Install;
+
+install_share dist => 'share';
 
 my $eumm_version = version->parse($ExtUtils::MakeMaker::VERSION);
 my %prereq = (
@@ -87,3 +90,6 @@ else {
 }
 
 WriteMakefile(@args);
+
+package MY;
+use File::ShareDir::Install 'postamble';
