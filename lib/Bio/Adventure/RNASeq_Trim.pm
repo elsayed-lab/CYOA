@@ -174,7 +174,7 @@ mkdir -p ${out_dir} && \\
 sub Trimomatic {
     my ($class, %args) = @_;
     my $check = which('trimomatic');
-    die("Could not find htseq in your PATH.") unless($check);
+    die("Could not find trimomatic in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
@@ -200,6 +200,17 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
     );
+    my $exe = undef;
+    my $found_exe = 0;
+    my @exe_list = ('trimomatic', 'TrimmomaticPE', 'trimmomatic');
+    for my $test_exe (@exe_list) {
+        if (which($test_exe)) {
+            $exe = $test_exe;
+        }
+    }
+    if (!defined($exe)) {
+        die('Unable to find the trimomatic executable.');
+    }
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
@@ -249,7 +260,7 @@ if [[ \! -r "${r1}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-trimomatic PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} \\
+${exe} PE -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} \\
     ILLUMINACLIP:$options->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 \\
     1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
@@ -301,11 +312,21 @@ sub Trimomatic_Single {
         args => \%args,
         required => ['input',],
     );
+    my $exe = undef;
+    my $found_exe = 0;
+    my @exe_list = ('trimomatic', 'TrimmomaticSE', 'trimmomatic');
+    for my $test_exe (@exe_list) {
+        if (which($test_exe)) {
+            $exe = $test_exe;
+        }
+    }
+    if (!defined($exe)) {
+        die('Unable to find the trimomatic executable.');
+    }
+
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
     }
-    my $check = which('trimomatic');
-    die("Could not find htseq in your PATH.") unless($check);
     my $input = $options->{input};
     my $basename = $input;
     $basename = basename($basename, (".gz"));
@@ -326,7 +347,7 @@ if [[ \! -r "${input}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-trimomatic SE -phred33 ${input} ${output} ILLUMINACLIP:$options->{libdir}/adapters.fa:2:20:4 \\
+${exe} SE -phred33 ${input} ${output} ILLUMINACLIP:$options->{libdir}/adapters.fa:2:20:4 \\
     SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $class->Submit(
