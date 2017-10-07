@@ -25,6 +25,7 @@ addons:
     - bowtie
     - trimmomatic
     - python-htseq
+    - xz-utils
 
 script:
 ##  - make Makefile.PL && make && make install && make test

@@ -15,6 +15,7 @@ use File::Which qw"which";
 use String::Approx qw"amatch";
 
 =head1 NAME
+
     Bio::Adventure::RNASeq_Count - Perform Sequence alignments counting with HTSeq
 
 =head1 SYNOPSIS
@@ -322,7 +323,18 @@ sub HTSeq {
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     }
-    my $job_string = qq!htseq-count -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\
+
+    ## Much like samtools, htseq versions on travis are old.
+    ## Start with the default, non-stupid version.
+    my $htseq_version = qx"htseq-count -h | grep version";
+    my $htseq_invocation = qq!htseq-count -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+    if ($htseq_version =~ /0\.5/) {
+        ## Versions older than 0.6 are stupid.
+        $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+        $htseq_input = '-';
+    }
+    my $job_string = qq!
+${htseq_invocation}
   ${htseq_input} \\
   ${annotation} \\
   1>${output} 2>${error} && \\
