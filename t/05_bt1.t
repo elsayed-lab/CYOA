@@ -17,17 +17,6 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
                                       libdir => 'share'),
    'Run Bowtie1');
 
-##my $idx = qx'ls -ld share/genome/indexes/phix*';
-##diag($idx);
-##my $script = qx'cat scripts/10test_forward.sh';
-##diag($script);
-##my $log = q"cat outputs/bowtie_phix/CYOA2-v0M1.err";
-##diag($log);
-##my $wtf = qx"find . -name '*.err' -exec cat {} ';'";
-##diag($wtf);
-##my $sam = qx"cat scripts/13test_forward_s2b.sh";
-##diag($sam);
-
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
@@ -48,7 +37,8 @@ phiX174p10\t0
 ";
 
 ## WHAT IN THE SHIT!?!
-my $ls = qx"ls outputs/bowtie_phix/*.xz";
+my $ls = qx"/bin/ls outputs/bowtie_phix/*.xz";
+chomp($ls);
 diag($ls);
 $actual = qx"xzcat ${ls} | head";
 diag($actual);
