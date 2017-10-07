@@ -259,6 +259,8 @@ sub Gff2Gtf {
 sub Sam2Bam {
     my ($class, %args) = @_;
     my $check = which('samtools');
+    my $samtools_version = qx('samtools --version');
+    print STDERR "TESTME: ${samtools_version}\n";
     die("Could not find samtools in your PATH.") unless($check);
     my $options = $class->Get_Vars(args => \%args, required => ["species", "input"]);
     my $basename = $options->{basename};
@@ -319,7 +321,12 @@ sub Samtools {
     my $paired = $sorted;
     $paired =~ s/\-sorted/\-paired/g;
     print "Converting to a compressed/sorted bam file.\n";
-    my $job_string = qq!samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
+    my $job_string = qq!
+if \$(test \! -r ${input}); then
+    echo "Could not find the samtools input file."
+    exit(1)
+fi
+samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
     -S ${input} -o ${output} 1>${output} 2>&1 && \\
   samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\
   rm ${output} && \\
@@ -420,12 +427,13 @@ sub Gb2Gff {
                 my $len = $feat_object->length;
                 my $seq = $feat_object->spliced_seq->seq;
                 my $pep = $feat_object->spliced_seq->translate->seq;
-                my $size = {id => $id,
-                            start => $start,
-                            end => $end,
-                            len => $len,
-                            feat => $feat_object,
-                        };
+                my $size = {
+                    id => $id,
+                    start => $start,
+                    end => $end,
+                    len => $len,
+                    feat => $feat_object,
+                };
                 push(@feature_list, $size);
                 my $seq_object = Bio::PrimarySeq->new(-id => $id, -seq => $seq, description => $desc);
                 my $pep_object = Bio::PrimarySeq->new(-id => $id, -seq => $pep, description => $desc);
