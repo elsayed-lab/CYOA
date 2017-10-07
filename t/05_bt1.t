@@ -23,7 +23,7 @@ my $idx = qx'ls -ld share/genome/indexes/phix*';
 diag($idx);
 my $script = qx'cat scripts/10test_forward.sh';
 diag($script);
-my $log = qx'cat outputs/bowtie_phix/CYOA2-v0M1.err';
+my $log = q"cat outputs/bowtie_phix/CYOA2-v0M1.err";
 diag($log);
 my $wtf = qx"find . -name '*.err' -exec cat {} ';'";
 diag($wtf);

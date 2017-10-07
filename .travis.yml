@@ -24,9 +24,7 @@ addons:
     - fastqc
     - bowtie
     - trimmomatic
-
-before_install:
-  - pip install --user htseq
+    - python-htseq
 
 script:
 ##  - make Makefile.PL && make && make install && make test
