@@ -9,6 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use File::Basename;
+use File::ShareDir ':ALL';
 use File::Which qw"which";
 
 =head1 NAME
@@ -209,6 +210,8 @@ sub Trimomatic_Pairwise {
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
+
+    my $adapter_file = module_file('File::ShareDir', 'share/adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
@@ -259,7 +262,7 @@ if [[ \! -r "${r1}" ]]; then
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} \\
-    ILLUMINACLIP:$options->{libdir}/adapters.fa:2:20:4 SLIDINGWINDOW:4:25 \\
+    ILLUMINACLIP:${adapter_file}:2:20:4 SLIDINGWINDOW:4:25 \\
     1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
@@ -321,6 +324,7 @@ sub Trimomatic_Single {
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
+    my $adapter_file = module_file('File::ShareDir', 'share/adapters.fa');
 
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
@@ -345,7 +349,7 @@ if [[ \! -r "${input}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} SE -phred33 ${input} ${output} ILLUMINACLIP:$options->{libdir}/adapters.fa:2:20:4 \\
+${exe} SE -phred33 ${input} ${output} ILLUMINACLIP:${adapter_file}:2:20:4 \\
     SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $class->Submit(
