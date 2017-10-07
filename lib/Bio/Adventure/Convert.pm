@@ -259,8 +259,6 @@ sub Gff2Gtf {
 sub Sam2Bam {
     my ($class, %args) = @_;
     my $check = which('samtools');
-    my $samtools_version = qx('samtools --version');
-    print STDERR "TESTME: ${samtools_version}\n";
     die("Could not find samtools in your PATH.") unless($check);
     my $options = $class->Get_Vars(args => \%args, required => ["species", "input"]);
     my $basename = $options->{basename};
@@ -310,6 +308,10 @@ sub Samtools {
                                    job_name => 'sam',
                                    job_prefix => '',
                                );
+
+    my $samtools_version = qx"samtools --version | head -n 1";
+    print STDERR "TESTME: ${samtools_version}\n";
+
     my $job_basename = $options->{job_basename};
     my $input = $options->{input};
 
@@ -320,15 +322,22 @@ sub Samtools {
     $sorted = qq"${sorted}-sorted";
     my $paired = $sorted;
     $paired =~ s/\-sorted/\-paired/g;
-    print "Converting to a compressed/sorted bam file.\n";
+
+    my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
+  -S ${input} -o ${output} 1>${output}.out 2>&1 && \\";
+    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\";
+    if ($samtools_version =~ /0\.1/) {
+        $samtools_first = qq"samtools view -u -t $options->{lidir}/genome/$options->{species}.fasta \\
+  -S ${input} 1>${output} && \\";
+        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} 2>${sorted}.out 1>&2 && \\";
+    }
     my $job_string = qq!
 if \$(test \! -r ${input}); then
     echo "Could not find the samtools input file."
-    exit(1)
+    exit 1
 fi
-samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
-    -S ${input} -o ${output} 1>${output} 2>&1 && \\
-  samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\
+${samtools_first}
+${samtools_second}
   rm ${output} && \\
   rm ${input} && \\
   mv ${sorted}.bam ${output} && \\

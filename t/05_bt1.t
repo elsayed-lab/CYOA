@@ -27,6 +27,8 @@ my $log = qx'cat outputs/bowtie_phix/CYOA2-v0M1.err';
 diag($log);
 my $wtf = qx"find . -name '*.err' -exec cat {} ';'";
 diag($wtf);
+my $sam = qx"cat scripts/13test_forward_s2b.sh";
+diag($sam);
 
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),

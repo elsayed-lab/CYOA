@@ -175,7 +175,6 @@ sub Bowtie {
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
 
-    print STDERR "TESTME: $sam_filename\n";
     my $sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => $sam_filename,
