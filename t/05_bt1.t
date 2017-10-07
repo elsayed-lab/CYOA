@@ -26,13 +26,13 @@ diag($files);
 my $expected = qq"CYOA,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
 my $old_expected = qq"CYOA,v0M1,0,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
 ## old bowtie provides different numbers and I am not chasing them down.
-unless(ok($expected eq $actual || $old_expected eq $actual,
+unless(ok(($expected eq $actual || $old_expected eq $actual),
           'Are the bowtie stats as expected?')) {
-    my($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($old, $new) = diff($expected, $actual);
+    my $stupid;
+    ($old, $stupid) = diff($old_expected, $actual);
+    diag("--\n${old}\n--\n${new}\n--\n${stupid}\n");
 }
-ok($actual eq $expected,
-   'Are the bowtie results the expected value?');
 
 $expected = qq"phiX174p01\t1
 phiX174p02\t0
