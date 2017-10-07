@@ -28,8 +28,8 @@ addons:
     - xz-utils
 
 script:
-##  - make Makefile.PL && make && make install && make test
-  - make Makefile.PL && make && make install && pwd && perl t/05_bt1.t
+  - make Makefile.PL && make && make install && make test
+
 
 notifications:
   email: false
