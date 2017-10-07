@@ -78,6 +78,8 @@ sub Bowtie {
             $class,
             input => $bt_input,
             job_depends => $bt_depends_on,
+            job_name => 'uncomp',
+            job_prefix => '09',
         );
         $bt_input = basename($bt_input, ('.gz', '.bz2', '.xz'));
         $bt_jobs{uncompress} = $uncomp;

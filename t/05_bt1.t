@@ -19,10 +19,13 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
 
 my $fqc_dir = qx"find outputs/";
 diag($fqc_dir);
+my $idx = qx'ls -ld share/genome/indexes/phix*';
+diag($idx);
 my $script = qx'cat scripts/10test_forward.sh';
 diag($script);
 my $log = qx'cat outputs/bowtie_phix/CYOA2-v0M1.err';
 diag($log);
+
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
