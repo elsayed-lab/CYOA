@@ -18,6 +18,12 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
                                       libdir => 'share'),
    'Run Bowtie1');
 
+my $fqc_dir = qx"find outputs/";
+diag($fqc_dir);
+##my $log = qx'cat outputs/test_forward-trimomatic.out';
+##diag($log);
+
+
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
