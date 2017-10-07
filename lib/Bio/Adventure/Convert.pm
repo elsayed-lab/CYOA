@@ -327,7 +327,7 @@ sub Samtools {
     my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
-        $samtools_first = qq"samtools view -u -t $options->{lidir}/genome/$options->{species}.fasta \\
+        $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
         $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} 2>${sorted}.out 1>&2 && \\";
     }

@@ -58,6 +58,8 @@ diag($fqc_dir);
 my $ls = qx"ls -al outputs/bowtie_phix/*.xz";
 diag($ls);
 $actual = qx"xzcat outputs/bowtie_phix/CYOA2-v0M1.count.xz";
+my $xzcat = qx"which xzcat";
+diag($xzcat);
 unless(ok($expected eq $actual,
           'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
