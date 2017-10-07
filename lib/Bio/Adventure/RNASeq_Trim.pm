@@ -211,7 +211,7 @@ sub Trimomatic_Pairwise {
         die('Unable to find the trimomatic executable.');
     }
 
-    my $adapter_file = module_file('File::ShareDir', 'adapters.fa');
+    my $adapter_file = module_file('Bio::Adventure', 'genome/adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
@@ -324,7 +324,7 @@ sub Trimomatic_Single {
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
-    my $adapter_file = module_file('File::ShareDir', 'adapters.fa');
+    my $adapter_file = module_file('Bio::Adventure', 'genome/adapters.fa');
 
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
@@ -349,7 +349,7 @@ if [[ \! -r "${input}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} SE -phred33 ${input} ${output} ILLUMINACLIP:${adapter_file}:2:20:4 \\
+${exe} -phred33 ${input} ${output} ILLUMINACLIP:${adapter_file}:2:20:4 \\
     SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $class->Submit(

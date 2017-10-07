@@ -3,7 +3,8 @@ use warnings;
 use ExtUtils::MakeMaker;
 use File::ShareDir::Install;
 
-install_share dist => 'share';
+install_share module => 'Bio::Adventure' => 'share';
+##install_share dist => 'share';
 
 my $eumm_version = version->parse($ExtUtils::MakeMaker::VERSION);
 my %prereq = (
