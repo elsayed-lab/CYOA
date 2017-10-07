@@ -29,7 +29,8 @@ before_install:
   - pip install --user htseq
 
 script:
-  - make Makefile.PL && make && make install && make test
+##  - make Makefile.PL && make && make install && make test
+  - make Makefile.PL && make && make install && pwd && perl t/05_bt1.t
 
 notifications:
   email: false

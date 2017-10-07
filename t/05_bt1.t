@@ -1,4 +1,3 @@
-# -*-Perl-*-
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use File::Path qw"remove_tree";
