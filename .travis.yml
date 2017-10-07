@@ -29,7 +29,7 @@ before_install:
   - pip install --user htseq
 
 script:
-  - make Makefile.PL && make && make test
+  - make Makefile.PL && make && make install && make test
 
 notifications:
   email: false
