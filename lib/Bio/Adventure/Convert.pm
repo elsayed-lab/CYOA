@@ -309,9 +309,6 @@ sub Samtools {
                                    job_prefix => '',
                                );
 
-    my $samtools_version = qx"samtools --version | head -n 1";
-    print STDERR "TESTME: ${samtools_version}\n";
-
     my $job_basename = $options->{job_basename};
     my $input = $options->{input};
 
@@ -323,14 +320,20 @@ sub Samtools {
     my $paired = $sorted;
     $paired =~ s/\-sorted/\-paired/g;
 
+    ## Add a samtools version check because *sigh*
+    my $samtools_version = qx"samtools 2>&1 | grep Version";
+    print STDERR "TESTME: ${samtools_version}\n";
+    ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output} 1>${output}.out 2>&1 && \\";
     my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\";
+    ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{lidir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
         $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} 2>${sorted}.out 1>&2 && \\";
     }
+
     my $job_string = qq!
 if \$(test \! -r ${input}); then
     echo "Could not find the samtools input file."
