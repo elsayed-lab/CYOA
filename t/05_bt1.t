@@ -55,11 +55,14 @@ __alignment_not_unique\t0
 
 my $fqc_dir = qx"find outputs/";
 diag($fqc_dir);
+my $donkey_raper = "outputs/bowtie_phix/CYOA2-v0M1.count.xz";
 my $ls = qx"ls -al outputs/bowtie_phix/*.xz";
 diag($ls);
-$actual = qx"xzcat outputs/bowtie_phix/CYOA2-v0M1.count.xz";
-my $xzcat = qx"which xzcat";
-diag($xzcat);
+my $ls2 = qx"ls -al ${donkey_raper}";
+diag($ls2);
+$actual = qx"xzcat ${donkey_raper}";
+diag($actual);
+
 unless(ok($expected eq $actual,
           'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
