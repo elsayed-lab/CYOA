@@ -20,7 +20,14 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
+my $files = qx"find outputs/";
+diag($files);
 my $expected = qq"CYOA2,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA2-v0M1.count.xz";
+unless(ok($expected eq $actual,
+          'Are the bowtie stats as expected?')) {
+    my($old, $new) = diff($expected, $actual);
+    diag("--\n${old}\n--\n${new}\n");
+}
 ok($actual eq $expected,
    'Are the bowtie results the expected value?');
 
@@ -39,10 +46,7 @@ phiX174p10\t0
 ## WHAT IN THE SHIT!?!
 my $ls = qx"/bin/ls outputs/bowtie_phix/*.xz";
 chomp($ls);
-diag($ls);
 $actual = qx"xzcat ${ls} | head";
-diag($actual);
-
 unless(ok($expected eq $actual,
           'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
