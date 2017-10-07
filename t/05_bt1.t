@@ -2,7 +2,7 @@ use Test::More qw"no_plan";
 use Bio::Adventure;
 use File::Path qw"remove_tree";
 use File::Copy qw"cp";
-use String::Diff qw( diff_fully diff diff_merge diff_regexp );
+use String::Diff qw"diff";
 
 my $cyoa = Bio::Adventure->new();
 ok(cp("share/test_forward.fastq.gz", "test_forward.fastq.gz"),
@@ -17,19 +17,16 @@ ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
                                       libdir => 'share'),
    'Run Bowtie1');
 
-my $fqc_dir = qx"find outputs/";
-diag($fqc_dir);
-my $idx = qx'ls -ld share/genome/indexes/phix*';
-diag($idx);
-my $script = qx'cat scripts/10test_forward.sh';
-diag($script);
-my $log = q"cat outputs/bowtie_phix/CYOA2-v0M1.err";
-diag($log);
-my $wtf = qx"find . -name '*.err' -exec cat {} ';'";
-diag($wtf);
-my $sam = qx"cat scripts/13test_forward_s2b.sh";
-diag($sam);
-
+##my $idx = qx'ls -ld share/genome/indexes/phix*';
+##diag($idx);
+##my $script = qx'cat scripts/10test_forward.sh';
+##diag($script);
+##my $log = q"cat outputs/bowtie_phix/CYOA2-v0M1.err";
+##diag($log);
+##my $wtf = qx"find . -name '*.err' -exec cat {} ';'";
+##diag($wtf);
+##my $sam = qx"cat scripts/13test_forward_s2b.sh";
+##diag($sam);
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
@@ -37,11 +34,6 @@ ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
 my $expected = qq"CYOA2,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA2-v0M1.count.xz";
 ok($actual eq $expected,
    'Are the bowtie results the expected value?');
-##my($old, $new) = String::Diff::diff($expected, $actual);
-##print STDERR "$old\n";
-##print STDERR "---\n";
-##print STDERR "$new\n";
-##print STDERR "---\n";
 
 $expected = qq"phiX174p01\t1
 phiX174p02\t0
@@ -60,9 +52,14 @@ __too_low_aQual\t0
 __not_aligned\t9970
 __alignment_not_unique\t0
 ";
+
+my $fqc_dir = qx"find outputs/";
+diag($fqc_dir);
+my $ls = qx"ls -al outputs/bowtie_phix/*.xz";
+diag($ls);
 $actual = qx"xzcat outputs/bowtie_phix/CYOA2-v0M1.count.xz";
 unless(ok($expected eq $actual,
           'Is the resulting count table as expected?')) {
-    my($old, $new) = String::Diff::diff($expected, $actual);
+    my($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");
 }
