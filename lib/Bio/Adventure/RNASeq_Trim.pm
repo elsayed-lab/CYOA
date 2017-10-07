@@ -211,7 +211,7 @@ sub Trimomatic_Pairwise {
         die('Unable to find the trimomatic executable.');
     }
 
-    my $adapter_file = module_file('File::ShareDir', 'share/adapters.fa');
+    my $adapter_file = module_file('File::ShareDir', 'adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
@@ -324,7 +324,7 @@ sub Trimomatic_Single {
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
-    my $adapter_file = module_file('File::ShareDir', 'share/adapters.fa');
+    my $adapter_file = module_file('File::ShareDir', 'adapters.fa');
 
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
