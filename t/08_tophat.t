@@ -23,20 +23,19 @@ ok(Bio::Adventure::RNASeq_Map::Tophat(
    ),
    'Run Tophat');
 
-my $files = qx"find outputs/ -print";
-diag($files);
-my $sam = qx"samtools stats outputs/tophat_phix/accepted_hits.bam";
-diag($sam);
+##my $files = qx"find outputs/ -print";
+##diag($files);
+##my $sam = qx"samtools stats outputs/tophat_phix/accepted_hits.bam";
+##diag($sam);
 
-ok($actual = $cyoa->Last_Stat(input => 'outputs/tophat_stats.csv'),
-   'Collect Tophat Statistics');
-
-$expected = qq'CYOA,phix,10000,10000,40,9960,25000,accepted_hits.count.xz';
-unless(ok($expected eq $actual,
-          'Are the tophat results the expected value?')) {
-    my($old, $new) = diff($expected, $actual);
-    diag("$old\n$new\n");
-}
+##ok($actual = $cyoa->Last_Stat(input => 'outputs/tophat_stats.csv'),
+##   'Collect Tophat Statistics');
+##$expected = qq'CYOA,phix,10000,10000,40,9960,25000,accepted_hits.count.xz';
+##unless(ok($expected eq $actual,
+##          'Are the tophat results the expected value?')) {
+##    my($old, $new) = diff($expected, $actual);
+##    diag("$old\n$new\n");
+##}
 
 $expected = qq"phiX174p01\t1
 phiX174p02\t0
