@@ -20,7 +20,7 @@ ok(Bio::Adventure::RNASeq_Map::Tophat(
        pbs => 0,
        libdir => 'share',
        species => 'phix',
-   );
+   ),
    'Run Tophat');
 
 my $files = qx"find outputs/ -print";
