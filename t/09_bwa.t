@@ -20,8 +20,8 @@ ok(Bio::Adventure::RNASeq_Map::BWA(
        $cyoa,
        htseq_id => 'ID',
        htseq_type => 'CDS',
-       input => qq"test_forward.fastq.gz",
-       libdir => 't/data',
+       input => qq'test_forward.fastq.gz',
+       libdir => 'share',
        pbs => 0,
        species => 'phix',
    ),
@@ -53,7 +53,7 @@ phiX174p10\t0
 $actual = qx"xzcat outputs/bwa_phix/CYOA_mem.count.xz | head";
 unless(ok($expected eq $actual,
           "${test_num}: Check bwa count tables mem version.")) {
-    my ($old, $new) = String::Diff::diff($expected, $actual);
+    my ($old, $new) = diff($expected, $actual);
     diag("expected:\n$old\nactual:\n$new\n");
 }
 $test_num++;
@@ -72,6 +72,6 @@ phiX174p10\t0
 $actual = qx"xzcat outputs/bwa_phix/CYOA_aln.count.xz | head";
 unless(ok($expected eq $actual,
           "${test_num}: Check bwa count tables aln version.")) {
-    my ($old, $new) = String::Diff::diff($expected, $actual);
+    my ($old, $new) = diff($expected, $actual);
     diag("expected:\n$old\nactual:\n$new\n");
 }
