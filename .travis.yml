@@ -12,19 +12,19 @@ perl:
 addons:
   apt:
     packages:
-    - samtools
-    - liblzma-dev
-    - libbam-dev
-    - python-numpy
+    - bamtools
+    - bowtie
     - bowtie2
     - bwa
-    - tophat
-    - libbio-samtools-perl
-    - libbam-dev
     - fastqc
-    - bowtie
-    - trimmomatic
+    - libbam-dev
+    - libbio-samtools-perl
+    - liblzma-dev
     - python-htseq
+    - python-numpy
+    - samtools
+    - tophat
+    - trimmomatic
     - xz-utils
 
 script:
