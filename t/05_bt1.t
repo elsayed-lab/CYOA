@@ -10,19 +10,20 @@ ok(cp("share/test_forward.fastq.gz", "test_forward.fastq.gz"),
     'Copying data.');
 
 mkdir('share/genome/indexes'); ## Make a directory for the phix indexes.
-ok(Bio::Adventure::RNASeq_Map::Bowtie($cyoa,
-                                      input => qq"test_forward.fastq.gz",
-                                      species => 'phix',
-                                      htseq_id => 'ID',
-                                      htseq_type => 'CDS',
-                                      libdir => 'share'),
+ok(Bio::Adventure::RNASeq_Map::Bowtie(
+       $cyoa,
+       input => qq"test_forward.fastq.gz",
+       htseq_id => 'ID',
+       htseq_type => 'CDS',
+       libdir => 'share',
+       pbs => 0,
+       species => 'phix',
+   ),
    'Run Bowtie1');
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
-my $files = qx"find outputs/ -print";
-diag($files);
 my $expected = qq"CYOA,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
 my $old_expected = qq"CYOA,v0M1,0,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
 ## old bowtie provides different numbers and I am not chasing them down.

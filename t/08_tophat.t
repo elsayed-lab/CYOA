@@ -12,10 +12,19 @@ ok(cp('share/test_forward.fastq.gz', 'test_forward.fastq.gz'),
    $test_num);
 
 mkdir('share/genome/indexes'); ## Make a directory for the phix indexes.
-ok(Bio::Adventure::RNASeq_Map::Tophat($cyoa, input => qq"test_forward.fastq.gz", pbs => 0,
-                                      htseq_id => 'ID', htseq_type => 'CDS',
-                                      species => 'phix', libdir => 'share'),
+ok(Bio::Adventure::RNASeq_Map::Tophat(
+       $cyoa,
+       input => qq"test_forward.fastq.gz",
+       htseq_id => 'ID',
+       htseq_type => 'CDS',
+       pbs => 0,
+       libdir => 'share',
+       species => 'phix',
+   );
    'Run Tophat');
+
+my $files = qx"find outputs/ -print";
+diag($files);
 
 ok($actual = $cyoa->Last_Stat(input => 'outputs/tophat_stats.csv'),
    'Collect Tophat Statistics');
