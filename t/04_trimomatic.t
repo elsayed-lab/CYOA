@@ -1,3 +1,4 @@
+# -*-Perl-*-
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use File::Path qw"remove_tree";
@@ -8,11 +9,6 @@ my $cyoa = Bio::Adventure->new();
 
 ok(Bio::Adventure::RNASeq_Trim::Trimomatic_Single($cyoa, input => qq"share/test_forward.fastq.gz"),
    'Run Trimomatic');
-
-##my $fqc_dir = qx"find outputs/";
-##diag($fqc_dir);
-##my $log = qx'cat outputs/test_forward-trimomatic.out';
-##diag($log);
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/trimomatic_stats.csv'),
    'Collect Trimomatic Statistics');

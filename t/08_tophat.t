@@ -17,8 +17,8 @@ ok(Bio::Adventure::RNASeq_Map::Tophat(
        input => qq"test_forward.fastq.gz",
        htseq_id => 'ID',
        htseq_type => 'CDS',
-       pbs => 0,
        libdir => 'share',
+       pbs => 0,
        species => 'phix',
    ),
    'Run Tophat');

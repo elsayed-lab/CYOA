@@ -12,7 +12,6 @@ perl:
 addons:
   apt:
     packages:
-    - bcftools
     - bowtie
     - bowtie2
     - bwa

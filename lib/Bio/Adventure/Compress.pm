@@ -19,11 +19,12 @@ sub Recompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        xz_input => $class->{options}->{input},
         basename => "recomp",
-        job_name => "xz",
-        job_depends => "",
         comment => "",
+        job_depends => "",
+        job_name => "xz",
+        xz_input => $class->{options}->{input},
+
     );
     my $input = $options->{input};
     my ($input1, $input2) = "";
@@ -87,11 +88,11 @@ sub Uncompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        xz_input => $class->{options}->{input},
         basename => "uncomp",
-        job_name => "unzip",
-        job_depends => "",
         comment => "",
+        job_depends => "",
+        job_name => "unzip",
+        xz_input => $class->{options}->{input},
     );
     my $input = $options->{input};
     my ($input1, $input2) = "";

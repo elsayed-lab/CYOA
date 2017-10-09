@@ -36,8 +36,8 @@ sub Trinity {
     die("Could not find trinity in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
         min_length => 600,
+        required => ['input'],
     );
     my $min_length = $options->{min_length};
     my %trin_jobs = ();

@@ -54,21 +54,21 @@ sub HT_Multi {
     my $job_prefix = "";
     $job_prefix = $args{job_prefix} if ($args{job_prefix});
     my %gff_types = (
-        misc => ["transcript", "ID"],
-        rintron => ["exon", "ID"],
-        nmd => ["exon", "ID"],
-        linc => ["gene", "ID"],
-        pseudo => ["exon", "ID"],
         antisense => ["exon", "ID"],
         exon => ["exon", "ID"],
         fiveputr => ["five_prime_UTR", "ID"],
-        threeputr => ["three_prime_UTR", "ID"],
-        sn => ["exon", "ID"],
-        mi => ["exon", "ID"],
-        sno => ["exon", "ID"],
-        rrna => ["gene", "ID"],
         interCDS => ["CDS", "ID"],
+        linc => ["gene", "ID"],
+        mi => ["exon", "ID"],
+        misc => ["transcript", "ID"],
+        nmd => ["exon", "ID"],
         operons => ["gene", "ID"],
+        pseudo => ["exon", "ID"],
+        rintron => ["exon", "ID"],
+        rrna => ["gene", "ID"],
+        sn => ["exon", "ID"],
+        sno => ["exon", "ID"],
+        threeputr => ["three_prime_UTR", "ID"],
     );
     my $htseq_runs = 0;
     ## my $aligntype = $args{aligntype};
@@ -84,10 +84,10 @@ sub HT_Multi {
             print "Found $gff, performing htseq with it.\n";
             my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
                 $class,
-                job_depends => $options->{job_depends},
                 htseq_gff => $gff,
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type},
+                job_depends => $options->{job_depends},
                 job_name => "ht${type}${script_suffix}_${species}",
                 job_output => $output,
                 job_prefix => $job_prefix,
@@ -102,10 +102,10 @@ sub HT_Multi {
             print "Found $gtf, performing htseq with it.\n";
             my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
                 $class,
-                job_depends => $options->{job_depends},
                 htseq_gff => $gtf,
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type},
+                job_depends => $options->{job_depends},
                 job_name => "ht${type}${script_suffix}_${species}",
                 job_output => $output,
                 job_prefix => $options->{job_prefix},
@@ -130,11 +130,11 @@ sub HT_Multi {
         print "Found $gff, performing htseq_all with it.\n";
         my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
             $class,
-            job_depends => $options->{job_depends},
             htseq_gff => $gff,
+            htseq_id => $options->{htseq_id},
             htseq_input => $htseq_input,
             htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},
+            job_depends => $options->{job_depends},
             job_name => "htall${script_suffix}_${species}",
             job_output => $output,
             job_prefix => $job_prefix,
@@ -148,10 +148,10 @@ sub HT_Multi {
         print "Found $gtf, performing htseq_all with it.\n";
         my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
             $class,
-            job_depends => $options->{job_depends},
             htseq_gff => $gff,
             htseq_input => $htseq_input,
             htseq_type => "none",
+            job_depends => $options->{job_depends},
             job_name => "htall${script_suffix}_${species}",
             job_output => $output,
             job_prefix => $job_prefix,
@@ -259,11 +259,11 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "htseq_stranded", "htseq_args",],
-        job_name => '',
-        job_depends => '',
-        libtype => 'genome',
         htseq_input => $class->{options}->{input},
+        job_depends => '',
+        job_name => '',
         job_prefix => '',
+        libtype => 'genome',
     );
     my $basename = $options->{basename};
     my $stranded = $options->{htseq_stranded};
@@ -468,9 +468,9 @@ sub Read_Mappings_Mi {
                 ensembl => $mimap->{$id}->{ensembl},
                 hit_id => $mimap->{$id}->{hit_id},
                 id => $id,
-                sequence => $sequence,
-                mirbase_id => $mimap->{$id}->{mirbase_id},
                 mimat => $mimap->{$id}->{mimat},
+                mirbase_id => $mimap->{$id}->{mirbase_id},
+                sequence => $sequence,
             };
             my $ensembl_id = $element->{ensembl};
             if (defined($newdb->{$ensembl_id})) {
