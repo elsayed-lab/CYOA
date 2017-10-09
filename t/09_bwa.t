@@ -76,6 +76,3 @@ unless(ok($expected eq $actual,
     diag("expected:\n$old\nactual:\n$new\n");
 }
 
-##my $files = qx"find outputs/ -print";
-##diag($files);
-

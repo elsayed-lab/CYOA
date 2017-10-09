@@ -35,3 +35,7 @@ unless(ok($expected eq $actual,
     my($old, $new) = diff($expected, $actual);
     diag("$old\n$new\n");
 }
+
+my $files = qx"find outputs/ -print";
+diag($files);
+
