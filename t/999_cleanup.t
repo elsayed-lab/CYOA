@@ -9,8 +9,7 @@ ok(remove_tree('share/genome/indexes'),
     'Removed indexes directory.');
 
 my @all_files = (
-    'phix.fasta.pdata','phix_3N.gff.pdata', 'phix_3N.fasta.pdata', 'phix.gff',
-    'phix.fasta', 'phix_cds_nt.fasta', 'phix_cds_aa.fasta', 'test_forward.fastq',
+    'phix.fasta', 'test_forward.fastq',
     'test_forward.fastq.xz', 'test_forward-trimmed.fastq', 'test_forward.log',
     'xzal.log', 'xzun.log',
     );
@@ -19,7 +18,10 @@ for my $f (@all_files) {
        "Removed ${f}.");
 }
 
-my @not_travis_files = ('split_align_errors.txt');
+my @not_travis_files = (
+    'split_align_errors.txt', 'phix.fasta.pdata', 'phix_3N.gff.pdata', 'phix_3N.fasta.pdata',
+    'phix.gff', 'phix_cds_nt.fasta', 'phix_cds_aa.fasta',
+    );
 unless ($ENV{TRAVIS}) {
     for my $g (@not_travis_files) {
         ok(unlink($g),
