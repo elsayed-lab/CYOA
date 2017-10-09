@@ -537,10 +537,10 @@ sub BT2_Index {
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
     my $job_string = qq!
-if [ \! -r "${libdir}/genome/$options->{species}.fa" ]; then
+if [ \! -e "${libdir}/genome/$options->{species}.fa" ]; then
   ln -s ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
 fi
-if [ \! -r "${libdir}/genome/indexes/$options->{species}.fa" ]; then
+if [ \! -e "${libdir}/genome/indexes/$options->{species}.fa" ]; then
   ln -s ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
 fi
 
@@ -805,12 +805,12 @@ sub BWA_Index {
     my $options = $class->Get_Vars(args => \%args);
     my $job_basename = $options->{job_basename};
     my $job_string = qq!
-if [ \! -r "$options->{libdir}/genome/$options->{species}.fa" ]; then
+if [ \! -e "$options->{libdir}/genome/$options->{species}.fa" ]; then
   ln -s $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
 fi
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes &&
-  bwa index $options->{species}.fa
+  bwa index $options->{species}.fa 2>bwa_index.out 1>&2
 cd \$start
 !;
     my $comment = qq!## Generating bwa indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
@@ -845,7 +845,7 @@ sub BT2_Stats {
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $output = "outputs/bowtie2_stats.csv";
     my $job_string = qq!
-if [ \! -r "${output}" ]; then
+if [ \! -e "${output}" ]; then
     echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
 fi
 original_reads_tmp=\$(grep " reads; of these" "${bt_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')

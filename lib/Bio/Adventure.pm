@@ -138,7 +138,7 @@ $GZIP = '--best';
 =cut
 sub Help {
     my $class = shift @_;
-    my $fh = \*STDERR;
+    my $fh = \*STDOUT;
     ##    my $usage = pod2usage(-output => $fh, -verbose => 99, -sections => "SYNOPSIS");
     use Pod::Find qw(pod_where);
     pod2usage(-input => pod_where({-inc => 1}, __PACKAGE__),

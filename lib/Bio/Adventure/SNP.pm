@@ -91,16 +91,16 @@ fi
 if [ \! -r "${genome}.fai" ]; then
     samtools faidx ${genome}
 fi
-samtools mpileup -uvf ${genome} \\
+samtools mpileup -uvf ${genome} 2>samtools_mpileup.err \\
     ${pileup_input} |\\
-  bcftools call -c - |\\
+  bcftools call -c - 2>bcftools_call.err |\\
   bcftools view -l 9 -o ${final_output} -O b - \\
     2>${call_error}
 if [ "\$?" -ne "0" ]; then
     echo "mpileup/bcftools failed."
     exit 1
 fi
-bcftools index ${final_output}
+bcftools index ${final_output} 2>bcftools_index.err
 echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
 !;
 
