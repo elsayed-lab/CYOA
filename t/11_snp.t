@@ -7,7 +7,10 @@ use File::Copy qw"cp";
 use String::Diff qw"diff";
 
 ## Travis does not have bcftools in its repository.
-unless ($ENV{TRAVIS}) {
+if ($ENV{TRAVIS}) {
+    print STDERR "Skipping these tests as bcftools is not on travis.\n";
+    ok(1);
+} else {
     my $cyoa = Bio::Adventure->new();
     ok(cp('share/test_forward.fastq.gz', 'test_forward.fastq.gz'),
        'Copy the data files.');

@@ -5,14 +5,13 @@ use File::Path qw"remove_tree";
 use File::Copy qw"cp";
 use String::Diff qw"diff";
 
-my $cyoa = new Bio::Adventure(pbs => 0, species => 'phix', libdir => 'share');
-
-ok(cp("share/genome/phix.fasta", "phix.fasta"),
-   'Copied phix.fasta');
-
 if ($ENV{TRAVIS}) {
     print STDERR "I see no easy way to install fasta on travis, skipping these.\n";
+    ok(1);
 } else {
+    my $cyoa = new Bio::Adventure(pbs => 0, species => 'phix', libdir => 'share');
+    ok(cp("share/genome/phix.fasta", "phix.fasta"),
+       'Copied phix.fasta');
     ok(cp("share/genome/phix.gff", "phix.gff"),
        'Copied phix.gff');
     ok(Bio::Adventure::Convert::Gff2Fasta($cyoa, genome => 'phix.fasta', gff => 'phix.gff'),
