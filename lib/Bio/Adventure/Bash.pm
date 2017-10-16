@@ -32,15 +32,6 @@ has queues => (is => 'rw', default => qq"throughput,workstation,long,large");
 has verbose => (is => 'rw', default => 0);
 has walltime => (is => 'rw', default => '10:00:00');
 
-sub Test_Job {
-    my ($class, %args) = @_;
-    my $job_string = qq"/bin/true";
-    my $job = $class->Submit(job_name => 'test',
-                             job_string => $job_string,
-                             comment => '## hi!',);
-    return($job);
-}
-
 =head1 NAME
 
     Bio::Adventure::Slurm - Submit jobs to the Slurm cluster.
@@ -224,12 +215,6 @@ fi
         submitter => $bash_cmd_line,
         walltime => $options->{wall},
     };
-    return($job);
-}
-
-sub Submit_Arbitrary {
-    my ($class, %args) = @_;
-    my $job = $class->Submit(job_string => $args{job_string});
     return($job);
 }
 
