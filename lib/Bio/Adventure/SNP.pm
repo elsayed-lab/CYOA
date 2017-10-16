@@ -76,7 +76,9 @@ echo "Started samtools sort at \$(date)" >> outputs/vcfutils_$options->{species}
 !;
     unless (-r "${pileup_input}") {
         if ($query =~ m/sorted/) {
-            $job_string .= qq!ln -s \$(pwd)/${query}.bam \$(pwd)/${pileup_input}
+            $job_string .= qq!if test \! -e \$(pwd)/${pileup_input}; then
+  ln -sf \$(pwd)/${query}.bam \$(pwd)/${pileup_input}
+fi
 !;
         } else {
             $job_string .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} 2>outputs/samtools_sort.out 1>&2

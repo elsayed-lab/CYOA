@@ -287,8 +287,8 @@ sub Bowtie2 {
     }
 
     my $test_file = "";
-    if ($bt_input =~ /\s+/) {
-        my @pair_listing = split(/\s+/, $bt_input);
+    if ($bt_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
         $bt_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
     } else {
@@ -344,6 +344,7 @@ sub Bowtie2 {
         job_depends => $bt_depends_on,
         job_string => $job_string,
         job_prefix => "15",
+        mem => 10,
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -537,11 +538,11 @@ sub BT2_Index {
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
     my $job_string = qq!
-if [ \! -e "${libdir}/genome/$options->{species}.fa" ]; then
-  ln -s ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
+if test \! -e "${libdir}/genome/$options->{species}.fa"; then
+  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
 fi
-if [ \! -e "${libdir}/genome/indexes/$options->{species}.fa" ]; then
-  ln -s ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
+if test \! -e "${libdir}/genome/indexes/$options->{species}.fa"; then
+  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
 fi
 
 bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
@@ -805,8 +806,8 @@ sub BWA_Index {
     my $options = $class->Get_Vars(args => \%args);
     my $job_basename = $options->{job_basename};
     my $job_string = qq!
-if [ \! -e "$options->{libdir}/genome/$options->{species}.fa" ]; then
-  ln -s $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
+if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
+  ln -sf $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
 fi
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes &&
@@ -1012,6 +1013,117 @@ kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${
     $ka_jobs{kallisto} = $ka_job;
 
     return(\%ka_jobs);
+}
+
+=item C<RSEM_Index
+
+    $hpgl->RSEM_Index() uses RSEM and an annotated_CDS fasta sequence library to do the expected.
+
+=cut
+sub RSEM_Index {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species",],
+    );
+    my $dep = $options->{job_depends};
+    my $comment = qq"## RSEM Index creation.";
+    my $job_string = qq!
+rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
+!;
+    my $jobid = $class->Submit(
+        comment => $comment,
+        job_depends => $dep,
+        job_string => $job_string,
+        job_name => "rsemidx",
+        job_prefix => $options->{job_prefix},
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+    );
+    return($jobid);
+}
+
+sub RSEM {
+    my ($class, %args) = @_;
+    my $check = which('rsem-prepare-reference');
+    die("Could not find RSEM in your PATH.") unless($check);
+
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species', 'input'],
+    );
+
+    my $rsem_depends_on = "";
+    $rsem_depends_on = $options->{job_depends} if ($options->{job_depends});
+    my %rsem_jobs = ();
+
+    my $cds = qq"$options->{libdir}/$options->{libtype}/$options->{species}_cds_nt.fasta";
+    my $idx = qq"$options->{libdir}/$options->{libtype}/indexes/rsem/$options->{species}";
+    my $test_idx = qq"${idx}.transcripts.fa";
+    unless (-r $test_idx) {
+        print "Need to create the RSEM indexes, invoking RSEM_Index().\n";
+        unless (-r $cds) {
+            die("RSEM_Index requires a cds fasta file at: ${cds}, create it with a cyoa2 conversion.");
+        }
+        my $index_job = Bio::Adventure::RNASeq_Map::RSEM_Index(
+            $class,
+            cds_fasta => $cds,
+            index => $idx,
+            job_depends => $rsem_depends_on,
+            libtype => $options->{libtype},
+        );
+        $rsem_jobs{index} = $index_job;
+        $rsem_depends_on = $index_job->{job_id};
+
+    }
+
+    my $rsem_input = $options->{input};
+    if ($rsem_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+        my $uncomp = Bio::Adventure::Compress::Uncompress(
+            $class,
+            input => $rsem_input,
+            job_depends => $rsem_depends_on,
+        );
+        $rsem_input =~ s/\:|\;|\,|\s+/ /g;
+        $rsem_input =~ s/\.gz|\.bz|\.xz//g;
+        $options = $class->Set_Vars(input => $rsem_input);
+        $rsem_depends_on = $uncomp->{job_id};
+    }
+
+    my $test_file = "";
+    if ($rsem_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $rsem_input);
+        $rsem_input = qq"--paired-end $pair_listing[0] $pair_listing[1]";
+        $test_file = $pair_listing[0];
+    }
+
+    my $rsem_dir = qq"outputs/rsem_$options->{species}";
+    my $rsem_comment = qq"## This is a rsem invocation script.
+";
+    my $output_file = "$options->{species}_something.txt";
+    my $job_string = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
+  --calc-ci ${rsem_input} \\
+  ${idx} \\
+  ${rsem_dir}/$options->{species} \\
+  2>${rsem_dir}/$options->{species}.err 1>${rsem_dir}/$options->{species}.out
+";
+
+    my $job_name = qq"rsem_$options->{species}";
+
+    my $rsem_job = $class->Submit(
+        comment => $rsem_comment,
+        input => $rsem_input,
+        job_name => $job_name,
+        job_depends => $rsem_depends_on,
+        job_string => $job_string,
+        job_prefix => "28",
+        output => $output_file,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+    );
+    $rsem_jobs{rsem} = $rsem_job;
+    return(\%rsem_jobs);
 }
 
 =item C<Tophat>
