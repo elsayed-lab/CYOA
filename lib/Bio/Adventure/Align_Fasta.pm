@@ -178,7 +178,7 @@ sub Split_Align_Fasta {
         my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, number => $actual, split => 1);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
-            job_depends => $alignment->{pbs_id},
+            depends => $alignment->{pbs_id},
             output => $output,
         );
     } else {
@@ -193,7 +193,7 @@ sub Split_Align_Fasta {
 
     my $parse_input = $output;
     my $comment_string = qq!## I don't know if this will work.!;
-    my $job_string = qq?
+    my $jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Fasta;
@@ -201,9 +201,9 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        job_depends => $concat_job->{pbs_id},
-        job_name => "parse_search",
-        job_string => $job_string,
+        depends => $concat_job->{pbs_id},
+        jname => "parse_search",
+        jstring => $jstring,
         language => 'perl',
         shell => '/usr/bin/env perl',
     );
@@ -214,11 +214,11 @@ sub Make_Fasta_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        job_depends => '',
+        depends => '',
         split => 0,
         output_type => 7,
     );
-    my $dep = $options->{job_depends};
+    my $dep = $options->{depends};
     my $split = $options->{split};
     my $library;
     my $array_end = 1000 + $args{number};
@@ -231,10 +231,10 @@ sub Make_Fasta_Job {
             sleep(10);
         }
     }
-    my $job_string = '';
+    my $jstring = '';
     if ($split) {
         ## $options->{cpus} should be replaced with a slot from Torque->new().
-        $job_string = qq!
+        $jstring = qq!
 cd $options->{basedir}
 $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
  $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
@@ -243,7 +243,7 @@ $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
  2>>$options->{basedir}/split_align_errors.txt
 !;
     } else {
-        $job_string = qq!
+        $jstring = qq!
 cd $options->{basedir}
   $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
   $options->{query} \\
@@ -256,12 +256,12 @@ cd $options->{basedir}
     my $fasta_jobs = $class->Submit(
         comment => $comment,
         depends_type => 'array',
-        job_depends => $dep,
-        job_name => 'fasta_multi',
-        job_string => $job_string,
+        depends => $dep,
+        jname => 'fasta_multi',
+        jstring => $jstring,
         qsub_args => " $options->{qsub_args} -t ${array_string} ",
         queue => 'long',
-        wall => '96:00:00',
+        walltime => '96:00:00',
     );
     return($fasta_jobs);
 }

@@ -20,7 +20,7 @@ has cpus => (is => 'rw', default => '4');
 has depends_prefix => (is => 'rw', default => 'depend=afterok:');
 has depends => (is => 'rw', default => undef);
 has dependsarray_prefix => (is => 'rw', default => 'depend=afterokarray:');
-has job_name => (is => 'rw', default => 'unnamed');
+has jname => (is => 'rw', default => 'unnamed');
 has job_type => (is => 'rw', default => 'unknown');
 has logdir => (is => 'rw', default => getcwd());
 has loghost => (is => 'rw', default => 'localhost');
@@ -65,7 +65,7 @@ sub Submit {
   my ($class, %args) = @_;
   my $options = $class->Get_Vars(args => \%args);
 
-  my $log = qq"$options->{logdir}/outputs/$options->{job_name}.qsubout";
+  my $log = qq"$options->{logdir}/outputs/$options->{jname}.qsubout";
 
   my $depends_string = "";
   if ($options->{depends}) {
@@ -75,7 +75,7 @@ sub Submit {
           $depends_string = qq"$options->{depends_prefix}:$options->{depends}";
       }
   }
-  my $script_file = qq"$options->{basedir}/scripts/$options->{job_prefix}$options->{job_name}.sh";
+  my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
   my $qsub_cmd_line = qq"$options->{qsub} ${script_file}";
   my $has_pbs = 0;
   if ($options->{qsub} =~ /qsub$/) {
@@ -91,13 +91,13 @@ sub Submit {
   my $script_start = qq?#!/usr/bin/env bash
 #PBS -V -S $options->{shell} -q $options->{queue}
 #PBS -d $options->{basedir}
-#PBS -N $options->{job_name} -l mem=$options->{mem}gb -l walltime=$options->{walltime} -l ncpus=$options->{cpus}
+#PBS -N $options->{jname} -l mem=$options->{mem}gb -l walltime=$options->{walltime} -l ncpus=$options->{cpus}
 #PBS -o ${log} $options->{args}
 echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
   my $script_end = qq!## The following lines give status codes and some logging
-echo \$? > outputs/status/$options->{job_name}.status
+echo \$? > outputs/status/$options->{jname}.status
 echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
   ## It turns out that if a job was an array (-t) job, then the following does not work because
@@ -124,7 +124,7 @@ echo "####PBS cputime used by \${PBS_JOBID} was: \${cputime:-null}" >> outputs/l
 
   if ($class->{verbose}) {
     print qq"The job is:
-$args{job_string}
+$args{jstring}
 ";
   }
 
@@ -132,7 +132,7 @@ $args{job_string}
   $total_script_string .= "${script_start}\n";
   $total_script_string .= "$options->{comment}\n" if ($options->{comment});
   $total_script_string .= "$options->{prescript}\n" if ($options->{prescript});
-  $total_script_string .= "$options->{job_string}\n" if ($options->{job_string});
+  $total_script_string .= "$options->{jstring}\n" if ($options->{jstring});
   if ($options->{postscript}) {
     $total_script_string .= qq!if [ \$? == "0" ]; then
    $options->{postscript}
@@ -165,7 +165,7 @@ fi
     my @jobid_list = split(/\./, $job_id);
     my $short_jobid = shift(@jobid_list);
 
-    print "Starting a new job: ${short_jobid} $options->{job_name}";
+    print "Starting a new job: ${short_jobid} $options->{jname}";
     if ($options->{depends}) {
       my @short_dep = split(/\./, $options->{depends});
       my $shortened_dep = shift(@short_dep);
@@ -180,18 +180,18 @@ fi
       depends_string => $depends_string,
       job_id => $short_jobid,
       job_input => $options->{job_input},
-      job_name => $options->{job_name},
+      jname => $options->{jname},
       job_output => $options->{job_output},
       log => $log,
       mem => $options->{mem},
       queue => $options->{queue},
       pbs_id => $job_id,
       qsub_args => $options->{args},
-      script_body => $args{job_string},
+      script_body => $args{jstring},
       script_file => $script_file,
       script_start => $script_start,
       submitter => $qsub_cmd_line,
-      walltime => $options->{wall},
+      walltime => $options->{walltime},
   };
   return($job);
 }
@@ -205,18 +205,18 @@ sub Submit_Perl {
   } else {
     $job_type = $class->{job_type};
   }
-  my $job_name;
-  if ($args{job_name}) {
-    $job_name = $args{job_name};
+  my $jname;
+  if ($args{jname}) {
+    $jname = $args{jname};
   } else {
-    $job_name = $class->{job_name};
+    $jname = $class->{jname};
   }
-  $job_name = qq"${job_type}-${job_name}";
-  my $job_prefix = "";
-  $job_prefix = $args{job_prefix} if ($args{job_prefix});
+  $jname = qq"${job_type}-${jname}";
+  my $jprefix = "";
+  $jprefix = $args{jprefix} if ($args{jprefix});
   ## For arguments to qsub, start with the defaults in the constructor in $class
   ## then overwrite with any application specific requests from %args
-  my $log = qq"$class->{logdir}/${job_name}.qsubout";
+  my $log = qq"$class->{logdir}/${jname}.qsubout";
   my $job_output = "";
   $job_output = $args{output} if (defined($args{output}));
   my $job_input = "";
@@ -228,8 +228,8 @@ sub Submit_Perl {
       $depends_string = $class->{dependsarray_prefix};
     }
   }
-  $depends_string .= $class->{job_depends} if (defined($class->{job_depends}));
-  my $script_file = qq"$class->{basedir}/scripts/${job_prefix}${job_name}.sh";
+  $depends_string .= $class->{depends} if (defined($class->{depends}));
+  my $script_file = qq"$class->{basedir}/scripts/${jprefix}${jname}.sh";
 
   my $qsub = qq"$class->{qsub} ${script_file}";
   my $has_pbs = 0;
@@ -244,7 +244,7 @@ sub Submit_Perl {
   make_path("$class->{basedir}/scripts", {verbose => 0}) unless (-r qq"$class->{basedir}/scripts");
   my $script_base = basename($script_file);
 
-  $script_file = qq"$class->{basedir}/scripts/${job_prefix}${job_name}.pl";
+  $script_file = qq"$class->{basedir}/scripts/${jprefix}${jname}.pl";
   my $script_start = qq?#!/usr/bin/env perl
 use strict;
 use FileHandle;
@@ -261,13 +261,13 @@ print \$out "####Finished \${jobid} ${script_base} at \${end_d}.";
 close(\$out);
 !;
   print "The job is:
-$args{job_string}" if ($class->{verbose});
+$args{jstring}" if ($class->{verbose});
 
   my $total_script_string = "";
   $total_script_string .= "$script_start\n";
   $total_script_string .= "$args{comment}\n" if ($args{comment});
   $total_script_string .= "$args{prescript}\n" if ($args{prescript});
-  $total_script_string .= "$args{job_string}\n" if ($args{job_string});
+  $total_script_string .= "$args{jstring}\n" if ($args{jstring});
   $total_script_string .= "$script_end\n";
 
   my $script = FileHandle->new(">$script_file");
@@ -278,7 +278,7 @@ $args{job_string}" if ($class->{verbose});
   my $bash_script = $script_file;
   $bash_script =~ s/\.pl/\.sh/g;
   my %new_args = %args;
-  $new_args{job_string} = qq"${script_file}\n";
+  $new_args{jstring} = qq"${script_file}\n";
   my $shell_job = $class->Submit(%new_args);
 
   my $perl_job = {id => $shell_job->{id},
@@ -295,7 +295,7 @@ $args{job_string}" if ($class->{verbose});
                   pbs_id => $shell_job->{pbs_id},
                   script_file => $shell_job->{script_file},
                   script_start => $shell_job->{script_start},
-                  script_body => $args{job_string},
+                  script_body => $args{jstring},
                   output => $shell_job->{output},
                   input => $shell_job->{input}};
 

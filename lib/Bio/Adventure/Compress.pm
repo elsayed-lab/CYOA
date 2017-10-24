@@ -19,10 +19,11 @@ sub Recompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        basename => "recomp",
-        comment => "",
-        job_depends => "",
-        job_name => "xz",
+        basename => 'recomp',
+        comment => '',
+        depends => '',
+        jname => 'xz',
+        queue => 'long',
         xz_input => $class->{options}->{input},
 
     );
@@ -34,30 +35,30 @@ sub Recompress {
         $input1 = $input;
         $input2 = "";
     }
-    my $job_name = $options->{job_name};
-    my $job_depends = $options->{job_depends};
+    my $jname = $options->{jname};
+    my $depends = $options->{depends};
     my $comment = $options->{comment};
-    my $job_string = "";
+    my $jstring = "";
     my $indir = dirname($input1);
     my ($in1, $in2) = "";
     $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
     $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
     $in2 = "" if (!defined($in2));
     if ($input1 =~ /\.gz/) {
-        $job_string = qq!gunzip -f ${input1} ${input2} && nice xz -f -9e ${in1} ${in2} !;
+        $jstring = qq!gunzip -f ${input1} ${input2} && nice xz -f -9e ${in1} ${in2} !;
     } elsif ($input1 =~ /\.bz2/) {
-        $job_string = qq!bunzip2 -f ${input1} ${input2} && nice xz -f -9e ${in1} ${in2} !;
+        $jstring = qq!bunzip2 -f ${input1} ${input2} && nice xz -f -9e ${in1} ${in2} !;
     } elsif ($input1 =~ /\.fast[a|q]$/) {
-        $job_string = qq!nice -n 20 xz -f -9e ${in1} ${in2} !;
+        $jstring = qq!nice -n 20 xz -f -9e ${in1} ${in2} !;
     } else {
-        $job_string = qq!nice -n 20 xz -f -9e ${in1} ${in2} !;
+        $jstring = qq!nice -n 20 xz -f -9e ${in1} ${in2} !;
     }
     my $input_dir = dirname(${in1});
-    $job_string .= qq" 2>${input_dir}/${job_name}.log 1>&2";
+    $jstring .= qq" 2>${input_dir}/outputs/${jname}.log 1>&2";
     if ($args{output}) {
-        $job_string .= qq! && mv ${in1}.xz $args{output}\n!;
+        $jstring .= qq! && mv ${in1}.xz $args{output}\n!;
         if ($input2) {
-            $job_string .= qq! && mv ${in2}.xz $args{output2}\n!;
+            $jstring .= qq! && mv ${in2}.xz $args{output2}\n!;
         }
     }
 
@@ -66,15 +67,15 @@ sub Recompress {
         comment => $comment,
         cpus => 1,
         input => $input,
-        job_depends => $job_depends,
-        job_name => $job_name,
-        job_prefix => $args{job_prefix},
-        job_string => $job_string,
+        depends => $depends,
+        jname => $jname,
+        jprefix => $args{jprefix},
+        jstring => $jstring,
         mem => 4,
         prescript => $args{prescript},
         postscript => $args{postscript},
-        queue => "workstation",
-        wall => "18:00:00",
+        queue => 'long',
+        walltime => '18:00:00',
     );
     return($compression);
 }
@@ -88,10 +89,11 @@ sub Uncompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        basename => "uncomp",
-        comment => "",
-        job_depends => "",
-        job_name => "unzip",
+        basename => 'uncomp',
+        comment => '',
+        depends => '',
+        jname => 'unzip',
+        queue => 'long',
         xz_input => $class->{options}->{input},
     );
     my $input = $options->{input};
@@ -104,38 +106,38 @@ sub Uncompress {
         $input1 = $input;
         $input2 = "";
     }
-    my $job_string = "";
+    my $jstring = "";
     my $indir = dirname($input1);
     my ($in1, $in2) = "";
     $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
     $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
     $in2 = "" if (!defined($in2));
     if ($input =~ /\.gz$/) {
-        $job_string = qq!gunzip -f ${input}\n!;
+        $jstring = qq!nice gunzip -f ${input}\n!;
     } elsif ($input =~ /\.bz2$/) {
-        $job_string = qq!bunzip2 -f ${input}\n!;
+        $jstring = qq!nice bunzip2 -f ${input}\n!;
     } elsif ($input =~ /\.xz$/) {
-        $job_string = qq!xz -f -d ${input}\n!;
+        $jstring = qq!nice xz -f -d ${input}\n!;
     } else {
-        $job_string = qq!xz -f -d ${input}\n!;
+        $jstring = qq!nice xz -f -d ${input}\n!;
     }
     my $input_dir = dirname(${input1});
-    $job_string .= qq" 2>${input_dir}/$options->{job_name}.log 1>&2";
+    $jstring .= qq" 2>${input_dir}/outputs/$options->{jname}.log 1>&2";
 
     my $trim_jobid = qq"$options->{basename}_unxz";
     my $compression = $class->Submit(
         comment => $options->{comment},
         cpus => 1,
         input => $input,
-        job_depends => $options->{job_depends},
-        job_name => $options->{job_name},
-        job_prefix => $options->{job_prefix},
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => $options->{jname},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         mem => 4,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
-        wall => "18:00:00",
+        queue => 'long',
+        walltime => '18:00:00',
     );
     return($compression);
 }

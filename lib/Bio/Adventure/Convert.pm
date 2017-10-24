@@ -263,7 +263,7 @@ sub Sam2Bam {
     my $options = $class->Get_Vars(args => \%args, required => ["species", "input"]);
     my $basename = $options->{basename};
     my @input_list = ();
-    my $job_depends = "";
+    my $depends = "";
     if ($options->{input}) {
         push(@input_list, $options->{input});
     } elsif (-r $options->{input} and $options->{input} =~ /\.sam$/) {
@@ -278,13 +278,13 @@ sub Sam2Bam {
                 push(@input_list, $output_string);
             }
             my $bt = Bio::Adventure::RNASeq_Map::Bowtie($class, %args);
-            $job_depends = $bt->{pbs_id};
+            $depends = $bt->{pbs_id};
         }
     } else {
         die("I don't know what to do without a .fastq file nor a .sam file.\n");
     }
     my $sam = Bio::Adventure::Convert::Samtools($class, %args,
-                                                job_depends => $job_depends,
+                                                depends => $depends,
                                                 sam => \@input_list);
     return($sam);
 }
@@ -305,8 +305,8 @@ sub Samtools {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args,
                                    required => ['input', 'species'],
-                                   job_name => 'sam',
-                                   job_prefix => '',
+                                   jname => 'sam',
+                                   jprefix => '',
                                );
 
     my $job_basename = $options->{job_basename};
@@ -331,7 +331,7 @@ sub Samtools {
   -S ${input} 1>${output} && \\";
         $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} 2>${sorted}.out 1>&2 && \\";
     }
-    my $job_string = qq!
+    my $jstring = qq!
 if \$(test \! -r ${input}); then
     echo "Could not find the samtools input file."
     exit 1
@@ -350,15 +350,15 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
 !;
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
-## This job depended on: $options->{job_depends}!;
+## This job depended on: $options->{depends}!;
     my $samtools = $class->Submit(comment => $comment,
-                                  job_depends => $options->{job_depends},
+                                  depends => $options->{depends},
                                   input => $input,
-                                  job_name => $options->{job_name},
+                                  jname => $options->{jname},
                                   job_output => qq"${output}",
                                   job_paired => qq"${paired}.bam",
-                                  job_prefix => $options->{job_prefix},
-                                  job_string => $job_string,
+                                  jprefix => $options->{jprefix},
+                                  jstring => $jstring,
                                   postscript => $options->{postscript},
                                   prescript => $options->{prescript},
                               );

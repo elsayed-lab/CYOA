@@ -48,29 +48,29 @@ sub Trinity {
     $inputs =~ s/\:/ /g;
     my $comment = qq!## This is a trinity submission script
 !;
-    my $job_string = qq!Trinity --seqType fq --min_contig_length ${min_length} --normalize_reads \\
+    my $jstring = qq!Trinity --seqType fq --min_contig_length ${min_length} --normalize_reads \\
    --trimmomatic --max_memory 90G --left $in[0] --right $in[1] --CPU 6 2>trinity.output 1>&2
 !;
     my $trin_job = $class->Submit(
         cpus => 6,
         comment => $comment,
         input => $inputs,
-        job_depends => $trin_depends_on,
-        job_name => "trin",
-        job_prefix => "45",
-        job_string => $job_string,
+        depends => $trin_depends_on,
+        jname => "trin",
+        jprefix => "45",
+        jstring => $jstring,
         mem => 90,
         output => qq"trinity.output",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => "large",
-        wall => "144:00:00",
+        walltime => "144:00:00",
     );
     my $rsem_job = Bio::Adventure::RNASeq_Assembly::Trinity_Post(
         $class,
         %args,
-        job_depends => $trin_job->{pbs_id},
-        job_name => "trin_rsem",
+        depends => $trin_job->{pbs_id},
+        jname => "trin_rsem",
         rsem_input => qq"trinity_out_dir/Trinity.fasta",
     );
 
@@ -81,19 +81,19 @@ sub Trinity_Post {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        job_name => "trin_rsem",
+        jname => "trin_rsem",
     );
     my $basename = $options->{basename};
     my $inputs = $options->{input};
     my @in = split(/\:/, $inputs);
     $inputs =~ s/\:/ /g;
     my $rsem_input = $options->{rsem_input};
-    my $job_name = $options->{job_name};
+    my $jname = $options->{jname};
 
     my $trinity_dir = qx"dirname Trinity";
     my $comment = qq!## This is a trinity submission script for rsem.
 !;
-    my $job_string = qq!
+    my $jstring = qq!
 ${trinity_dir}/utils/align_and_estimate_abundance.pl --output_dir trinity_out_dir/align_estimate.out \\
   --transcripts ${rsem_input} --seqType fq --left $in[0] --right $in[1] --est_method RSEM \\
   --aln_method bowtie --trinity_mode --prep_reference 2>trinity_align_estimate.output 1>&2
@@ -107,15 +107,15 @@ ${trinity_dir}/utils/SAM_nameSorted_to_uniq_count_stats.pl \\
     my $trinpost_job = $class->Submit(
         comment => $comment,
         input => $inputs,
-        job_depends => $options->{job_depends},
-        job_name => "trinpost",
-        job_prefix => "46",
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => "trinpost",
+        jprefix => "46",
+        jstring => $jstring,
         output => qq"trinitypost.output",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => "long",
-        wall => "144:00:00",
+        walltime => "144:00:00",
     );
 }
 

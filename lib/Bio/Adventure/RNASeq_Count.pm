@@ -39,20 +39,20 @@ sub HT_Multi {
     die("Could not find htseq in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        job_name => '',
+        jname => '',
         required => ["species", "htseq_input"],
     );
     my $species = $options->{species};
     my $htseq_input = $options->{htseq_input};
-    my $job_basename = $options->{job_name};
+    my $job_basename = $options->{jname};
     my @jobs = ();
 
     my $script_suffix = qq"";
     if ($args{suffix}) {
         $script_suffix = $args{suffix};
     }
-    my $job_prefix = "";
-    $job_prefix = $args{job_prefix} if ($args{job_prefix});
+    my $jprefix = "";
+    $jprefix = $args{jprefix} if ($args{jprefix});
     my %gff_types = (
         antisense => ["exon", "ID"],
         exon => ["exon", "ID"],
@@ -80,6 +80,10 @@ sub HT_Multi {
         my $gtf = $gff;
         $gtf =~ s/\.gff/\.gtf/g;
         my $output = qq"${out_suffixdir}/${out_basename}_${type}.count";
+        my $htseq_jobname = qq"ht${type}_$options->{species}";
+        if ($options->{jname}) {
+            $htseq_jobname = qq"ht${type}_$options->{jname}";
+        }
         if (-r "$gff") {
             print "Found $gff, performing htseq with it.\n";
             my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
@@ -87,10 +91,10 @@ sub HT_Multi {
                 htseq_gff => $gff,
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type},
-                job_depends => $options->{job_depends},
-                job_name => "ht${type}${script_suffix}_${species}",
+                depends => $options->{depends},
+                jname => $htseq_jobname,
                 job_output => $output,
-                job_prefix => $job_prefix,
+                jprefix => $jprefix,
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 queue => 'throughput',
@@ -105,10 +109,10 @@ sub HT_Multi {
                 htseq_gff => $gtf,
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type},
-                job_depends => $options->{job_depends},
-                job_name => "ht${type}${script_suffix}_${species}",
+                depends => $options->{depends},
+                jname => $htseq_jobname,
                 job_output => $output,
-                job_prefix => $options->{job_prefix},
+                jprefix => $options->{jprefix},
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 queue => 'throughput',
@@ -116,9 +120,10 @@ sub HT_Multi {
             );
             push(@jobs, $ht);
             $htseq_runs++;
-        } else {
-            print "Did not find ${gff} nor ${gtf}, skipping htseq_${type}.\n";
         }
+        ##else {
+        ##print "Did not find ${gff} nor ${gtf}, skipping htseq_${type}.\n";
+        ##}
     }                           ## End foreach type
     ## Also perform a whole genome count
     my $gff = qq"$options->{libdir}/genome/${species}.gff";
@@ -126,6 +131,10 @@ sub HT_Multi {
     $gtf =~ s/\.gff/\.gtf/g;
     my $output = $htseq_input;
     $output =~ s/\.bam$/\.count/g;
+    my $htall_jobname = qq"htall_$options->{species}";
+    if ($options->{jname}) {
+        $htall_jobname = qq"htall_$options->{jname}";
+    }
     if (-r "$gff") {
         print "Found $gff, performing htseq_all with it.\n";
         my $ht = Bio::Adventure::RNASeq_Count::HTSeq(
@@ -134,10 +143,10 @@ sub HT_Multi {
             htseq_id => $options->{htseq_id},
             htseq_input => $htseq_input,
             htseq_type => $options->{htseq_type},
-            job_depends => $options->{job_depends},
-            job_name => "htall${script_suffix}_${species}",
+            depends => $options->{depends},
+            jname => $htall_jobname,
             job_output => $output,
-            job_prefix => $job_prefix,
+            jprefix => $jprefix,
             postscript => $options->{postscript},
             prescript => $options->{prescript},
             queue => 'throughput',
@@ -151,10 +160,10 @@ sub HT_Multi {
             htseq_gff => $gff,
             htseq_input => $htseq_input,
             htseq_type => "none",
-            job_depends => $options->{job_depends},
-            job_name => "htall${script_suffix}_${species}",
+            depends => $options->{depends},
+            jname => $htall_jobname,
             job_output => $output,
-            job_prefix => $job_prefix,
+            jprefix => $jprefix,
             postscript => $args{postscript},
             prescript => $args{prescript},
             queue => 'throughput',
@@ -212,7 +221,7 @@ sub HT_Types {
         if ($count > $max_lines) {
             last LOOP;
         }
-    }                           ## End loop
+    } ## End loop
     $reader->close();
     my $found_my_type = 0;
     my $max_type = "";
@@ -227,10 +236,13 @@ sub HT_Types {
             print "The specified type: ${my_type} is in the gff file, comprising $found_types{$my_type} of the first 40,000.\n";
             $found_my_type = 1;
         }
-    }                           ## End the loop
+    } ## End the loop
 
     my $max_can = "";
     foreach my $can (keys %found_canonical) {
+        if (!defined($found_canonical{$can})) {
+            $found_canonical{$can} = 0;
+        }
         if ($found_canonical{$can} > $max_canonical) {
             $max_can = $can;
             $max_canonical = $found_types{$can};
@@ -260,9 +272,9 @@ sub HTSeq {
         args => \%args,
         required => ["species", "htseq_stranded", "htseq_args",],
         htseq_input => $class->{options}->{input},
-        job_depends => '',
-        job_name => '',
-        job_prefix => '',
+        depends => '',
+        jname => '',
+        jprefix => '',
         libtype => 'genome',
     );
     my $basename = $options->{basename};
@@ -270,13 +282,10 @@ sub HTSeq {
     my $htseq_type = $options->{htseq_type};
     my $htseq_id = $options->{htseq_id};
     my $output = $options->{job_output};
-    my $htseq_jobname;
-    if ($options->{htseq_jobname}) {
-        $htseq_jobname = $options->{htseq_jobname};
-    } else {
-        $htseq_jobname = qq"hts_$options->{species}";
+    my $htseq_jobname = qq"hts_$options->{species}";
+    if ($options->{jname}) {
+        $htseq_jobname = $options->{jname};
     }
-
     my $htseq_input = $options->{htseq_input};
     my $error = $htseq_input;
     my $gff = qq"$options->{libdir}/$options->{libtype}/$options->{species}.gff";
@@ -333,7 +342,7 @@ sub HTSeq {
         $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
         $htseq_input = '-';
     }
-    my $job_string = qq!
+    my $jstring = qq!
 ${htseq_invocation}
   ${htseq_input} \\
   ${annotation} \\
@@ -347,11 +356,11 @@ ${htseq_invocation}
     my $htseq = $class->Submit(
         comment => $comment,
         input => $htseq_input,
-        job_depends => $options->{job_depends},
-        job_name => $htseq_jobname,
+        depends => $options->{depends},
+        jname => $htseq_jobname,
         job_output => $output,
-        job_prefix => $options->{job_prefix},
-        job_string => $job_string,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         mem => 6,
         postscript => $args{postscript},
         prescript => $args{prescript},

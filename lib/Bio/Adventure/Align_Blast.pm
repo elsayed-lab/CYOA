@@ -256,7 +256,7 @@ blastp is normal protein/protein.
         );
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
-            job_depends => $alignment->{pbs_id},
+            depends => $alignment->{pbs_id},
             output => ${output},
         );
     } else {
@@ -278,7 +278,7 @@ blastp is normal protein/protein.
 
     my $parse_input = cwd() . qq"/$concat_job->{output}";
     my $comment_string = qq!## I don't know if this will work.!;
-    my $job_string = qq?
+    my $jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
@@ -287,9 +287,9 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        job_depends => $concat_job->{pbs_id},
-        job_name => "parse_search",
-        job_string => $job_string,
+        depends => $concat_job->{pbs_id},
+        jname => "parse_search",
+        jstring => $jstring,
         language => 'perl',
 
     );
@@ -300,9 +300,9 @@ sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        job_depends => '',
+        depends => '',
     );
-    my $dep = $options->{job_depends};
+    my $dep = $options->{depends};
     my $library = $options->{library};
     my $array_end = 1000 + $options->{number};
     my $array_string = qq"1000-${array_end}";
@@ -316,12 +316,12 @@ sub Make_Blast_Job {
         print STDERR  "Sleeping for 3 seconds so you can hit Control-C if you want to rerun.\n";
         sleep(3);
     }
-    my $job_string = '';
+    my $jstring = '';
     ## I have been getting null pointers, there is a bug report suggesting this is because of xml output
     ## $args{output_type} = 1;
     $args{output_type} = ${out_fmt};
     if ($options->{pbs}) {
-        $job_string = qq!
+        $jstring = qq!
 cd $options->{basedir}
 $options->{blast_tool} -outfmt $options->{output_type} \\
  -query $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
@@ -331,7 +331,7 @@ $options->{blast_tool} -outfmt $options->{output_type} \\
  2>>$options->{basedir}/split_align_errors.txt
 !;
     } else {
-        $job_string = qq!
+        $jstring = qq!
 cd $options->{basedir}
 $options->{blast_tool} -outfmt $options->{output_type} \\
   -query $options->{query} \\
@@ -344,13 +344,13 @@ $options->{blast_tool} -outfmt $options->{output_type} \\
     my $comment = qq!## Running multiple fasta jobs.!;
     my $blast_jobs = $class->Submit(
         comment => $comment,
-        job_name => 'blast_multi',
-        job_depends => $dep,
-        job_string => $job_string,
+        jname => 'blast_multi',
+        depends => $dep,
+        jstring => $jstring,
         mem => 32,
         qsub_args => " $options->{qsub_args} -t ${array_string} ",
         queue => 'large',
-        wall => '96:00:00',
+        walltime => '96:00:00',
     );
     return($blast_jobs);
 }
@@ -366,7 +366,7 @@ sub Merge_Parse_Blast {
     }
     my $concat = Bio::Adventure::Align::Concatenate_Searches($class);
     my $input = $options->{output};
-    my $job_string = qq?
+    my $jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
@@ -374,9 +374,9 @@ my \$h = Bio::Adventure->new(input => \$input);
 my \$final = Bio::Adventure::Align_Blast->Parse_Search(\$h, search_type => 'blastxml',);
 ?;
     my $parse = $class->Submit(
-        job_depends => $concat->{pbs_id},
-        job_name => 'parse_search',
-        job_string => $job_string,
+        depends => $concat->{pbs_id},
+        jname => 'parse_search',
+        jstring => $jstring,
         language => 'perl',
     );
     return($parse);

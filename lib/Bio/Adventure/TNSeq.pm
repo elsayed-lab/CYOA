@@ -46,13 +46,11 @@ sub Do_Sort_Indexes {
         args => \%args,
         required => ['index_file', 'input'],
     );
-    my $index_file = $options->{index_file};
     my $input = $options->{input};
     $input = '.' unless (defined($input));
     my $outdir = $options->{output_dir};
     $outdir = 'outputs' unless (defined($outdir));
-    $options->{outdir} = $outdir;
-    my $index_hash = {};
+    $options = $class->Set_Vars(outdir => $outdir);
 
     if ($options->{help}) {
         print qq"This script is intended to split TNSeq reads as indexed by Yoann Le Breton.
@@ -62,41 +60,43 @@ It therefore makes some assumptions about the beginnings of reads and requires t
 ";
         exit(0);
     }
-
-    $class->{options}->{indexes} = Bio::Adventure::TNSeq::Read_Indexes(
+    my $index_hash = Bio::Adventure::TNSeq::Read_Indexes(
         $class,
-        index_file => $index_file,
+        index_file => $options->{index_file},
     );
+
     my $reads;
     if (-f $options->{input}) {
-        $reads = Bio::Adventure::TNSeq::Sort_TNSeq_File(
+        $reads = Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
             $class,
             file => $options->{input},
+            index_hash => $index_hash,
         );
     } elsif (-d $options->{input}) {
         $reads = Bio::Adventure::TNSeq::Sort_TNSeq_Dir(
             $class,
             dir => $options->{input},
+            index_hash => $options->{index_hash},
         );
     } else {
         die("I need a directory containing some sequence.") unless($options->{input});
     }
 
     my $log = new FileHandle(">$options->{outdir}/tnseq_sorting_stats.txt");
-    my $classssage = qq"
-The total number of reads read in $options->{input}: $class->{options}->{indexes}->{total}->{read}.
-The total number of reads sorted in $options->{input}: $class->{options}->{indexes}->{total}->{written}.
+    my $message = qq"
+The total number of reads read in $options->{input}: $reads->{indexes}->{total}->{read}.
+The total number of reads sorted in $options->{input}: $reads->{indexes}->{total}->{written}.
 ";
-    print $log $classssage;
-    my %final = %{$class->{options}->{indexes}};
+    print $log $message;
+    my %final = %{$reads->{indexes}};
     foreach my $k (keys %final) {
         next if ($k eq 'total');
-        $classssage = qq"Index $k had $class->{options}->{indexes}->{$k}->{written} reads written from $options->{input} to $class->{options}->{indexes}->{$k}->{filename}.\n";
-        print $log $classssage;
-        $class->{options}->{indexes}->{$k}->{handle}->close();
+        $message = qq"Index $k had $reads->{indexes}->{$k}->{written} reads written from $options->{input} to $reads->{indexes}->{$k}->{filename}.\n";
+        print $log $message;
+        $reads->{indexes}->{$k}->{handle}->close();
     }
     $log->close();
-    return($class->{options}->{indexes}->{total});
+    return($reads->{indexes}->{total});
 }
 
 sub TA_Check {
@@ -105,26 +105,29 @@ sub TA_Check {
         args => \%args,
         required => ['input'],
     );
-    my $job_string = qq?
+    my $job_basename = $class->Get_Job_Name();
+    my $jstring = qq"
 use Bio::Adventure;
 use Bio::Adventure::TNSeq;
-my \$h = new Bio::Adventure;
-\$h->Do_TA_Check(input => '$options->{input}', ?;
-    foreach my $option (keys %args) {
-        $job_string .= qq"${option} => '$args{$option}',";
+my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
+  \$h,
+  input => '$options->{input}',
+";
+    foreach my $option (sort keys %args) {
+        $jstring .= qq"  ${option} => '$args{$option}',\n";
     }
-    $job_string .= qq");";
+    $jstring .= qq");";
     my $sort_job = $class->Submit(
         comment => "# Check for tailing TAs!",
         cpus => 1,
-        job_depends => $options->{job_depends},
-        job_name => "ta_check",
-        job_prefix => $options->{job_prefix},
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => qq"tacheck_${job_basename}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         language => 'perl',
         mem => 8,
         queue => "throughput",
-        wall => "10:00:00",
+        walltime => "10:00:00",
     );
     return($sort_job);
 }
@@ -138,7 +141,7 @@ sub Do_TA_Check {
     my $with_ta = FileHandle->new("| gzip -9 > ${input_base}_ta.fastq.gz");
     my $without_ta = FileHandle->new("| gzip -9 > ${input_base}_nota.fastq.gz");
     my $inputted = FileHandle->new("less ${input} |"); ## PerlIO::gzip is failing on some files.
-    my $in = new Bio::SeqIO(-fh => \$inputted, -format => 'Fastq');
+    my $in = new Bio::SeqIO(-fh => $inputted, -format => 'Fastq');
     my $count = 0;
     my $with_ta_count = 0;
     my $without_ta_count = 0;
@@ -165,9 +168,11 @@ ${qual}
             print $without_ta $fastq_string;
         }
     }
-    my $counters = {total => $count,
-                    with => $with_ta_count,
-                    without => $without_ta_count,};
+    my $counters = {
+        total => $count,
+        with => $with_ta_count,
+        without => $without_ta_count,
+    };
     $input->close();
     $inputted->close();
     return($counters);
@@ -177,23 +182,24 @@ sub Sort_Indexes {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     ## If options are required, feed them back into %args here?
-    my $job_string = qq?
+    my $jstring = qq"
 use Bio::Adventure;
-my \$h = new Bio::Adventure;
-\$h->Do_Sort_Indexes(?;
+my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
+  \$h,\n";
     foreach my $option (keys %args) {
-        $job_string .= qq"${option} => '$args{$option}',";
+        next unless defined($args{$options});
+        $jstring .= qq"  ${option} => '$args{$option}',\n";
     }
-    $job_string .= qq");";
+    $jstring .= qq");";
     my $sort_job = $class->Submit(
         comment => "# Sort # TODO: hose indexes!",
         cpus => 1,
         language => 'perl',
-        job_name => "sort_indexes",
-        job_string => $job_string,
+        jname => "sort_indexes",
+        jstring => $jstring,
         mem => 8,
         queue => "workstation",
-        wall => "60:00:00",
+        walltime => "60:00:00",
     );
     return($sort_job);
 }
@@ -207,115 +213,117 @@ my \$h = new Bio::Adventure;
   per the rules set up in the index hash.
 
 =cut
-sub Sort_TNSeq_File {
-    my ($class, %args) = @_;
-    my $input = $args{file};
-    my $options = $class->Get_Vars(args => \%args);
-    my $indexes = $options->{indexes};
-
-    return(undef) unless ($input =~ /\.fastq/);
-    my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
-    print $out "Starting to read: $input\n";
-    ## Does FileHandle work here?
-    my $inputted = FileHandle->new("less ${input} |"); ## PerlIO::gzip is failing on some files.
-    my $in = Bio::SeqIO->new(-fh => \$inputted, -format => 'Fastq');
-    while (my $in_seq = $in->next_dataset()) {
-        $options->{indexes}->{total}->{read}++;
-        print $out "Read $options->{indexes}->{total}->{read} entries.\n" if ($options->{debug});
-        my $id = $in_seq->{'-descriptor'};
-        my $sequence = $in_seq->{'-seq'};
-        my $qual = $in_seq->{'-raw_quality'};
-        my $found = 0;
-        foreach my $index (keys %{$indexes}) {
-            my $match = "^\\w{0,5}$index\\w+";
-            if ($sequence =~ m/$match/) {
-                $found++;
-                my $new_seq = $sequence;
-                ## Remember that I truncated the index in case of problems
-                ## Leaving two any-characters off of the beginning of the line attempts to ensure that
-                ## These are not picked up erroneously.
-                $new_seq =~ s/^\w{0,5}${index}..(\w+$)/$1/g;
-                ## The next 5 lines are an overly verbose way of extracting the positions which matched the (\w+) above
-                ## and using those positions to pull out the same substring from the quality scores
-                my @match_start = @-;
-                my @match_end = @+;
-                my $match_start_pos = $match_start[1];
-                my $match_end_pos = $match_end[1];
-                my $new_qual = substr($qual, $match_start_pos, $match_end_pos);
-                ## The following search was added due to some weird PCR artifacts in some datasets.
-                ## This may complicate submitting this data to SRA.
-                if ($class->{tnseq_trim}) {
-                    my $pcr_match = "ACAGGTTGGATGATA";
-                    if ($sequence =~ m/$pcr_match/) {
-                        my $newer_seq = $new_seq;
-                        $newer_seq =~ s/^(\w+)${pcr_match}(\w+)$/$1/g;
-                        @match_start = @-;
-                        @match_end = @+;
-                        my $pcr_match_start = $match_start[1];
-                        my $pcr_match_end = $match_end[1];
-                        my $newer_qual = substr($qual, $pcr_match_start, $pcr_match_end);
-                        $new_seq = $newer_seq;
-                        $new_qual = $newer_qual;
-                    }
-                }
-
-                $options->{indexes}->{total}->{written}++;
-                if (($options->{indexes}->{total}->{written} % 10000) == 0) {
-                    print $out "Wrote $options->{indexes}->{total}->{written} reads from $input\n";
-                    ## dump_sizes();
-                }
-                my $fastq_string = qq"\@$id
-$new_seq
-+
-$new_qual
-";
-                my $handle = $indexes->{$index}->{handle};
-                print $handle $fastq_string;
-                $indexes->{$index}->{written}++;
-            }               ## End looking for an individual match from %indexes
-        }                   ## End recursing over %indexes
-        if ($found == 0) {
-            my $handle = $indexes->{unknown}->{handle};
-            my $fastq_string = qq"\@${id}
-${sequence}
-+
-${qual}
-";
-            print $handle $fastq_string;
-            $indexes->{unknown}->{written}++;
-        }
-    }                           ## End reading the fastq file
-    $options->{indexes} = $indexes;
-    $inputted->close();
-    $input->close();
-    $out->close();
-    return($indexes);
-}
+##sub Sort_TNSeq_File {
+##    my ($class, %args) = @_;
+##    my $options = $class->Get_Vars(args => \%args);
+##    my $indexes = $options->{indexes};
+##
+##    my $data = $options->{indexes};
+##
+##    return(undef) unless ($options->{input} =~ /\.fastq/);
+##    my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
+##    print $out "Starting to read: $options->{input}\n";
+##    ## Does FileHandle work here?
+##    my $inputted = FileHandle->new("less $options->{input} |"); ## PerlIO::gzip is failing on some files.
+##    my $in = Bio::SeqIO->new(-fh => \$inputted, -format => 'Fastq');
+##    while (my $in_seq = $in->next_dataset()) {
+##        $data->{total}->{read}++;
+##        print $out "Read $data->{total}->{read} entries.\n" if ($options->{debug});
+##        my $id = $in_seq->{'-descriptor'};
+##        my $sequence = $in_seq->{'-seq'};
+##        my $qual = $in_seq->{'-raw_quality'};
+##        my $found = 0;
+##        foreach my $index (keys %{$indexes}) {
+##            print "TESTME: $index\n";
+##            my $match = "^\\w{0,5}$index\\w+";
+##            if ($sequence =~ m/$match/) {
+##                $found++;
+##                my $new_seq = $sequence;
+##                ## Remember that I truncated the index in case of problems
+##                ## Leaving two any-characters off of the beginning of the line attempts to ensure that
+##                ## These are not picked up erroneously.
+##                $new_seq =~ s/^\w{0,5}${index}..(\w+$)/$1/g;
+##                ## The next 5 lines are an overly verbose way of extracting the positions which matched the (\w+) above
+##                ## and using those positions to pull out the same substring from the quality scores
+##                my @match_start = @-;
+##                my @match_end = @+;
+##                my $match_start_pos = $match_start[1];
+##                my $match_end_pos = $match_end[1];
+##                my $new_qual = substr($qual, $match_start_pos, $match_end_pos);
+##                ## The following search was added due to some weird PCR artifacts in some datasets.
+##                ## This may complicate submitting this data to SRA.
+##                if ($class->{tnseq_trim}) {
+##                    my $pcr_match = "ACAGGTTGGATGATA";
+##                    if ($sequence =~ m/$pcr_match/) {
+##                        my $newer_seq = $new_seq;
+##                        $newer_seq =~ s/^(\w+)${pcr_match}(\w+)$/$1/g;
+##                        @match_start = @-;
+##                        @match_end = @+;
+##                        my $pcr_match_start = $match_start[1];
+##                        my $pcr_match_end = $match_end[1];
+##                        my $newer_qual = substr($qual, $pcr_match_start, $pcr_match_end);
+##                        $new_seq = $newer_seq;
+##                        $new_qual = $newer_qual;
+##                    }
+##                }
+##
+##                $data->{total}->{written}++;
+##                if (($data->{total}->{written} % 10000) == 0) {
+##                    print $out "Wrote $data->{total}->{written} reads from $options->{input}\n";
+##                    ## dump_sizes();
+##                }
+##                my $fastq_string = qq"\@$id
+##$new_seq
+##+
+##$new_qual
+##";
+##                my $handle = $data->{$index}->{handle};
+##                print $handle $fastq_string;
+##                $data->{$index}->{written}++;
+##            }               ## End looking for an individual match from %indexes
+##        }                   ## End recursing over %indexes
+##        if ($found == 0) {
+##            my $handle = $data->{unknown}->{handle};
+##            my $fastq_string = qq"\@${id}
+##${sequence}
+##+
+##${qual}
+##";
+##            print $handle $fastq_string;
+##            $data->{unknown}->{written}++;
+##        }
+##    }                           ## End reading the fastq file
+##    $inputted->close();
+##    $data->{input}->close();
+##    $out->close();
+##    return($data);
+##}
 
 sub Sort_TNSeq_File_Approx {
     my ($class, %args) = @_;
-    my $input = $args{file};
-    my $options = $class->Get_Vars(args => \%args);
-    my $indexes = $options->{indexes};
+    my $options = $class->Get_Vars(
+        args => \%args,
+        index_hash => {},
+    );
+    my $data = $options->{index_hash};
 
-    return(undef) unless ($input =~ /\.fastq/);
+    return(undef) unless ($options->{input} =~ /\.fastq/);
     my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
-    print $out "Starting to read: ${input}\n";
+    print $out "Starting to read: $options->{input}\n";
     ## Does FileHandle work here?
-    ##open(INPUT, "less ${input} |");  ## PerlIO::gzip is failing on some files.
-    my $inputted = FileHandle->new("less ${input} |"); ## PerlIO::gzip is failing on some files.
-    my $in = Bio::SeqIO->new(-fh => \$inputted, -format => 'Fastq');
+    my $inputted = FileHandle->new("less $options->{input} |");
+    my $in = Bio::SeqIO->new(-fh => $inputted, -format => 'Fastq');
     my $count = 0;
   READS: while (my $in_seq = $in->next_dataset()) {
         $count++;
-        $options->{indexes}->{total}->{read}++;
-        print $out "Read $options->{indexes}->{total}->{read} entries.\n" if ($options->{debug});
+        $data->{total}->{read}++;
+        print $out "Read $data->{total}->{read} entries.\n" if ($options->{debug});
         my $id = $in_seq->{'-descriptor'};
         my $sequence = $in_seq->{'-seq'};
         my $qual = $in_seq->{'-raw_quality'};
         my $found = 0;
         my @index_list = ();
-        foreach my $index (keys %{$indexes}) {
+        foreach my $index (keys %{$data}) {
             push(@index_list, $index) unless ($index eq 'total' or $index eq 'unknown' or $index eq 'ambiguous');
         }
         my $found_id = '';
@@ -330,41 +338,40 @@ sub Sort_TNSeq_File_Approx {
         if ($found == 1) {
             my $new_sequence = substr($sequence, 9,);
             my $new_quality = substr($qual, 9,);
-            $options->{indexes}->{total}->{written}++;
-            if (($options->{indexes}->{total}->{written} % 10000) == 0) {
-                print $out "Wrote $options->{indexes}->{total}->{written} reads from ${input}\n";
+            $data->{total}->{written}++;
+            if (($data->{total}->{written} % 10000) == 0) {
+                print $out "Wrote $data->{total}->{written} reads from $options->{input}\n";
             }
             my $fastq_string = qq"\@${id}
 ${new_sequence}
 +
 ${new_quality}
 ";
-            my $handle = $indexes->{$found_id}->{handle};
+            my $handle = $data->{$found_id}->{handle};
             print $handle $fastq_string;
-            $indexes->{$found_id}->{written}++;
+            $data->{$found_id}->{written}++;
         } elsif ($found > 1) {
-            my $handle = $indexes->{ambiguous}->{handle};
+            my $handle = $data->{ambiguous}->{handle};
             my $fastq_string = qq"\@${id}
 ${sequence}
 +
 ${qual}
 ";
             print $handle $fastq_string;
-            $indexes->{ambiguous}->{written}++;
+            $data->{ambiguous}->{written}++;
         } elsif ($found < 1) {
-            my $handle = $indexes->{unknown}->{handle};
+            my $handle = $data->{unknown}->{handle};
             my $fastq_string = qq"\@${id}
 ${sequence}
 +
 ${qual}
 ";
             print $handle $fastq_string;
-            $indexes->{unknown}->{written}++;
+            $data->{unknown}->{written}++;
         }
     }                           ## End reading the fastq file
-    $class->{indexes} = $indexes;
     ###close(INPUT);
-    $input->close();
+    $options->{input}->close();
     $inputted->close();
     $out->close();
     return($count);
@@ -382,7 +389,10 @@ ${qual}
 =cut
 sub Sort_TNSeq_Dir {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        index_hash => {},
+    );
     my $cwd_dir = getcwd();
     my $searchdir = qq"$args{dir}";
     my $files = 0;
@@ -402,6 +412,7 @@ sub Sort_TNSeq_Dir {
         my $approx = Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
             $class,
             file => $file,
+            index_hash => $options->{index_hash},
         );
     }
     return($files);
@@ -444,6 +455,10 @@ sub Read_Indexes {
         next if ($line =~ /^#/);
         next unless ($line =~ /^A|T|G|C|a|t|g|c/);
         my ($ind, $sample) = split(/\s+|\,|;/, $line);
+        ## Add a quick piece of logic in case I flip the indexes.txt file
+        if ($ind =~ /^h|H/ && $sample =~ /^A|T|G|C/) {
+            ($sample, $ind) = split(/\s+|\,|;/, $line);
+        }
         my $output_filename = qq"$options->{outdir}/${sample}.fastq.gz";
         unlink($output_filename) if (-r $output_filename);
         my $handle = FileHandle->new("| gzip >> $output_filename");
@@ -615,7 +630,7 @@ sub Run_Essentiality {
     my $output_file = qq"tn_hmm-${output}.csv";
     my $error_file =  qq"tn_hmm-${output}.err";
     my $comment = qq"## Performing tn_hmm on ${input_wig} using ${gff}\n";
-    my $job_string = qq!## This only works with python 2.7.9
+    my $jstring = qq!## This only works with python 2.7.9
 eval \$(modulecmd bash purge)
 eval \$(modulecmd bash add Python2/2.7.9)
 eval \$(modulecmd bash add essentiality)
@@ -637,9 +652,9 @@ process_segments.py -f outputs/essentiality/${output_file} \\
   2>outputs/essentiality/segments_${error_file}
 !;
     ## tn-hmm requires a wig file and gff
-    my $tn_hmm = $class->Submit(job_name => "tn_hmm",
-                                job_string => $job_string,
-                                job_prefix => "15",
+    my $tn_hmm = $class->Submit(jname => "tn_hmm",
+                                jstring => $jstring,
+                                jprefix => "15",
                                 comment => $comment,
                                 output => $output_file,
                             );
@@ -649,7 +664,7 @@ process_segments.py -f outputs/essentiality/${output_file} \\
         ##   1. the tas file for either cds or intercds provided by count_tas
         my $output_file = qq"mh_ess-${output}_m${param}.csv";
         my $error_file = qq"mh_ess-${output}_m${param}.err";
-        $job_string = qq!## This only works with python 2.7.9
+        $jstring = qq!## This only works with python 2.7.9
 eval \$(modulecmd bash purge)
 eval \$(modulecmd bash add Python2/2.7.9)
 eval \$(modulecmd bash add essentiality)
@@ -665,10 +680,10 @@ gumbelMH.py -f ${input} -m ${param} -s ${runs} \\
         my $comment = qq!# Run mh-ess using the min hit: $param!;
         my $mh_ess = $class->Submit(
             comment => $comment,
-            job_depends => $options->{job_depends},
-            job_name => "mh_ess-${param}",
-            job_prefix => '16',
-            job_string => $job_string,
+            depends => $options->{depends},
+            jname => "mh_ess-${param}",
+            jprefix => '16',
+            jstring => $jstring,
             output => $output_file,
             prescript => $options->{prescript},
             postscript => $options->{postscript},

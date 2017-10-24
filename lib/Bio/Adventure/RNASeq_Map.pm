@@ -59,11 +59,11 @@ sub Bowtie {
     my %bt_jobs = ();
     my $bt_input = $options->{input};
     my $bt_depends_on;
-    $bt_depends_on = $options->{job_depends} if ($options->{job_depends});
+    $bt_depends_on = $options->{depends} if ($options->{depends});
     my $job_basename = $options->{job_basename};
 
-    my $job_name = qq"bt${bt_type}_${species}";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $jname = qq"bt${bt_type}_${species}";
+    $jname = $options->{jname} if ($options->{jname});
     my $libtype = $options->{libtype};
     my $count = $options->{count};
 
@@ -77,9 +77,9 @@ sub Bowtie {
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $bt_input,
-            job_depends => $bt_depends_on,
-            job_name => 'uncomp',
-            job_prefix => '09',
+            depends => $bt_depends_on,
+            jname => 'uncomp',
+            jprefix => '09',
         );
         $bt_input = basename($bt_input, ('.gz', '.bz2', '.xz'));
         $bt_jobs{uncompress} = $uncomp;
@@ -94,7 +94,7 @@ sub Bowtie {
         $options = $class->Set_Vars(bt1_indexjobs => 1);
         my $index_job = Bio::Adventure::RNASeq_Map::BT1_Index(
             $class,
-            job_depends => $bt_depends_on,
+            depends => $bt_depends_on,
             libtype => $libtype,
         );
         $bt_jobs{index} = $index_job;
@@ -127,7 +127,7 @@ sub Bowtie {
     my $aligned_filename = qq"${bt_dir}/${job_basename}-${bt_type}_aligned_${species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${job_basename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"${bt_dir}/${job_basename}-${bt_type}.sam";
-    my $job_string = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie ${bt_reflib} ${bt_args} \\
+    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie ${bt_reflib} ${bt_args} \\
   -p ${cpus} ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
@@ -140,11 +140,11 @@ sub Bowtie {
         aligned => $aligned_filename,
         comment => $comment,
         input => $bt_input,
-        job_depends => $bt_depends_on,
-        job_name => $job_name,
+        depends => $bt_depends_on,
+        jname => $jname,
         job_output => $sam_filename,
-        job_prefix => "10",
-        job_string => $job_string,
+        jprefix => "10",
+        jstring => $jstring,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         queue => 'workstation',
@@ -155,9 +155,9 @@ sub Bowtie {
     my $un_comp = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.\n",
-        job_depends => $bt_job->{job_id},
-        job_name => "xzun",
-        job_prefix => "11",
+        depends => $bt_job->{job_id},
+        jname => "xzun",
+        jprefix => "11",
         xz_input => "${bt_dir}/${job_basename}-${bt_type}_unaligned_${species}.fastq",
     );
     $bt_jobs{unaligned_compression} = $un_comp;
@@ -165,9 +165,9 @@ sub Bowtie {
     my $al_comp = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt_args}.",
-        job_depends => $bt_job->{job_id},
-        job_name => "xzal",
-        job_prefix => "11",
+        depends => $bt_job->{job_id},
+        jname => "xzal",
+        jprefix => "11",
         xz_input => "${bt_dir}/${job_basename}-${bt_type}_aligned_${species}.fastq",
     );
     $bt_jobs{aligned_compression} = $al_comp;
@@ -178,9 +178,9 @@ sub Bowtie {
     my $sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => $sam_filename,
-        job_depends => $bt_job->{job_id},
-        job_name => "${job_name}_s2b",
-        job_prefix => "13",
+        depends => $bt_job->{job_id},
+        jname => "s2b_${jname}",
+        jprefix => "13",
     );
     $bt_jobs{samtools} = $sam_job;
     $options = $class->Set_Vars(job_output => $sam_job->{job_output});
@@ -192,9 +192,9 @@ sub Bowtie {
                 htseq_id => $options->{htseq_id},
                 htseq_input => $sam_job->{job_output},
                 htseq_type => $options->{htseq_type},
-                job_depends => $sam_job->{job_id},
-                job_name => "ht_${job_name}",
-                job_prefix => '14',
+                depends => $sam_job->{job_id},
+                jname => "ht_${jname}",
+                jprefix => '14',
                 libtype => $libtype,
                 queue => 'workstation',
                 suffix => $bt_type,
@@ -205,9 +205,9 @@ sub Bowtie {
                 htseq_id => $options->{htseq_id},
                 htseq_input => $sam_job->{job_output},
                 htseq_type => $options->{htseq_type},
-                job_depends => $sam_job->{job_id},
-                job_name => "ht_${job_name}",
-                job_prefix => '14',
+                depends => $sam_job->{job_id},
+                jname => "ht_${jname}",
+                jprefix => '14',
                 libtype => $libtype,
                 queue => 'workstation',
                 suffix => $bt_type,
@@ -221,9 +221,9 @@ sub Bowtie {
         bt_input => $error_file,
         bt_type => $bt_type,
         count_table => qq"${job_basename}-${bt_type}.count.xz",
-        job_depends => $bt_job->{job_id},
-        job_name => "${job_name}_stats",
-        job_prefix => "12",
+        depends => $bt_job->{job_id},
+        jname => "${jname}_stats",
+        jprefix => "12",
         trim_input => ${trim_output_file},
     );
     $bt_jobs{stats} = $stats;
@@ -260,13 +260,18 @@ sub Bowtie2 {
     my %bt_jobs = ();
     my $libtype = 'genome';
     my $bt_depends_on = "";
-    $bt_depends_on = $options->{job_depends} if ($options->{job_depends});
+    $bt_depends_on = $options->{depends} if ($options->{depends});
     my $bt2_args = $options->{bt2_args};
-    my $job_name = qq"bt2_$options->{species}";
-    $job_name = $options->{job_name} if ($options->{job_name});
+
+    my $prefix_name = qq"bt2";
+    my $bt2_name = qq"${prefix_name}_$options->{species}";
+    my $suffix_name = $prefix_name;
+    if ($options->{jname}) {
+        $bt2_name .= qq"_$options->{jname}";
+        $suffix_name .= qq"_$options->{jname}";
+    }
 
     my $job_basename = $options->{job_basename};
-
     my $bt_dir = qq"outputs/bowtie2_$options->{species}";
     if ($args{bt_dir}) {
         $bt_dir = $args{bt_dir};
@@ -277,7 +282,7 @@ sub Bowtie2 {
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $bt_input,
-            job_depends => $bt_depends_on,
+            depends => $bt_depends_on,
         );
         $bt_input =~ s/\:|\;|\,|\s+/ /g;
         $bt_input =~ s/\.gz|\.bz|\.xz//g;
@@ -303,7 +308,7 @@ sub Bowtie2 {
         sleep(20);
         my $index_job = Bio::Adventure::RNASeq_Map::BT2_Index(
             $class,
-            job_depends => $bt_depends_on,
+            depends => $bt_depends_on,
             libtype => $libtype,
         );
         $bt_jobs{index} = $index_job;
@@ -321,7 +326,7 @@ sub Bowtie2 {
     my $aligned_filename = qq"${bt_dir}/${job_basename}_aligned_$options->{species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq";
     my $sam_filename = qq"${bt_dir}/${job_basename}.sam";
-    my $job_string = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie2 -x ${bt_reflib} ${bt2_args} \\
+    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie2 -x ${bt_reflib} ${bt2_args} \\
   -p ${cpus} \\
   ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
@@ -340,11 +345,11 @@ sub Bowtie2 {
         aligned => $aligned_filename,
         comment => $comment,
         input => $bt_input,
-        job_name => $job_name,
-        job_depends => $bt_depends_on,
-        job_string => $job_string,
-        job_prefix => "15",
-        mem => 10,
+        jname => $bt2_name,
+        depends => $bt_depends_on,
+        jstring => $jstring,
+        jprefix => "15",
+        mem => 24,
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -356,9 +361,9 @@ sub Bowtie2 {
         $class,
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
         input => "${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq",
-        job_depends => $bt2_job->{job_id},
-        job_name => "xzun",
-        job_prefix => "16",
+        depends => $bt2_job->{job_id},
+        jname => "xzun_${suffix_name}",
+        jprefix => "16",
         );
     $bt_jobs{unaligned_compression} = $un_comp;
 
@@ -366,9 +371,9 @@ sub Bowtie2 {
         $class,
         comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt2_args}",
         input => "${bt_dir}/${job_basename}_aligned_$options->{species}.fastq",
-        job_name => "xzal",
-        job_prefix => "17",
-        job_depends => $bt2_job->{job_id},
+        jname => "xzal_${suffix_name}",
+        jprefix => "17",
+        depends => $bt2_job->{job_id},
     );
     $bt_jobs{aligned_compression} = $al_comp;
 
@@ -378,17 +383,17 @@ sub Bowtie2 {
         $class,
         bt_input => $error_file,
         count_table => qq"${job_basename}.count.xz",
-        job_depends => $bt2_job->{job_id},
-        job_name => "${job_name}_stats",
-        job_prefix => "18",
+        depends => $bt2_job->{job_id},
+        jname => "bt2st_${suffix_name}",
+        jprefix => "18",
         ## trim_input => ${trim_output_file},
     );
     my $sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => $sam_filename,
-        job_depends => $bt2_job->{job_id},
-        job_name => "${job_name}_s2b",
-        job_prefix => "19",
+        depends => $bt2_job->{job_id},
+        jname => "s2b_${suffix_name}",
+        jprefix => "19",
     );
     $bt_jobs{samtools} = $sam_job;
     my $htseq_input = $sam_job->{job_output};
@@ -398,16 +403,18 @@ sub Bowtie2 {
             $htmulti = Bio::Adventure::RNASeq_Count::HTSeq(
                 $class,
                 htseq_input => $sam_job->{job_output},
-                job_depends => $sam_job->{job_id},
-                job_prefix => "20",
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => "20",
                 libtype => $libtype,
             );
         } else {
             $htmulti = Bio::Adventure::RNASeq_Count::HT_Multi(
                 $class,
                 htseq_input => $sam_job->{job_output},
-                job_depends => $sam_job->{job_id},
-                job_prefix => "21",
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => "21",
                 libtype => $libtype,
             );
             $bt_jobs{htseq} = $htmulti;
@@ -433,16 +440,16 @@ sub BT_Multi {
     );
     my $job_basename = $options->{job_basename};
     my $species = $options->{species};
-    my $depends_on = $options->{job_depends};
+    my $depends_on = $options->{depends};
     my %bt_types = %{$options->{bt_args}};
     my @jobs = ();
     foreach my $type (keys %bt_types) {
-        my $job_name = qq"bt${type}_${species}";
+        my $jname = qq"bt${type}_${species}";
         my $job = Bio::Adventure::RNASeq_Map::Bowtie(
             $class,
             bt_type => $type,
-            job_depends => $depends_on,
-            job_name => $job_name,
+            depends => $depends_on,
+            jname => $jname,
             prescript => $args{prescript},
             postscript => $args{postscript},
         );
@@ -485,8 +492,8 @@ sub Bowtie_RRNA {
     }
     my $job = Bio::Adventure::RNASeq_Map::Bowtie(
         $class,
-        job_depends => $depends_on,
-        job_name => qq"btrrna",
+        depends => $depends_on,
+        jname => qq"btrrna",
         libtype => 'rRNA',
         prescript => $args{prescript},
         postscript => $args{postscript},
@@ -505,18 +512,18 @@ sub Bowtie_RRNA {
 sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args, required => ["species"],
-                                   job_depends => "");
+                                   depends => "");
     my $job_basename = $options->{job_basename};
-    my $job_string = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
+    my $jstring = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
   $options->{libdir}/$options->{libtype}/indexes/$options->{species}
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
         comment => $comment,
-        job_name => "bt1idx",
-        job_depends => $options->{job_depends},
-        job_string => $job_string,
-        job_prefix => "10",
+        jname => "bt1idx",
+        depends => $options->{depends},
+        jstring => $jstring,
+        jprefix => "10",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
@@ -534,10 +541,10 @@ sub BT2_Index {
     my $options = $class->Get_Vars(args => \%args, required => ["species"]);
     my $job_basename = $options->{job_basename};
     my $dep = "";
-    $dep = $options->{job_depends};
+    $dep = $options->{depends};
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
-    my $job_string = qq!
+    my $jstring = qq!
 if test \! -e "${libdir}/genome/$options->{species}.fa"; then
   ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
 fi
@@ -551,10 +558,10 @@ bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
     my $comment = qq!## Generating bowtie2 indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
-        job_depends => $dep,
-        job_name => "bt2idx",
-        job_prefix => "15",
-        job_string => $job_string,
+        depends => $dep,
+        jname => "bt2idx",
+        jprefix => "15",
+        jstring => $jstring,
         prescript => $args{prescript},
         postscript => $args{postscript},
     );
@@ -584,11 +591,11 @@ sub BWA {
     my %bwa_jobs = ();
     my $bwa_input = $options->{input};
     my $bwa_depends_on;
-    $bwa_depends_on = $options->{job_depends} if ($options->{job_depends});
+    $bwa_depends_on = $options->{depends} if ($options->{depends});
     my $job_basename = $options->{job_basename};
 
-    my $job_name = qq"bwa_$options->{species}";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $jname = qq"bwa_$options->{species}";
+    $jname = $options->{jname} if ($options->{jname});
     my $libtype = $options->{libtype};
 
     my $bwa_dir = qq"outputs/bwa_$options->{species}";
@@ -601,7 +608,7 @@ sub BWA {
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $bwa_input,
-            job_depends => $bwa_depends_on,
+            depends => $bwa_depends_on,
         );
         $bwa_input = basename($bwa_input, ('.gz', '.bz2', '.xz'));
         $bwa_jobs{uncompress} = $uncomp;
@@ -615,7 +622,7 @@ sub BWA {
     if (!-r $bwa_reftest) {
         my $index_job = Bio::Adventure::RNASeq_Map::BWA_Index(
             $class,
-            job_depends => $bwa_depends_on,
+            depends => $bwa_depends_on,
             libtype => $libtype,
         );
         $bwa_jobs{index} = $index_job;
@@ -645,7 +652,7 @@ sub BWA {
 
     my $aln_sam = qq"${bwa_dir}/${job_basename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/${job_basename}_mem.sam";
-    my $job_string = qq!mkdir -p ${bwa_dir}
+    my $jstring = qq!mkdir -p ${bwa_dir}
 bwa mem -a ${bwa_reflib} ${bwa_input} 2>${bwa_dir}/bwa.err 1>${mem_sam}
 !;
     my $reporter_string = qq"bwa samse ${bwa_reflib} \\
@@ -669,18 +676,18 @@ bwa aln ${bwa_reflib} \\
 ## ${bwa_reflib}.
 ## It will perform a separate bwa mem run and bwa aln run.!;
 
-    $job_string = qq!${job_string}
+    $jstring = qq!${jstring}
 ${aln_string}
 ${reporter_string}
 !;
     my $bwa_job = $class->Submit(
         comment => $comment,
         input => $bwa_input,
-        job_depends => $bwa_depends_on,
-        job_name => "bwa_$options->{species}",
+        depends => $bwa_depends_on,
+        jname => "bwa_$options->{species}",
         job_output => qq"${bwa_dir}/${job_basename}_mem.sam",
-        job_prefix => "20",
-        job_string => $job_string,
+        jprefix => "20",
+        jstring => $jstring,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         queue => 'workstation',
@@ -690,18 +697,18 @@ ${reporter_string}
     my $mem_sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => $bwa_job->{job_output},
-        job_depends => $bwa_job->{job_id},
-        job_name => "s2b_mem",
-        job_prefix => "21",
+        depends => $bwa_job->{job_id},
+        jname => "s2b_mem",
+        jprefix => "21",
     );
     $bwa_jobs{samtools_mem} = $mem_sam_job;
 
     my $aln_sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => ${aln_sam},
-        job_depends => $mem_sam_job->{job_id},
-        job_name => "s2b_aln",
-        job_prefix => "21",
+        depends => $mem_sam_job->{job_id},
+        jname => "s2b_aln",
+        jprefix => "21",
     );
     $bwa_jobs{samtools_mem} = $aln_sam_job;
 
@@ -710,9 +717,9 @@ ${reporter_string}
         htseq_id => $options->{htseq_id},
         htseq_input => $mem_sam_job->{job_output},
         htseq_type => $options->{htseq_type},
-        job_depends => $mem_sam_job->{job_id},
-        job_name => "htmem_${job_name}",
-        job_prefix => '22',
+        depends => $mem_sam_job->{job_id},
+        jname => "htmem_${jname}",
+        jprefix => '22',
     );
     $bwa_jobs{htseq_mem} = $mem_htmulti;
 
@@ -721,17 +728,17 @@ ${reporter_string}
         htseq_id => $options->{htseq_id},
         htseq_input => $aln_sam_job->{job_output},
         htseq_type => $options->{htseq_type},
-        job_depends => $aln_sam_job->{job_id},
-        job_name => "htaln_${job_name}",
-        job_prefix => '22',
+        depends => $aln_sam_job->{job_id},
+        jname => "htaln_${jname}",
+        jprefix => '22',
     );
     $bwa_jobs{htseq_aln} = $aln_htmulti;
 
     my $bwa_stats = Bio::Adventure::RNASeq_Map::BWA_Stats(
         $class,
-        job_depends => $mem_sam_job->{job_id},
-        job_name => 'bwastats',
-        job_prefix => "25",
+        depends => $mem_sam_job->{job_id},
+        jname => 'bwastats',
+        jprefix => "25",
         aln_output => $aln_sam_job->{job_output},
         mem_output => $mem_sam_job->{job_output},
     );
@@ -755,14 +762,14 @@ sub BWA_Stats {
     $mem_input = qq"${mem_input}.stats";
     my $stat_output = qq"outputs/bwa_stats.csv";
 
-    my $job_depends = $options->{job_depends};
-    my $job_name = "bwa_stats";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $depends = $options->{depends};
+    my $jname = "bwa_stats";
+    $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"${job_basename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -r "${stat_output}" ]; then
     echo "# original reads, reads used, aln-aligned reads, mem-aligned reads, rpm" > ${stat_output}
 fi
@@ -784,14 +791,14 @@ echo "\${stat_string}" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $aln_input,
-        job_depends => $job_depends,
-        job_name => $job_name,
-        job_prefix => $options->{job_prefix},
-        job_string => $job_string,
+        depends => $depends,
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         cpus => 1,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }
@@ -805,7 +812,7 @@ sub BWA_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $job_basename = $options->{job_basename};
-    my $job_string = qq!
+    my $jstring = qq!
 if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
   ln -sf $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
 fi
@@ -817,10 +824,10 @@ cd \$start
     my $comment = qq!## Generating bwa indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bwa_index = $class->Submit(
         comment => $comment,
-        job_depends => $options->{job_depends},
-        job_name => "bwaidx",
-        job_prefix => "26",
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => "bwaidx",
+        jprefix => "26",
+        jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
@@ -838,14 +845,14 @@ sub BT2_Stats {
     my $bt_input = $options->{bt_input};
     my $job_basename = $options->{job_basename};
     my $bt_type = $options->{bt_type};
-    my $job_name = "bt2_stats";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $jname = "bt2_stats";
+    $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"${job_basename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $output = "outputs/bowtie2_stats.csv";
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -e "${output}" ]; then
     echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
 fi
@@ -864,14 +871,14 @@ echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $bt_input,
-        job_name => $job_name,
-        job_depends => $options->{job_depends},
-        job_prefix => $args{job_prefix},
-        job_string => $job_string,
+        jname => $jname,
+        depends => $options->{depends},
+        jprefix => $args{jprefix},
+        jstring => $jstring,
         cpus => 1,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }
@@ -889,22 +896,22 @@ sub Kallisto_Index {
     );
     my $job_basename = $options->{job_basename};
     my $dep = "";
-    $dep = $options->{job_depends};
+    $dep = $options->{depends};
     my $libtype = $options->{libtype};
     my $genome = File::Spec->rel2abs($options->{genome});
     unless (-r $genome) {
         die("The indexing operation for kallisto will fail because the $options->{species} genome does not exist.")
     }
 
-    my $job_string = qq!
+    my $jstring = qq!
 kallisto index -i $options->{libdir}/${libtype}/indexes/$options->{species}.idx ${genome}!;
     my $comment = qq!## Generating kallisto indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
         comment => $comment,
-        job_depends => $dep,
-        job_string => $job_string,
-        job_name => "kalidx",
-        job_prefix => $options->{job_prefix},
+        depends => $dep,
+        jstring => $jstring,
+        jname => "kalidx",
+        jprefix => $options->{jprefix},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
@@ -927,7 +934,7 @@ sub Kallisto {
     );
     my %ka_jobs = ();
     my $ka_depends_on;
-    $ka_depends_on = $options->{job_depends} if ($options->{job_depends});
+    $ka_depends_on = $options->{depends} if ($options->{depends});
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $job_basename = $options->{job_basename};
@@ -935,15 +942,15 @@ sub Kallisto {
     my $ka_input = $options->{input};
 
     my $sleep_time = 3;
-    my $job_name = qq"kall_${species}";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $jname = qq"kall_${species}";
+    $jname = $options->{jname} if ($options->{jname});
     my $ka_args = qq"";
 
     if ($ka_input =~ /\.bz2$|\.xz$/ ) {
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $ka_input,
-            job_depends => $ka_depends_on,
+            depends => $ka_depends_on,
         );
         $ka_input = basename($ka_input, ('.gz','.bz2','.xz'));
         $options = $class->Set_Vars(input => $ka_input);
@@ -967,7 +974,7 @@ sub Kallisto {
     if (!-r $ka_reflib) {
         my $index_job = Bio::Adventure::RNASeq_Map::Kallisto_Index(
             $class,
-            job_depends => $ka_depends_on,
+            depends => $ka_depends_on,
             libtype => $libtype,
         );
         $ka_jobs{index} = $index_job;
@@ -989,7 +996,7 @@ sub Kallisto {
 ## The sam->bam conversion is copy/pasted from Sam2Bam() but I figured why start another job
 ## because kallisto is so fast
 !;
-    my $job_string = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
 kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
   ${ka_input} 2>${error_file} 1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
@@ -1002,10 +1009,10 @@ kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${
     my $ka_job = $class->Submit(
         comment => $comment,
         input => $ka_input,
-        job_depends => $ka_depends_on,
-        job_name => qq"${job_name}",
-        job_prefix => "30",
-        job_string => $job_string,
+        depends => $ka_depends_on,
+        jname => qq"${jname}",
+        jprefix => "30",
+        jstring => $jstring,
         prescript => $args{prescript},
         postscript => $args{postscript},
         queue => "workstation",
@@ -1026,17 +1033,17 @@ sub RSEM_Index {
         args => \%args,
         required => ["species",],
     );
-    my $dep = $options->{job_depends};
+    my $dep = $options->{depends};
     my $comment = qq"## RSEM Index creation.";
-    my $job_string = qq!
+    my $jstring = qq!
 rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
 !;
     my $jobid = $class->Submit(
         comment => $comment,
-        job_depends => $dep,
-        job_string => $job_string,
-        job_name => "rsemidx",
-        job_prefix => $options->{job_prefix},
+        depends => $dep,
+        jstring => $jstring,
+        jname => "rsemidx",
+        jprefix => $options->{jprefix},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
@@ -1054,9 +1061,9 @@ sub RSEM {
     );
 
     my $rsem_depends_on = "";
-    $rsem_depends_on = $options->{job_depends} if ($options->{job_depends});
+    $rsem_depends_on = $options->{depends} if ($options->{depends});
     my %rsem_jobs = ();
-
+    my $job_basename = $class->Get_Job_Name();
     my $cds = qq"$options->{libdir}/$options->{libtype}/$options->{species}_cds_nt.fasta";
     my $idx = qq"$options->{libdir}/$options->{libtype}/indexes/rsem/$options->{species}";
     my $test_idx = qq"${idx}.transcripts.fa";
@@ -1069,12 +1076,12 @@ sub RSEM {
             $class,
             cds_fasta => $cds,
             index => $idx,
-            job_depends => $rsem_depends_on,
+            depends => $rsem_depends_on,
+            jname => qq"rsidx_${job_basename}",
             libtype => $options->{libtype},
         );
         $rsem_jobs{index} = $index_job;
         $rsem_depends_on = $index_job->{job_id};
-
     }
 
     my $rsem_input = $options->{input};
@@ -1083,7 +1090,7 @@ sub RSEM {
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $rsem_input,
-            job_depends => $rsem_depends_on,
+            depends => $rsem_depends_on,
         );
         $rsem_input =~ s/\:|\;|\,|\s+/ /g;
         $rsem_input =~ s/\.gz|\.bz|\.xz//g;
@@ -1102,25 +1109,25 @@ sub RSEM {
     my $rsem_comment = qq"## This is a rsem invocation script.
 ";
     my $output_file = "$options->{species}_something.txt";
-    my $job_string = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
+    my $jstring = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
   --calc-ci ${rsem_input} \\
   ${idx} \\
   ${rsem_dir}/$options->{species} \\
   2>${rsem_dir}/$options->{species}.err 1>${rsem_dir}/$options->{species}.out
 ";
 
-    my $job_name = qq"rsem_$options->{species}";
-
     my $rsem_job = $class->Submit(
         comment => $rsem_comment,
         input => $rsem_input,
-        job_name => $job_name,
-        job_depends => $rsem_depends_on,
-        job_string => $job_string,
-        job_prefix => "28",
+        jname => qq"rsem_${job_basename}",
+        depends => $rsem_depends_on,
+        jstring => $jstring,
+        jprefix => "28",
+        mem => 18,
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
+        walltime => '18:00:00',
     );
     $rsem_jobs{rsem} = $rsem_job;
     return(\%rsem_jobs);
@@ -1141,7 +1148,7 @@ sub Tophat {
         args => \%args,
         required => ["species", "input", "htseq_type"],
     );
-    my $job_depends = $options->{job_depends};
+    my $depends = $options->{depends};
     my $tophat_cpus = 4;
     my $inputs = $options->{input};
     my @in = split(/:/, $inputs);
@@ -1176,12 +1183,12 @@ sub Tophat {
         print "Did not find the index for $options->{species} at: ${bt_reflib}, indexing now.\n";
         $index_job = Bio::Adventure::RNASeq_Map::BT2_Index(
             $class,
-            job_depends => $job_depends,
+            depends => $depends,
         );
         ## Use a colon separated append to make tophat depend on multiple jobs
-        ## $job_depends .= qq":$index_job->{jobid}";
+        ## $depends .= qq":$index_job->{jobid}";
         ## Or just replace the dependency string with this job's and insert it into the stack
-        $job_depends = $index_job->{job_id};
+        $depends = $index_job->{job_id};
     }
     my $gtf_file = qq"$options->{libdir}/genome/$options->{species}.gtf";
     if (!-r $gtf_file) {
@@ -1195,17 +1202,17 @@ sub Tophat {
     if ($options->{spliced}) {
         $spliced = 1;
     }
-    my $job_name = qq"th_$options->{species}";
-    my $job_string = qq!
+    my $jname = qq"th_$options->{species}";
+    my $jstring = qq!
 mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
   -G ${gtf_file} \\
   -p ${tophat_cpus} -o ${tophat_dir} \\
 !;
     if ($spliced) {
-        $job_string .= qq!  --no-novel-juncs \\
+        $jstring .= qq!  --no-novel-juncs \\
 !;
     }
-    $job_string .= qq!  $options->{libdir}/genome/indexes/$options->{species} \\
+    $jstring .= qq!  $options->{libdir}/genome/indexes/$options->{species} \\
   ${inputs} 2>outputs/tophat.out 1>&2 && \\
  samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam && \\
  samtools index ${tophat_dir}/accepted_hits.bam && \\
@@ -1213,7 +1220,7 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
  samtools index ${tophat_dir}/unmapped.bam
 !;
     if ($number_inputs > 1) {
-        $job_string .= qq!
+        $jstring .= qq!
 if [ -r "${tophat_dir}/accepted_hits.bam" ]; then
   samtools view -b -f 2 ${tophat_dir}/accepted_hits.bam > ${tophat_dir}/accepted_paired.bam && \\
   samtools index ${tophat_dir}/accepted_paired.bam
@@ -1232,15 +1239,15 @@ fi
     my $tophat = $class->Submit(
         comment => ${comment},
         cpus => ${tophat_cpus},
-        job_depends => ${job_depends},
-        job_name => ${job_name},
-        job_prefix => "31",
-        job_string => ${job_string},
+        depends => ${depends},
+        jname => ${jname},
+        jprefix => "31",
+        jstring => ${jstring},
         mem => ${tophat_mem},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => ${tophat_queue},
-        wall => ${tophat_walltime},
+        walltime => ${tophat_walltime},
     );
 
     ## Set the input for htseq
@@ -1253,9 +1260,9 @@ fi
         htseq_input => $accepted,
         htseq_id => $options->{htseq_id},
         htseq_type => $options->{htseq_type},
-        job_depends => $tophat->{job_id},
-        job_name => qq"hts_$options->{species}",
-        job_prefix => "32",
+        depends => $tophat->{job_id},
+        jname => qq"hts_$options->{species}",
+        jprefix => "32",
     );
     $tophat->{htseq} = $htmulti;
     ## Perform a separate htseq run using only the successfully paired hits
@@ -1265,9 +1272,9 @@ fi
             htseq_input => qq"${tophat_dir}/accepted_paired.bam",
             htseq_id => $options->{htseq_id},
             htseq_type => $options->{htseq_type},
-            job_depends => $tophat->{job_id},
-            job_name => qq"htsp_$options->{species}",
-            job_prefix => "32",
+            depends => $tophat->{job_id},
+            jname => qq"htsp_$options->{species}",
+            jprefix => "32",
         );
     }
     ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
@@ -1279,9 +1286,9 @@ fi
         $class,
         accepted_input => $accepted,
         count_table => qq"${count_table}.xz",
-        job_depends => $tophat->{job_id},
-        job_name => "tpstats_$options->{species}",
-        job_prefix => "33",
+        depends => $tophat->{job_id},
+        jname => "tpstats_$options->{species}",
+        jprefix => "33",
         prep_input => $input_read_info,
         unaccepted_input => $unaccepted,
     );
@@ -1303,15 +1310,15 @@ sub BT1_Stats {
     my $job_basename = $options->{job_basename};
     my $bt_type = "";
     $bt_type = $options->{bt_type} if ($options->{bt_type});
-    my $job_depends = $options->{job_depends};
-    my $job_name = "stats";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $depends = $options->{depends};
+    my $jname = "stats";
+    $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"${job_basename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     my $stat_output = qq"outputs/bowtie_stats.csv";
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -r "${stat_output}" ]; then
   echo "name,type,original_reads,reads,one_hits,failed,samples,rpm,count_table" > ${stat_output}
 fi
@@ -1335,14 +1342,14 @@ echo "\$stat_string" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $bt_input,
-        job_depends => $job_depends,
-        job_name => $job_name,
-        job_prefix => $args{job_prefix},
-        job_string => $job_string,
+        depends => $depends,
+        jname => $jname,
+        jprefix => $args{jprefix},
+        jstring => $jstring,
         cpus => 1,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }
@@ -1362,16 +1369,16 @@ sub Tophat_Stats {
     my $unaccepted_output = qq"${unaccepted_input}.stats";
     my $read_info = $options->{prep_input};
     my $job_basename = $options->{job_basename};
-    my $job_depends = $options->{job_depends};
+    my $depends = $options->{depends};
 
-    my $job_name = "stats";
-    $job_name = $options->{job_name} if ($options->{job_name});
+    my $jname = "stats";
+    $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"${job_basename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     my $output = "outputs/tophat_stats.csv";
     my $comment = qq!## This is a stupidly simple job to collect tophat alignment statistics.!;
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -r "${output}" ]; then
   echo "basename,species,original_reads,aligned_reads,failed_reads,rpm,count_table" > ${output}
 fi
@@ -1399,13 +1406,13 @@ echo "\$stat_string" >> "${output}"!;
         comment => $comment,
         cpus => 1,
         input => $accepted_input,
-        job_name => $job_name,
-        job_depends => $job_depends,
-        job_prefix => $args{job_prefix},
-        job_string => $job_string,
+        jname => $jname,
+        depends => $depends,
+        jprefix => $args{jprefix},
+        jstring => $jstring,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }

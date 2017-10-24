@@ -7,6 +7,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use File::Basename;
+use Math::Round qw":all";
 
 sub Align_SNP_Search {
     my ($class, %args) = @_;
@@ -35,7 +36,7 @@ sub Align_SNP_Search {
     my $search = Bio::Adventure::SNP::SNP_Search(
         $class,
         input => $bamfile,
-        job_depends => $bt2_job->{samtools}->{job_id},
+        depends => $bt2_job->{samtools}->{job_id},
         species => $options->{species},
     );
     return($search);
@@ -71,17 +72,17 @@ sub SNP_Search {
     my $call_error = qq"${vcfutils_dir}/${query_base}_summary.err";
     my $final_output = qq"${vcfutils_dir}/${query_base}.bcf";
     my $final_error = qq"${vcfutils_dir}/${query_base}_bcf.err";
-    my $job_string = qq!mkdir -p ${vcfutils_dir}
+    my $jstring = qq!mkdir -p ${vcfutils_dir}
 echo "Started samtools sort at \$(date)" >> outputs/vcfutils_$options->{species}.out
 !;
     unless (-r "${pileup_input}") {
         if ($query =~ m/sorted/) {
-            $job_string .= qq!if test \! -e \$(pwd)/${pileup_input}; then
+            $jstring .= qq!if test \! -e \$(pwd)/${pileup_input}; then
   ln -sf \$(pwd)/${query}.bam \$(pwd)/${pileup_input}
 fi
 !;
         } else {
-            $job_string .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} 2>outputs/samtools_sort.out 1>&2
+            $jstring .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} 2>outputs/samtools_sort.out 1>&2
 if [ "\$?" -ne "0" ]; then
     echo "samtools sort failed."
 exit 1
@@ -89,7 +90,7 @@ fi
 !;
         }  ## End checking if the pileup input does not have sorted.
     } ## Found the input for samtools mpileup
-    $job_string .= qq!
+    $jstring .= qq!
 if [ \! -r "${genome}.fai" ]; then
     samtools faidx ${genome}
 fi
@@ -109,11 +110,11 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
     my $comment_string = qq!## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.!;
     my $pileup = $class->Submit(
         comment => $comment_string,
-        job_depends => $options->{job_depends},
-        job_name => "bcf_${query_base}_$options->{species}",
-        job_prefix => "80",
+        depends => $options->{depends},
+        jname => "bcf_${query_base}_$options->{species}",
+        jprefix => "80",
         job_type => "snpsearch",
-        job_string => $job_string,
+        jstring => $jstring,
     );
     $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
@@ -125,7 +126,7 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
         vcf_cutoff => $vcf_cutoff,
         vcf_minpct => $vcf_minpct,
         species => $options->{species},
-        job_depends => $pileup->{job_id},
+        depends => $pileup->{job_id},
     );
     return([$pileup, $parse]);
 }
@@ -145,7 +146,7 @@ sub SNP_Ratio {
     $print_output = qq"${print_output}_$options->{species}";
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
 
-    my $job_name = qq"parsesnp";
+    my $jname = qq"parsesnp";
     my $comment_string = qq!
 ## Parse the SNP data and generate a modified $options->{species} genome.
 ##  This should read the file:
@@ -157,7 +158,7 @@ sub SNP_Ratio {
 ## and a modified genome: ${print_output}_modified.fasta
 !;
 
-    my $job_string = qq"
+    my $jstring = qq"
 use Bio::Adventure::SNP;
 Bio::Adventure::SNP::Make_SNP_Ratio(
   \$h,
@@ -171,10 +172,10 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
 
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        job_depends => $options->{job_depends},
-        job_name => "${job_name}_$options->{species}",
-        job_prefix => "81",
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => "${jname}_$options->{species}",
+        jprefix => "81",
+        jstring => $jstring,
         language => 'perl',
         queue => "throughput",
     );
@@ -236,6 +237,7 @@ sub Make_SNP_Ratio {
                 $diff_sum = $alt_forward + $alt_reverse;
                 $all_sum = $same_forward + $same_reverse + $diff_sum;
                 $snp_pct = ($alt_forward + $alt_reverse) / $all_sum;
+                $snp_pct = nearest(0.01, $snp_pct);
             }
         }
         if ($snp_pct >= $options->{vcf_minpct} && $all_sum >= $options->{vcf_cutoff}) {

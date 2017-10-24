@@ -28,7 +28,7 @@ extends 'Bio::Adventure';
 sub Cleanup {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars();
-    my $job_depends = $options->{job_depends};
+    my $depends = $options->{depends};
     my $input_files = $class->{input};
     $input_files =~ s/:/ /g;
     my $unzipped = $input_files;
@@ -39,8 +39,8 @@ sub Cleanup {
     $trimmed_paired =~ s/\.fastq/-trimmed_paired\.fastq/g;
     my $trimmed_unpaired = $unzipped;
     $trimmed_unpaired =~ s/\.fastq/-trimmed_unpaired\.fastq/g;
-    my $job_string = qq!rm -rf outputs scripts sequences $input_files $unzipped $trimmed_input $trimmed_paired $trimmed_unpaired!;
-    print "Execute: $job_string\n";
+    my $jstring = qq!rm -rf outputs scripts sequences $input_files $unzipped $trimmed_input $trimmed_paired $trimmed_unpaired!;
+    print "Execute: $jstring\n";
     return(1);
 }
 

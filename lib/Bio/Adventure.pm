@@ -76,6 +76,7 @@ $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $GZIP = '--best';
+$ENV{LESSOPEN} = '| lesspipe %s';
 
 =head1 NAME
 
@@ -108,16 +109,16 @@ $GZIP = '--best';
     ## Generates test-trimmed.fastq from test.fastq
     my $trim = $hpgl->Trimomatic();
     ## Graph statistics from test-trimmed.fastq
-    my $bp = $hpgl->Biopieces_Graph(job_depends => $trim->{pbs_id});
+    my $bp = $hpgl->Biopieces_Graph(depends => $trim->{pbs_id});
     ## Run bowtie1, convert the output to sorted/indexed bam, and run htseq-count against mmusculus
     ## bowtie1 outputs go (by default) into bowtie_out/
     my $bt = $hpgl->Bowtie();
     ## Run htseq-count with a different gff file, use 'mRNA' as the 3rd column of the gff, and 'locus_tag' as the identifier in the last column.
-    my $ht = $hpgl->HTSeq(job_depends => $bt->{pbs_id}, input => $bt->{output}, htseq_gff => 'other.gff', htseq_type => 'mRNA', htseq_identifier => 'locus_tag'
+    my $ht = $hpgl->HTSeq(depends => $bt->{pbs_id}, input => $bt->{output}, htseq_gff => 'other.gff', htseq_type => 'mRNA', htseq_identifier => 'locus_tag'
     ## Run tophat
-    my $tp = $hpgl->TopHat(job_depends => $trim->{pbs_id});
+    my $tp = $hpgl->TopHat(depends => $trim->{pbs_id});
     ## or BWA
-    my $bw = $hpgl->BWA(job_depends => $trim->{pbs_id});
+    my $bw = $hpgl->BWA(depends => $trim->{pbs_id});
 
 =head1 DESCRIPTION
 
@@ -321,10 +322,10 @@ sub Get_Defaults {
         htseq_type => 'gene_id', ## The identifier flag passed to htseq (probably should be moved to feature_type)
         index_file => 'indexes.txt', ## The default input file when demultiplexing tnseq data
         input => undef,              ## Generic input argument
-        job_depends => "",           ## A flag for PBS telling what each job depends upon
-        job_name => "",              ## A name for a job!
-        job_prefix => "",            ## An optional prefix number for the job
-        job_string => "",            ## The string of text printed as a job
+        depends => "",           ## A flag for PBS telling what each job depends upon
+        jname => "",              ## A name for a job!
+        jprefix => "",            ## An optional prefix number for the job
+        jstring => "",            ## The string of text printed as a job
         jobids => {},                ## And a hash of jobids
         jobs => [],                  ## A list of jobs
         language => 'bash',
@@ -335,7 +336,9 @@ sub Get_Defaults {
         libtype => 'genome', ## Type of rnaseq mapping to perform (genomic/rrna/contaminants)
         mi_genome => undef,  ## miRbase genome to search
         mature_fasta => undef,  ## Database of mature miRNA sequences
+        maxlength => 42,
         method => undef,
+        minlength => 8,
         mirbase_data => undef,  ## Database of miRNA annotations from mirbase
         name => undef, ## Currently only used for snp calling, but name is probably a useful arg for many things.
         orientation => 'start', ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
@@ -527,6 +530,23 @@ sub Get_Menus {
     return($classnus);
 }
 
+sub Get_Job_Name {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars();
+    my $name = "unknown";
+    $name = $options->{input} if ($options->{input});
+    if ($name =~ /\:|\s+|\,/) {
+        my @namelst = split(/\:|\s+|\,/, $name);
+        $name = $namelst[0];
+    }
+    if ($options->{input}) {
+        $name = basename($name, @{$options->{suffixes}});
+        $name = basename($name, @{$options->{suffixes}});
+    }
+    $name =~ s/\-trimmed//g;
+    return($name);
+}
+
 sub Get_TODOs {
     my %args = @_;
     my $todo_list = ();
@@ -615,7 +635,7 @@ sub Get_TODOs {
                 print "Going on an adventure to ${job}.\n";
                 push(@methods_to_run, $job);
             } else {
-                print "Line 500: Going on an adventure to ${job} in the $args{task} context.\n";
+                print "Going on an adventure to ${job} in the $args{task} context.\n";
                 push(@methods_to_run, $job);
             }
         }
@@ -749,10 +769,10 @@ sub Get_Vars {
                 }
             }
         }
-        if ($k eq 'job_name') {
-            if ($options->{job_name} eq '') {
-                $options->{job_name} = basename($options->{input}, (".gz", ".xz", ".bz2", ".bai", ".fai")) if ($options->{input});
-                $options->{job_name} = basename($options->{job_name}, (".fasta", ".fastq", ".bam", ".sam", ".count"));
+        if ($k eq 'jname') {
+            if ($options->{jname} eq '') {
+                $options->{jname} = basename($options->{input}, (".gz", ".xz", ".bz2", ".bai", ".fai")) if ($options->{input});
+                $options->{jname} = basename($options->{jname}, (".fasta", ".fastq", ".bam", ".sam", ".count"));
             }
         }
     }
@@ -984,10 +1004,10 @@ sub Pipeline_Riboseq {
     my ($class, %args) = @_;
     my $fastqc_job = Bio::Adventure::RNASeq_QA::Fastqc($class, %args);
     my $cutadapt_job = Bio::Adventure::RNASeq_Trim::Cutadapt($class, %args);
-    $args{job_depends} = $cutadapt_job->{pbs_id};
+    $args{depends} = $cutadapt_job->{pbs_id};
     my $biopieces = Bio::Adventure::RNASeq_QA::Biopieces_Graph($class, %args);
     my $rrna_job = Bio::Adventure::RNASeq_Map::Bowtie_RRNA($class, %args);
-    $args{job_depends} = $rrna_job->{pbs_id};
+    $args{depends} = $rrna_job->{pbs_id};
     my $bt_jobs = Bio::Adventure::RNASeq_Map::Bowtie($class, %args);
     my $ret = {
         fastqc => $fastqc_job,
@@ -1037,10 +1057,10 @@ sub Pipeline_RNAseq {
     my ($class, %args) = @_;
     my $fastq_job = Bio::Adventure::RNASeq_QA::Fastqc($class, %args);
     my $trim_job = Bio::Adventure::RNASeq_Trim::Trimomatic($class, %args);
-    $args{job_depends} = $trim_job->{pbs_id};
+    $args{depends} = $trim_job->{pbs_id};
     my $biopieces_job = Bio::Adventure::RNASeq_QA::Biopieces_Graph($class, %args);
     my $rrna_job = Bio::Adventure::RNASeq_Map::Bowtie_RRNA($class, %args);
-    $args{job_depends} = $rrna_job->{pbs_id};
+    $args{depends} = $rrna_job->{pbs_id};
     my $align_jobs;
     if ($args{aligner} eq 'bowtie') {
         $align_jobs = Bio::Adventure::RNASeq_Map::Bowtie($class, %args);
@@ -1071,7 +1091,7 @@ sub Pipeline_TNseq {
     my $fastqc_job = Bio::Adventure::RNASeq_QA::Fastqc($class, %args);
     $args{type} = 'tnseq';
     my $cutadapt_job = Bio::Adventure::RNASeq_Trim::Cutadapt($class, %args);
-    $args{job_depends} = $cutadapt_job->{pbs_id};
+    $args{depends} = $cutadapt_job->{pbs_id};
     my $biopieces_job = Bio::Adventure::RNASeq_QA::Biopieces_Graph($class, %args);
     my $bt_jobs = Bio::Adventure::RNASeq_Map::Bowtie($class, %args);
     my $ret = {

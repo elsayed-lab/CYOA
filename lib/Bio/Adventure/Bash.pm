@@ -19,7 +19,7 @@ has bash_logdir => (is => 'rw', default => getcwd());
 has basedir => (is => 'rw', default => getcwd());
 has cpus => (is => 'rw', default => '4');
 has depends_prefix => (is => 'rw', default => '--dependency=afterok');
-has job_name => (is => 'rw', default => 'unnamed');
+has jname => (is => 'rw', default => 'unnamed');
 has language => (is => 'rw', default => 'bash');
 has loghost => (is => 'rw', default => 'localhost');
 has mem => (is => 'rw', default => '6');
@@ -56,13 +56,13 @@ sub Submit {
     my $options = $class->Get_Vars(args => \%args);
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
-    my $bash_log = qq"$options->{bash_logdir}/outputs/$options->{job_name}.out";
+    my $bash_log = qq"$options->{bash_logdir}/outputs/$options->{jname}.out";
 
     my $depends_string = "";
-    if ($options->{job_depends}) {
-        $depends_string = qq"$options->{depends_prefix}:$options->{job_depends}";
+    if ($options->{depends}) {
+        $depends_string = qq"$options->{depends_prefix}:$options->{depends}";
     }
-    my $script_file = qq"$options->{basedir}/scripts/$options->{job_prefix}$options->{job_name}.sh";
+    my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$options->{basedir}/outputs/status");
@@ -72,7 +72,7 @@ sub Submit {
 
     ## Remove the need for two functions that do the same thing except one for perl and one for bash
     if ($options->{language} eq 'perl') {
-        my $perl_file = qq"$options->{basedir}/scripts/$options->{job_prefix}$options->{job_name}.pl";
+        my $perl_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.pl";
         my $perl_start = qq?#!/usr/bin/env perl
 use strict;
 use FileHandle;
@@ -100,19 +100,19 @@ close(\$out);
 !;
         $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
         print "The job is:
-$args{job_string}" if ($options->{verbose});
+$args{jstring}" if ($options->{verbose});
         my $total_perl_string = "";
         $total_perl_string .= "$perl_start\n";
         $total_perl_string .= "$args{comment}\n" if ($args{comment});
         $total_perl_string .= "$args{prescript}\n" if ($args{prescript});
-        $total_perl_string .= "$args{job_string}\n" if ($args{job_string});
+        $total_perl_string .= "$args{jstring}\n" if ($args{jstring});
         $total_perl_string .= "$perl_end\n";
 
         my $perl_script = FileHandle->new(">$perl_file");
         print $perl_script $total_perl_string;
         $perl_script->close();
         chmod(0755, $perl_file);
-        $args{job_string} = qq"${perl_file}\n";
+        $args{jstring} = qq"${perl_file}\n";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
     my $script_start = qq?#!/usr/bin/env bash
@@ -123,7 +123,7 @@ $args{job_string}" if ($options->{verbose});
 #SBATCH --qos=$options->{queue}
 #SBATCH --nodes=1
 #SBATCH --time=$options->{walltime}
-#SBATCH --job-name=$options->{job_name}
+#SBATCH --job-name=$options->{jname}
 #SBATCH --mem=$options->{mem}G
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${bash_log}
@@ -132,7 +132,7 @@ echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
-echo \$? > outputs/status/$options->{job_name}.status
+echo \$? > outputs/status/$options->{jname}.status
 echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
@@ -157,7 +157,7 @@ echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECON
 
     if ($options->{verbose}) {
         print qq"The job is:
-$args{job_string}
+$args{jstring}
 ";
     }
 
@@ -165,7 +165,7 @@ $args{job_string}
     $total_script_string .= "${script_start}\n";
     $total_script_string .= "$args{comment}\n" if ($args{comment});
     $total_script_string .= "$args{prescript}\n" if ($args{prescript});
-    $total_script_string .= "$args{job_string}\n" if ($args{job_string});
+    $total_script_string .= "$args{jstring}\n" if ($args{jstring});
     if ($args{postscript}) {
         $total_script_string .= qq!if [ \$? == "0" ]; then
    $args{postscript}
@@ -188,9 +188,9 @@ fi
     sleep(1);
     my $job_id = $bash_pid;
 
-    print "Starting a new job: ${job_id} $options->{job_name}";
-    if ($args{job_depends}) {
-        print ", depending on $args{job_depends}.";
+    print "Starting a new job: ${job_id} $options->{jname}";
+    if ($args{depends}) {
+        print ", depending on $args{depends}.";
     }
     print "\n";
 
@@ -201,7 +201,7 @@ fi
         job_args => \%args,
         job_id => $job_id,
         job_input => $options->{job_input},
-        job_name => $options->{job_name},
+        jname => $options->{jname},
         job_output => $options->{job_output},
         job_text => $job_text,
         log => $bash_log,
@@ -209,11 +209,11 @@ fi
         queue => $options->{queue},
         pbs_id => $job_id,
         bash_args => $options->{bash_args},
-        script_body => $args{job_string},
+        script_body => $args{jstring},
         script_file => $script_file,
         script_start => $script_start,
         submitter => $bash_cmd_line,
-        walltime => $options->{wall},
+        walltime => $options->{walltime},
     };
     return($job);
 }

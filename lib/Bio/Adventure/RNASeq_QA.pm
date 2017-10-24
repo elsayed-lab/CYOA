@@ -41,8 +41,9 @@ sub Biopieces_Graph {
     );
     my $input = $options->{input};
     my $bp_depends_on;
-    my $job_name = $options->{job_name};
-    $bp_depends_on = $options->{job_depends};
+    my $job_basename = $class->Get_Job_Name();
+    my $jname = qq"biop_${job_basename}";
+    $bp_depends_on = $options->{depends};
     my @inputs = split(/\,|\:|\;/, $input);
     my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
     my $bp;
@@ -50,7 +51,7 @@ sub Biopieces_Graph {
         foreach my $in (@inputs) {
             my $short_in = basename($in, ('.gz','.fastq'));
             $short_in = basename($short_in, ('.gz','.fastq'));
-            my $job_string = qq!
+            my $jstring = qq!
 ## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
 mkdir -p outputs/biopieces
 less ${in} | read_fastq -i - -e base_33 |\\
@@ -67,37 +68,37 @@ less ${in} | read_fastq -i - -e base_33 |\\
             $bp = $class->Submit(
                 comment => $comment,
                 input => $in,
-                job_depends => $bp_depends_on,
-                job_name => "biop",
-                job_prefix => "02",
-                job_string => $job_string,
+                depends => $bp_depends_on,
+                jname => $jname,
+                jprefix => "02",
+                jstring => $jstring,
                 prescript => $args{prescript},
                 postscript => $args{postscript},
                 queue => "workstation",
             );
         }
     } else {                    ## A single input was provided
-        my $job_string = qq!
+        my $jstring = qq!
 ## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
 mkdir -p outputs/biopieces
 less ${input} | read_fastq -i - -e base_33 |\\
- plot_scores -T 'Quality Scores' -t svg -o outputs/biopieces/${job_name}_quality_scores.svg |\\
- plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/biopieces/${job_name}_ntdist.svg |\\
- plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${job_name}_lendist.svg |\\
+ plot_scores -T 'Quality Scores' -t svg -o outputs/biopieces/${jname}_quality_scores.svg |\\
+ plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/biopieces/${jname}_ntdist.svg |\\
+ plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${jname}_lendist.svg |\\
  analyze_gc |\\
      bin_vals -b 20 -k 'GC%' |\\
-     plot_distribution -k 'GC%_BIN' -t svg -o outputs/biopieces/${job_name}_gcdist.svg |\\
+     plot_distribution -k 'GC%_BIN' -t svg -o outputs/biopieces/${jname}_gcdist.svg |\\
  analyze_gc |\\
-     mean_vals -k 'GC%' -o outputs/biopieces/${job_name}_gc.txt |\\
- count_records -o outputs/biopieces/${job_name}_count.txt -x
+     mean_vals -k 'GC%' -o outputs/biopieces/${jname}_gc.txt |\\
+ count_records -o outputs/biopieces/${jname}_count.txt -x
 !;
         $bp = $class->Submit(
             comment => $comment,
             input => $input,
-            job_depends => $bp_depends_on,
-            job_name => "biop",
-            job_prefix => "02",
-            job_string => $job_string,
+            depends => $bp_depends_on,
+            jname => "biop",
+            jprefix => "02",
+            jstring => $jstring,
             prescript => $options->{prescript},
             postscript => $options->{postscript},
             queue => "workstation",
@@ -157,7 +158,7 @@ sub Fastqc_Pairwise {
     $basename =~ s/\_R1$//g;
     $basename =~ s/_forward//g;
     my $outdir = qq"outputs/fastqc";
-    my $job_string = qq!mkdir -p ${outdir} && \\
+    my $jstring = qq!mkdir -p ${outdir} && \\
   fastqc --extract -o ${outdir} ${r1} ${r2} \\
   2>${outdir}.out 1>&2
 !;
@@ -167,9 +168,9 @@ sub Fastqc_Pairwise {
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
-        job_name => "fqc",
-        job_prefix => "00",
-        job_string => $job_string,
+        jname => "fqc",
+        jprefix => "00",
+        jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => "workstation",
@@ -182,18 +183,18 @@ sub Fastqc_Pairwise {
         $class,
         direction => 'forward',
         indir => $forward_indir,
-        job_depends => $fqc->{pbs_id},
-        job_name => $basename,
-        job_prefix => "01",
+        depends => $fqc->{pbs_id},
+        jname => $basename,
+        jprefix => "01",
         paired => 1,
     );
     my $fsr = Bio::Adventure::RNASeq_QA::Fastqc_Stats(
         $class,
         direction => 'reverse',
         indir => $reverse_indir,
-        job_depends => $fqc->{pbs_id},
-        job_name => $basename,
-        job_prefix => "01",
+        depends => $fqc->{pbs_id},
+        jname => $basename,
+        jprefix => "01",
         paired => 1,
     );
     $fqc->{stats_forward} = $fsf;
@@ -213,19 +214,19 @@ sub Fastqc_Single {
         filtered => 'unfiltered',
     );
     my $outdir = qq"outputs/fastqc";
-    my $job_string = qq!mkdir -p ${outdir} &&\\
+    my $jstring = qq!mkdir -p ${outdir} &&\\
   fastqc -q --extract -o ${outdir} $options->{input} \\
-  2>outputs/$options->{job_name}-$options->{filtered}_fastqc.out 1>&2
+  2>outputs/$options->{jname}-$options->{filtered}_fastqc.out 1>&2
 !;
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $fqc_jobid = qq"$options->{job_name}_fqc";
+    my $fqc_jobid = qq"$options->{jname}_fqc";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
-        job_name => "fqc_$options->{job_name}",
-        job_prefix => "00",
-        job_string => $job_string,
+        jname => "fqc_$options->{jname}",
+        jprefix => "00",
+        jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => "workstation",
@@ -234,9 +235,9 @@ sub Fastqc_Single {
     my $fqc_stats = Bio::Adventure::RNASeq_QA::Fastqc_Stats(
         $class,
         indir => $outdir,
-        job_depends => $fqc->{pbs_id},
-        job_name => $options->{job_name},
-        job_prefix => "01",
+        depends => $fqc->{pbs_id},
+        jname => $options->{jname},
+        jprefix => "01",
     );
     $fqc->{stats} = $fqc_stats;
     return($fqc);
@@ -251,23 +252,23 @@ sub Fastqc_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        job_name => 'fqcst',
-        job_depends => '',
+        jname => 'fqcst',
+        depends => '',
         paired => 1,
     );
-    my $job_name = $options->{job_name};
+    my $jname = $options->{jname};
     my $input_file = qq"$options->{indir}/fastqc_data.txt";
     if ($options->{paired}) {
         $input_file = qq"$options->{indir}/fastqc_data.txt";
     }
-    my $job_depends = $options->{job_depends};
+    my $depends = $options->{depends};
     my $stat_output = qq"outputs/fastqc_stats.csv";
     if ($options->{direction}) {
         $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
-        $job_name = qq"${job_name}_$options->{direction}";
+        $jname = qq"${jname}_$options->{direction}";
     }
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -r $stat_output ]; then
   echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
 fi
@@ -292,20 +293,20 @@ adapter_content=\${adapter_content_tmp:-0}
 kmer_content_tmp=\$(grep "Kmer Content" $input_file | awk -F '\\\\t' '{print \$2}')
 kmer_content=\${kmer_content_tmp:-0}
 
-stat_string=\$(printf "${job_name},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
+stat_string=\$(printf "${jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
 echo "\$stat_string" >> $stat_output
 !;
     my $stats = $class->Submit(
         comment => $comment,
         cpus => 1,
         input => $input_file,
-        job_depends => $job_depends,
-        job_name => $job_name,
-        job_prefix => $options->{job_prefix},
-        job_string => $job_string,
+        depends => $depends,
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }

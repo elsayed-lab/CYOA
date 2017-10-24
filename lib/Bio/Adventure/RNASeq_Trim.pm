@@ -37,16 +37,20 @@ sub Cutadapt {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'type'],
+        minlength => 8,
+        maxlength => 42,
+        maxerr => 0.1,
+        maxremoved => 3,
     );
+    my $job_basename = $class->Get_Job_Name();
+
     if ($options->{task}) {
         $options->{type} = $options->{task};
     }
     $options->{type} = lc($options->{type});
-    my $type;
+    my $type = 'rnaseq';
     if ($options->{type}) {
         $type = $options->{type};
-    } elsif ($args{type}) {
-        $type = $args{type};
     } else {
         $type = 'tnseq';
     }
@@ -55,19 +59,17 @@ sub Cutadapt {
     my $basename = basename($input, @{$options->{suffixes}});
     $basename = basename($basename, @{$options->{suffixes}});
     my $adapter_flags = "";
-    my $minlength = 7;
-    my $maxlength = 42;
     if ($type eq 'tnseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
-        $maxlength = 20;
+        $options->{maxlength} = 20;
     } elsif ($type eq 'riboseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
-        $minlength = 16;
+        $options->{minlength} = 16;
         if ($input =~ /\.csfasta/) {
             $adapter_flags = qq" -a CGCCTTGGCCGTACAGCAGCATATTGGATAAGAGAATGAGGAACCCGGGGCAG -a GCGGAACCGGCATGTCGTCGGGCATAACCCTCTCTTACTCCTTGGGCCCCGTC ";
         }
     } else {
-        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT ";
+        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
     }
 
     my $comment = qq!## This script makes use of biopieces and cutadapt to trim away adapters
@@ -83,15 +85,13 @@ sub Cutadapt {
             args => \%args,
             required => ["qual"],
         );
-        ## $input_flags = qq"less ${input} | sed 's/^T//g' | cutadapt - $options->{qual} ";
         $input_flags = qq"less ${input} | cutadapt - $options->{qual} "; ## If we are keeping quality files
-        ## $input_flats = qq"less ${input} | cutadapt - ";
         $out_suffix = 'fastq';
     }
     my $output = qq"${basename}-trimmed_ca.${out_suffix}";
-    my $job_string = qq!
+    my $jstring = qq!
 mkdir -p ${out_dir} && \\
- ${input_flags} ${type_flag} ${adapter_flags} -e 0.1 -n 3 -m ${minlength} -M ${maxlength} \\
+ ${input_flags} ${type_flag} ${adapter_flags} -e $options->{maxerr} -n $options->{maxremoved} -m $options->{minlength} -M $options->{maxlength} \\
   --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
@@ -100,65 +100,64 @@ mkdir -p ${out_dir} && \\
     my $cutadapt = $class->Submit(
         comment => $comment,
         input => $input,
-        job_name => "cutadapt",
-        job_prefix => "07",
-        job_string => $job_string,
+        jname => qq"ca_${job_basename}",
+        jprefix => "07",
+        jstring => $jstring,
         prescript => $args{prescript},
         postscript => $args{postscript},
         queue => "workstation",
         output => $output,
-        wall => "8:00:00",
+        walltime => "8:00:00",
     );
-    if ($class->{type} eq 'tnseq') {
+    if ($type eq 'tnseq') {
         my $ta_check = Bio::Adventure::TNSeq::TA_Check(
             $class,
             comment => qq"## Check that TAs exist.",
             input => qq"${output}",
-            job_name => "tacheck",
-            job_depends => $cutadapt->{pbs_id},
-            job_prefix => "08",
+            jname => qq"tach_${job_basename}",
+            depends => $cutadapt->{pbs_id},
+            jprefix => "08",
         );
     }
     my $comp_short = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the tooshort sequences.",
         input => qq"${out_dir}/${basename}_tooshort.fastq",
-        job_depends => $cutadapt->{pbs_id},
-        job_name => "xzcutshort",
-        job_prefix => "08",
+        depends => $cutadapt->{pbs_id},
+        jname => "xzcutshort_${job_basename}",
+        jprefix => "08",
         queue => "workstation",
-        wall => "04:00:00",
+        walltime => "04:00:00",
     );
     my $comp_long = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
         input => qq"${out_dir}/${basename}_toolong.fastq",
-        job_depends => $cutadapt->{pbs_id},
-        job_name => "xzcutlong",
-        job_prefix => "08",
+        depends => $cutadapt->{pbs_id},
+        jname => "xzcutlong_${job_basename}",
+        jprefix => "08",
         queue => "workstation",
-        wall => "04:00:00",
+        walltime => "04:00:00",
     );
     my $comp_un = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
         input => qq"${out_dir}/${basename}_untrimmed.fastq",
-        job_depends => $cutadapt->{pbs_id},
-        job_name => "xzuncut",
-        job_prefix => "08",
+        depends => $cutadapt->{pbs_id},
+        jname => "xzuncut_${job_basename}",
+        jprefix => "08",
         queue => "workstation",
-        wall => "04:00:00",
+        walltime => "04:00:00",
     );
     my $comp_original = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the original sequence.",
         input => qq"$input",
-        job_depends => $cutadapt->{pbs_id},
-        job_name => "xzorig",
-        job_prefix => "08",
-        output => qq"sequences/${input}.xz",
+        depends => $cutadapt->{pbs_id},
+        jname => "xzorig_${job_basename}",
+        jprefix => "08",
         queue => "workstation",
-        wall => "04:00:00",
+        walltime => "04:00:00",
     );
     return($cutadapt);
 }
@@ -199,6 +198,7 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
     );
+    my $job_basename = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
@@ -249,7 +249,7 @@ sub Trimomatic_Pairwise {
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
-    my $job_string = qq!
+    my $jstring = qq!
 ## Trimomatic_Pairwise: In case a trimming needs to be redone...
 if [[ \! -r "${r1}" ]]; then
   if [[ -r "sequences/${r1b}.fastq.xz" ]]; then
@@ -279,22 +279,23 @@ mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,
-        job_name => "trim",
-        job_prefix => "05",
-        job_string => $job_string,
+        jname => "trim_${job_basename}",
+        jprefix => "05",
+        jstring => $jstring,
         output => $output,
         queue => "workstation",
         prescript => $args{prescript},
         postscript => $args{postscript},
-        wall => "12:00:00",
+        walltime => "12:00:00",
     );
     ## Set the input   for future tools to the output from trimming.
     $options = $class->Set_Vars(input => $output);
     my $trim_stats = Bio::Adventure::RNASeq_Trim::Trimomatic_Stats(
         $class,
         basename => $basename,
-        job_prefix => "06",
-        job_depends => $trim->{pbs_id},
+        jprefix => "06",
+        jname => "trst_${job_basename}",
+        depends => $trim->{pbs_id},
         pairwise => 1,
     );
     $trim->{stats} = $trim_stats;
@@ -317,7 +318,9 @@ sub Trimomatic_Single {
     my $found_exe = 0;
     my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
     for my $test_exe (@exe_list) {
-        if (which($test_exe)) {
+        my @executable_list = split(/\s+/, $test_exe);
+        my $executable = $executable_list[0];
+        if (which($executable)) {
             $exe = $test_exe;
         }
     }
@@ -333,12 +336,13 @@ sub Trimomatic_Single {
     my $basename = $input;
     $basename = basename($basename, (".gz"));
     $basename = basename($basename, (".fastq"));
+    my $job_basename = $class->Get_Job_Name();
     my $output = qq"${basename}-trimmed.fastq";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
-    my $job_string = qq!
+    my $jstring = qq!
 ## Trimomatic_Single: In case a trimming needs to be redone...
 if [[ \! -r "${input}" ]]; then
   if [[ -r "sequences/${input}.xz" ]]; then
@@ -355,19 +359,20 @@ ${exe} -phred33 ${input} ${output} ILLUMINACLIP:${adapter_file}:2:20:4 \\
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,
-        job_name => "trim",
-        job_prefix => "05",
-        job_string => $job_string,
+        jname => "trim_${job_basename}",
+        jprefix => "05",
+        jstring => $jstring,
         output => $output,
         prescript => $args{prescript},
         postscript => $args{postscript},
-        wall => "4:00:00",
+        walltime => "4:00:00",
     );
     my $trim_stats = Bio::Adventure::RNASeq_Trim::Trimomatic_Stats(
         $class,
         basename => $basename,
-        job_depends => $trim->{pbs_id},
-        job_prefix => "06",
+        depends => $trim->{pbs_id},
+        jname => "trst_${job_basename}",
+        jprefix => "06",
     );
     ## Set the input for future tools to the output from this trimming operation.
     $trim->{stats} = $trim_stats;
@@ -388,12 +393,12 @@ sub Trimomatic_Stats {
     );
     my $basename = $options->{basename};
     my $input_file = "outputs/${basename}-trimomatic.out";
-    my $job_depends = $options->{job_depends};
-    my $job_name = 'trimst';
-    $job_name = $args{job_name} if ($args{job_name});
+    my $depends = $options->{depends};
+    my $jname = 'trimst';
+    $jname = $args{jname} if ($args{jname});
     my $comment = qq!## This is a stupidly simple job to collect trimomatic statistics!;
     my $stat_output = qq"outputs/trimomatic_stats.csv";
-    my $job_string = qq!
+    my $jstring = qq!
 if [ \! -r ${stat_output} ]; then
   echo "total_reads,surviving_reads,dropped_reads" > ${stat_output}
 fi
@@ -410,7 +415,7 @@ echo "\$stat_string" >> ${stat_output}
     if ($args{pairwise}) {
         ## The output looks a bit different for pairwise input:
         ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
-        $job_string = qq!
+        $jstring = qq!
 if [ \! -r ${stat_output} ]; then
   echo "total_reads,surviving_both,surviving_forward,surviving_reverse,dropped_reads" > ${stat_output}
 fi
@@ -433,13 +438,13 @@ echo "\$stat_string" >> ${stat_output}
         comment => $comment,
         cpus => 1,
         input => $input_file,
-        job_depends => $job_depends,
-        job_name => $job_name,
-        job_prefix => $args{job_prefix},
-        job_string => $job_string,
+        depends => $depends,
+        jname => $jname,
+        jprefix => $args{jprefix},
+        jstring => $jstring,
         mem => 1,
         queue => "throughput",
-        wall => "00:10:00",
+        walltime => "00:10:00",
     );
     return($stats);
 }

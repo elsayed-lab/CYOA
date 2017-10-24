@@ -29,15 +29,15 @@ sub Concatenate_Searches {
     $output = $options->{output} if (defined($options->{output}));
     $output .= ".gz" unless ($output =~ /\.gz$/);
     my $comment_string = qq"## Concatenating the output files into ${output}\n";
-    my $job_string = qq!
+    my $jstring = qq!
 rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${output}; done
 !;
     my $concatenate = $class->Submit(
         comment => $comment_string,
         depends_type => 'array',
-        job_depends => $options->{job_depends},
-        job_name => "concat",
-        job_string => $job_string,
+        depends => $options->{depends},
+        jname => "concat",
+        jstring => $jstring,
         output => qq"${output}",
     );
     return($concatenate);
