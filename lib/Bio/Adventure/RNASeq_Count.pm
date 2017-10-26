@@ -238,7 +238,7 @@ sub HT_Types {
         }
     } ## End the loop
 
-    my $max_can = "";
+    my $max_can = 0;
     foreach my $can (keys %found_canonical) {
         if (!defined($found_canonical{$can})) {
             $found_canonical{$can} = 0;
@@ -247,7 +247,7 @@ sub HT_Types {
             $max_can = $can;
             $max_canonical = $found_types{$can};
         }
-    }                           ## End the loop
+    } ## End the loop
     my $returned_canonical = $max_can;
 
     my $returned_type = "";
@@ -346,8 +346,9 @@ sub HTSeq {
 ${htseq_invocation}
   ${htseq_input} \\
   ${annotation} \\
-  1>${output} 2>${error} && \\
-    xz -f -9e ${output}
+  2>${error} \\
+  1>${output} && \\
+    xz -f -9e ${output} 2>${error}.xz 1>${output}.xz
 !;
     my $comment = qq!## Counting the number of hits in ${htseq_input} for each feature found in ${annotation}
 ## Is this stranded? ${stranded}.  The defaults of htseq are:

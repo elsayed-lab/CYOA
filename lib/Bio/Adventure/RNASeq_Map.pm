@@ -653,23 +653,28 @@ sub BWA {
     my $aln_sam = qq"${bwa_dir}/${job_basename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/${job_basename}_mem.sam";
     my $jstring = qq!mkdir -p ${bwa_dir}
-bwa mem -a ${bwa_reflib} ${bwa_input} 2>${bwa_dir}/bwa.err 1>${mem_sam}
+bwa mem -a ${bwa_reflib} ${bwa_input} \\
+  2>${bwa_dir}/bwa.err 1>${mem_sam}
 !;
     my $reporter_string = qq"bwa samse ${bwa_reflib} \\
   ${bwa_dir}/${job_basename}_aln-forward.sai $bwa_input \\
-  1>${aln_sam} 2>${bwa_dir}/${job_basename}.samerr";
+  2>${bwa_dir}/${job_basename}.samerr \\
+  1>${aln_sam}";
     my $aln_string = qq"bwa aln ${bwa_reflib} \\
-  ${forward_reads} 1>${bwa_dir}/${job_basename}_aln-forward.sai \\
-  2>${bwa_dir}/${job_basename}_aln-forward.err";
+  ${forward_reads} \\
+  2>${bwa_dir}/${job_basename}_aln-forward.err \\
+  1>${bwa_dir}/${job_basename}_aln-forward.sai";
     if (defined($reverse_reads)) {
         $aln_string = qq"${aln_string}
 bwa aln ${bwa_reflib} \\
-  ${reverse_reads} 1>${bwa_dir}/${job_basename}_aln-reverse.sai \\
-  2>${bwa_dir}/${job_basename}_aln-reverse.err";
+  ${reverse_reads} \\
+  2>${bwa_dir}/${job_basename}_aln-reverse.err \\
+  1>${bwa_dir}/${job_basename}_aln-reverse.sai";
         $reporter_string = qq"bwa sampe ${bwa_reflib} \\
   ${bwa_dir}/${job_basename}_aln-forward.sai ${bwa_dir}/${job_basename}_aln-reverse.sai \\
   ${forward_reads} ${reverse_reads} \\
-  1>${aln_sam} 2>${bwa_dir}/${job_basename}.samerr";
+  2>${bwa_dir}/${job_basename}.samerr \\
+  1>${aln_sam}";
     }
 
     my $comment = qq!## This is a BWA alignment of ${bwa_input} against
@@ -818,7 +823,9 @@ if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
 fi
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes &&
-  bwa index $options->{species}.fa 2>bwa_index.out 1>&2
+  bwa index $options->{species}.fa \\
+  2>bwa_index.err \\
+  1>bwa_index.out
 cd \$start
 !;
     my $comment = qq!## Generating bwa indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
@@ -998,11 +1005,17 @@ sub Kallisto {
 !;
     my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
 kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
-  ${ka_input} 2>${error_file} 1>${output_sam} && \\
+  ${ka_input} \\
+  2>${error_file} \\
+  1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
   gzip ${outdir}/${input_name}_abundance.count && \\
-  samtools view -u -t ${ka_reflib} -S ${output_sam} 1>${output_bam} && \\
-  samtools sort -l 9 ${output_bam} ${sorted_bam} && \\
+  samtools view -u -t ${ka_reflib} -S ${output_sam} \\
+    2>${output_bam}.err \\
+    1>${output_bam} && \\
+  samtools sort -l 9 ${output_bam} ${sorted_bam} \\
+    2>${sorted_bam}.err \\
+    1>${sorted_bam}.out && \\
   rm ${output_bam} && mv ${sorted_bam}.bam ${output_bam} && samtools index ${output_bam} && \\
   bamtools stats -in ${output_bam} 2>${output_stats} 1>&2
 !;
@@ -1113,7 +1126,8 @@ sub RSEM {
   --calc-ci ${rsem_input} \\
   ${idx} \\
   ${rsem_dir}/$options->{species} \\
-  2>${rsem_dir}/$options->{species}.err 1>${rsem_dir}/$options->{species}.out
+  2>${rsem_dir}/$options->{species}.err \\
+  1>${rsem_dir}/$options->{species}.out
 ";
 
     my $rsem_job = $class->Submit(
@@ -1213,7 +1227,9 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
 !;
     }
     $jstring .= qq!  $options->{libdir}/genome/indexes/$options->{species} \\
-  ${inputs} 2>outputs/tophat.out 1>&2 && \\
+  ${inputs} \\
+  2>outputs/tophat.err \\
+  1>outputs/tophat.out && \\
  samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam && \\
  samtools index ${tophat_dir}/accepted_hits.bam && \\
  samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam && \\

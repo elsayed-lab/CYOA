@@ -323,13 +323,16 @@ sub Samtools {
     my $samtools_version = qx"samtools 2>&1 | grep Version";
     ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
-  -S ${input} -o ${output} 1>${output}.out 2>&1 && \\";
-    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam 2>${sorted}.out 1>&2 && \\";
+  -S ${input} -o ${output} \\
+  2>${output}.err 1>${output}.out && \\";
+    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam \\
+  2>${sorted}.err 1>${sorted}.out && \\";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
-        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} 2>${sorted}.out 1>&2 && \\";
+        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} \\
+  2>${sorted}.err 1>${sorted}.out && \\";
     }
     my $jstring = qq!
 if \$(test \! -r ${input}); then

@@ -60,6 +60,7 @@ It therefore makes some assumptions about the beginnings of reads and requires t
 ";
         exit(0);
     }
+
     my $index_hash = Bio::Adventure::TNSeq::Read_Indexes(
         $class,
         index_file => $options->{index_file},
@@ -84,19 +85,18 @@ It therefore makes some assumptions about the beginnings of reads and requires t
 
     my $log = new FileHandle(">$options->{outdir}/tnseq_sorting_stats.txt");
     my $message = qq"
-The total number of reads read in $options->{input}: $reads->{indexes}->{total}->{read}.
-The total number of reads sorted in $options->{input}: $reads->{indexes}->{total}->{written}.
+The total number of reads read in $options->{input}: $reads->{total}->{read}.
+The total number of reads sorted in $options->{input}: $reads->{total}->{written}.
 ";
     print $log $message;
-    my %final = %{$reads->{indexes}};
-    foreach my $k (keys %final) {
+    foreach my $k (keys %{$reads}) {
         next if ($k eq 'total');
-        $message = qq"Index $k had $reads->{indexes}->{$k}->{written} reads written from $options->{input} to $reads->{indexes}->{$k}->{filename}.\n";
+        $message = qq"Index $k had $reads->{$k}->{written} reads written from $options->{input} to $reads->{$k}->{filename}.\n";
         print $log $message;
-        $reads->{indexes}->{$k}->{handle}->close();
+        $reads->{$k}->{handle}->close();
     }
     $log->close();
-    return($reads->{indexes}->{total});
+    return($reads->{total});
 }
 
 sub TA_Check {
@@ -234,7 +234,6 @@ my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
 ##        my $qual = $in_seq->{'-raw_quality'};
 ##        my $found = 0;
 ##        foreach my $index (keys %{$indexes}) {
-##            print "TESTME: $index\n";
 ##            my $match = "^\\w{0,5}$index\\w+";
 ##            if ($sequence =~ m/$match/) {
 ##                $found++;
@@ -309,9 +308,8 @@ sub Sort_TNSeq_File_Approx {
 
     return(undef) unless ($options->{input} =~ /\.fastq/);
     my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
-    print $out "Starting to read: $options->{input}\n";
     ## Does FileHandle work here?
-    my $inputted = FileHandle->new("less $options->{input} |");
+    my $inputted = FileHandle->new("less $options->{input} 2>/dev/null |");
     my $in = Bio::SeqIO->new(-fh => $inputted, -format => 'Fastq');
     my $count = 0;
   READS: while (my $in_seq = $in->next_dataset()) {
@@ -369,12 +367,9 @@ ${qual}
             print $handle $fastq_string;
             $data->{unknown}->{written}++;
         }
-    }                           ## End reading the fastq file
-    ###close(INPUT);
-    $options->{input}->close();
-    $inputted->close();
+    } ## End reading the fastq file
     $out->close();
-    return($count);
+    return($data);
 }
 
 =item C<Sort_TNSeq_Dir>
@@ -404,6 +399,7 @@ sub Sort_TNSeq_Dir {
     my @file_list = ();
     find(sub { push(@file_list, $File::Find::name) if ($File::Find::name =~ /\.fastq\.gz/ and
                                                            $file::Find::name !~ /$options->{outdir}/); }, @directory);
+    my @approxes = ();
     foreach my $file (@file_list) {
         $files = $files++;
         next if ($file =~ /$options->{outdir}/);
@@ -414,8 +410,9 @@ sub Sort_TNSeq_Dir {
             file => $file,
             index_hash => $options->{index_hash},
         );
+        push(@approxes, $approx);
     }
-    return($files);
+    return(@approxes);
 }
 
 =item C<Read_Indexes>

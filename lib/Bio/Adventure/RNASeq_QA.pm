@@ -74,7 +74,7 @@ less ${in} | read_fastq -i - -e base_33 |\\
                 jstring => $jstring,
                 prescript => $args{prescript},
                 postscript => $args{postscript},
-                queue => "workstation",
+                queue => "long",
             );
         }
     } else {                    ## A single input was provided
