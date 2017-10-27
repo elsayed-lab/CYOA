@@ -148,9 +148,9 @@ sub Trinity {
 !;
     my $jstring = qq!mkdir -p ${output_dir} && \\
   Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
-    --trimmomatic --max_memory 90G \\
+    --trimmomatic --max_memory 90G --CPU 6 \\
     --output ${output_dir} \\
-    ${input_string} --CPU 6 \\
+    ${input_string} \\
     2>${output_dir}/trinity_${job_basename}.err \\
     1>${output_dir}/trinity_${job_basename}.out
 !;
@@ -161,7 +161,7 @@ sub Trinity {
         jname => "trin_${job_basename}",
         jprefix => "45",
         jstring => $jstring,
-        mem => 90,
+        mem => 96,
         output => qq"outputs/trinity.sbatchout",
         prescript => $options->{prescript},
         postscript => $options->{postscript},

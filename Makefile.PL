@@ -56,7 +56,7 @@ my @args = (
     ABSTRACT => 'Choose your own adventure in sequence processing.',
     AUTHOR => 'abelew@gmail.com',
     LICENSE => 'perl',
-    EXE_FILES => [ qw"bin/cyoa", "bin/cyoa.pl" ],
+    EXE_FILES => [ qw"bin/cyoa bin/cyoa.pl" ],
     test => { TESTS => 't/*.t' },
 );
 
