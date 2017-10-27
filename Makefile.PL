@@ -35,6 +35,7 @@ my %prereq = (
     'IPC::System::Simple' => 0,
     'List::MoreUtils' => 0,
     'Log::Log4perl' => 0,
+    'Math::Round' => 0,
     'Modern::Perl' => 0,
     'Net::Amazon::S3' => 0,
     'PerlIO' => 0,
