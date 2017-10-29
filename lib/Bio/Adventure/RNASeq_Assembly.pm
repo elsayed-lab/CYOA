@@ -175,7 +175,19 @@ sub Trinity {
         jname => "trin_rsem",
         input => $options->{input},
     );
-    return($trin_job);
+    my $trinotate_job = Bio::Adventure::RNASeq_Assemly::Trinotate(
+        $class,
+        %args,
+        depends => $trin_job->{pbs_id},
+        jname => "trinotate",
+        input => qq"${output_dir}/Trinity.fasta",
+    );
+    my $jobs = {
+        trinity => $trin_job,
+        trinity_post => $rsem_job,
+        trinotate => $trinotate_job,
+    };
+    return($jobs);
 }
 
 sub Trinity_Post {
@@ -202,32 +214,33 @@ sub Trinity_Post {
     my $comment = qq!## This is a trinity post-processing submission script.
 !;
     my $jstring = qq!
-${trinity_exe_dir}/util/TrinityStats.pl ${trinity_out_dir}/Trinity.fasta \\
-  2>${trinity_out_dir}/trinity_stats.err \\
-  1>${trinity_out_dir}/trinity_stats.out &
+cd ${trinity_out_dir}
+${trinity_exe_dir}/util/TrinityStats.pl Trinity.fasta \\
+  2>${trinity_out_dir}/trinpost_stats.err \\
+  1>${trinity_out_dir}/trinpost_stats.out &
 
 ${trinity_exe_dir}/util/align_and_estimate_abundance.pl \\
-  --output_dir ${trinity_out_dir}/align_estimate.out \\
+  --output_dir align_estimate.out \\
   --transcripts ${rsem_input} \\
   --seqType fq \\
   ${input_string} \\
   --est_method RSEM \\
   --aln_method bowtie \\
   --trinity_mode --prep_reference \\
-  2>${trinity_out_dir}/trinity_align_estimate.err \\
-  1>${trinity_out_dir}/trinity_align_estimate.out
+  2>trinpost_align_estimate.err \\
+  1>trinpost_align_estimate.out
 
 ${trinity_exe_dir}/util/abundance_estimates_to_matrix.pl \\
   --est_method RSEM \\
-  --gene_trans_map ${trinity_out_dir}/Trinity.fasta.gene_trans_map \\
-  ${trinity_out_dir}/align_estimate.out/RSEM.isoform.results \\
-  2>${trinity_out_dir}/estimate_to_matrix.err \\
-  1>${trinity_out_dir}/estimate_to_matrix.out
+  --gene_trans_map Trinity.fasta.gene_trans_map \\
+  align_estimate.out/RSEM.isoform.results \\
+  2>trinpost_estimate_to_matrix.err \\
+  1>trinpost_estimate_to_matrix.out
 
 ${trinity_exe_dir}/util/SAM_nameSorted_to_uniq_count_stats.pl \\
-  ${trinity_out_dir}/bowtie_out/bowtie_out.nameSorted.bam \\
-  2>${trinity_out_dir}/count_stats.err \\
-  1>${trinity_out_dir}/count_stats.out
+  bowtie_out/bowtie_out.nameSorted.bam \\
+  2>trinpost_count_stats.err \\
+  1>trinpost_count_stats.out
 !;
     my $trinpost_job = $class->Submit(
         comment => $comment,
