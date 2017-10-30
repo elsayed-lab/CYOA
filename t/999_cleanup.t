@@ -10,7 +10,6 @@ ok(remove_tree('share/genome/indexes'),
 
 my @all_files = (
     'test_forward.fastq', 'test_forward.fastq.xz', 'test_forward-trimmed.fastq',
-    'test_forward.log', 'xzal.log', 'xzun.log',
     );
 for my $f (@all_files) {
     ok(unlink($f),
