@@ -69,7 +69,7 @@ less ${in} | read_fastq -i - -e base_33 |\\
                 comment => $comment,
                 input => $in,
                 depends => $bp_depends_on,
-                jname => $jname,
+                jname => qq"${jname}_${in}",
                 jprefix => "02",
                 jstring => $jstring,
                 prescript => $args{prescript},
@@ -164,11 +164,12 @@ sub Fastqc_Pairwise {
 !;
     my $comment = qq!## This FastQC run is against ${type} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $fqc_jobid = qq"${basename}_fqc";
+    my $job_basename = $class->Get_Job_Name();
+    my $jname = qq"fcq_${job_basename}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
-        jname => "fqc",
+        jname => $jname,
         jprefix => "00",
         jstring => $jstring,
         prescript => $options->{prescript},
@@ -220,11 +221,12 @@ sub Fastqc_Single {
 !;
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $fqc_jobid = qq"$options->{jname}_fqc";
+    my $job_basename = $class->Get_Job_Name();
+    my $jname = qq"fcq_${job_basename}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
-        jname => "fqc_$options->{jname}",
+        jname => $jname,
         jprefix => "00",
         jstring => $jstring,
         prescript => $options->{prescript},

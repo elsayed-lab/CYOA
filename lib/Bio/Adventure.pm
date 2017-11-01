@@ -266,7 +266,6 @@ sub Get_Basename {
     return($in1);
 }
 
-
 sub Get_Defaults {
     my $defaults = {
         align_bestonly => 0,  ## Return only the best alignments for blast/fasta
@@ -303,6 +302,8 @@ sub Get_Defaults {
         cpus => 1,              ## Number of cpus to use for samtools/bowtie/etc
         csv_file => 'all_samples.csv',
         debug => 0,                 ## Debugging?
+        evalue => 1,
+        identity => 70,
         fasta_args => ' -b 20 -d 20 ',        ## Arguments for the fasta36 suite
         fasta_tool => 'ggsearch36',           ## Which fasta36 program to run
         feature_type => 'exon', ## A default feature type when examining gff files
@@ -492,6 +493,7 @@ sub Get_Menus {
             name => 'assembly',
             message => qq"The wise man fears the wrath of a gentle heart. Go to page 314159.",
             choices => {
+                '(--extract_trinotate): Extract the most likely hits from Trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Extract_Trinotate',
                 '(--transdecoder):  Run transdecoder on a putative transcriptome.' => 'Bio::Adventure::RNASeq_Assembly::Transdecoder',
                 '(--trinotate): Perform de novo transcriptome annotation with trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Trinotate',
                 '(--trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
@@ -572,6 +574,7 @@ sub Get_TODOs {
         "downceph+" => \$todo_list->{todo}{'Bio::Adventure::Ceph::Ceph_Download'},
         "dumpceph+" => \$todo_list->{todo}{'Bio::Adventure::Ceph::Ceph_Dump'},
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
+        "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Assembly::Extract_Trinotate'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastasplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastamerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta'},

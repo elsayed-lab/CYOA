@@ -203,7 +203,9 @@ sub Trimomatic_Pairwise {
     my $found_exe = 0;
     my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
     for my $test_exe (@exe_list) {
-        if (which($test_exe)) {
+        my @executable_list = split(/\s+/, $test_exe);
+        my $executable = $executable_list[0];
+        if (which($executable)) {
             $exe = $test_exe;
         }
     }
