@@ -37,6 +37,7 @@ my %prereq = (
     'Math::Round' => 0.07,
     'Modern::Perl' => 1.2017,
     'Net::Amazon::S3' => 0.80,
+    'Parse::CSV' => 0,
     'PerlIO' => 0,
     'PerlIO::gzip' => 0,
     'Pod::Usage' => 1.69,

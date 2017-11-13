@@ -256,6 +256,9 @@ sub Bowtie2 {
         required => ['species', 'input', 'htseq_type'],
         do_htseq => 1,
     );
+    my $ready = $class->Check_Input(
+        files => $options->{input},
+    );
     my $sleep_time = 3;
     my %bt_jobs = ();
     my $libtype = 'genome';
@@ -335,11 +338,6 @@ sub Bowtie2 {
   2>${error_file} \\
   1>${bt_dir}/${job_basename}.out
 !;
-
-    ## Last chance before submitting, make sure the input file exists.
-    if (!-r "${test_file}") {
-        die("Could not find the bowtie2 input file(s): ${bt_input}\n");
-    }
 
     my $bt2_job = $class->Submit(
         aligned => $aligned_filename,
@@ -939,6 +937,12 @@ sub Kallisto {
         args => \%args,
         required => ["species","input"],
     );
+
+    ##my $ready = $class->Check_Input(
+    ##    files => $options->{input},
+    ##);
+
+    my $sleep_time = 3;
     my %ka_jobs = ();
     my $ka_depends_on;
     $ka_depends_on = $options->{depends} if ($options->{depends});
@@ -946,35 +950,36 @@ sub Kallisto {
     $libtype = $options->{libtype} if ($options->{libtype});
     my $job_basename = $options->{job_basename};
     my $species = $options->{species};
-    my $ka_input = $options->{input};
 
-    my $sleep_time = 3;
+
     my $jname = qq"kall_${species}";
     $jname = $options->{jname} if ($options->{jname});
     my $ka_args = qq"";
 
-    if ($ka_input =~ /\.bz2$|\.xz$/ ) {
+    my $ka_input = $options->{input};
+    if ($ka_input =~ /\.gz|\.bz2$|\.xz$/ ) {
+        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $ka_input,
             depends => $ka_depends_on,
         );
-        $ka_input = basename($ka_input, ('.gz','.bz2','.xz'));
+        $ka_input =~ s/\:|\;|\,|\s+/ /g;
+        $ka_input =~ s/\.gz|\.bz|\.xz//g;
+        ##$ka_input = $ka_inputbasename($ka_input, ('.gz', '.bz2', '.xz'));
         $options = $class->Set_Vars(input => $ka_input);
         $ka_depends_on = $uncomp->{job_id};
     }
+
     my $input_name = $ka_input;
-    $input_name = basename($input_name, ('.fastq'));
-    my @input_test = split(/\:/, $ka_input);
-    if (scalar(@input_test) == 1) {
-        $ka_args .= " --single -l 40 -s 10 ";
-    } elsif (scalar(@input_test) == 2) {
-        ## Do nothing
-        print "There are 2 inputs\n";
+    if ($ka_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $ka_input);
+        $ka_args .= " --fr-stranded ";
+        $ka_input = qq" $pair_listing[0] $pair_listing[1] ";
+        $input_name = $pair_listing[0];
     } else {
-        print "There are not 1 nor 2 inputs.\n";
+        $ka_args .= " --single -l 40 -s 10 ";
     }
-    $ka_input =~ s/\:/ /g;
 
     ## Check that the indexes exist
     my $ka_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
@@ -1003,13 +1008,20 @@ sub Kallisto {
 ## The sam->bam conversion is copy/pasted from Sam2Bam() but I figured why start another job
 ## because kallisto is so fast
 !;
+    my $dropped_args = qq" --pseudobam ";
     my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
-kallisto quant ${ka_args} --plaintext --pseudobam -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
+kallisto quant ${ka_args} --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
   ${ka_input} \\
   2>${error_file} \\
   1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
-  gzip ${outdir}/${input_name}_abundance.count && \\
+  gzip ${outdir}/${input_name}_abundance.count
+!;
+
+    ## I am going to stop doing these pseudobam indexes because that is pretty dumb for kallisto to do
+    ## It was interesting for the exosome samples, but only because I wanted to compare them against
+    ## the full miRNA database.
+    my $unused_material = qq!
   samtools view -u -t ${ka_reflib} -S ${output_sam} \\
     2>${output_bam}.err \\
     1>${output_bam} && \\

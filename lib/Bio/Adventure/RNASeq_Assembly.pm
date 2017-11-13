@@ -108,14 +108,16 @@ ${trinotate_exe_dir}/auto/autoTrinotate.pl \\
     my $trinotate_job = $class->Submit(
         cpus => 6,
         comment => $comment,
+        depends => $options->{depends},
         jname => "trinotate_${job_basename}",
         jprefix => "48",
         jstring => $jstring,
+        mem => 80,
         output => qq"trinotate.sbatchout",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
-        walltime => "48:00:00",
+        queue => "large",
+        walltime => "144:00:00",
     );
     return($trinotate_job);
 }
@@ -216,6 +218,7 @@ sub Trinity_Post {
     my $comment = qq!## This is a trinity post-processing submission script.
 !;
     my $jstring = qq!
+start=\$(pwd)
 cd ${trinity_out_dir}
 ${trinity_exe_dir}/util/TrinityStats.pl Trinity.fasta \\
   2>${trinity_out_dir}/trinpost_stats.err \\
@@ -243,6 +246,8 @@ ${trinity_exe_dir}/util/SAM_nameSorted_to_uniq_count_stats.pl \\
   bowtie_out/bowtie_out.nameSorted.bam \\
   2>trinpost_count_stats.err \\
   1>trinpost_count_stats.out
+
+cd \${start}
 !;
     my $trinpost_job = $class->Submit(
         comment => $comment,

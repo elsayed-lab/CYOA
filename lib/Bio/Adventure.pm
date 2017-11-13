@@ -253,6 +253,35 @@ sub BUILDARGS {
     return \%args;
 }
 
+sub Check_Input {
+    my ($class, %args) = @_;
+    my $file_list;
+    if (ref($args{files}) eq 'SCALAR' || ref($args{files}) eq '') {
+        $file_list->[0] = $args{files};
+    } elsif (ref($args{files}) eq 'ARRAY') {
+        $file_list = $args{files};
+    } else {
+        my $unknown_class = ref($args{files});
+        warn("I do not know type: ${unknown_class}.");
+    }
+    my $found = {};
+    foreach my $file (@{$file_list}) {
+        $found->{$file} = 0;
+        my $first_test = $file;
+        my $second_test = basename($file, $class->{options}->{suffixes});
+        my $third_test = basename($second_test, $class->{options}->{suffixes});
+        $found->{$file} = $found->{$file} + 1 if (-r $first_test);
+        $found->{$file} = $found->{$file} + 1 if (-r $second_test);
+        $found->{$file} = $found->{$file} + 1 if (-r $third_test);
+    }
+    for my $f (keys %{$found}) {
+        if ($found->{$f} == 0) {
+            die("Unable to find a file corresponding to $f.");
+        }
+    }
+    return($found);
+}
+
 sub Get_Basename {
     my ($class, $string) = @_;
     my ($in1, $in2) = "";
