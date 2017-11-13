@@ -165,7 +165,7 @@ sub Fastqc_Pairwise {
     my $comment = qq!## This FastQC run is against ${type} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $job_basename = $class->Get_Job_Name();
-    my $jname = qq"fcq_${job_basename}";
+    my $jname = qq"fqc_${job_basename}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
@@ -222,7 +222,7 @@ sub Fastqc_Single {
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $job_basename = $class->Get_Job_Name();
-    my $jname = qq"fcq_${job_basename}";
+    my $jname = qq"fqc_${job_basename}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
