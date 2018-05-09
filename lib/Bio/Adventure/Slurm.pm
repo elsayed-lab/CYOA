@@ -138,7 +138,7 @@ $args{jstring}" if ($options->{verbose});
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}
 
-echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
+echo "####Started ${script_file} at \$(date) on \$(hostname)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
@@ -154,11 +154,11 @@ echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECON
     ##cat "\$0" >> outputs/log.txt
 
     $script_end .= qq!
-walltime=\$(scontrol show job \${SLURM_JOBID} | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}')
+walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}')
 echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> outputs/log.txt
-maxmem=\$(sstat --format=MaxVMSize -n \${SLURM_JOBID})
-echo "#### maximum memory used by \${SLURM_JOBID} was: \${mem:-null}" >> outputs/log.txt
-avecpu=\$(sstat --format=AveCPU -n \${SLURM_JOBID})
+maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch")
+echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> outputs/log.txt
+avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch")
 echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> outputs/log.txt
 !;
 

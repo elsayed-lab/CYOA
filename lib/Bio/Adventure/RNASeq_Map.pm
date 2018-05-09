@@ -7,6 +7,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use File::Basename;
+use File::Spec;
 use File::Which qw"which";
 
 =head1 NAME
@@ -46,8 +47,9 @@ sub Bowtie {
 
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        species => 'lmajor', 'bt_type' => 'v0M1', count => 1,
+        required => ['input', 'species'],
+        bt_type => 'v0M1',
+        count => 1,
         libtype => 'genome',
     );
     my $species = $options->{species};
@@ -127,8 +129,11 @@ sub Bowtie {
     my $aligned_filename = qq"${bt_dir}/${job_basename}-${bt_type}_aligned_${species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${job_basename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"${bt_dir}/${job_basename}-${bt_type}.sam";
-    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie ${bt_reflib} ${bt_args} \\
-  -p ${cpus} ${bowtie_input_flag} ${bt_input} \\
+    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie \\
+  ${bt_reflib} \\
+  ${bt_args} \\
+  -p ${cpus} \\
+  ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
@@ -297,10 +302,12 @@ sub Bowtie2 {
     my $test_file = "";
     if ($bt_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
         $bt_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
     } else {
-        $test_file = $bt_input;
+        $test_file = File::Spec->rel2abs($bt_input);
     }
 
     ## Check that the indexes exist
@@ -329,14 +336,28 @@ sub Bowtie2 {
     my $aligned_filename = qq"${bt_dir}/${job_basename}_aligned_$options->{species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq";
     my $sam_filename = qq"${bt_dir}/${job_basename}.sam";
-    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie2 -x ${bt_reflib} ${bt2_args} \\
-  -p ${cpus} \\
-  ${bowtie_input_flag} ${bt_input} \\
-  --un ${unaligned_filename} \\
-  --al ${aligned_filename} \\
-  -S ${sam_filename} \\
-  2>${error_file} \\
-  1>${bt_dir}/${job_basename}.out
+    my $jstring = qq!if [[ -e "/scratch0" ]]; then
+  scratchdir=\$(mktemp -d "/scratch0/\${USER}.XXXX")
+  echo "Working in: \${scratchdir} on \$(hostname)."
+  cd "\${scratchdir}" || exit
+fi
+
+mkdir -p ${bt_dir} && \\
+  sleep ${sleep_time} && \\
+  bowtie2 -x ${bt_reflib} ${bt2_args} \\
+    -p ${cpus} \\
+    ${bowtie_input_flag} ${bt_input} \\
+    --un ${unaligned_filename} \\
+    --al ${aligned_filename} \\
+    -S ${sam_filename} \\
+    2>${error_file} \\
+    1>${bt_dir}/${job_basename}.out
+
+if [[ -e "/scratch0" ]]; then
+  cd $options->{basedir} && \\
+    rsync -a "\${scratchdir}/${bt_dir}/" ${bt_dir} && \\
+    rm -r "\${scratchdir}"
+fi
 !;
 
     my $bt2_job = $class->Submit(
@@ -434,8 +455,9 @@ sub BT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species","input", "htseq_type"],
+        required => ["species", "input", "htseq_type"],
     );
+    my $bt_input = $options->{input};
     my $job_basename = $options->{job_basename};
     my $species = $options->{species};
     my $depends_on = $options->{depends};
@@ -445,6 +467,7 @@ sub BT_Multi {
         my $jname = qq"bt${type}_${species}";
         my $job = Bio::Adventure::RNASeq_Map::Bowtie(
             $class,
+            input => $bt_input,
             bt_type => $type,
             depends => $depends_on,
             jname => $jname,
@@ -888,6 +911,265 @@ echo "\$stat_string" >> ${output}!;
     return($stats);
 }
 
+sub Hisat2 {
+    my ($class, %args) = @_;
+    my $check = which('hisat2-build');
+    die("Could not find hisat2 in your PATH.") unless($check);
+
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species', 'input', 'htseq_type'],
+        do_htseq => 1,
+    );
+    my $ready = $class->Check_Input(
+        files => $options->{input},
+    );
+    my $sleep_time = 3;
+    my %ht_jobs = ();
+    my $libtype = 'genome';
+    my $ht_depends_on = "";
+    $ht_depends_on = $options->{depends} if ($options->{depends});
+    my $ht2_args = '';
+    $ht2_args = $options->{ht2_args} if ($options->{ht2_args});
+
+    my $prefix_name = qq"hisat2";
+    my $ht2_name = qq"${prefix_name}_$options->{species}";
+    my $suffix_name = $prefix_name;
+    if ($options->{jname}) {
+        $ht2_name .= qq"_$options->{jname}";
+        $suffix_name .= qq"_$options->{jname}";
+    }
+
+    my $job_basename = $options->{job_basename};
+    my $ht_dir = qq"outputs/hisat2_$options->{species}";
+    if ($args{ht_dir}) {
+        $ht_dir = $args{ht_dir};
+    }
+    my $ht_input = $options->{input};
+    if ($ht_input =~ /\.xz$/ ) {
+        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+        my $uncomp = Bio::Adventure::Compress::Uncompress(
+            $class,
+            input => $ht_input,
+            depends => $ht_depends_on,
+        );
+        $ht_input =~ s/\:|\;|\,|\s+/ /g;
+        $ht_input =~ s/\.xz//g;
+        ##$ht_input = $ht_inputbasename($ht_input, ('.xz'));
+        $options = $class->Set_Vars(input => $ht_input);
+        $ht_depends_on = $uncomp->{job_id};
+    }
+
+    my $test_file = "";
+    if ($ht_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $ht_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        $ht_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $test_file = $pair_listing[0];
+    } else {
+        $test_file = File::Spec->rel2abs($ht_input);
+    }
+
+    ## Check that the indexes exist
+    my $ht_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
+    my $ht_reftest = qq"${ht_reflib}.1.ht2l";
+    if (!-r $ht_reftest) {
+        print "Hey! The Indexes do not appear to exist, check this out: ${ht_reftest}\n";
+        sleep(20);
+        my $index_job = Bio::Adventure::RNASeq_Map::HT2_Index(
+            $class,
+            depends => $ht_depends_on,
+            libtype => $libtype,
+        );
+        $ht_jobs{index} = $index_job;
+        $ht_depends_on = $index_job->{job_id};
+    }
+    my $hisat_input_flag = "-q "; ## fastq by default
+    $hisat_input_flag = "-f " if (${ht_input} =~ /\.fasta$/);
+
+    my $cpus = $options->{cpus};
+    my $error_file = qq"${ht_dir}/${job_basename}.err";
+    my $comment = qq!## This is a hisat2 alignment of ${ht_input} against
+## ${ht_reflib} using arguments: ${ht2_args}.
+## This jobs depended on: ${ht_depends_on}
+!;
+    my $aligned_filename = qq"${ht_dir}/${job_basename}_aligned_$options->{species}.fastq";
+    my $unaligned_filename = qq"${ht_dir}/${job_basename}_unaligned_$options->{species}.fastq";
+    my $sam_filename = qq"${ht_dir}/${job_basename}.sam";
+    my $jstring = qq!if [[ -e "/scratch0" ]]; then
+  scratchdir=\$(mktemp -d "/scratch0/\${USER}.XXXX")
+  echo "Working in: \${scratchdir} on \$(hostname)."
+  cd "\${scratchdir}" || exit
+fi
+
+mkdir -p ${ht_dir} && \\
+  sleep ${sleep_time} && \\
+  hisat2 -x ${ht_reflib} ${ht2_args} \\
+    -p ${cpus} \\
+    ${hisat_input_flag} ${ht_input} \\
+    --un ${unaligned_filename} \\
+    --al ${aligned_filename} \\
+    -S ${sam_filename} \\
+    2>${error_file} \\
+    1>${ht_dir}/${job_basename}.out
+
+if [[ -e "/scratch0" ]]; then
+  cd $options->{basedir} && \\
+    rsync -a "\${scratchdir}/${ht_dir}/" ${ht_dir} && \\
+    rm -r "\${scratchdir}"
+fi
+!;
+
+    my $ht2_job = $class->Submit(
+        aligned => $aligned_filename,
+        comment => $comment,
+        input => $ht_input,
+        jname => $ht2_name,
+        depends => $ht_depends_on,
+        jstring => $jstring,
+        jprefix => "15",
+        mem => 24,
+        output => $sam_filename,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        unaligned => $unaligned_filename,
+    );
+    $ht_jobs{hisat} = $ht2_job;
+
+    ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
+    ## my $trim_output_file = qq"outputs/${job_basename}-trimomatic.out";
+    my $stats = Bio::Adventure::RNASeq_Map::HT2_Stats(
+        $class,
+        ht_input => $error_file,
+        count_table => qq"${job_basename}.count.xz",
+        depends => $ht2_job->{job_id},
+        jname => "ht2st_${suffix_name}",
+        jprefix => "18",
+        ## trim_input => ${trim_output_file},
+    );
+    my $sam_job = Bio::Adventure::Convert::Samtools(
+        $class,
+        input => $sam_filename,
+        depends => $ht2_job->{job_id},
+        jname => "s2b_${suffix_name}",
+        jprefix => "19",
+    );
+    $ht_jobs{samtools} = $sam_job;
+    my $htseq_input = $sam_job->{job_output};
+    my $htmulti;
+    if ($options->{do_htseq}) {
+        if ($libtype eq 'rRNA') {
+            $htmulti = Bio::Adventure::RNASeq_Count::HTSeq(
+                $class,
+                htseq_input => $sam_job->{job_output},
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => "20",
+                libtype => $libtype,
+            );
+        } else {
+            $htmulti = Bio::Adventure::RNASeq_Count::HT_Multi(
+                $class,
+                htseq_input => $sam_job->{job_output},
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => "21",
+                libtype => $libtype,
+            );
+            $ht_jobs{htseq} = $htmulti;
+        }
+    }
+    return(\%ht_jobs);
+}
+
+=item C<HT2_Index>
+
+    $hpgl->HT2_Index() creates a bowtie2 index using
+    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+
+=cut
+sub HT2_Index {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(args => \%args, required => ["species"]);
+    my $job_basename = $options->{job_basename};
+    my $dep = "";
+    $dep = $options->{depends};
+    my $libtype = $options->{libtype};
+    my $libdir = File::Spec->rel2abs($options->{libdir});
+    my $jstring = qq!
+if test \! -e "${libdir}/genome/$options->{species}.fa"; then
+  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
+fi
+if test \! -e "${libdir}/genome/indexes/$options->{species}.fa"; then
+  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
+fi
+
+hisat2-build $options->{libdir}/genome/$options->{species}.fasta \\
+  $options->{libdir}/${libtype}/indexes/$options->{species}
+!;
+    my $comment = qq!## Generating hisat2 indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+    my $indexer = $class->Submit(
+        comment => $comment,
+        depends => $dep,
+        jname => "ht2idx",
+        jprefix => "15",
+        jstring => $jstring,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+    );
+    return($indexer);
+}
+
+=item C<HT2_Stats>
+
+    $hpgl->HT2_Stats() collects alignment statistics from hisat 2.
+
+=cut
+sub HT2_Stats {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(args => \%args);
+    my $ht_input = $options->{ht_input};
+    my $job_basename = $options->{job_basename};
+    my $jname = "ht2_stats";
+    $jname = $options->{jname} if ($options->{jname});
+    my $jobid = qq"${job_basename}_stats";
+    my $count_table = "";
+    $count_table = $options->{count_table} if ($options->{count_table});
+    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
+    my $output = "outputs/hisat2_stats.csv";
+    my $jstring = qq!
+if [ \! -e "${output}" ]; then
+    echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
+fi
+original_reads_tmp=\$(grep " reads; of these" "${ht_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
+original_reads=\${original_reads_tmp:-0}
+one_align_tmp=\$(grep " aligned exactly 1 time" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+one_align=\${one_align_tmp:-0}
+failed_tmp=\$(grep " aligned 0 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+failed=\${failed_tmp:-0}
+sampled_tmp=\$(grep " aligned >1 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+sampled=\${sampled_tmp:-0}
+rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
+rpm=\${rpm_tmp:-0}
+stat_string=\$(printf "${job_basename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
+echo "\$stat_string" >> ${output}!;
+    my $stats = $class->Submit(
+        comment => $comment,
+        input => $ht_input,
+        jname => $jname,
+        depends => $options->{depends},
+        jprefix => $args{jprefix},
+        jstring => $jstring,
+        cpus => 1,
+        mem => 1,
+        queue => "throughput",
+        walltime => "00:10:00",
+    );
+    return($stats);
+}
+
+
 =item C<Kallisto_Index
 
     $hpgl->Kallisto_Index() uses kallisto and an annotated_CDS fasta sequence library to do the expected.
@@ -944,7 +1226,7 @@ sub Kallisto {
 
     my $sleep_time = 3;
     my %ka_jobs = ();
-    my $ka_depends_on;
+    my $ka_depends_on = "none";
     $ka_depends_on = $options->{depends} if ($options->{depends});
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
@@ -953,20 +1235,24 @@ sub Kallisto {
 
 
     my $jname = qq"kall_${species}";
-    $jname = $options->{jname} if ($options->{jname});
+    ## $jname = $options->{jname} if ($options->{jname});
     my $ka_args = qq"";
 
     my $ka_input = $options->{input};
     if ($ka_input =~ /\.gz|\.bz2$|\.xz$/ ) {
         print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+        my $ka_input_cleaned = $ka_input;
+        $ka_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
+        $ka_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
+        my @ka_array = split(/ /, $ka_input_cleaned);
+        my $ka_short = $ka_array[0];
         my $uncomp = Bio::Adventure::Compress::Uncompress(
             $class,
             input => $ka_input,
+            jname => "uncomp_${ka_short}",
             depends => $ka_depends_on,
         );
-        $ka_input =~ s/\:|\;|\,|\s+/ /g;
-        $ka_input =~ s/\.gz|\.bz|\.xz//g;
-        ##$ka_input = $ka_inputbasename($ka_input, ('.gz', '.bz2', '.xz'));
+        $ka_input = $ka_input_cleaned;
         $options = $class->Set_Vars(input => $ka_input);
         $ka_depends_on = $uncomp->{job_id};
     }
@@ -1015,7 +1301,7 @@ kallisto quant ${ka_args} --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \
   2>${error_file} \\
   1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
-  gzip ${outdir}/${input_name}_abundance.count
+  gzip -9 -f ${outdir}/${input_name}_abundance.count
 !;
 
     ## I am going to stop doing these pseudobam indexes because that is pretty dumb for kallisto to do
@@ -1038,6 +1324,7 @@ kallisto quant ${ka_args} --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \
         jname => qq"${jname}",
         jprefix => "30",
         jstring => $jstring,
+        mem => 30,
         prescript => $args{prescript},
         postscript => $args{postscript},
         queue => "workstation",
@@ -1045,6 +1332,278 @@ kallisto quant ${ka_args} --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \
     $ka_jobs{kallisto} = $ka_job;
 
     return(\%ka_jobs);
+}
+
+
+=item C<Salmon_Index
+
+    $hpgl->Salmon_Index() uses salmon and an annotated_CDS fasta sequence library to do the expected.
+
+=cut
+sub Salmon_Index {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species", "genome"],
+    );
+    my $job_basename = $options->{job_basename};
+    my $dep = "";
+    $dep = $options->{depends};
+    my $libtype = $options->{libtype};
+    my $genome = File::Spec->rel2abs($options->{genome});
+    unless (-r $genome) {
+        die("The indexing operation for salmon will fail because the $options->{species} genome does not exist.")
+    }
+
+    my $jstring = qq!
+salmon index -t ${genome} -i $options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index!;
+    my $comment = qq!## Generating salmon indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+    my $jobid = $class->Submit(
+        comment => $comment,
+        depends => $dep,
+        jstring => $jstring,
+        jname => "salidx",
+        jprefix => $options->{jprefix},
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+    );
+    return($jobid);
+}
+
+=item C<Salmon>
+
+    $hpgl->Salmon() should perform a salmon quantification.
+
+=cut
+sub Salmon {
+    my ($class, %args) = @_;
+    my $check = which('salmon');
+    die("Could not find salmon in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species","input"],
+    );
+
+    my $ready = $class->Check_Input(
+        files => $options->{input},
+    );
+
+    my $sleep_time = 3;
+    my %sa_jobs = ();
+    my $sa_depends_on = "";
+    $sa_depends_on = $options->{depends} if ($options->{depends});
+    my $libtype = 'genome';
+    $libtype = $options->{libtype} if ($options->{libtype});
+    my $job_basename = $options->{job_basename};
+    my $species = $options->{species};
+
+
+    my $jname = qq"sal_${species}";
+    ## $jname = $options->{jname} if ($options->{jname});
+    my $sa_args = qq"";
+
+    my $sa_input = $options->{input};
+    if ($sa_input =~ /\.gz|\.bz2$|\.xz$/ ) {
+        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+        my $sa_input_cleaned = $sa_input;
+        $sa_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
+        $sa_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
+        my @sa_array = split(/ /, $sa_input_cleaned);
+        my $sa_short = $sa_array[0];
+        my $uncomp = Bio::Adventure::Compress::Uncompress(
+            $class,
+            input => $sa_input,
+            jname => "uncomp_${sa_short}",
+            depends => $sa_depends_on,
+        );
+        $sa_input = $sa_input_cleaned;
+        $options = $class->Set_Vars(input => $sa_input);
+        $sa_depends_on = $uncomp->{job_id};
+    }
+
+    my $input_name = $sa_input;
+    if ($sa_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $sa_input);
+        $sa_args .= " -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $input_name = $pair_listing[0];
+    } else {
+        $sa_args .= " -1 $sa_input ";
+    }
+
+    ## Check that the indexes exist
+    my $sa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index";
+    if (!-r $sa_reflib) {
+        my $index_job = Bio::Adventure::RNASeq_Map::Salmon_Index(
+            $class,
+            depends => $sa_depends_on,
+            libtype => $libtype,
+        );
+        $sa_jobs{index} = $index_job;
+        $sa_depends_on = $index_job->{job_id};
+    }
+
+    my $outdir = qq"outputs/salmon_${species}";
+    my $error_file = qq"${outdir}/salmon_${species}.stderr";
+    my $comment = qq!## This is a salmon pseudoalignment of ${sa_input} against
+## ${sa_reflib}.
+## This jobs depended on: ${sa_depends_on}
+!;
+    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+salmon quant -i ${sa_reflib} \\
+  -l A --gcBias  \\
+  ${sa_args} \\
+  -o ${outdir}
+!;
+
+    my $sa_job = $class->Submit(
+        comment => $comment,
+        input => $sa_input,
+        depends => $sa_depends_on,
+        jname => qq"${jname}",
+        jprefix => "30",
+        jstring => $jstring,
+        mem => 48,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        queue => "workstation",
+    );
+    $sa_jobs{salmon} = $sa_job;
+
+    return(\%sa_jobs);
+}
+
+sub STAR {
+    my ($class, %args) = @_;
+    my $check = which('STAR');
+    die("Could not find STAR in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species","input"],
+    );
+
+    my $ready = $class->Check_Input(
+        files => $options->{input},
+    );
+
+    my $sleep_time = 3;
+    my %star_jobs = ();
+    my $star_depends_on = "";
+    $star_depends_on = $options->{depends} if ($options->{depends});
+    my $libtype = 'genome';
+    $libtype = $options->{libtype} if ($options->{libtype});
+    my $job_basename = $options->{job_basename};
+    my $species = $options->{species};
+
+    my $jname = qq"star_${species}";
+    ## $jname = $options->{jname} if ($options->{jname});
+    my $star_inputstring = qq"";
+    my $star_input = $options->{input};
+    my $input_name = $star_input;
+    if ($star_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $star_input);
+        $star_inputstring = qq"$pair_listing[0],$pair_listing[1]";
+        $input_name = $pair_listing[0];
+    } else {
+        $star_inputstring = qq"$star_input";
+    }
+
+    ## Check that the indexes exist
+    my $star_refdir = "$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
+    my $star_reflib = qq"${star_refdir}/SAindex";
+    if (!-r $star_reflib) {
+        my $index_job = Bio::Adventure::RNASeq_Map::STAR_Index(
+            $class,
+            depends => $star_depends_on,
+            libtype => $libtype,
+        );
+        $star_jobs{index} = $index_job;
+        $star_depends_on = $index_job->{job_id};
+    }
+
+    my $outdir = qq"outputs/star_${species}";
+    my $error_file = qq"${outdir}/star_${species}.stderr";
+    my $comment = qq!## This is a star pseudoalignment of ${star_input} against
+## ${star_reflib}.
+## This jobs depended on: ${star_depends_on}
+## Currently, this only works with the module star/git_201803
+!;
+    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+STAR \\
+  --genomeDir ${star_refdir} \\
+  --outFileNamePrefix outputs/star_$options->{species}/${input_name} \\
+  --outSAMtype BAM SortedByCoordinate \\
+  --outBAMcompression 10 \\
+  --chimOutType WithinBAM \\
+  --quantMode GeneCounts \\
+  --readFilesIn ${star_inputstring} \\
+  --readFilesCommand /usr/bin/lesspipe.sh \\
+  --runThreadN 6 \\
+  2>outputs/star_gene.out 1>&2
+
+STAR \\
+  --genomeDir ${star_refdir} \\
+  --outFileNamePrefix outputs/star_$options->{species}/${input_name}_tx \\
+  --outSAMtype BAM SortedByCoordinate \\
+  --outBAMcompression 10 \\
+  --chimOutType WithinBAM \\
+  --quantMode TranscriptomeSAM \\
+  --readFilesIn ${star_inputstring} \\
+  --readFilesCommand /usr/bin/lesspipe.sh \\
+  --runThreadN 6 \\
+  2>outputs/star_tx.out 1>&2
+
+!;
+
+    my $star_job = $class->Submit(
+        comment => $comment,
+        input => $star_input,
+        depends => $star_depends_on,
+        jname => qq"${jname}",
+        jprefix => "33",
+        jstring => $jstring,
+        mem => 96,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        queue => "large",
+    );
+    $star_jobs{salmon} = $star_job;
+
+    return(\%star_jobs);
+}
+
+sub STAR_Index {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species",],
+    );
+    my $dep = $options->{depends};
+    my $comment = qq"## STAR Index creation.";
+    my $libtype = 'genome';
+    $libtype = $options->{libtype} if ($options->{libtype});
+    my $star_refdir = "$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
+    my $jstring = qq!
+STAR \\
+  --runMode genomeGenerate \\
+  --runThreadN 12 \\
+  --genomeDir ${star_refdir} \\
+  --genomeFastaFiles $options->{libdir}/${libtype}/$options->{species}.fasta \\
+  --sjdbGTFfile $options->{libdir}/${libtype}/$options->{species}.gtf \\
+  --limitGenomeGenerateRAM 160000000000
+!;
+    my $jobid = $class->Submit(
+        comment => $comment,
+        depends => $dep,
+        jstring => $jstring,
+        jname => "staridx",
+        jprefix => $options->{jprefix},
+        mem => 180,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => 'xlarge',
+        walltime => '20-00:00:00',
+    );
+    return($jobid);
 }
 
 =item C<RSEM_Index
@@ -1149,11 +1708,11 @@ sub RSEM {
         depends => $rsem_depends_on,
         jstring => $jstring,
         jprefix => "28",
-        mem => 18,
+        mem => 24,
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        walltime => '18:00:00',
+        walltime => '36:00:00',
     );
     $rsem_jobs{rsem} = $rsem_job;
     return(\%rsem_jobs);

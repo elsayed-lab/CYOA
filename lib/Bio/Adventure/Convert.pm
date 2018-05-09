@@ -72,10 +72,9 @@ sub Gff2Fasta {
         my @ids;
         try {
             @ids = $feature->each_tag_value($chosen_tag);
+        } catch {
+            next LOOP;
         }
-            catch {
-                next LOOP;
-            }
         my $gff_chr = $feature->{_gsf_seq_id};
         my $gff_string = $annotation_in->{$gff_chr};
         if (!defined($chromosomes->{$gff_chr})) {
@@ -260,7 +259,8 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $check = which('samtools');
     die("Could not find samtools in your PATH.") unless($check);
-    my $options = $class->Get_Vars(args => \%args, required => ["species", "input"]);
+    my $options = $class->Get_Vars(args => \%args,
+                                   required => ["species", "input"]);
     my $basename = $options->{basename};
     my @input_list = ();
     my $depends = "";

@@ -27,7 +27,7 @@ sub Recompress {
         xz_input => $class->{options}->{input},
 
     );
-    my $input = $options->{input};
+    my $input = $options->{xz_input};
     my ($input1, $input2) = "";
     if ($input =~ /\:|\,/) {
         ($input1, $input2) = split(/\:|\,/, $input);
@@ -97,7 +97,7 @@ sub Uncompress {
         queue => 'long',
         xz_input => $class->{options}->{input},
     );
-    my $input = $options->{input};
+    my $input = $options->{xz_input};
     my ($input1, $input2) = "";
     if ($input =~ /\:|\;|\,|\s+/) {
         ($input1, $input2) = split(/\:|\;|\,|\s+/, $input);

@@ -55,6 +55,9 @@ if (!defined($cyoa->{options}->{task})) {  ## If task is not defined, then we ne
 sub Main {
   my ($class, %args) = @_;
   my $term = $class->{options}->{term};
+  if (!defined($term)) {
+      $term = Bio::Adventure::Get_Term();
+  }
   my $menus = $class->{options}->{menus};
 
   my $finished = 0;
@@ -81,6 +84,9 @@ sub Iterate {
   my $options = $class->{options};
   my $menus = $options->{menus};
   my $term = $options->{term};
+  if (!$term) {
+      $term = Bio::Adventure::Get_Term();
+  }
   my $type = $args{task};
   my $finished = 0;
   my $tasks_done = 0;
@@ -144,7 +150,7 @@ sub Run_Method {
 
     ##
     ## I have decided that this is a dumb thing to do, I may change my mind and so am not deleting it yet.
-    ## 
+    ##
     ## my $print_job = new FileHandle(">last_job.txt");
     ## my $process_class = ref($process);
     ## if ($process_class eq 'ARRAY') {
@@ -156,7 +162,7 @@ sub Run_Method {
     ##   print $print_job "$process->{job_id}\n" if (defined($process->{job_id}));
     ## }
     ## $print_job->close();
-    
+
   }
   return($job_count);
 }

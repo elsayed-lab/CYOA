@@ -11,6 +11,7 @@ use Bio::SeqIO;
 use Bio::Tools::GFF;
 use Cwd qw(abs_path getcwd);
 use File::Basename;
+use FileHandle;
 use File::Path qw"make_path";
 use PerlIO;
 use PerlIO::gzip;
@@ -114,7 +115,9 @@ my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
   input => '$options->{input}',
 ";
     foreach my $option (sort keys %args) {
-        $jstring .= qq"  ${option} => '$args{$option}',\n";
+        if ($args{$option}) {
+            $jstring .= qq"  ${option} => '$args{$option}',\n";
+        }
     }
     $jstring .= qq");";
     my $sort_job = $class->Submit(
@@ -138,8 +141,8 @@ sub Do_TA_Check {
     my $input = $options->{input};
     my $input_base = basename($input, ('.gz', '.xz', '.bz2'));
     $input_base = basename($input_base, ('.fastq', '.fasta'));
-    my $with_ta = FileHandle->new("| gzip -9 > ${input_base}_ta.fastq.gz");
-    my $without_ta = FileHandle->new("| gzip -9 > ${input_base}_nota.fastq.gz");
+    my $with_ta = FileHandle->new("| gzip -f -9 > ${input_base}_ta.fastq.gz");
+    my $without_ta = FileHandle->new("| gzip -f -9 > ${input_base}_nota.fastq.gz");
     my $inputted = FileHandle->new("less ${input} |"); ## PerlIO::gzip is failing on some files.
     my $in = new Bio::SeqIO(-fh => $inputted, -format => 'Fastq');
     my $count = 0;
@@ -192,7 +195,7 @@ my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
     }
     $jstring .= qq");";
     my $sort_job = $class->Submit(
-        comment => "# Sort # TODO: hose indexes!",
+        comment => "# Sort those indexes!",
         cpus => 1,
         language => 'perl',
         jname => "sort_indexes",
@@ -429,8 +432,8 @@ sub Read_Indexes {
     make_path($class->{outdir}) if (!-d $options->{outdir});
     unlink("$options->{outdir}/unknown.fastq.gz") if (-r "$options->{outdir}/unknown.fastq.gz");
     unlink("$options->{outdir}/ambiguous.fastq.gz") if (-r "$options->{outdir}/ambiguous.fastq.gz");
-    my $unknown = FileHandle->new("| gzip >> $options->{outdir}/unknown.fastq.gz");
-    my $ambiguous = FileHandle->new("| gzip >> $options->{outdir}/ambiguous.fastq.gz");
+    my $unknown = FileHandle->new("| gzip -9 >> $options->{outdir}/unknown.fastq.gz");
+    my $ambiguous = FileHandle->new("| gzip -9 >> $options->{outdir}/ambiguous.fastq.gz");
     my $indexes = {
         total => {read => 0, written => 0,
               },
@@ -458,7 +461,7 @@ sub Read_Indexes {
         }
         my $output_filename = qq"$options->{outdir}/${sample}.fastq.gz";
         unlink($output_filename) if (-r $output_filename);
-        my $handle = FileHandle->new("| gzip >> $output_filename");
+        my $handle = FileHandle->new("| gzip -9 >> $output_filename");
         $indexes->{$ind} = {
             name => $sample,
             filename => $output_filename,
@@ -506,12 +509,13 @@ sub Essentiality_TAs {
         feature_type => 'exon',
     );
     my $input = $options->{input};
-    die("Essentiality_TAs requires a bam input") unless ($input =~ /\.bam$/);
+    my $checked_input = $class->Check_Input(files => $input);
+    die("Essentiality_TAs requires a bam input, you gave: ${input}") unless ($input =~ /\.bam$/);
     my $input_name = basename($input, ('.bam'));
     ## This is a bit of a mess, I need to clean up how these arguments are passed.
     my $output = $options->{output};
     $output = qq"${input}_out" unless (defined($options->{output}));
-    my $out = FileHandle->new(">${output}.log");
+    my $out = FileHandle->new(">>${output}.log");
 
     my $genome_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $genome_gff = $genome_fasta;
@@ -529,12 +533,16 @@ sub Essentiality_TAs {
         gff => $genome_gff,
         gff_tag => $options->{gff_tag},
     );
+    ## use Data::Dumper;
+    ## print Dumper $cds_gff;
     my $chr_name = $cds_gff->{stats}->{chromosomes}->[0]; ## Grab the name of the first chromosome
     my @names = @{$cds_gff->{stats}->{feature_names}};
     my @cds_starts = @{$cds_gff->{stats}->{cds_starts}};
     my @cds_ends = @{$cds_gff->{stats}->{cds_ends}};
     my @inter_starts = @{$cds_gff->{stats}->{inter_starts}};
     my @inter_ends = @{$cds_gff->{stats}->{inter_ends}};
+    my $num_starts = scalar(@cds_starts);
+    print "About to start counting against chromosome: ${chr_name} with ${num_starts} features.\n";
 
     print $out "Counting TAs in ${input}, this takes a while.\n";
     my $datum = Bio::Adventure::TNSeq::Count_TAs(
@@ -548,10 +556,23 @@ sub Essentiality_TAs {
     my $ta_count = FileHandle->new(">${tas_file}");
     print $ta_count qq"Position\tn_fwd\tn_rev\tn_both\n";
     foreach my $c (0 .. $#data) {
-        if ($data[$c]->{fwd} or $data[$c]->{rev} or $data[$c]->{mismatch} or $data[$c]->{ta}) {
-            my $fwd = $data[$c]->{fwd};
-            my $rev = $data[$c]->{rev};
-            my $mis = $data[$c]->{mismatch};
+        my $fwd = 0;
+        my $rev = 0;
+        my $mis = 0;
+        my $num_found = 0;
+        if ($data[$c]->{fwd}) {
+            $fwd = $data[$c]->{fwd};
+            $num_found++;
+        }
+        if ($data[$c]->{rev}) {
+            $rev = $data[$c]->{rev};
+            $num_found++;
+        }
+        if ($data[$c]->{mismatch}) {
+            $mis = $data[$c]->{mismatch};
+            $num_found++;
+        }
+        if ($num_found > 0) {
             print $ta_count "${c}\t${fwd}\t${rev}\t${mis}\n";
         }
     }
@@ -566,9 +587,10 @@ sub Essentiality_TAs {
 ";
     print $inter_tas $file_start;
     print $cds_tas $file_start;
-    print $wig "#Start\tReads\n";
+    print $wig "#Start\tReads
+variableStep chrom=${chr_name}\n";
 
-    print $out "Printing #TAs observed by (inter)CDS region to ${input_name}_(gene|interCDS)_tas.txt\n";
+    ##print $out "Printing #TAs observed by (inter)CDS region to ${input_name}_(gene|interCDS)_tas.txt\n";
     my $subtotal = 0;
     foreach my $c (0 .. $#data) {
         if ($data[$c]->{ta}) {
@@ -611,19 +633,20 @@ sub Essentiality_TAs {
 sub Run_Essentiality {
     my ($class, %args) = @_;
     my @param_list = ('1','2','4','8','16','32');
-    my $runs = 1000;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'gff'],
+        required => ['input', 'species'],
+        runs => 1000,
     );
     my $input = $options->{input};
+    print "Remember, tn_hmm requires a .wig input file while mh_ess wants a .txt.\n";
     my $output = basename($input, ('.txt'));
     ## Set up the tn_hmm job -- these inputs are likely wrong
     my $input_wig = basename($input, ('.txt')) . '.wig';
     $input_wig =~ s/_gene//g;
     $input_wig =~ s/_tas//g;
     $input_wig = qq"outputs/essentiality/${input_wig}";
-    my $gff = $options->{gff};
+    my $gff = qq"$options->{libdir}/genome/$options->{species}.gff";
     my $output_file = qq"tn_hmm-${output}.csv";
     my $error_file =  qq"tn_hmm-${output}.err";
     my $comment = qq"## Performing tn_hmm on ${input_wig} using ${gff}\n";
@@ -670,7 +693,7 @@ if [ "Python 2.7.9" \!= "\$(python --version 2>&1)" ]; then
   exit 1
 fi
 
-gumbelMH.py -f ${input} -m ${param} -s ${runs} \\
+gumbelMH.py -f ${input} -m ${param} -s $options->{runs} \\
   1>outputs/essentiality/${output_file} \\
   2>outputs/essentiality/${error_file}
 !;
@@ -777,6 +800,10 @@ sub Count_TAs {
         if (!defined($data->[$start + 1]->{nt})) {
             print $out "Undefined start:${start}, setting it to 'N'.\n";
             $data->[$start + 1]->{nt} = 'N';
+        }
+        if (!defined($data->[$new_end]->{nt})) {
+            print $out "Undefined new end:${new_end}, setting it to 'N'.\n";
+            $data->[$new_end]->{nt} = 'N';
         }
         if ($data->[$start]->{nt} eq 'T' and $data->[$start + 1]->{nt} eq 'A') {
             $ref_forward_hit = 1;

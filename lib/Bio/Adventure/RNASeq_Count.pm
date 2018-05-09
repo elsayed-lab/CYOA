@@ -226,7 +226,6 @@ sub HT_Types {
     my $found_my_type = 0;
     my $max_type = "";
     my $max = 0;
-    my $max_canonical = 0;
     foreach my $type (keys %found_types) {
         if ($found_types{$type} > $max) {
             $max_type = $type;
@@ -239,13 +238,14 @@ sub HT_Types {
     } ## End the loop
 
     my $max_can = 0;
+    my $max_canonical = 0;
     foreach my $can (keys %found_canonical) {
         if (!defined($found_canonical{$can})) {
             $found_canonical{$can} = 0;
         }
         if ($found_canonical{$can} > $max_canonical) {
             $max_can = $can;
-            $max_canonical = $found_types{$can};
+            $max_canonical = $found_canonical{$can};
         }
     } ## End the loop
     my $returned_canonical = $max_can;
@@ -272,6 +272,7 @@ sub HTSeq {
         args => \%args,
         required => ["species", "htseq_stranded", "htseq_args",],
         htseq_input => $class->{options}->{input},
+        job_output => $class->{options}->{input},
         depends => '',
         jname => '',
         jprefix => '',
@@ -336,7 +337,8 @@ sub HTSeq {
     ## Much like samtools, htseq versions on travis are old.
     ## Start with the default, non-stupid version.
     my $htseq_version = qx"htseq-count -h | grep version";
-    my $htseq_invocation = qq!htseq-count -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+    my $htseq_invocation = qq!htseq-count  --help 2>&1 | tail -n 3
+htseq-count -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
     if ($htseq_version =~ /0\.5/) {
         ## Versions older than 0.6 are stupid.
         $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;

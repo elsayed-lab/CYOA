@@ -241,23 +241,31 @@ sub BUILDARGS {
     my $classthods_to_run = Get_TODOs(task => $attribs->{task}, method => $attribs->{method});
     $attribs->{methods_to_run} = $classthods_to_run;
 
+    $args{options} = $attribs;
+    return \%args;
+}
+
+sub Get_Term {
     my $term = Term::ReadLine->new('>');
     my $term_attribs = $term->Attribs;
     $term_attribs->{completion_suppress_append} = 1;
     my $OUT = $term->OUT || \*STDOUT;
     $Term::UI::VERBOSE = 0;
     $term->ornaments(0);
-    $attribs->{term} = $term;
+    return($term);
 
-    $args{options} = $attribs;
-    return \%args;
 }
 
 sub Check_Input {
     my ($class, %args) = @_;
     my $file_list;
     if (ref($args{files}) eq 'SCALAR' || ref($args{files}) eq '') {
-        $file_list->[0] = $args{files};
+        if ($args{files} =~ /:/) {
+            my @tmp = split(/:/, $args{files});
+            $file_list = \@tmp;
+        } else {
+            $file_list->[0] = $args{files};
+        }
     } elsif (ref($args{files}) eq 'ARRAY') {
         $file_list = $args{files};
     } else {
@@ -373,7 +381,7 @@ sub Get_Defaults {
         name => undef, ## Currently only used for snp calling, but name is probably a useful arg for many things.
         orientation => 'start', ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
         paired => 0,            ## Paired reads?
-        output => undef,        ## 
+        output => undef,        ##
         pbs => undef,           ## Use pbs?
         qsub_args => '-j oe -V -m n', ## What arguments will be passed to qsub by default?
         cpus => '4',             ## Number of to request in jobs
@@ -398,6 +406,7 @@ sub Get_Defaults {
         ribocorrect => 1,  ## Correct ribosome positions for biases
         riboanchor => 'start', ## When correcting, use the start or end position as an anchor
         ribosizes => '25,26,27,28,29,30,31,32,33,34', ## Use these sizes for riboseq reads
+        runs => 1000,
         sbatch_depends => 'afterok:',
         sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
         shell => '/usr/bin/bash',          ## Default shell
@@ -437,16 +446,21 @@ sub Get_Menus {
                 '(--biopieces): Use biopieces to graph some metrics of trimmed/raw data.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
                 '(--bowtie): Map trimmed reads with bowtie1 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie',
                 '(--bt2): Map trimmed reads with bowtie2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie2',
+                '(--ht2): Map trimmed reads with hisat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Hisat2',
                 '(--btmulti): Map trimmed reads and count using multiple bowtie1 option sets.' => 'Bio::Adventure::RNASeq_Map::BT_Multi',
                 '(--bwa): Map reads with bwa and count with htseq.' => 'Bio::Adventure::RNASeq_Map::BWA',
                 '(--fastqc): Use fastqc to check the overall quality of the raw data.' => 'Bio::Adventure::RNASeq_QA::Fastqc',
                 '(--htmulti): Use different option sets for counting with htseq.' => 'Bio::Adventure::RNASeq_Count::HT_Multi',
                 '(--indexbt1): Create bowtie1 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT1_Index',
                 '(--indexbt2): Create bowtie2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT2_Index',
+                '(--indexht2): Create hisat2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::HT2_Index',
                 '(--indexbwa): Create bwa compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BWA_Index',
                 '(--indexkallisto): Create kallisto compatible indexes.' => 'Bio::Adventure::RNASeq_Map::Kallisto_Index',
                 '(--indexrsem): Create rsem indexes.' => 'Bio::Adventure::RNASeq_Map::RSEM_Index',
+                '(--indexsalmon): Create salmon indexes.' => 'Bio::Adventure::RNASeq_Map::Salmon_Index',
                 '(--kallisto): Pseudo-align and count reads using kallisto.' => 'Bio::Adventure::RNASeq_Map::Kallisto',
+                '(--salmon): Pseudo-align and count reads using salmon.' => 'Bio::Adventure::RNASeq_Map::Salmon',
+                '(--star): Pseudo-align and count reads using STAR.' => 'Bio::Adventure::RNASeq_Map::STAR',
                 '(--mimap): Attempt to map reads explicitly to mature miRNA species.' => 'Bio::Adventure::RNASeq_Count::Mi_Map',
                 '(--rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
                 '(--rsem): Quantify reads using rsem.' => 'Bio::Adventure::RNASeq_Map::RSEM',
@@ -468,7 +482,8 @@ sub Get_Menus {
                 '(--tacheck): Make certain that all reads have a leading or terminal TA.' => 'Bio::Adventure::TNSeq::TA_Check',
                 '(--biopieces): Make some plots of the demultiplexed/trimmed reads.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
                 '(--essentialityta): Count the hits/TA in preparation for essentiality.' => 'Bio::Adventure::TNSeq::Essentiality_TAs',
-                '(--essentiality): Run the essentiality suite of tools on the ta counts.' => 'Bio::Adventure::TNSeq::Run_Essentiality'
+                '(--runessentiality): Run the essentiality suite of tools.' => 'Bio::Adventure::TNSeq::Run_Essentiality',
+                '(--gumbel): Run the essentiality suite of tools on the ta counts.' => 'Bio::Adventure::TNSeq::Run_Essentiality'
             },
         },
         RiboSeq => {
@@ -549,7 +564,6 @@ sub Get_Menus {
                 '(--snpsearch): Perform a search for variant positions against a reference genome.' => 'Bio::Adventure::SNP::SNP_Search',
                 '(--snpratio): Count the variant positions by position and create a new genome.' => 'Bio::Adventure::SNP::SNP_Ratio',
                 '(--snp): Perform alignments and search for variants.' => 'Bio::Adventure::SNP::Align_SNP_Search',
-                '(--snpgenome): Create a new genome using variant information.' => 'Bio::Adventure::SNP::Make_Genome',
             },
         },
         Test => {
@@ -566,16 +580,14 @@ sub Get_Menus {
 sub Get_Job_Name {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars();
-    my $name = "unknown";
+    my $name = 'unknown';
     $name = $options->{input} if ($options->{input});
     if ($name =~ /\:|\s+|\,/) {
         my @namelst = split(/\:|\s+|\,/, $name);
         $name = $namelst[0];
     }
-    if ($options->{input}) {
-        $name = basename($name, @{$options->{suffixes}});
-        $name = basename($name, @{$options->{suffixes}});
-    }
+    $name = basename($name, @{$options->{suffixes}});
+    $name = basename($name, @{$options->{suffixes}});
     $name =~ s/\-trimmed//g;
     return($name);
 }
@@ -612,13 +624,17 @@ sub Get_TODOs {
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
+        "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
+        "hisat+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Count::HT_Multi'},
+        "ht2+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Hisat2'},
         "htseq+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Count::HTSeq'},
         "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::BT1_Index'},
         "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::BT2_Index'},
         "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::BWA_Index'},
         "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Kallisto_Index'},
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::RSEM_Index'},
+        "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Salmon_Index'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Kallisto'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
@@ -635,12 +651,14 @@ sub Get_TODOs {
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::RSEM'},
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
+        "salmon+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Salmon'},
         "snp+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
         "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
         "snpratio+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
         "snpgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "sortindexes+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Sort_Indexes'},
         "splitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align::Split_Align'},
+        "star+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::STAR'},
         "tacheck+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::TA_Check'},
         "test+" => \$todo_list->{todo}{'Bio::Adventure::PBS::Test_Job'},
         "tophat+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Tophat'},
@@ -782,6 +800,9 @@ sub Get_Vars {
     foreach my $option (@options) {
         if (!defined($options->{$option})) {
             my $query = qq"The option: ${option} was missing, please fill it in:";
+            if (!$options->{term}) {
+                $options->{term} = Get_Term();
+            }
             my $response = $options->{term}->readline($query);
             $response =~ s/\s+$//g;
             $response =~ s/\@|\*|\+//g;
@@ -807,9 +828,18 @@ sub Get_Vars {
         }
         if ($k eq 'jname') {
             if ($options->{jname} eq '') {
-                $options->{jname} = basename($options->{input}, (".gz", ".xz", ".bz2", ".bai", ".fai")) if ($options->{input});
-                $options->{jname} = basename($options->{jname}, (".fasta", ".fastq", ".bam", ".sam", ".count"));
+                my $name = 'unknown';
+                $name = $options->{input} if ($options->{input});
+                if ($name =~ /\:|\s+|\,/) {
+                    my @namelst = split(/\:|\s+|\,/, $name);
+                    $name = $namelst[0];
+                }
+                $name = basename($name, (".gz", ".xz", ".bz2", ".bai", ".fai"));
+                $name = basename($name, (".fasta", ".fastq", ".bam", ".sam", ".count"));
+                $name =~ s/_forward//g;
+                $options->{jname} = $name;
             }
+
         }
     }
     ## End special cases.
@@ -908,9 +938,9 @@ sub Read_Genome_Fasta {
             $chromosomes->{$id}->{sequence} = $sequence;
             $chromosomes->{$id}->{reverse} = $empty_reverse;
             $chromosomes->{$id}->{obj} = $genome_seq;
-        }                       ## End reading each chromosome
+        } ## End reading each chromosome
         store($chromosomes, $data_file);
-    }                           ## End checking for a .pdata file
+    } ## End checking for a .pdata file
     return($chromosomes);
 }
 
@@ -1003,6 +1033,23 @@ sub Read_Genome_GFF {
     return($gff_out);
 }
 
+sub Reorder_Fasta {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(args => \%args);
+    my $genome = $class->Read_Genome_Fasta(%args);
+
+    my @chromosomes = sort { $a cmp $b } keys %$genome;
+    my $out = FileHandle->new(">$options->{output}");
+    foreach my $c (@chromosomes) {
+        my $start = $genome->{c};
+        my $end = join("\n", ($start =~ m/.{1,80}/g));
+        print $out ">$c
+$end
+";
+    }
+    $out->close();
+}
+
 sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -1017,7 +1064,8 @@ sub Submit {
             SUFFIX => '.pdata',
         );
         my $data = $class->{options};
-        $data->{term} = undef;
+        ## Why did I undef $data->{term}?
+        ## $data->{term} = undef;
         my $stored = nstore($data, $option_file);
         $args{option_file} = $option_file;
     }

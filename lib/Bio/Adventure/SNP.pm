@@ -13,8 +13,7 @@ sub Align_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        species => 'lmajor',
+        required => ['input', 'species'],
         vcf_cutoff => 4,
         vcf_minpct => 0.8,
     );
@@ -46,8 +45,7 @@ sub SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        species => 'lmajor',
+        required => ['input', 'species'],
         varfilter => 0,
         vcf_cutoff => 10,
         vcf_minpct => 0.8,
@@ -135,8 +133,7 @@ sub SNP_Ratio {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        species => 'lmajor',
+        required => ['input', 'species'],
         vcf_cutoff => 4,
         vcf_minpct => 0.8,
     );
@@ -173,11 +170,11 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
     my $parse_job = $class->Submit(
         comment => $comment_string,
         depends => $options->{depends},
-        jname => "${jname}_$options->{species}",
+        jname => qq"${jname}_$options->{species}",
         jprefix => "81",
         jstring => $jstring,
         language => 'perl',
-        queue => "throughput",
+        queue => 'throughput',
     );
     return($parse_job);
 }

@@ -78,6 +78,7 @@ sub Parse_Fasta {
     die("Could not find fasta in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         best => 1,
         sig => 0.0001,
     );
