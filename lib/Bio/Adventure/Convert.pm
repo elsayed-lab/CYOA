@@ -399,6 +399,7 @@ sub Gb2Gff {
         $seq_count++;
         $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);
+        print "Wrote $seq_count features.\n";
         my @feature_list = ();
         ## defined a default name
 

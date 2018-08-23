@@ -12,6 +12,8 @@ use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Bio::Tools::Run::StandAloneBlast;
 use Cwd;
+use File::Basename;
+use File::Path qw"make_path";
 use File::Which qw"which";
 use POSIX qw"ceil";
 
@@ -214,7 +216,7 @@ sub Split_Align_Blast {
         num_sequences => 0,
     );
     if ($options->{interactive}) {
-        print "Run this with: cyoa --task align --method splitblast --query something.fasta --library blastdb --blast_tool tblastx\n";
+        print "Run this with: cyoa --task align --method blastsplit --query something.fasta --library blastdb --blast_tool tblastx\n";
     }
 
     ## This might be wrong (tblastx)
@@ -225,6 +227,7 @@ blastx is a nucleotide fasta query against a protein blast db.
 blastn is normal nucleotide/nucleotide
 blastp is normal protein/protein.
 ";
+    sleep(1);
     ## Also set the default blastdb if it didn't get set.
     if ($options->{blast_tool} eq 'blastn' or
             $options->{blast_tool} eq 'tblastn' or
@@ -243,8 +246,8 @@ blastp is normal protein/protein.
     my $concat_job;
     $lib = Bio::Adventure::Align_Blast::Check_Blastdb($class, %args);
     if ($options->{pbs}) {
-        my $num_per_split = $class->Get_Split(%args);
-        $options->{num_per_split} = $num_per_split;
+        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        $options = $class->Set_Vars(num_per_split => $num_per_split);
         print "Going to make $options->{number} directories with $num_per_split sequences each.\n";
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
         print "Actually used ${actual} directories to write files.\n";
@@ -261,9 +264,12 @@ blastp is normal protein/protein.
         );
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
-        $args{number} = 1;
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
+        print "Not using the cluster.\n";
+        $options = $class->Set_Vars(number => 1);
+        my $num_per_split = Bio::Adventure::Align::Get_Split($class);
+        $options = $class->Set_Vars(num_per_split => $num_per_split);
+        print "TESTME: Going to write $num_per_split sequences in 1 file.\n";
+        my $actual = Bio::Adventure::Align::Make_Directories($class);
         my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
             $class,
             library => $lib,
@@ -272,7 +278,7 @@ blastp is normal protein/protein.
         );
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
-            output=> ${output},
+            output => ${output},
         );
     }
 
@@ -306,6 +312,13 @@ sub Make_Blast_Job {
     my $library = $options->{library};
     my $array_end = 1000 + $options->{number};
     my $array_string = qq"1000-${array_end}";
+
+    ## Handle array job types for slurm/torque.
+    my $queue_array_string = 'SLURM_ARRAY_TASK_ID';
+    if ($options->{pbs} eq 'torque') {
+        $queue_array_string = 'PBS_ARRAYID';
+    }
+
     ## The fine folks at NCBI changed the numbers of the blast outputs!
     ## 0=pairwise ; 1=query_anchored identies ; 2=query_anchored no identities ;
     ## 3=flat identities ; 4=flat no identities ; 5=blastxml ; 6=tabular
@@ -324,10 +337,10 @@ sub Make_Blast_Job {
         $jstring = qq!
 cd $options->{basedir}
 $options->{blast_tool} -outfmt $options->{output_type} \\
- -query $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
+ -query $options->{basedir}/split/\${${queue_array_string}}/in.fasta \\
  -db ${library} \\
- -out $options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
- 1>$options->{basedir}/outputs/\${PBS_ARRAYID}.stdout \\
+ -out $options->{basedir}/outputs/\${${queue_array_string}}.out \\
+ 1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
  2>>$options->{basedir}/split_align_errors.txt
 !;
     } else {
@@ -341,16 +354,14 @@ $options->{blast_tool} -outfmt $options->{output_type} \\
   2>>$options->{basedir}/split_align_errors.txt
 !;
     }
-    my $comment = qq!## Running multiple fasta jobs.!;
+    my $comment = qq!## Running multiple blast jobs.!;
     my $blast_jobs = $class->Submit(
         comment => $comment,
         jname => 'blast_multi',
         depends => $dep,
         jstring => $jstring,
         mem => 32,
-        qsub_args => " $options->{qsub_args} -t ${array_string} ",
-        queue => 'large',
-        walltime => '96:00:00',
+        array_string => $array_string,
     );
     return($blast_jobs);
 }
@@ -522,16 +533,23 @@ sub Check_Blastdb {
         $checklib = qq"$options->{library}.nsq";
     }
     my $lib = "";
-    print "Looking for ${checklib} / ${checklib_zero} in either $ENV{BLASTDB} or $options->{basedir}/blastdb\n";
+    if (!defined($ENV{BLASTDB})) {
+        $ENV{BLASTDB} = "$options->{basedir}/blastdb";
+    }
+    print "Looking for ${checklib} / ${checklib_zero} in either $ENV{BLASTDB}.\n";
     ## Start with BLASTDB
     if (-f "$ENV{BLASTDB}/${checklib}" or -f "$ENV{BLASTDB}/${checklib_zero}") {
         $foundlib++;
         $libname = qq"$ENV{BLASTDB}/$options->{library}";
         $lib = qq"$ENV{BLASTDB}/$options->{library}";
+        print "Found an existing blast database at $libname.\n";
     } elsif (-f "$options->{basedir}/blastdb/${checklib}" or -f "$options->{basedir}/blastdb/${checklib_zero}") { ## Then try basedir
         $foundlib++;
         $libname = qq"$options->{basedir}/blastdb/$options->{library}";
         $lib = qq"$options->{basedir}/blastdb/$options->{library}";
+        print "Found an existing blast database at $libname.\n";
+    } else {
+        print "Did not find an existing blast database.\n";
     }
 
     if (!$foundlib) {

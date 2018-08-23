@@ -263,13 +263,25 @@ if [[ \! -r "${r1}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} \\
-    ILLUMINACLIP:${adapter_file}:2:20:4 SLIDINGWINDOW:4:25 \\
-    1>outputs/${basename}-trimomatic.out 2>&1
+${exe} \\
+  -threads 1 \\
+  -phred33 \\
+  ${r1} ${r2} \\
+  ${r1op} ${r1ou} \\
+  ${r2op} ${r2ou} \\
+  ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  SLIDINGWINDOW:4:25 MINLEN:50 \\
+  1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
-  ${exe} -threads 1 -phred33 ${r1} ${r2} ${r1op} ${r1ou} ${r2op} ${r2ou} SLIDINGWINDOW:4:25 \\
+  ${exe} \\
+    -threads 1 \\
+    -phred33 \\
+    ${r1} ${r2} \\
+    ${r1op} ${r1ou} \\
+    ${r2op} ${r2ou} \\
+    SLIDINGWINDOW:4:25 MINLEN:50\\
     1>outputs/${basename}-trimomatic.out 2>&1
 fi
 sleep 10
@@ -355,8 +367,13 @@ if [[ \! -r "${input}" ]]; then
   fi
 fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} -phred33 ${input} ${output} ILLUMINACLIP:${adapter_file}:2:20:4 \\
-    SLIDINGWINDOW:4:25 1>outputs/${basename}-trimomatic.out 2>&1
+${exe} \\
+  -phred33 \\
+  ${input} \\
+  ${output} \\
+  ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  SLIDINGWINDOW:4:25 MINLEN:50 \\
+  1>outputs/${basename}-trimomatic.out 2>&1
 !;
     my $trim = $class->Submit(
         comment => $comment,

@@ -639,7 +639,7 @@ sub Run_Essentiality {
         runs => 1000,
     );
     my $input = $options->{input};
-    print "Remember, tn_hmm requires a .wig input file while mh_ess wants a .txt.\n";
+    print "Remember, tn_hmm requires a .wig input file while mh_ess wants a something_gene_tas.txt.\n";
     my $output = basename($input, ('.txt'));
     ## Set up the tn_hmm job -- these inputs are likely wrong
     my $input_wig = basename($input, ('.txt')) . '.wig';
@@ -688,6 +688,7 @@ process_segments.py -f outputs/essentiality/${output_file} \\
 eval \$(modulecmd bash purge)
 eval \$(modulecmd bash add Python2/2.7.9)
 eval \$(modulecmd bash add essentiality)
+## The input for mh-ess is the gene_tas.txt file.
 if [ "Python 2.7.9" \!= "\$(python --version 2>&1)" ]; then
   echo "mh-ess only works with python 2.7.9, do some module shenanigans."
   exit 1

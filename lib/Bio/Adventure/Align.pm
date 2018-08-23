@@ -96,6 +96,7 @@ sub Get_Split {
         ##$splits = $seqs;
         $options = $class->Set_Vars(number => $seqs);
     }
+    print "Get_Split: Making $options->{number} directories with $ret sequences.\n";
     return($ret);
 }
 
@@ -112,6 +113,7 @@ sub Make_Directories {
     ## I am choosing to make directories starting at 1000
     ## This way I don't have to think about the difference from
     ## 99 to 100 (2 characters to 3) as long as no one splits more than 9000 ways...
+    print "Make_Directories: Making $options->{number} directories with $options->{num_per_split} sequences.\n";
     my $dir = 1000;
 
     remove_tree("split", {verbose => 0 });
@@ -154,6 +156,7 @@ $seq
         }                      ## End for each iteration of $num_per_split files
     }                          ## End while reading the fasta
     my $actual_number_dirs_used = $options->{num_dirs};
+    print "Finished writing files.\n";
     return($actual_number_dirs_used);
 }
 

@@ -54,7 +54,7 @@ sub Biopieces_Graph {
             my $jstring = qq!
 ## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
 mkdir -p outputs/biopieces
-less ${in} | read_fastq -i - -e base_33 |\\
+less ${in} | read_fastq -i - -e base_$options->{phred} |\\
  plot_scores -T 'Quality Scores' -t svg -o outputs/biopieces/${short_in}_quality_scores.svg |\\
  plot_nucleotide_distribution -T 'NT. Distribution' -t svg -o outputs/biopieces/${short_in}_ntdist.svg |\\
  plot_lendist -T 'Length Distribution' -k SEQ_LEN -t svg -o outputs/biopieces/${short_in}_lendist.svg |\\

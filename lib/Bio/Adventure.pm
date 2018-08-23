@@ -157,6 +157,16 @@ sub BUILDARGS {
     foreach my $k (keys %{$defaults}) {
         $attribs->{$k} = $defaults->{$k};
     }
+    ## Add a little check for slurm/torque
+    my $queue_test = My_Which('sbatch');
+    if ($queue_test) {
+        $attribs->{pbs} = 'slurm';
+    } else {
+        $queue_test = My_Which('qsub');
+        if ($queue_test) {
+            $attribs->{pbs} = 'torque';
+        }
+    }
 
     ## If one desires, use a configuration file to replace/augment those values.
     my $appconfig = AppConfig->new({CASE => 1,
@@ -253,7 +263,6 @@ sub Get_Term {
     $Term::UI::VERBOSE = 0;
     $term->ornaments(0);
     return($term);
-
 }
 
 sub Check_Input {
@@ -381,6 +390,7 @@ sub Get_Defaults {
         name => undef, ## Currently only used for snp calling, but name is probably a useful arg for many things.
         orientation => 'start', ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
         paired => 0,            ## Paired reads?
+        phred => 33,
         output => undef,        ##
         pbs => undef,           ## Use pbs?
         qsub_args => '-j oe -V -m n', ## What arguments will be passed to qsub by default?
@@ -411,6 +421,7 @@ sub Get_Defaults {
         sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
         shell => '/usr/bin/bash',          ## Default shell
         species => undef,                  ## Chosen species
+        stranded => 0,
         suffixes => ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'], ## Suffixes to remove when invoking basename
         task => undef,
         taxid => '353153',                  ## Default taxonomy ID
@@ -422,6 +433,7 @@ sub Get_Defaults {
         vcf_minpct => 0.8,    ## Minimum percent agreement for variant searches.
         verbose => 0,         ## Be chatty?
     };
+
     $defaults->{logdir} = qq"$defaults->{basedir}/outputs/logs";
     $defaults->{blast_format} = qq"formatdb -p $defaults->{blast_peptide} -o T -s -i -n species";
     return($defaults);

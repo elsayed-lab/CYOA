@@ -121,7 +121,7 @@ $args{jstring}" if ($options->{verbose});
         my $perl_script = FileHandle->new(">$perl_file");
         print $perl_script $total_perl_string;
         $perl_script->close();
-        chmod(0755, $perl_file);
+        chmod(0775, $perl_file);
         $args{jstring} = qq"${perl_file}\n";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
@@ -137,10 +137,17 @@ $args{jstring}" if ($options->{verbose});
 #SBATCH --mem=$options->{mem}G
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}
+?;
+    if ($options->{array_string}) {
+        $script_start .= qq"#SBATCH --array=$options->{array_string}
+";
+    }
+    $script_start .= qq?
 
 echo "####Started ${script_file} at \$(date) on \$(hostname)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
+
     my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/$options->{jname}.status
 echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
@@ -182,6 +189,9 @@ fi
     $total_script_string .= "${script_end}\n";
 
     my $script = FileHandle->new(">$script_file");
+    if (!defined($script)) {
+        die("Could not write the script: $script_file, check its permissions.")
+    }
     print $script $total_script_string;
     $script->close();
     chmod(0755, $script_file);

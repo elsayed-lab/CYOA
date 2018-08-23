@@ -74,20 +74,20 @@ sub Bowtie {
 
     my $uncompress_jobid = undef;
     my $index_jobid = undef;
-    if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $bt_input,
-            depends => $bt_depends_on,
-            jname => 'uncomp',
-            jprefix => '09',
-        );
-        $bt_input = basename($bt_input, ('.gz', '.bz2', '.xz'));
-        $bt_jobs{uncompress} = $uncomp;
-        $options = $class->Set_Vars(input => $bt_input);
-        $uncompress_jobid = $uncomp->{job_id};
-    }
+    ##if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $bt_input,
+    ##        depends => $bt_depends_on,
+    ##        jname => 'uncomp',
+    ##        jprefix => '09',
+    ##    );
+    ##    $bt_input = basename($bt_input, ('.gz', '.bz2', '.xz'));
+    ##    $bt_jobs{uncompress} = $uncomp;
+    ##    $options = $class->Set_Vars(input => $bt_input);
+    ##    $uncompress_jobid = $uncomp->{job_id};
+    ##}
 
     ## Check that the indexes exist
     my $bt_reflib = "$options->{libdir}/${libtype}/indexes/${species}";
@@ -133,7 +133,7 @@ sub Bowtie {
   ${bt_reflib} \\
   ${bt_args} \\
   -p ${cpus} \\
-  ${bowtie_input_flag} ${bt_input} \\
+  ${bowtie_input_flag} <(less ${bt_input}) \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
@@ -285,29 +285,30 @@ sub Bowtie2 {
         $bt_dir = $args{bt_dir};
     }
     my $bt_input = $options->{input};
-    if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $bt_input,
-            depends => $bt_depends_on,
-        );
-        $bt_input =~ s/\:|\;|\,|\s+/ /g;
-        $bt_input =~ s/\.gz|\.bz|\.xz//g;
-        ##$bt_input = $bt_inputbasename($bt_input, ('.gz', '.bz2', '.xz'));
-        $options = $class->Set_Vars(input => $bt_input);
-        $bt_depends_on = $uncomp->{job_id};
-    }
+    ##if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $bt_input,
+    ##        depends => $bt_depends_on,
+    ##    );
+    ##    $bt_input =~ s/\:|\;|\,|\s+/ /g;
+    ##    $bt_input =~ s/\.gz|\.bz|\.xz//g;
+    ##    ##$bt_input = $bt_inputbasename($bt_input, ('.gz', '.bz2', '.xz'));
+    ##    $options = $class->Set_Vars(input => $bt_input);
+    ##    $bt_depends_on = $uncomp->{job_id};
+    ##}
 
     my $test_file = "";
     if ($bt_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $bt_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $bt_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($bt_input);
+        $bt_input = qq" <(less ${test_file}) ";
     }
 
     ## Check that the indexes exist
@@ -624,18 +625,18 @@ sub BWA {
 
     my $uncompress_jobid = undef;
     my $index_jobid = undef;
-    if ($bwa_input =~ /\.gz$|\.bz2$|\.xz$/) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $bwa_input,
-            depends => $bwa_depends_on,
-        );
-        $bwa_input = basename($bwa_input, ('.gz', '.bz2', '.xz'));
-        $bwa_jobs{uncompress} = $uncomp;
-        $options = $class->Set_Vars(input => $bwa_input);
-        $uncompress_jobid = $uncomp->{job_id};
-    }
+    ##if ($bwa_input =~ /\.gz$|\.bz2$|\.xz$/) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $bwa_input,
+    ##        depends => $bwa_depends_on,
+    ##    );
+    ##    $bwa_input = basename($bwa_input, ('.gz', '.bz2', '.xz'));
+    ##    $bwa_jobs{uncompress} = $uncomp;
+    ##    $options = $class->Set_Vars(input => $bwa_input);
+    ##    $uncompress_jobid = $uncomp->{job_id};
+    ##}
 
     ## Check that the indexes exist
     my $bwa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
@@ -674,11 +675,11 @@ sub BWA {
     my $aln_sam = qq"${bwa_dir}/${job_basename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/${job_basename}_mem.sam";
     my $jstring = qq!mkdir -p ${bwa_dir}
-bwa mem -a ${bwa_reflib} ${bwa_input} \\
+bwa mem -a ${bwa_reflib} <(less ${bwa_input}) \\
   2>${bwa_dir}/bwa.err 1>${mem_sam}
 !;
     my $reporter_string = qq"bwa samse ${bwa_reflib} \\
-  ${bwa_dir}/${job_basename}_aln-forward.sai $bwa_input \\
+  ${bwa_dir}/${job_basename}_aln-forward.sai <less ${bwa_input}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
     my $aln_string = qq"bwa aln ${bwa_reflib} \\
@@ -688,12 +689,12 @@ bwa mem -a ${bwa_reflib} ${bwa_input} \\
     if (defined($reverse_reads)) {
         $aln_string = qq"${aln_string}
 bwa aln ${bwa_reflib} \\
-  ${reverse_reads} \\
+  <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}_aln-reverse.err \\
   1>${bwa_dir}/${job_basename}_aln-reverse.sai";
         $reporter_string = qq"bwa sampe ${bwa_reflib} \\
   ${bwa_dir}/${job_basename}_aln-forward.sai ${bwa_dir}/${job_basename}_aln-reverse.sai \\
-  ${forward_reads} ${reverse_reads} \\
+  <(less ${forward_reads}) <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
     }
@@ -946,29 +947,30 @@ sub Hisat2 {
         $ht_dir = $args{ht_dir};
     }
     my $ht_input = $options->{input};
-    if ($ht_input =~ /\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $ht_input,
-            depends => $ht_depends_on,
-        );
-        $ht_input =~ s/\:|\;|\,|\s+/ /g;
-        $ht_input =~ s/\.xz//g;
-        ##$ht_input = $ht_inputbasename($ht_input, ('.xz'));
-        $options = $class->Set_Vars(input => $ht_input);
-        $ht_depends_on = $uncomp->{job_id};
-    }
+    ##if ($ht_input =~ /\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $ht_input,
+    ##        depends => $ht_depends_on,
+    ##    );
+    ##    $ht_input =~ s/\:|\;|\,|\s+/ /g;
+    ##    $ht_input =~ s/\.xz//g;
+    ##    $ht_input = $ht_inputbasename($ht_input, ('.xz'));
+    ##    $options = $class->Set_Vars(input => $ht_input);
+    ##    $ht_depends_on = $uncomp->{job_id};
+    ##}
 
     my $test_file = "";
     if ($ht_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $ht_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $ht_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $ht_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($ht_input);
+        $ht_input = qq" <(less ${ht_input}) ";
     }
 
     ## Check that the indexes exist
@@ -1008,6 +1010,7 @@ mkdir -p ${ht_dir} && \\
   hisat2 -x ${ht_reflib} ${ht2_args} \\
     -p ${cpus} \\
     ${hisat_input_flag} ${ht_input} \\
+    --phred$options->{phred} \\
     --un ${unaligned_filename} \\
     --al ${aligned_filename} \\
     -S ${sam_filename} \\
@@ -1080,7 +1083,7 @@ fi
             $ht_jobs{htseq} = $htmulti;
         }
     }
-    return(\%ht_jobs);
+return(\%ht_jobs);
 }
 
 =item C<HT2_Index>
@@ -1226,7 +1229,7 @@ sub Kallisto {
 
     my $sleep_time = 3;
     my %ka_jobs = ();
-    my $ka_depends_on = "none";
+    my $ka_depends_on = '';
     $ka_depends_on = $options->{depends} if ($options->{depends});
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
@@ -1239,32 +1242,36 @@ sub Kallisto {
     my $ka_args = qq"";
 
     my $ka_input = $options->{input};
-    if ($ka_input =~ /\.gz|\.bz2$|\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $ka_input_cleaned = $ka_input;
-        $ka_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
-        $ka_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
-        my @ka_array = split(/ /, $ka_input_cleaned);
-        my $ka_short = $ka_array[0];
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $ka_input,
-            jname => "uncomp_${ka_short}",
-            depends => $ka_depends_on,
-        );
-        $ka_input = $ka_input_cleaned;
-        $options = $class->Set_Vars(input => $ka_input);
-        $ka_depends_on = $uncomp->{job_id};
-    }
+    ##if ($ka_input =~ /\.gz|\.bz2$|\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $ka_input_cleaned = $ka_input;
+    ##    $ka_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
+    ##    $ka_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
+    ##    my @ka_array = split(/ /, $ka_input_cleaned);
+    ##    my $ka_short = $ka_array[0];
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $ka_input,
+    ##        jname => "uncomp_${ka_short}",
+    ##        depends => $ka_depends_on,
+    ##    );
+    ##    $ka_input = $ka_input_cleaned;
+    ##    $options = $class->Set_Vars(input => $ka_input);
+    ##    $ka_depends_on = $uncomp->{job_id};
+    ##}
 
     my $input_name = $ka_input;
     if ($ka_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $ka_input);
-        $ka_args .= " --fr-stranded ";
-        $ka_input = qq" $pair_listing[0] $pair_listing[1] ";
+        $ka_args .= " --bias ";
+        if ($options->{stranded} != 0) {
+            $ka_args .= " --$options->{stranded} ";
+        }
+        $ka_input = qq" <(less $pair_listing[0]) <(less $pair_listing[1]) ";
         $input_name = $pair_listing[0];
     } else {
-        $ka_args .= " --single -l 40 -s 10 ";
+        $ka_input = qq" <(less $ka_input) ";
+        $ka_args .= " --bias --single -l 40 -s 10 ";
     }
 
     ## Check that the indexes exist
@@ -1296,7 +1303,10 @@ sub Kallisto {
 !;
     my $dropped_args = qq" --pseudobam ";
     my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
-kallisto quant ${ka_args} --plaintext -t 4 -b 100 -o ${outdir} -i ${ka_reflib} \\
+kallisto quant ${ka_args} \\
+  --plaintext -t 4 -b 100 \\
+  -o ${outdir} \\
+  -i ${ka_reflib} \\
   ${ka_input} \\
   2>${error_file} \\
   1>${output_sam} && \\
@@ -1403,31 +1413,31 @@ sub Salmon {
     my $sa_args = qq"";
 
     my $sa_input = $options->{input};
-    if ($sa_input =~ /\.gz|\.bz2$|\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $sa_input_cleaned = $sa_input;
-        $sa_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
-        $sa_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
-        my @sa_array = split(/ /, $sa_input_cleaned);
-        my $sa_short = $sa_array[0];
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $sa_input,
-            jname => "uncomp_${sa_short}",
-            depends => $sa_depends_on,
-        );
-        $sa_input = $sa_input_cleaned;
-        $options = $class->Set_Vars(input => $sa_input);
-        $sa_depends_on = $uncomp->{job_id};
-    }
+    ##if ($sa_input =~ /\.gz|\.bz2$|\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $sa_input_cleaned = $sa_input;
+    ##    $sa_input_cleaned =~ s/\:|\;|\,|\s+/ /g;
+    ##    $sa_input_cleaned =~ s/\.gz|\.bz|\.xz//g;
+    ##    my @sa_array = split(/ /, $sa_input_cleaned);
+    ##    my $sa_short = $sa_array[0];
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $sa_input,
+    ##        jname => "uncomp_${sa_short}",
+    ##        depends => $sa_depends_on,
+    ##    );
+    ##    $sa_input = $sa_input_cleaned;
+    ##    $options = $class->Set_Vars(input => $sa_input);
+    ##    $sa_depends_on = $uncomp->{job_id};
+    ##}
 
     my $input_name = $sa_input;
     if ($sa_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $sa_input);
-        $sa_args .= " -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $sa_args .= " -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
         $input_name = $pair_listing[0];
     } else {
-        $sa_args .= " -1 $sa_input ";
+        $sa_args .= " -r <(less $sa_input) ";
     }
 
     ## Check that the indexes exist
@@ -1452,7 +1462,8 @@ sub Salmon {
 salmon quant -i ${sa_reflib} \\
   -l A --gcBias  \\
   ${sa_args} \\
-  -o ${outdir}
+  -o ${outdir} \\
+  2>${outdir}/salmon.err 1>${outdir}/salmon.out
 !;
 
     my $sa_job = $class->Submit(
@@ -1669,24 +1680,26 @@ sub RSEM {
     }
 
     my $rsem_input = $options->{input};
-    if ($rsem_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
-        print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-        my $uncomp = Bio::Adventure::Compress::Uncompress(
-            $class,
-            input => $rsem_input,
-            depends => $rsem_depends_on,
-        );
-        $rsem_input =~ s/\:|\;|\,|\s+/ /g;
-        $rsem_input =~ s/\.gz|\.bz|\.xz//g;
-        $options = $class->Set_Vars(input => $rsem_input);
-        $rsem_depends_on = $uncomp->{job_id};
-    }
+    ##if ($rsem_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
+    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
+    ##        $class,
+    ##        input => $rsem_input,
+    ##        depends => $rsem_depends_on,
+    ##    );
+    ##    $rsem_input =~ s/\:|\;|\,|\s+/ /g;
+    ##    $rsem_input =~ s/\.gz|\.bz|\.xz//g;
+    ##    $options = $class->Set_Vars(input => $rsem_input);
+    ##    $rsem_depends_on = $uncomp->{job_id};
+    ##}
 
     my $test_file = "";
     if ($rsem_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $rsem_input);
-        $rsem_input = qq"--paired-end $pair_listing[0] $pair_listing[1]";
+        $rsem_input = qq"--paired-end <(less $pair_listing[0]) <(less $pair_listing[1])";
         $test_file = $pair_listing[0];
+    } else {
+        $rsem_input = qq" <(less $rsem_input) ";
     }
 
     my $rsem_dir = qq"outputs/rsem_$options->{species}";
@@ -1739,6 +1752,11 @@ sub Tophat {
     my @in = split(/:/, $inputs);
     $inputs =~ s/:/ /g;
     my $number_inputs = scalar(@in);
+    if ($number_inputs > 1) {
+        $inputs = qq" <(less $in[0]) <(less $in[1]) ";
+    } else {
+        $inputs = qq" <(less $in[0]) ";
+    }
     my $tophat_args = ' -g 1 --microexon-search --b2-very-sensitive ';
     if ($options->{tophat_args}) {
         $tophat_args = $options->{tophat_args};
