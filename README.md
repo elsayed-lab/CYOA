@@ -18,7 +18,7 @@ If you have some free time:
 > make test
 
 That will test (currently) the ability to:
-* load HPGL.pm
+* load Adventure.pm
 * look for perl requirements
 * run fastqc on a small dataset
 * run trimomatic on the same data
