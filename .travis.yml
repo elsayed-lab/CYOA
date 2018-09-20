@@ -28,7 +28,7 @@ addons:
     - xz-utils
 
 script:
-  - make Makefile.PL && make && make install && make test
+  - perl Build.PL && Build installdeps && Build test
 
 
 notifications:
