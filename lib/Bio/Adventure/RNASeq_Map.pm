@@ -380,7 +380,7 @@ fi
     my $un_comp = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
-        input => "${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq",
+        xz_input => "${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq",
         depends => $bt2_job->{job_id},
         jname => "xzun_${suffix_name}",
         jprefix => "16",
@@ -390,7 +390,7 @@ fi
     my $al_comp = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt2_args}",
-        input => "${bt_dir}/${job_basename}_aligned_$options->{species}.fastq",
+        xz_input => "${bt_dir}/${job_basename}_aligned_$options->{species}.fastq",
         jname => "xzal_${suffix_name}",
         jprefix => "17",
         depends => $bt2_job->{job_id},
@@ -679,7 +679,7 @@ bwa mem -a ${bwa_reflib} <(less ${bwa_input}) \\
   2>${bwa_dir}/bwa.err 1>${mem_sam}
 !;
     my $reporter_string = qq"bwa samse ${bwa_reflib} \\
-  ${bwa_dir}/${job_basename}_aln-forward.sai <less ${bwa_input}) \\
+  ${bwa_dir}/${job_basename}_aln-forward.sai <(less ${bwa_input}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
     my $aln_string = qq"bwa aln ${bwa_reflib} \\

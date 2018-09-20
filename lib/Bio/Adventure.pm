@@ -19,7 +19,7 @@ use Bio::Tools::GFF;
 use Carp qw"croak carp confess cluck longmess";
 use Cwd qw"cwd";
 use Digest::MD5 qw"md5 md5_hex md5_base64";
-use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS GZIP CEPH_HOST CEPH_ID CEPH_KEY HOME";
+use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS CEPH_HOST CEPH_ID CEPH_KEY HOME";
 use File::Basename;
 use File::Find;
 use File::Spec;
@@ -31,7 +31,6 @@ use Getopt::Long qw"GetOptionsFromArray";
 use IO::String;
 use Log::Log4perl;
 ##use Log::Log4perl::Level;
-##use Net::Amazon::S3;
 use PerlIO;
 use Pod::Usage;
 use Storable qw"freeze thaw store retrieve nstore";
@@ -42,7 +41,6 @@ use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 use Bio::Adventure::Align_Fasta;
 use Bio::Adventure::Bash;
-use Bio::Adventure::Ceph;
 use Bio::Adventure::Cleanup;
 use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
@@ -75,7 +73,6 @@ $VERSION = '20151101';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
-$GZIP = '--best';
 $ENV{LESSOPEN} = '| lesspipe %s';
 
 =head1 NAME
@@ -447,8 +444,6 @@ sub Get_Menus {
             choices => {
                 '(--read_samples): Read samples using a csv file to determine the raw data locations.' => 'Bio::Adventure::Prepare::Read_Samples',
                 '(--copyraw): Copy data from the raw data archive to scratch.' => 'Bio::Adventure::Prepare::Copy_Raw',
-                '(--downceph): Dump reads from the ceph data object storage to the current working directory.' => 'Bio::Adventure::Prepare::Dump_Reads',
-                '(--dumpceph): Upload reads from the current working directory to the ceph data object store.' => 'Bio::Adventure::Prepare::Ceph_Upload',
             },
         },
         RNASeq => {
@@ -624,8 +619,6 @@ sub Get_TODOs {
         "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
         "cutadapt+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Trim::Cutadapt'},
-        "downceph+" => \$todo_list->{todo}{'Bio::Adventure::Ceph::Ceph_Download'},
-        "dumpceph+" => \$todo_list->{todo}{'Bio::Adventure::Ceph::Ceph_Dump'},
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
         "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Assembly::Extract_Trinotate'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
@@ -681,7 +674,6 @@ sub Get_TODOs {
         "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Assembly::Trinotate'},
         "tritrypdownload+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp_Download'},
         "tritryp2text+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp2Text'},
-        "uploadceph+" => \$todo_list->{todo}{'Bio::Adventure::Ceph::Ceph_Upload'},
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "help+" => \$todo_list->{todo}{'Bio::Adventure::Adventure_Help'},
     };
@@ -1240,10 +1232,10 @@ Email abelew@gmail.com
 
 =head1 SEE ALSO
 
-    L<Bio::Seq> L<common::sense> L<autodie> L<local::lib> L<Bio::Adventure::RNASeq_Aligners>
+    L<Bio::Seq> L<autodie> L<local::lib> L<Bio::Adventure::RNASeq_Aligners>
     L<Bio::Adventure::RNASeq_Assembly> L<Bio::Adventure::RNASeq_Count> L<Bio::Adventure::RNASeq_Aligners> L<Bio::Adventure::RNASeq_QA>
     L<Bio::Adventure::RNASeq_Trim> L<Bio::Adventure::Align_Blast> L<Bio::Adventure::Align_Fasta> L<Bio::Adventure::Align>
-    L<Bio::Adventure::Ceph> L<Bio::Adventure::Cleanup> L<Bio::Adventure::Compress> L<Bio::Adventure::Convert> L<Bio::Adventure::PBS>
+    L<Bio::Adventure::Cleanup> L<Bio::Adventure::Compress> L<Bio::Adventure::Convert> L<Bio::Adventure::PBS>
     L<Bio::Adventure::Prepare> L<Bio::Adventure::Riboseq> L<Bio::Adventure::SeqMisc> L<Bio::Adventure::SNP> L<Bio::Adventure::Status>
     L<Bio::Adventure::TNSeq>
 

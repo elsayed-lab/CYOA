@@ -338,7 +338,8 @@ sub HTSeq {
     ## Start with the default, non-stupid version.
     my $htseq_version = qx"htseq-count -h | grep version";
     my $htseq_invocation = qq!htseq-count  --help 2>&1 | tail -n 3
-htseq-count -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+htseq-count \\
+  -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
     if ($htseq_version =~ /0\.5/) {
         ## Versions older than 0.6 are stupid.
         $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;

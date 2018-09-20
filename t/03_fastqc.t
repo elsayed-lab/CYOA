@@ -21,7 +21,7 @@ ok(qx"fastqc --help",
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
 
-my $expected = 'fqc_test_forward,10000,0,pass,warn,pass,pass,pass,warn,fail,pass';
+my $expected = 'fqc_test_forward,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
 my $travis_expected = 'fqc_test_forward,10000,0,pass,warn,pass,pass,pass,warn,0,fail';
 if ($ENV{TRAVIS}) {
     $expected = $travis_expected;

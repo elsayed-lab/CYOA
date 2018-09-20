@@ -19,13 +19,12 @@ sub Recompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['xz_input'],
         basename => 'recomp',
         comment => '',
         depends => '',
         jname => 'xz',
-        queue => 'long',
-        xz_input => $class->{options}->{input},
-
+        queue => 'long'
     );
     my $input = $options->{xz_input};
     my ($input1, $input2) = "";
@@ -54,8 +53,8 @@ sub Recompress {
         $jstring = qq!nice -n 20 xz -f -9e ${in1} ${in2} !;
     }
     my $input_dir = dirname(${in1});
-    $jstring .= qq" 2>${input_dir}/outputs/${jname}.err \\
-   1>${input_dir}/outputs/${jname}.out";
+    $jstring .= qq" 2>${input_dir}/${jname}.err \\
+   1>${input_dir}/${jname}.out";
     if ($args{output}) {
         $jstring .= qq! && mv ${in1}.xz $args{output}\n!;
         if ($input2) {
@@ -90,12 +89,12 @@ sub Uncompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['xz_input'],
         basename => 'uncomp',
         comment => '',
         depends => '',
         jname => 'unzip',
         queue => 'long',
-        xz_input => $class->{options}->{input},
     );
     my $input = $options->{xz_input};
     my ($input1, $input2) = "";
@@ -123,8 +122,8 @@ sub Uncompress {
         $jstring = qq!nice xz -f -d ${input}\n!;
     }
     my $input_dir = dirname(${input1});
-    $jstring .= qq" 2>${input_dir}/outputs/$options->{jname}.err \\
-  1>${input_dir}/outputs/$options->{jname}.out";
+    $jstring .= qq" 2>${input_dir}/$options->{jname}.err \\
+  1>${input_dir}/$options->{jname}.out";
 
     my $trim_jobid = qq"$options->{basename}_unxz";
     my $compression = $class->Submit(

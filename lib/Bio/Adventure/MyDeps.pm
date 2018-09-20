@@ -19,7 +19,6 @@ $VERSION='20151101';
 our @use_deps = (
     'local::lib',
     'autodie',
-    'common::sense',
     'AppConfig',
     'Archive::Extract',
     'Bio::DB::Universal',
@@ -46,6 +45,7 @@ our @use_deps = (
     'Net::Amazon::S3',
     'PerlIO',
     'Pod::Usage',
+    'String::Approx',
     'String::Diff',
     'Term::ReadLine',
     'Test::More',

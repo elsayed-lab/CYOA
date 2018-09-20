@@ -13,7 +13,7 @@ ok(Bio::Adventure::RNASeq_Trim::Trimomatic_Single($cyoa, input => qq"share/test_
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/trimomatic_stats.csv'),
    'Collect Trimomatic Statistics');
 
-my $expected = 'test_forward,10000,9762,238';
+my $expected = 'test_forward,10000,9316,684';
 unless(ok($expected eq $actual,
           'Are the trimomatic results the expected value?')) {
     my($old, $new) = diff($expected, $actual);
