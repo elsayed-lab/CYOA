@@ -18,6 +18,7 @@ addons:
     - fastqc
     - libbam-dev
     - libbio-samtools-perl
+    - libmodule-install-perl
     - liblzma-dev
     - python-htseq
     - python-numpy
