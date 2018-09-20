@@ -28,7 +28,7 @@ addons:
     - xz-utils
 
 script:
-  - perl Build.PL && Build installdeps && Build test
+  - perl Build.PL && ./Build installdeps && ./Build test
 
 
 notifications:
