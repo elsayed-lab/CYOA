@@ -1,0 +1,110 @@
+{
+   "abstract" : "Kitty!",
+   "author" : [
+      "- atb"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Module::Build version 0.4224",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "CYOA",
+   "no_index" : {
+      "directory" : [
+         "eg",
+         "examples",
+         "inc",
+         "share",
+         "t",
+         "xt"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Module::Build" : "0.3601"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "Module::Build" : "0.3601"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "AppConfig" : "0",
+            "Archive::Extract" : "0",
+            "Bio::DB::GFF" : "0",
+            "Bio::DB::Sam" : "0",
+            "Bio::DB::Universal" : "0",
+            "Bio::FeatureIO" : "0",
+            "Bio::SeqIO" : "0",
+            "Bio::Tools::Run::StandAloneBlast" : "0",
+            "Cwd" : "0",
+            "Data::Dumper" : "0",
+            "Digest::MD5" : "0",
+            "Error" : "0",
+            "File::Basename" : "0",
+            "File::Copy" : "0",
+            "File::Find" : "0",
+            "File::Path" : "0",
+            "File::ShareDir" : "1.00",
+            "File::Spec" : "0",
+            "File::Which" : "0",
+            "FileHandle" : "0",
+            "Getopt::Long" : "0",
+            "IO::String" : "0",
+            "IO::Uncompress::UnXz" : "0",
+            "IPC::System::Simple" : "0",
+            "List::MoreUtils" : "0",
+            "Log::Log4perl" : "0",
+            "Math::Round" : "0",
+            "Modern::Perl" : "0",
+            "Parse::CSV" : "0",
+            "PerlIO" : "0",
+            "PerlIO::gzip" : "0",
+            "Pod::Usage" : "0",
+            "Storable" : "0",
+            "String::Approx" : "0",
+            "String::Diff" : "0",
+            "Term::ProgressBar" : "0",
+            "Term::ReadLine" : "0",
+            "Term::UI" : "0",
+            "Test::Directory" : "0",
+            "Test::More" : "0",
+            "Text::CSV" : "0",
+            "TryCatch" : "0",
+            "autodie" : "0"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test::More" : "0.88"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/abelew/CYOA/issues"
+      },
+      "homepage" : "https://github.com/abelew/CYOA",
+      "repository" : {
+         "type" : "git",
+         "url" : "https://github.com/abelew/CYOA.git",
+         "web" : "https://github.com/abelew/CYOA"
+      }
+   },
+   "version" : "20151101",
+   "x_contributors" : [
+      "Ashton Trey Belew <abelew@gmail.com>",
+      "Ashton Trey Belew <abelew@umd.edu>"
+   ],
+   "x_generated_by_perl" : "v5.26.2",
+   "x_serialization_backend" : "JSON::PP version 2.27400_02",
+   "x_static_install" : 1
+}
