@@ -42,7 +42,7 @@ our @use_deps = (
     'List::MoreUtils',
     'Log::Log4perl',
     'LWP',
-    'Net::Amazon::S3',
+    'Modern::Perl',
     'PerlIO',
     'Pod::Usage',
     'String::Approx',
@@ -66,8 +66,9 @@ sub Res {
         print "Loading $module\n";
         my $load_return = eval("use $module; 1");
         if (defined($module)) {
-            my $version = $module->VERSION;
-            print "Its version is: $version\n";
+            ##my $version = $module->VERSION;
+            ##print "Its version is: $version\n";
+            print "Library: $module is installed.\n";
         }
         if (!$load_return) {
             my $dep_count = 0;
