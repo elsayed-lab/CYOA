@@ -975,7 +975,7 @@ sub Hisat2 {
 
     ## Check that the indexes exist
     my $ht_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
-    my $ht_reftest = qq"${ht_reflib}.1.ht2l";
+    my $ht_reftest = qq"${ht_reflib}.1.ht2";
     if (!-r $ht_reftest) {
         print "Hey! The Indexes do not appear to exist, check this out: ${ht_reftest}\n";
         sleep(20);
@@ -1032,7 +1032,8 @@ fi
         depends => $ht_depends_on,
         jstring => $jstring,
         jprefix => "15",
-        mem => 24,
+        mem => 32,
+        walltime => '24:00:00',
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -1460,7 +1461,7 @@ sub Salmon {
 !;
     my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
 salmon quant -i ${sa_reflib} \\
-  -l A --gcBias  \\
+  -l A --gcBias --validateMappings  \\
   ${sa_args} \\
   -o ${outdir} \\
   2>${outdir}/salmon.err 1>${outdir}/salmon.out

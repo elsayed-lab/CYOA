@@ -10,7 +10,6 @@ lib/Bio/Adventure/Bash.pm
 lib/Bio/Adventure/Cleanup.pm
 lib/Bio/Adventure/Compress.pm
 lib/Bio/Adventure/Convert.pm
-lib/Bio/Adventure/MyDeps.pm
 lib/Bio/Adventure/Prepare.pm
 lib/Bio/Adventure/Riboseq.pm
 lib/Bio/Adventure/RNASeq_Assembly.pm

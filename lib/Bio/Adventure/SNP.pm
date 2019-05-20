@@ -118,6 +118,7 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
 !;
+    print "TESTME: $pileup->{job_id}\n";
     my $parse = Bio::Adventure::SNP::SNP_Ratio(
         $class,
         input => ${final_output},
@@ -170,7 +171,7 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
     my $parse_job = $class->Submit(
         comment => $comment_string,
         depends => $options->{depends},
-        jname => qq"${jname}_$options->{species}",
+        jname => "${jname}_$options->{species}",
         jprefix => "81",
         jstring => $jstring,
         language => 'perl',

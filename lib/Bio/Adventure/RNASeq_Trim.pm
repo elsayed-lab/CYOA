@@ -266,7 +266,7 @@ fi
 ${exe} \\
   -threads 1 \\
   -phred33 \\
-  ${r1} ${r2} \\
+  <(less ${r1}) <(less ${r2}) \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
   ILLUMINACLIP:${adapter_file}:2:20:4 \\
@@ -278,7 +278,7 @@ if [[ "\${excepted}" \!= "" ]]; then
   ${exe} \\
     -threads 1 \\
     -phred33 \\
-    ${r1} ${r2} \\
+    <(less ${r1}) <(less ${r2}) \\
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     SLIDINGWINDOW:4:25 MINLEN:50\\
@@ -286,6 +286,8 @@ if [[ "\${excepted}" \!= "" ]]; then
 fi
 sleep 10
 mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
+ln -s ${r1o} forward.fastq.gz
+ln -s ${r2o} reverse.fastq.gz
 !;
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)

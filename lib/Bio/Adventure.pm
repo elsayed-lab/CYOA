@@ -46,6 +46,7 @@ use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
 use Bio::Adventure::Prepare;
 use Bio::Adventure::Riboseq;
+use Bio::Adventure::Phylogeny;
 use Bio::Adventure::RNASeq_Assembly;
 use Bio::Adventure::RNASeq_Count;
 use Bio::Adventure::RNASeq_Map;
@@ -342,7 +343,6 @@ sub Get_Defaults {
         ceph_id => 'undefined',
         ceph_key => 'undefined',
         config_file => qq"${HOME}/.config/hpgl.conf", ## A config file to read to replace these values.
-        cpus => 1,              ## Number of cpus to use for samtools/bowtie/etc
         csv_file => 'all_samples.csv',
         debug => 0,                 ## Debugging?
         evalue => 1,
@@ -389,6 +389,7 @@ sub Get_Defaults {
         paired => 0,            ## Paired reads?
         phred => 33,
         output => undef,        ##
+        outgroup => undef,
         pbs => undef,           ## Use pbs?
         qsub_args => '-j oe -V -m n', ## What arguments will be passed to qsub by default?
         cpus => '4',             ## Number of to request in jobs
@@ -419,6 +420,7 @@ sub Get_Defaults {
         shell => '/usr/bin/bash',          ## Default shell
         species => undef,                  ## Chosen species
         stranded => 0,
+        starting_tree => undef,
         suffixes => ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'], ## Suffixes to remove when invoking basename
         task => undef,
         taxid => '353153',                  ## Default taxonomy ID
@@ -472,8 +474,8 @@ sub Get_Menus {
                 '(--rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
                 '(--rsem): Quantify reads using rsem.' => 'Bio::Adventure::RNASeq_Map::RSEM',
                 '(--sam2bam): Perform sorting/compression/indexing of bam/sam alignments.' => 'Bio::Adventure::Convert::Sam2Bam',
-                '(--snp): Map reads, search for variants, create a new genome.' => 'Bio::Adventure::RNASeq::Align_SNP_Search',
-                '(--snpsearch): Search for variant positions between a transcriptome and genome.' => 'Bio::Adventure::RNASeq::SNP_Search',
+                '(--snp): Map reads, search for variants, create a new genome.' => 'Bio::Adventure::SNP::Align_SNP_Search',
+                '(--snpsearch): Search for variant positions between a transcriptome and genome.' => 'Bio::Adventure::SNP::SNP_Search',
                 '(--tophat): Map reads using tophat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Tophat',
                 '(--trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
                 '(--trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
@@ -549,6 +551,13 @@ sub Get_Menus {
                 '(--trinotate): Perform de novo transcriptome annotation with trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Trinotate',
                 '(--trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
                 '(--trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
+            },
+        },
+        Phylogeny => {
+            name => 'phylogeny',
+            message => qq"",
+            choices => {
+                '(--gubbins): Run Gubbins with an input msa.' => 'Bio::Adventure::Phylogeny::Run_Gubbins',
             },
         },
         Pipeline => {
@@ -629,6 +638,7 @@ sub Get_TODOs {
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
+        "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "hisat+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Count::HT_Multi'},
@@ -1062,6 +1072,10 @@ sub Submit {
     ## in order to get them passed to the eventual interpreter
     my $option_file = "";
     if ($options->{language} eq 'perl') {
+        ## I think this might be required as per:
+        ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
+        $Storable::Deparse = 1;
+        $Storable::Eval = 1;
         $option_file = File::Temp->new(
             TEMPLATE => 'optionsXXXX',
             DIR => $options->{basedir},
