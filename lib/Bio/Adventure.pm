@@ -1220,6 +1220,8 @@ sub Submit {
         my $data = $options;
         ## Why did I undef $data->{term}?
         ## $data->{term} = undef;
+        ##use Data::Dumper;
+        ##print Dumper $data;
         my $stored = nstore($data, $option_file);
         $args{option_file} = $option_file;
     }

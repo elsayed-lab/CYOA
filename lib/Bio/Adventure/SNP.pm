@@ -29,7 +29,7 @@ sub Align_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
+        required => ['input', 'species', 'gff_tag'],
         vcf_cutoff => 4,
         vcf_minpct => 0.8,
     );
@@ -53,6 +53,7 @@ sub Align_SNP_Search {
         input => $bamfile,
         depends => $bt2_job->{samtools}->{job_id},
         species => $options->{species},
+        gff_tag => $options->{gff_tag},
     );
     return($search);
 }
@@ -66,7 +67,7 @@ sub SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
+        required => ['input', 'species', 'gff_tag'],
         varfilter => 0,
         vcf_cutoff => 10,
         vcf_minpct => 0.8,
@@ -142,7 +143,6 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
 !;
-    print "TESTME: $pileup->{job_id}\n";
     my $parse = Bio::Adventure::SNP::SNP_Ratio(
         $class,
         input => ${final_output},
@@ -150,6 +150,7 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
         vcf_minpct => $vcf_minpct,
         species => $options->{species},
         depends => $pileup->{job_id},
+        gff_tag => $options->{gff_tag},
     );
     return([$pileup, $parse]);
 }
