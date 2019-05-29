@@ -19,26 +19,24 @@ use String::Approx qw"amatch";
 
 =head1 Name
 
-    Bio::Adventure::TNSeq - some functions for working with TNSeq data
+Bio::Adventure::TNSeq - some functions for working with TNSeq data.
 
 =head1 SYNOPSIS
 
-    The functions here were copy/pasted from some other code pieces I
-    wrote while working on mgas 5448 tnseq data.  They have not been
-    incorporated into the general Bio::Adventure.pm scheme yet.
+The functions here were copy/pasted from some other code pieces I
+wrote while working on mgas 5448 tnseq data.  They have not been
+incorporated into the general Bio::Adventure.pm scheme yet.
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Sort_Indexes>
 
-=item C<Sort_Indexes>
-
-    $hpgl->Do_Sort_Indexes(inputdir => '.');
-    will assume there is a $(pwd)/indexes.txt with a list of
-    sequencing index to sample names, it will then read all the fastq
-    files in the inputdir and sort them into piles by index.  Most
-    tasks/tools of course do not/should not need this, but the tnseq
-    libraries used by the McIver lab are not quite standard.
+$hpgl->Do_Sort_Indexes(inputdir => '.');
+will assume there is a $(pwd)/indexes.txt with a list of
+sequencing index to sample names, it will then read all the fastq
+files in the inputdir and sort them into piles by index.  Most
+tasks/tools of course do not/should not need this, but the tnseq
+libraries used by the McIver lab are not quite standard.
 
 =cut
 sub Do_Sort_Indexes {
@@ -100,6 +98,12 @@ The total number of reads sorted in $options->{input}: $reads->{total}->{written
     return($reads->{total});
 }
 
+=head2 C<TA_Check>
+
+Check an alignment of tnseq data for terminal TAs to ensure that the putative
+insertion positions are actually mariner specific, e.g. they are 'TA'.
+
+=cut
 sub TA_Check {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -135,6 +139,11 @@ my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
     return($sort_job);
 }
 
+=head2 C<Do_TA_Check>
+
+Actually invoke the check for TAs.
+
+=cut
 sub Do_TA_Check {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -181,6 +190,11 @@ ${qual}
     return($counters);
 }
 
+=head2 C<Sort_Indexes>
+
+Sort a pile of tnseq data for the set of known indexes.
+
+=cut
 sub Sort_Indexes {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -207,100 +221,15 @@ my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
     return($sort_job);
 }
 
-=item C<Sort_TNSeq_File>
+=head2 C<Sort_TNSeq_File_Approx>
 
-  $hpgl->Sort_TNSeq_File(file => 'filename.fastq.gz', indexes =>*Index Hash*)
-  is called by Sort_Indexes() when a single file is to be demultiplexed.
-  It assumes the input file is gzipped and will use the PerlIO::gzip
-  filter to uncompress the data.  It will then extract the sequences
-  per the rules set up in the index hash.
+hpgl->Sort_TNSeq_File(file => 'filename.fastq.gz', indexes =>*Index Hash*)
+is called by Sort_Indexes() when a single file is to be demultiplexed.
+It assumes the input file is gzipped and will use the PerlIO::gzip
+filter to uncompress the data.  It will then extract the sequences
+per the rules set up in the index hash.
 
 =cut
-##sub Sort_TNSeq_File {
-##    my ($class, %args) = @_;
-##    my $options = $class->Get_Vars(args => \%args);
-##    my $indexes = $options->{indexes};
-##
-##    my $data = $options->{indexes};
-##
-##    return(undef) unless ($options->{input} =~ /\.fastq/);
-##    my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
-##    print $out "Starting to read: $options->{input}\n";
-##    ## Does FileHandle work here?
-##    my $inputted = FileHandle->new("less $options->{input} |"); ## PerlIO::gzip is failing on some files.
-##    my $in = Bio::SeqIO->new(-fh => \$inputted, -format => 'Fastq');
-##    while (my $in_seq = $in->next_dataset()) {
-##        $data->{total}->{read}++;
-##        print $out "Read $data->{total}->{read} entries.\n" if ($options->{debug});
-##        my $id = $in_seq->{'-descriptor'};
-##        my $sequence = $in_seq->{'-seq'};
-##        my $qual = $in_seq->{'-raw_quality'};
-##        my $found = 0;
-##        foreach my $index (keys %{$indexes}) {
-##            my $match = "^\\w{0,5}$index\\w+";
-##            if ($sequence =~ m/$match/) {
-##                $found++;
-##                my $new_seq = $sequence;
-##                ## Remember that I truncated the index in case of problems
-##                ## Leaving two any-characters off of the beginning of the line attempts to ensure that
-##                ## These are not picked up erroneously.
-##                $new_seq =~ s/^\w{0,5}${index}..(\w+$)/$1/g;
-##                ## The next 5 lines are an overly verbose way of extracting the positions which matched the (\w+) above
-##                ## and using those positions to pull out the same substring from the quality scores
-##                my @match_start = @-;
-##                my @match_end = @+;
-##                my $match_start_pos = $match_start[1];
-##                my $match_end_pos = $match_end[1];
-##                my $new_qual = substr($qual, $match_start_pos, $match_end_pos);
-##                ## The following search was added due to some weird PCR artifacts in some datasets.
-##                ## This may complicate submitting this data to SRA.
-##                if ($class->{tnseq_trim}) {
-##                    my $pcr_match = "ACAGGTTGGATGATA";
-##                    if ($sequence =~ m/$pcr_match/) {
-##                        my $newer_seq = $new_seq;
-##                        $newer_seq =~ s/^(\w+)${pcr_match}(\w+)$/$1/g;
-##                        @match_start = @-;
-##                        @match_end = @+;
-##                        my $pcr_match_start = $match_start[1];
-##                        my $pcr_match_end = $match_end[1];
-##                        my $newer_qual = substr($qual, $pcr_match_start, $pcr_match_end);
-##                        $new_seq = $newer_seq;
-##                        $new_qual = $newer_qual;
-##                    }
-##                }
-##
-##                $data->{total}->{written}++;
-##                if (($data->{total}->{written} % 10000) == 0) {
-##                    print $out "Wrote $data->{total}->{written} reads from $options->{input}\n";
-##                    ## dump_sizes();
-##                }
-##                my $fastq_string = qq"\@$id
-##$new_seq
-##+
-##$new_qual
-##";
-##                my $handle = $data->{$index}->{handle};
-##                print $handle $fastq_string;
-##                $data->{$index}->{written}++;
-##            }               ## End looking for an individual match from %indexes
-##        }                   ## End recursing over %indexes
-##        if ($found == 0) {
-##            my $handle = $data->{unknown}->{handle};
-##            my $fastq_string = qq"\@${id}
-##${sequence}
-##+
-##${qual}
-##";
-##            print $handle $fastq_string;
-##            $data->{unknown}->{written}++;
-##        }
-##    }                           ## End reading the fastq file
-##    $inputted->close();
-##    $data->{input}->close();
-##    $out->close();
-##    return($data);
-##}
-
 sub Sort_TNSeq_File_Approx {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -375,14 +304,13 @@ ${qual}
     return($data);
 }
 
-=item C<Sort_TNSeq_Dir>
+=head2 C<Sort_TNSeq_Dir>
 
-  $hpgl->Sort_TNSeq_File(dir => '.', indexes =>*Index Hash*)
-  is called by Sort_Indexes() when a directory of fastq files are to
-  be demultiplexed. It uses File::Find to find all the .fastq.gz files
-  in the target directory (recursively) which do not have the name of
-  the output directory in the filename.
-  It then passes each file to Sort_TNSeq_File()
+Called by Sort_Indexes() when a directory of fastq files are to
+be demultiplexed. It uses File::Find to find all the .fastq.gz files
+in the target directory (recursively) which do not have the name of
+the output directory in the filename.
+It then passes each file to Sort_TNSeq_File()
 
 =cut
 sub Sort_TNSeq_Dir {
@@ -418,12 +346,11 @@ sub Sort_TNSeq_Dir {
     return(@approxes);
 }
 
-=item C<Read_Indexes>
+=head2 C<Read_Indexes>
 
-  $h->Read_Indexes()
-  reads a file containing the indexes and sets up the data structure
-  used to keep count of the reads demultiplexed along with the set
-  of file handles to which to write the data.
+Reads a file containing the indexes and sets up the data structure
+used to keep count of the reads demultiplexed along with the set
+of file handles to which to write the data.
 
 =cut
 sub Read_Indexes {
@@ -473,17 +400,14 @@ sub Read_Indexes {
     return($indexes);
 }
 
+=head2 C<Essentiality_TAs>
 
+This will read the $args{bam} bam file and look for reads which
+start/end with TA in the orientation expected for a successful
+insertion by the mariner retrotransposable element.
 
-=item C<Essentiality_TAs>
-
-    $hpgl->Essentiality_TAs(bam => 'lib1.bam');
-    will read the $args{bam} bam file and look for reads which
-    start/end with TA in the orientation expected for a successful
-    insertion by the mariner retrotransposable element.
-
-    essentiality_tas
-    essentiality_tas -f genome.fasta -o output.txt -n genome_name -g genome.gff -b bamfile.bam
+essentiality_tas
+essentiality_tas -f genome.fasta -o output.txt -n genome_name -g genome.gff -b bamfile.bam
 
         Other options:  The following are possible
         --name  |-n : The name to print in the text file (required)
@@ -495,7 +419,6 @@ sub Read_Indexes {
         --kept_tas  : Keep the intermediate tas file (useful for coverage data)
         --type  |-t : Type of entry in the gff file to use (gene by default)
         --help      : Print this help information
-
 
 =cut
 sub Essentiality_TAs {
@@ -630,6 +553,11 @@ variableStep chrom=${chr_name}\n";
     return($subtotal);
 }
 
+=head2 C<Run_Essentiality>
+
+Invoke the DeJesus tn_hmm tool to search for essential genes.
+
+=cut
 sub Run_Essentiality {
     my ($class, %args) = @_;
     my @param_list = ('1','2','4','8','16','32');
@@ -714,6 +642,11 @@ gumbelMH.py -f ${input} -m ${param} -s $options->{runs} \\
     return($tn_hmm);
 }
 
+=head2 C<Count_TAs>
+
+Count the number of TAs in a genome.
+
+=cut
 sub Count_TAs {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -867,6 +800,11 @@ sub Count_TAs {
     return($data);
 }                               ## End Count_Tas
 
+=head2 C<Allocate_Genome>
+
+When counting a genome, first make a data structure to hold the counts.
+
+=cut
 sub Allocate_Genome {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);

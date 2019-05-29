@@ -14,11 +14,20 @@ use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use POSIX qw"ceil";
 
-=item C<Concatenate_Searches>
+=head1 NAME
 
-The function Concatenate_Searches waits until the cluster finishes processing all the blast jobs, then
-concatenates all the output files into one gzipped file.
-If --parse is on, it will call Parse_Blast()
+Bio::Adventure::Align - Functions shared by multiple sequence alignment methods.
+
+=head1 SYNOPSIS
+
+These functions set up and clean up blast/fasta/etc searches. (I need to set up hmmer and friends).
+
+=head1 METHODS
+
+=head2 C<Concatenate_Searches>
+
+This function waits until the cluster finishes processing all the blast jobs, then
+concatenates all the output files into one compressed file .
 
 =cut
 sub Concatenate_Searches {
@@ -30,7 +39,7 @@ sub Concatenate_Searches {
     $output .= ".gz" unless ($output =~ /\.gz$/);
     my $comment_string = qq"## Concatenating the output files into ${output}\n";
     my $jstring = qq!
-rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${output}; done
+rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do xz -9e -c \$i >> ${output}; done
 !;
     my $concatenate = $class->Submit(
         comment => $comment_string,
@@ -43,9 +52,9 @@ rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do gzip -c \$i >> ${outpu
     return($concatenate);
 }
 
-=item C<Parse_Search>
+=head2 C<Parse_Search>
 
-    Use Parse_Search() to pass to different parsers.
+This passes off to other parsers depending on the input format.
 
 =cut
 sub Parse_Search {
@@ -63,9 +72,9 @@ sub Parse_Search {
     return($ret);
 }
 
-=item C<Cleanup>
+=head2 C<Cleanup>
 
-  Cleanup:  cleans up the mess of temporary files/directories left behind by this.
+Cleans up the mess of temporary files/directories left behind by these tools.
 
 =cut
 sub Cleanup {
@@ -74,12 +83,12 @@ sub Cleanup {
     return($ret);
 }
 
-=item C<Get_Split>
+=head2 C<Get_Split>
 
-    Get_Split takes the number of sequences in the query library and divides by the number of jobs to run,
-    takes the ceiling of that, and prints that many sequences to each file in split/ starting at 1000.
-    (So, as long as you have <= 8,999 jobs PBS won't get argsused by the difference between 099 and 100
-    because they will be 1099 and 1100 instead.)
+Take the number of sequences in the query library and divides by the number of jobs to run,
+get the ceiling of that, and prints that many sequences to each file in split/ starting at 1000.
+(So, as long as you have <= 8,999 jobs PBS won't get confused by the difference between 099 and 100
+because they will be 1099 and 1100 instead.)
 
 =cut
 sub Get_Split {
@@ -90,30 +99,29 @@ sub Get_Split {
     while (my $in_seq = $in->next_seq()) {
         $seqs++;
     }
-    my $ret = ceil($seqs / $options->{number});
-    if ($seqs < $options->{number}) {
+    my $ret = ceil($seqs / $options->{align_jobs});
+    if ($seqs < $options->{align_jobs}) {
         print "There are fewer sequences than the chosen number of split files, resetting that to $seqs.\n";
-        ##$splits = $seqs;
-        $options = $class->Set_Vars(number => $seqs);
+        $options = $class->Set_Vars(align_jobs => $seqs);
     }
-    print "Get_Split: Making $options->{number} directories with $ret sequences.\n";
+    print "Get_Split: Making $options->{align_jobs} directories with $ret sequences.\n";
     return($ret);
 }
 
-=item C<Make_Directories>
+=head2 C<Make_Directories>
 
-    Create sequential directories for each job and actually write the sequences using Bio::SeqIO
+Create sequential directories for each job and actually write the sequences using Bio::SeqIO
 
 =cut
 sub Make_Directories {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $num_per_split = $options->{num_per_split};
-    my $splits = $options->{number};
+    my $splits = $options->{align_jobs};
     ## I am choosing to make directories starting at 1000
     ## This way I don't have to think about the difference from
     ## 99 to 100 (2 characters to 3) as long as no one splits more than 9000 ways...
-    print "Make_Directories: Making $options->{number} directories with $options->{num_per_split} sequences.\n";
+    print "Make_Directories: Making $options->{align_jobs} directories with $options->{num_per_split} sequences.\n";
     my $dir = 1000;
 
     remove_tree("split", {verbose => 0 });
@@ -136,7 +144,7 @@ $seq
         print $outfile $out_string;
         $outfile->close();
         $count++;
-        $options->{num_sequences}++;
+        $options->{state}->{num_sequences}++;
         if ($count >= $num_per_split) {
             $count = 0;
             $dir++;
@@ -160,22 +168,11 @@ $seq
     return($actual_number_dirs_used);
 }
 
-=back
+=head2 Ids_to_Sequence
 
-=head1 AUTHOR - atb
-
-Email  <abelew@gmail.com>
-
-=head1 SEE ALSO
-
-    L<Bio::Tools::Run::StandAloneBlast>
+Writes relatively nicely formatted fasta files given a genome and gff file.
 
 =cut
-
-## Culling duplicates requires a few steps:
-## 1.  Extract the sequences of the genes of interest in any available method
-## 2.  Perform some search of the set of genes against itself
-## 3.  Extract a single family member from each resulting set
 sub Ids_to_Sequences {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -213,13 +210,18 @@ $sequences{$seq}
         min_percent => 0.80,
         query => $id_output_file,
     );
-    my $duplicates = Bio::Tools::Adventure::AlignDuplicate_Remove(
+    my $duplicates = Bio::Tools::Adventure::Align::Duplicate_Remove(
         $class,
         input => $id_output_file,
     );
     return($concat);
 }
 
+=head2 C<Duplicate_Remove>
+
+Get rid of duplicate sequences when writing out fasta files.
+
+=cut
 sub Duplicate_Remove {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);

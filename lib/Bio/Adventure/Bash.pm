@@ -34,21 +34,22 @@ has walltime => (is => 'rw', default => '10:00:00');
 
 =head1 NAME
 
-    Bio::Adventure::Slurm - Submit jobs to the Slurm cluster.
+Bio::Adventure::Bash - Write out jobs using scripts for running jobs outside of a cluster.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure::Slurm;
+use Bio::Adventure;
+my $hpgl = new Bio::Adventure::Bash;
+$hpgl->Submit(%job_args);
 
-=head2 Methods
+This should invoke scripts with appropriate parameters for various jobs on the local host.
+Bash is a bit of a misnomer, because this is also responsible for perl jobs.
 
-=over 4
+=head1 Methods
 
-=item C<Submit>
+=head2 C<Submit>
 
-    $hpgl->Submit(); invokes bash with (hopefully) appropriate
-    parameters for various jobs on our Slurm cluster.
+This is responsible for the final writeup and submission of a local script.
 
 =cut
 sub Submit {

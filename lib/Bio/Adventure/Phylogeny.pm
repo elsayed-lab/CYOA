@@ -10,9 +10,17 @@ extends 'Bio::Adventure';
 
 use File::Basename;
 
-=head2
+=head2 C<Run_Gubbins>
 
-    Recompress()
+Invoke gubbins to search for optimal trees given an outgroup, starting tree, and MSA.
+
+=over
+
+=item I<outgroup> - Name of chosen outgroup.
+
+=item I<starting_tree> - Name of start tree.
+
+=back
 
 =cut
 sub Run_Gubbins {

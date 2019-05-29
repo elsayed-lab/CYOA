@@ -15,28 +15,31 @@ use TryCatch;
 
 =head1 NAME
 
-    Bio::Adventure::Convert - Perform conversions between various formats:
-    sam->bam, gff->fasta, genbank->fasta, etc.
+Bio::Adventure::Convert - Perform conversions between various formats.
+
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $cyoa = new Bio::Adventure;
-    Bio::Adventure::Convert::Gff2Fasta($cyoa, genome => 'mmusculus.fasta', gff => 'mmusculus.gff');
+The functions here handle the various likely conversions one may perform.
+sam to bam, gff to fasta, genbank to fasta, etc.
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Gff2Fasta>
 
-=item C<Gff2Fasta>
+$hpgl->Gff2Fasta(genome => 'something.fasta', gff => 'something.gff')
+will read the genome's fasta and annotation files and return a set
+of fasta files which include the coding sequence regions which are
+members of args{feature_type} in the gff file.
 
-    $hpgl->Gff2Fasta(genome => 'something.fasta', gff => 'something.gff')
-    will read the genome's fasta and annotation files and return a set
-    of fasta files which include the coding sequence regions which are
-    members of args{feature_type} in the gff file.
+It writes one file of amino acid sequence and one of nucleotides.
+Upon completion, it returns the number of entries written.
 
-    It writes one file of amino acid sequence and one of nucleotides.
-    Upon completion, it returns the number of entries written.
+=over
+
+=item I<tag> - Which gff types to add to the fasta file?
+
+=back
 
 =cut
 sub Gff2Fasta {
@@ -111,6 +114,11 @@ ${cds}
     return($features_written);
 }
 
+=head2 C<Read_GFF>
+
+use Bio::Tools::GFF to gather information from a gff file.
+
+=cut
 sub Read_GFF {
     my ($class, %args) = @_;
     my $chromosomes = $args{chromosomes};
@@ -155,15 +163,15 @@ sub Read_GFF {
     return($gff_out);
 }
 
-=item C<Gff2Gtf>
+=head2 C<Gff2Gtf>
 
-    $hpgl->Gff2Gtf(gff => 'mmusculus.gff')
-    reads a given gff file and writes a gtf file from the features
-    found therein.  It returns the number of features written.
+$hpgl->Gff2Gtf(gff => 'mmusculus.gff')
+reads a given gff file and writes a gtf file from the features
+found therein.  It returns the number of features written.
 
-    note that I only use gtf files for tophat, thus they must have a tag 'transcript_id'!
-    This is woefully untrue for the tritrypdb gff files.  Thus I need to have a regex in this
-    to make sure that web_id or somesuch is changed to transcript_id.
+note that I only use gtf files for tophat, thus they must have a tag 'transcript_id'!
+This is woefully untrue for the tritrypdb gff files.  Thus I need to have a regex in this
+to make sure that web_id or somesuch is changed to transcript_id.
 
 =cut
 sub Gff2Gtf {
@@ -241,18 +249,18 @@ sub Gff2Gtf {
     return($features_written);
 }
 
-=item C<Sam2Bam>
+=head2 C<Sam2Bam>
 
-    $hpgl->Sam2Bam();
-    Used to invoke samtools to take the sam output from bowtie/bwa and
-    convert it to an compressed-sorted-indexed bam alignment.
+$hpgl->Sam2Bam();
+Used to invoke samtools to take the sam output from bowtie/bwa and
+convert it to an compressed-sorted-indexed bam alignment.
 
-    This function just calls $class->Samtools(), but has a little logic
-    to see if the invocation of this is for an extent .sam file or
-    calling it on an existing .fastq(.gz), in which case one must
-    assume it is being called on one or more files in the bowtie_out/
-    directory and which start with $basename, include something like
-    -trimmed-v0M1.sam.
+This function just calls $class->Samtools(), but has a little logic
+to see if the invocation of this is for an extent .sam file or
+calling it on an existing .fastq(.gz), in which case one must
+assume it is being called on one or more files in the bowtie_out/
+directory and which start with $basename, include something like
+-trimmed-v0M1.sam.
 
 =cut
 sub Sam2Bam {
@@ -289,16 +297,16 @@ sub Sam2Bam {
     return($sam);
 }
 
-=item C<Samtools>
+=head2 C<Samtools>
 
-    $hpgl->Samtools() calls (in order): samtools view, samtools sort,
-    and samtools index.  Upon completion, it invokes bamtools stats to
-    see what the alignments looked like.
+$hpgl->Samtools() calls (in order): samtools view, samtools sort,
+and samtools index.  Upon completion, it invokes bamtools stats to
+see what the alignments looked like.
 
-    It explicitly does not pipe one samtools invocation into the next,
-    not for any real reason but because when I first wrote it, it
-    seemed like the sorting was taking too long if I did not already
-    have the alignments in a bam file.
+It explicitly does not pipe one samtools invocation into the next,
+not for any real reason but because when I first wrote it, it
+seemed like the sorting was taking too long if I did not already
+have the alignments in a bam file.
 
 =cut
 sub Samtools {
@@ -368,11 +376,11 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
     return($samtools);
 }
 
-=item C<Gb2Gff>
+=head2 C<Gb2Gff>
 
-    $hpgl->Gb2Gff() takes a genbank genome file and splits it into:
-    A genomic fasta file, CDS fasta, peptide fasta, gff file of all
-    entries, CDS, and interCDS regions.
+$hpgl->Gb2Gff() takes a genbank genome file and splits it into:
+A genomic fasta file, CDS fasta, peptide fasta, gff file of all
+entries, CDS, and interCDS regions.
 
 =cut
 sub Gb2Gff {
@@ -521,329 +529,6 @@ sub Gb2Gff {
                  };
     close($in);
     return($ret_stats);
-}
-
-=item C<TriTryp2Text>
-
-    $hpgl->TriTryp2Text() generates some simple text tables from the
-    much more elaborate text files provided by the TriTrypDB.
-
-=cut
-sub TriTryp2Text {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args, required => ['input', 'species']);
-
-    print STDOUT "Printing master table from $options->{input}\n";
-    my $master_table = Bio::Adventure::Convert::TriTryp_Master($class,
-                                                               input => $options->{input},
-                                                               base => $options->{species});
-    print STDOUT "Printing ortholog table from $options->{input}\n";
-    my $ortho_table = Bio::Adventure::Convert::TriTryp_Ortho($class,
-                                                             input => $options->{input},
-                                                             base => $options->{species});
-    print STDOUT "Printing ontology table from $options->{input}\n";
-    my $go_table = Bio::Adventure::Convert::TriTryp_GO($class,
-                                                       input => $options->{input},
-                                                       base => $options->{species});
-
-    my $ret = {master_lines => $master_table->{lines_written},
-               ortho_lines => $ortho_table->{lines_written},
-               go_lines => $go_table->{lines_written},
-           };
-    return($ret);
-}
-
-=item C<TriTryp_DL_Text>
-
-    $hpgl->TriTryp_DL_Text() downloads the newest TriTrypDb text,
-    genomic fasta, gff, and annotated CDS files for $args{species}.
-    The species must be in their format, so unlike other invocations
-    of 'species' where 'lmajor' would be fine, this would require:
-    'LmajorFriedlin' or 'TcruziCLBrener'
-
-=cut
-sub TriTryp_Download {
-    my ($class, %args) = @_;
-    my $species = $args{species};
-
-    my $ua = LWP::UserAgent->new();
-    $ua->agent("Bio::Adventure/downloader ");
-
-    my $final_text_request;
-    my $final_fasta_request;
-    my $final_cds_request;
-    my $final_gff_request;
-    # Create a request
-    my $req = HTTP::Request->new(GET => qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/");
-    $req->content_type('text/html');
-    my $res = $ua->request($req);
-    my $text_listing = "";
-    if ($res->is_success) {
-        $text_listing = $res->content;
-    } else {
-        print $res->status_line, "\n";
-    }
-    if ($text_listing) {
-        my @lines = split(/\n/, $text_listing);
-        my $filename = "";
-      LISTING: foreach my $line (@lines) {
-            chomp $line;
-            next LISTING unless ($line =~ m/\<a href="TriTrypDB.+Gene\.txt">/);
-            $line =~ s/^.*\<a href=.*"\>(TriTryp.+Gene\.txt).*$/$1/g;
-            if ($line =~ /^TriTrypDB/) {
-                $final_text_request = $line;
-                $final_gff_request = $final_text_request;
-                $final_gff_request =~ s/Gene\.txt/\.gff/g;
-                $final_fasta_request = $final_gff_request;
-                $final_fasta_request =~ s/\.gff/_Genome\.fasta/g;
-                $final_cds_request = $final_fasta_request;
-                $final_cds_request =~ s/_Genome\.fasta/_AnnotatedCDSs\.fasta/g;
-                ##TriTrypDB-26_LmajorFriedlin_AnnotatedCDSs.fasta
-            }
-        }
-    }
-    if ($text_listing) {
-        my $text_output = FileHandle->new(">$final_text_request");
-        my ($gff_output, $fasta_output, $cds_output);
-        my $text_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/txt/${final_text_request}";
-        print "Going to write to $final_text_request with $text_url\n";
-        unless (-r $final_text_request) { ## Don't redownload if we already did.
-            my $req = HTTP::Request->new(GET => qq"$text_url");
-            $req->content_type('text/html');
-            my $res = $ua->request($req);
-            if ($res->is_success) {
-                print $text_output $res->content;
-            } else {
-                print $res->status_line, "\n";
-            }
-            $text_output->close();
-        }                       ## End unless
-
-        my $gff_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/gff/data/${final_gff_request}";
-        print "Going to write to $final_gff_request with $gff_url\n";
-        unless (-r $final_gff_request) { ## Don't redownload if we already did.
-            $gff_output = FileHandle->new(">$final_gff_request");
-            my $req = HTTP::Request->new(GET => qq"$gff_url");
-            $req->content_type('text/html');
-            my $res = $ua->request($req);
-            if ($res->is_success) {
-                print $gff_output $res->content;
-            } else {
-                print $res->status_line, "\n";
-            }
-            $gff_output->close();
-        }                       ## End unless
-
-        my $fasta_url = qq"http://tritrypdb.org/common/downloads/Current_Release/${species}/fasta/data/${final_fasta_request}";
-        print "Going to write to $final_fasta_request with $fasta_url\n";
-        unless (-r $final_fasta_request) { ## Don't redownload if we already did.
-            $fasta_output = FileHandle->new(">$final_fasta_request");
-            my $req = HTTP::Request->new(GET => qq"$fasta_url");
-            $req->content_type('text/html');
-            my $res = $ua->request($req);
-            if ($res->is_success) {
-                print $fasta_output $res->content;
-            } else {
-                print $res->status_line, "\n";
-            }
-            $fasta_output->close();
-        }                       ## End unless
-
-        my $cds_url = qq"http://tritrypdb.org/common/downloads/Current_Release/LmajorFriedlin/fasta/data/${final_cds_request}";
-        print "Going to write to $final_cds_request with $cds_url\n";
-        unless (-r $final_cds_request) { ## Don't redownload if we already did.
-            $cds_output = FileHandle->new(">$final_cds_request");
-            my $req = HTTP::Request->new(GET => qq"$cds_url");
-            $req->content_type('text/html');
-            my $res = $ua->request($req);
-            if ($res->is_success) {
-                print $cds_output $res->content;
-            } else {
-                print $res->status_line, "\n";
-            }
-            $cds_output->close();
-        }                       ## End unless
-
-    }                 ## End checking to see that we got a downloadable filename
-    return($final_fasta_request);
-}
-
-=item C<TriTryp_Ortho>
-
-    $hpgl->TriTryp_Ortho() generates a text table of
-    orthologs/paralogs from the large TriTrypDB text files.
-
-=cut
-sub TriTryp_Ortho {
-    my ($class, %args) = @_;
-    my $input = $args{input};
-    my $base = $args{base};
-    my $orth = {};
-    my $current_id = "";
-    my $in = FileHandle->new("less ${input} |");
-    my $out = FileHandle->new(">${base}_ortho.txt");
-    my $reading_ortho = 0;
-    my $ortho_count = 0;
-    my $lines_written = 0;
-  LINES: while(my $line = <$in>) {
-        chomp $line;
-        next if ($line =~ /\[/);
-        next if ($line =~ /^\s*$/);
-        if ($line =~ /:/) {
-            my ($key, $datum) = split(/:\s+/, $line);
-            if ($key eq 'Gene ID') {
-                $current_id = $datum;
-                $reading_ortho = 0;
-            } elsif ($key eq 'TABLE' and $datum eq 'Orthologs and Paralogs within TriTrypDB') {
-                $reading_ortho = 1;
-                $ortho_count = 0;
-                next LINES;
-            } elsif ($key eq 'TABLE') {
-                $reading_ortho = 0;
-            }
-        }
-        if ($reading_ortho == 1) {
-            $ortho_count++;
-            my($gene, $organism,$product,$syntenic,$comments) = split(/\t+/, $line);
-            ## $orth->{$current_id}->{$ortho_count}->{gene} = $gene;
-            ## $orth->{$current_id}->{$ortho_count}->{organism} = $organism;
-            ## $orth->{$current_id}->{$ortho_count}->{product} = $product;
-            ## $orth->{$current_id}->{$ortho_count}->{syntenic} = $syntenic;
-            ## $orth->{$current_id}->{$ortho_count}->{comments} = $comments;
-            ## print "Adding $current_id $ortho_count $gene\n";
-            print $out "$current_id\t$ortho_count\t$gene\t$organism\t$product\t$syntenic\t$comments\n";
-            $lines_written++;
-        }
-    }
-    $in->close();
-    $out->close();
-    $orth->{lines_written} = $lines_written;
-    return($orth);
-}
-
-=item C<TriTryp_Master>
-
-    $hpgl->TriTryp_Master() generates a text table of
-    the ~50 columns of data from the large TriTrypDB text files.
-
-=cut
-sub TriTryp_Master {
-    my ($class, %args) = @_;
-    my $input = $args{input};
-    my $base = $args{base};
-    my $master_table = {};
-    my $current_id = "";
-    my $current_key = "";
-    my @key_list = ();
-    my $in = FileHandle->new("less ${input} |");
-    my $count = 0;
-    my $waiting_for_next_gene = 0;
-    my $lines_written = 0;
-  LINES: while(my $line = <$in>) {
-        chomp $line;
-        if ($line =~ /^TABLE/) {
-            $waiting_for_next_gene = 1;
-        }
-        if ($line =~ /^Gene ID/) {
-            $waiting_for_next_gene = 0;
-        }
-        next LINES if ($waiting_for_next_gene);
-        next unless($line =~ /:/);
-        my ($key, $datum) = split(/:\s+/, $line);
-        if ($key eq 'Gene ID') {
-            $current_id = $datum;
-        } else {
-            $current_key = $key;
-            $current_key =~ s/\s+/_/g;
-            push(@key_list, $current_key);
-            $master_table->{$current_id}->{$current_key} = $datum;
-        }
-    }
-    $in->close();
-    @key_list = uniq(@key_list);
-    my $num_keys = scalar(@key_list);
-    my $header_string = "ID\t";
-    foreach my $key (@key_list) {
-        $header_string .= "$key\t";
-    }
-    $header_string =~ s/\s+$//g;
-    my $out = FileHandle->new(">${base}_master.tab");
-    print $out "${header_string}\n";
-    foreach my $id (keys %{$master_table}) {
-        my %datum = %{$master_table->{$id}};
-        my $line_string = "$id\t";
-        foreach my $key (@key_list) {
-            my $dat = "undef";
-            if (defined($datum{$key})) {
-                $dat = $datum{$key};
-            }
-            $line_string .= "$dat\t";
-        }
-        $line_string =~ s/\s+$//g;
-        print $out "${line_string}\n";
-        $lines_written++;
-    }
-    $out->close();
-    $master_table->{lines_written} = $lines_written;
-    return($master_table);
-}
-
-=item C<TriTryp_GO>
-
-    $hpgl->TriTryp_GO() generates a text table of gene ontology data
-    from the large TriTrypDB text files.
-
-=cut
-sub TriTryp_GO {
-    my ($class, %args) = @_;
-    my $input = $args{input};
-    my $base = $args{base};
-    my $go = {};
-    my $current_id = "";
-    my $in = FileHandle->new("less $input |");
-    my $out = FileHandle->new(">${base}_go.txt");
-    my $gaf = FileHandle->new(">${base}_go.gaf");
-    my $reading_go = 0;
-    my $go_count = 0;
-    my $lines_written = 0;
-  LINES: while(my $line = <$in>) {
-        chomp $line;
-        next if ($line =~ /\[/);
-        next if ($line =~ /^\s*$/);
-        if ($line =~ /:/) {
-            my ($key, $datum) = split(/:\s+/, $line);
-            if ($key eq 'Gene ID') {
-                $current_id = $datum;
-                $reading_go = 0;
-            } elsif ($key eq 'TABLE' and $datum eq 'GO Terms') {
-                $reading_go = 1;
-                $go_count = 0;
-                next LINES;
-            } elsif ($key eq 'TABLE') {
-                $reading_go = 0;
-            }
-        }
-        if ($reading_go == 1) {
-            $go_count++;
-            my($gene, $ontology, $go_term_name, $source, $evidence_code, $low_evidence_code) = split(/\t+/, $line);
-            ## $orth->{$current_id}->{$ortho_count}->{gene} = $gene;
-            ## $orth->{$current_id}->{$ortho_count}->{organism} = $organism;
-            ## $orth->{$current_id}->{$ortho_count}->{product} = $product;
-            ## $orth->{$current_id}->{$ortho_count}->{syntenic} = $syntenic;
-            ## $orth->{$current_id}->{$ortho_count}->{comments} = $comments;
-            ## print "Adding $current_id $ortho_count $gene\n";
-            print $out "$current_id\t$gene\t$ontology\t$go_term_name\t$source\t$evidence_code\n";
-            ####             1      2           3     4 5       6      7                8            9       10        11     12     13                      14       15
-            ####   source gene   shortname qual|go  dbref  evidencecode     withfrom       P    goname      gosym  type   taxon                   date      assignedby
-            print $gaf "TRI\t$current_id\tundef\t\t$gene\tundef\t$evidence_code\t$go_term_name\tP\t$go_term_name\tundef\tgene\ttaxon:$class->{taxid}}\t20050101\tTriTryp\n";
-            $lines_written++;
-        }
-    }
-    $in->close();
-    $out->close();
-    $gaf->close();
-    $go->{lines_written} = $lines_written;
-    return($go);
 }
 
 =back

@@ -9,6 +9,22 @@ extends 'Bio::Adventure';
 use File::Basename;
 use Math::Round qw":all";
 
+=head1 NAME
+
+Bio::Adventure::SNP - Search for variant positions given an alignment and reference genome.
+
+=head1 SYNOPSIS
+
+The functions in this file handle the invocation of b/vcftools and mpileup to
+search for variant positions following an alignment.
+
+=head1 METHODS
+
+=head2 C<Align_SNP_Search>
+
+Invoke bt2, samtools, vcfutils to seek variant positions.
+
+=cut
 sub Align_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -41,6 +57,11 @@ sub Align_SNP_Search {
     return($search);
 }
 
+=head2 C<SNP_Search>
+
+Handle the invocation of vcfutils and such to seek high-confidence variants.
+
+=cut
 sub SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -110,9 +131,12 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
         comment => $comment_string,
         depends => $options->{depends},
         jname => "bcf_${query_base}_$options->{species}",
-        jprefix => "80",
-        job_type => "snpsearch",
+        jprefix => '80',
+        job_type => 'snpsearch',
         jstring => $jstring,
+        queue => 'workstation',
+        walltime => '10:00:00',
+        mem => 48,
     );
     $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
@@ -130,11 +154,16 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
     return([$pileup, $parse]);
 }
 
+=head2 C<CNP_Ratio>
+
+Given a table of variants and a genome, modify the genome to match the variants.
+
+=cut
 sub SNP_Ratio {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
+        required => ['input', 'species', 'gff_tag'],
         vcf_cutoff => 4,
         vcf_minpct => 0.8,
     );
@@ -165,6 +194,7 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
   species => '$options->{species}',
   vcf_cutoff => '$options->{vcf_cutoff}',
   vcf_minpct => '$options->{vcf_minpct}',
+  gff_tag => '$options->{gff_tag}',
 );
 ";
 
@@ -175,15 +205,23 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
         jprefix => "81",
         jstring => $jstring,
         language => 'perl',
-        queue => 'throughput',
+        queue => 'workstation',
+        walltime => '10:00:00',
+        mem => 48,
     );
     return($parse_job);
 }
 
+=head2 C<Make_SNP_Ratio>
+
+Given vcfutils output, make a simplified table of high-confidence variants.
+
+=cut
 sub Make_SNP_Ratio {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        gff_tag => 'ID',
         vcf_cutoff => 4,
         vcf_minpct => 0.8,
     );

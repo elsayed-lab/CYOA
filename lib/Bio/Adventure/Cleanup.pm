@@ -9,20 +9,19 @@ use Moo;
 extends 'Bio::Adventure';
 
 =head1 NAME
-    Bio::Adventure::Cleanup - Delete the various directories/files created by
-    the RNASeq tools invoked by Bio::Adventure.pm
+
+Bio::Adventure::Cleanup - Delete the various directories/files created by the
+tools invoked by Bio::Adventure.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Cleanup();
+use Bio::Adventure;
+my $hpgl = new Bio::Adventure;
+$hpgl->Cleanup();
 
-=over4
+=head2 C<Cleanup>
 
-=item C<Cleanup>
-
-    delete the various directories/files from the RNASeq tools invoked by Bio::Adventure.pm
+Delete the various directories/files from the RNASeq tools invoked by Bio::Adventure.pm.
 
 =cut
 sub Cleanup {

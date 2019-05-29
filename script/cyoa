@@ -26,14 +26,13 @@ use Bio::Adventure;
 
 =over 4
 
-=item C<menus>
+=item C<Menus>
 
-    The global variable $menus keeps a set of silly choose your own
-    adventure quotes along with the possible task->method listings.
-    The choices slot in each key of the hash is a list of function
-    names found in Adventure::something.  The assumption is that all the
-    functions use Check_Options() to ensure that they receive all the
-    relevant parameters.
+    The top-level menu options are all accessible via the command-line argument, --task.
+    Once a task is chosen, a set of appropriate methods is displayed.  These in turn are
+    available via the command line argument --method.  This allows one to have slightly
+    different default options for the same program depending on context.  The primary
+    existing example is mapping data for RNASeq vs. Ribosome profiling.
 
 =cut
 
@@ -175,7 +174,7 @@ Email abelew@gmail.com
 
 =head1 SEE ALSO
 
-    L<Adventure> L<Adventure::Convert> L<Adventure::RNASeq_Trim>
+    L<Bio::Adventure>
 
 =cut
 

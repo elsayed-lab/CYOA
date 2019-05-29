@@ -55,7 +55,6 @@ use Bio::Adventure::RNASeq_Trim;
 use Bio::Adventure::SeqMisc;
 use Bio::Adventure::Slurm;
 use Bio::Adventure::SNP;
-use Bio::Adventure::Status;
 use Bio::Adventure::TNSeq;
 use Bio::Adventure::Torque;
 
@@ -82,19 +81,10 @@ $ENV{LESSOPEN} = '| lesspipe %s';
 
 =head1 SYNOPSIS
 
-    Bio::Adventure.pm Bio::Adventure::Job.pm Some perl libraries to submit jobs to the
-    umiacs cluster.  This can take a variety of options:
-
-  --debug|d   : Get it to print some debugging information.
-  --btmulti   : Perform multiple bowtie option sets.
-  --tpmulti   : Perform multiple tophat option sets (not implemented).
-  --bwmulti   : Perform multiple bwa option sets (not implemented).
-  --help      : Print some help information.
-  --input|i   : Input file(s).
-  --pbs|p     : Use Torque?
-  --species:s : Species used for alignments.
-  --stranded  : Are the libraries stranded?
-  --identifier: The identifier tag in the annotation gff
+    Bio::Adventure.pm  Methods to simplify creating job scripts and submitting them to a
+    computing cluster.  Bio::Adventure makes heavy use of command line options and as a result
+    accepts many options.  The simplest way to access these methods is via the cyoa script, but
+    everything may be called directly in perl.
 
     use Bio::Adventure;
     my $hpgl = new Bio::Adventure;
@@ -120,8 +110,8 @@ $ENV{LESSOPEN} = '| lesspipe %s';
 
 =head1 DESCRIPTION
 
-    This library should write out PBS compatible job files for torque and
-    submit them to appropriate queues on the cluster.  It should also
+    This library should write out PBS/slurm compatible job files and
+    submit them to the appropriate computing cluster.  It should also
     collect the outputs and clean up the mess.
 
 =head2 Methods
@@ -310,26 +300,200 @@ sub Get_Basename {
     return($in1);
 }
 
+=item C<Get_Defaults>
+
+    This is the primary source for the configuration data in Bio::Adventure.
+    It every option in it is accessible as a command line argument.  Those command line
+    arguments are described below:
+
+=over 4
+
+=item C<General Options>
+
+  basedir - Base directory from which all other directories inherit. (cwd)
+  config_file - Optional configuration file to hold chosen default options. (~/.config/cyoa.conf)
+  input - Generic input file, used by most functions.
+  output - Generic output file, used by most functions.
+  genome - Location of the chosen genome file, used by many tasks.
+  species - Species name for mapping and other tasks.
+  gff - Location of the chosen gff file, used by many tasks.
+  libdir - Directory containing the various indexes for mapping. (~/libraries)
+  libtype - We may have ribosomal or genomic indexes, or indeed other types if required. (genome)
+  task - Top-level task to perform (trimming, conversion, mapping, etc).
+  method - Which function to actually call?
+  raw_dir - Location of the raw data when it might lie elsewhere.
+  type - Used in a few places, genomic vs ribosomal, tnseq vs rnaseq, etc.
+  suffixes - Set of suffixes to remove from files when looking for basenames. (.fastq, .gz, .fasta, .sam, .bam, .count, .csfast, .qual)
+  debug - Print debugging information? (false)
+  help - Print help information.
+
+=item C<Cluster Specific Options>
+
+  depends - A string describing the set of dependencies for a job.
+  jname - A machine-readable name for each job.
+  jprefix - A prefix number for each job, to make reading successions easier.
+  jstring - The string comprising the actual job to be run.
+  job_id - The job ID returned by Torque/Slurm for a job.
+  queue_array_string - When running an array of jobs, this holds the requisite formatted string.
+  language - Choose if the cluster options should be appropriate for a shell or perl script. (bash)
+  pbs - Use a computing cluster or just invoke scripts one at a time?
+  qsub_args - Default arguments when using torque. (-j oe -V -m n)
+  sbatch_depends - Dependency string on a slurm cluster. (afterok:)
+  sbatch_dependsarray - Dependency string on a slurm for array jobs. (afterok:)
+  qsub_depends - Dependency string on a torque cluster. (depend=afterok:)
+  qsub_dependsarray - Dependency string on a torque cluster for array jobs. (depend=afterokarray:)
+  loghost - Host to send logs for torque. (localhost)
+  mem - Memory in Gb to request from the cluster. (6)
+  queue - Default qos/queue to send jobs. (workstation)
+  queues - Set of available queues. (throughput, workstation, long, large)
+  shell - Default shell to request when using torque/slurm. (/usr/bin/bash)
+  wall - Amount of walltime to request from the cluster. (10:00:00)
+
+=item C<Alignment Arguments>
+
+  best_only - When parsing blast/fasta output, return only the best hit? (false)
+  align_jobs - Split alignments into how many jobs? (40)
+  blast_format - Which blast output format should we use? 5 is blastxml (5)
+  fasta_format - Which fastq output format should we use? 0 is tabular. (0)
+  align_parse - Control whether to parse an alignment's output. (true)
+  blast_params - Default options for blast searches. (-e 10)
+  peptide - Explicitly tell blast if this is (or not) a peptide search. (F)
+  blast_tool - Choose which member of the blast family to use.
+  library - Choose the name of the blast/fasta database to search against.
+  evalue - E-value cutoff when performing blast/fasta searches.  This is not currently entirely used. (1)
+  identity - Percent identical cutoff when doing blast/fasta.  Not used as it should be. (70)
+  fasta_args - Default arguments when invoking fasta36 programs. (-b 20 -d 20)
+  fasta_tool - Which fasta tool to invoke? (ggsearch36)
+
+=item C<Mapping Arguments>
+
+  mapper - Set the default mapping program. (salmon)
+  bt_args - Some default arguments when using bowtie. (--very-sensitive -L 14)
+  bt2_args - Similar for bowtie2.
+  bt_type - Choose a specific type of bowtie mapping to perform. (v0M1)
+  btmulti - Or perform bowtie with all of the chosen options in bt_args? (false)
+  stranded - Choose options for stranded libraries (primarily kallisto) (false)
+
+=item C<Counting Arguments>
+
+  feature_type - extracted from the gff file for htseq. (exon)
+  gff_tag - also from the gff file for htseq. (gene_id)
+  htseq_args - Some default arguments for htseq. (--order=name --idattr=gene_id --minaqual=10 --type exon --stranded=yes --mode=union)
+  htseq_stranded - Use htseq in stranded mode? (no)
+  htseq_type - Which identifier to use in htseq? (gene_id)
+  mi_genome - Database of miRNA sequences for counting small RNA sequences.
+  mature_fasta - Database of miRNA mature sequences when counting small RNA sequences.
+  mirbase_data - Location of the full miRbase data when counting small RNA.
+
+=item C<Conversion Arguments>
+
+  bamfile - Where to put output bam data?  Used in a few places.
+  feature_type - Primarily used when looking at gff files, ergo htseq and converting gff to other formats.
+  taxid - Used for making gaf files.
+
+=item C<Preparation Arguments>
+
+  csv_file - A csv file containing the metadata for multiple samples. (all_samples.csv)
+  sampleid - Chosen ID for a given sample.
+
+=item C<TNSeq Arguments>
+
+  index_file - File containing a key/value pairing of sample IDs and TNSeq indexes. (indexes.txt)
+  runs - How many gumbel runs to apply in essentiality? (1000)
+
+=item C<Riboseq Arguments>
+
+  orientation - When looking at reads vs. starts/ends, count start->end or end->start? (start)
+  riboasite,psite,esite - Count A/P/E site reads. (1,1,1)
+  ribominsize/maxsize - Range for riboseq sizes. (24,36)
+  ribominpos/maxpos - Relative positions when counting vs. start/stop codons. (-30, 30)
+  riboanchor - Anchor reads with respect to the start/end. (start)
+  ribosizes - Set of sizes to count. (25,26,27,28,29,30,31,32,33,34)
+
+=item C<Trimming Arguments>
+
+  maxlength - Maximum length to keep when trimming sequence data (usually TNSeq). (42)
+  minlength - Minimum length to keep when trimming sequence data (usually TNSeq). (8)
+  phred - Score range to work in, also used for some QC tasks. (33)
+  qual - cutadapt specific quality string.
+
+=item C<QC Arguments>
+
+  paired - Primarily Fastqc, boolean check if the data is paired. (false)
+
+=item C<Phylogeny Arguments>
+
+  outgroup - Name of a chosen phylogenetic outgroup.
+  starting_tree - Name of a starting tree for improving phylogenetic trees.
+
+=item C<SNP Arguments>
+
+  varfilter - Filter variants by variance. (true)
+  vcf_cutoff - Minimum reads for a variant call. (10)
+  vcf_minpct - Minimum percent agreement for a variant call. (0.8)
+
+=back
+
+=cut
 sub Get_Defaults {
     my $defaults = {
-        align_bestonly => 0,  ## Return only the best alignments for blast/fasta
-        align_numseq => 0,    ## This isn't actually user-configurable,
-        ## I should move it, but it is used to count the number of sequences
-        ## to be aligned by fasta/blast
-        align_jobs => 40, ## How many blast/fasta alignment jobs should we make?
-        align_outtype => 0,     ## Which alignment type should we use?
-        ## (5 is blastxml for blast, 0 is tabular for fasta36)
-        align_parse => 1,  ## Parse blast/fasta alignments after finishing them?
-        align_trimmed => 1,  ## Perform alignments(mapping) of trimmed sequence?
-        aligner => 'bowtie', ## Use this aligner if none is chosen
-        bam_big => '33-40', ## The range of bam sizes considered as 'large' read lengths (ribosome profiling)
-        bam_mid => '27-32', ## The range of bam sizes considered as 'medium' read lengths (ribosome profiling)
-        bam_small => '21-26', ## The range of bam sizes considered as 'small' read lengths (ribosome profiling)
-        bamfile => undef, ## Used for mimapping for now, but should also be used for tnseq/riboseq/etc
+        ## General options
         basedir => cwd(), ## The base directory when invoking various shell commands
-        blast_params => ' -e 10 ', ## A couple default blast parameters
-        blast_peptide => 'F', ## The flag for blast deciding whether or not to perform a peptide formatdb/alignment
+        config_file => qq"${HOME}/.config/cyoa.conf", ## A config file to read to replace these values.
+        input => undef,                               ## Generic input argument
+        output => undef,                              ## Generic output argument
+        genome => undef,                ## Which genome to use?
+        species => undef,               ## Chosen species
+        gff => undef,                   ## A default gff file!
+        libdir => "${HOME}/libraries",  ## Directory of libraries for mapping rnaseq reads
+        libtype => 'genome',            ## Type of rnaseq mapping to perform (genomic/rrna/contaminants)
+        task => undef,
+        method => undef,
+        raw_dir => undef,               ## Directory containing raw reads
+        type => undef,                  ## Type!
+        suffixes => ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'], ## Suffixes to remove when invoking basename
+        debug => 0,                     ## Debugging?
+        help => undef,                  ## Ask for help?
+
+        ## Cluster options
+        depends => "",      ## A flag for PBS telling what each job depends upon
+        jname => "",        ## A name for a job!
+        jprefix => "",      ## An optional prefix number for the job
+        jstring => "",      ## The string of text printed as a job
+        jobids => {},       ## And a hash of jobids
+        jobs => [],         ## A list of jobs
+        language => 'bash', ## Shell or perl script?
+        pbs => undef,       ## Use pbs?
+        qsub_args => '-j oe -V -m n', ## What arguments will be passed to qsub by default?
+        cpus => '4',                  ## Number of to request in jobs
+        qsub_depends => 'depend=afterok:', ## String to pass for dependencies
+        qsub_dependsarray => 'depend=afterokarray:', ## String to pass for an array of jobs
+        sbatch_depends => 'afterok:',
+        sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
+        loghost => 'localhost', ## Host to which to send logs
+        mem => 6,               ## Number of gigs of ram to request
+        queue => 'workstation', ## What queue will jobs default to?
+        queues => ['throughput','workstation','long','large'], ## Other possible queues
+        shell => '/usr/bin/bash', ## Default qsub shell
+        wall => '10:00:00',       ## Default time to request
+
+        ## Alignment options
+        best_only => 0,
+        align_jobs => 40, ## How many blast/fasta alignment jobs should we make?
+        align_blast_format => 5,     ## Which alignment type should we use?
+                                     ## (5 is blastxml for blast, 0 is tabular for fasta36)
+        align_parse => 1,
+        blast_params => ' -e 10 ',
+        peptide => 'F', ## The flag for blast deciding whether or not to perform a peptide formatdb/alignment
         blast_tool => undef, ## Valid choices are blastn blastp tblastn tblastx and I'm sure some others I can't remember
+        library => undef,   ## The library to be used for fasta36/blast searches
+        evalue => 1,        ## Alignment specific: Filter hits by e-value.
+        identity => 70, ## Alignment specific: Filter hits by sequence identity percent.
+        fasta_args => ' -b 20 -d 20 ', ## Default arguments for the fasta36 suite
+        fasta_tool => 'ggsearch36',    ## Which fasta36 program to run
+
+        ## Mapping options
+        mapper => 'salmon', ## Use this aligner if none is chosen
         bt_args => { def => '', ## A series of default bowtie1 arguments
                      v0M1 => '--best -v 0 -M 1',
                      v1M1 => '--best -v 1 -M 1',
@@ -339,74 +503,41 @@ sub Get_Defaults {
         bt2_args => ' --very-sensitive -L 14 ', ## A boolean to decide whether to use multiple bowtie1 argument sets
         bt_type => 'v0M1',
         btmulti => 0, ## Use the following configuration file to overwrite options for these scripts
-        ceph_host => 'undefined',
-        ceph_id => 'undefined',
-        ceph_key => 'undefined',
-        config_file => qq"${HOME}/.config/hpgl.conf", ## A config file to read to replace these values.
-        csv_file => 'all_samples.csv',
-        debug => 0,                 ## Debugging?
-        evalue => 1,
-        identity => 70,
-        fasta_args => ' -b 20 -d 20 ',        ## Arguments for the fasta36 suite
-        fasta_tool => 'ggsearch36',           ## Which fasta36 program to run
+        stranded => 0,
+
+        ## Counting options
         feature_type => 'exon', ## A default feature type when examining gff files
-        genome => undef,        ## Which genome to use?
-        gff => undef,           ## A default gff file!
         gff_tag => 'gene_id',   ## The idattr argument passed to htseq-count
-        help => undef,          ## Ask for help?
-        hpgl => undef,          ## An hpgl identifier
         htseq_args => {         ##hsapiens => " ",
-            ##mmusculus => " -i ID ",
-            ##lmajor => " -i ID ",
+            ## mmusculus => " -i ID ",
+            ## lmajor => " -i ID ",
             default => " --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union ",
             ## all => " -i ID ",
-            ##all => " ", ## Options chosen by specific species, this should be removed.
+            ## all => " ", ## Options chosen by specific species, this should be removed.
         },
-        htseq_stranded => 'no', ## Use htseq stranded options?
+        htseq_stranded => 'no',  ## Use htseq stranded options?
         htseq_type => 'gene_id', ## The identifier flag passed to htseq (probably should be moved to feature_type)
+        mi_genome => undef,      ## miRbase genome to search
+        mature_fasta => undef,   ## Database of mature miRNA sequences
+        mirbase_data => undef,   ## Database of miRNA annotations from mirbase
+
+        ## Conversion options
+        bamfile => undef, ## Used for mimapping for now, but should also be used for tnseq/riboseq/etc
+        taxid => '353153',      ## Default taxonomy ID
+
+        ## Preparation options
+        csv_file => 'all_samples.csv',
+        sampleid => undef,      ## An hpgl identifier
+
+        ## TNSeq options
         index_file => 'indexes.txt', ## The default input file when demultiplexing tnseq data
-        input => undef,              ## Generic input argument
-        depends => "",           ## A flag for PBS telling what each job depends upon
-        jname => "",              ## A name for a job!
-        jprefix => "",            ## An optional prefix number for the job
-        jstring => "",            ## The string of text printed as a job
-        jobids => {},                ## And a hash of jobids
-        jobs => [],                  ## A list of jobs
-        language => 'bash',
-        len_max => 42, ## Maximum length for good reads (riboseq): FIXME rename this
-        len_min => 16, ## Minimum length for good reads (riboseq): FIXME rename this
-        library => undef,   ## The library to be used for fasta36/blast searches
-        libdir => "${HOME}/libraries", ## Directory of libraries for mapping rnaseq reads
-        libtype => 'genome', ## Type of rnaseq mapping to perform (genomic/rrna/contaminants)
-        mi_genome => undef,  ## miRbase genome to search
-        mature_fasta => undef,  ## Database of mature miRNA sequences
-        maxlength => 42,
-        method => undef,
-        minlength => 8,
-        mirbase_data => undef,  ## Database of miRNA annotations from mirbase
-        name => undef, ## Currently only used for snp calling, but name is probably a useful arg for many things.
+        runs => 1000,
+
+        ## Ribosome Profiling options
         orientation => 'start', ## What is the orientation of the read with respect to start/stop codon (riboseq) FIXME: Rename this
-        paired => 0,            ## Paired reads?
-        phred => 33,
-        output => undef,        ##
-        outgroup => undef,
-        pbs => undef,           ## Use pbs?
-        qsub_args => '-j oe -V -m n', ## What arguments will be passed to qsub by default?
-        cpus => '4',             ## Number of to request in jobs
-        qsub_depends => 'depend=afterok:', ## String to pass for dependencies
-        qsub_dependsarray => 'depend=afterokarray:', ## String to pass for an array of jobs
-        loghost => 'localhost', ## Host to which to send logs
-        mem => 6,               ## Number of gigs of ram to request
-        queue => 'workstation', ## What queue will jobs default to?
-        queues => ['throughput','workstation','long','large'], ## Other possible queues
-        shell => '/usr/bin/bash',     ## Default qsub shell
-        wall => '10:00:00',           ## Default time to request
-        qual => undef,                     ## Quality string for cutadapt
-        query => undef,         ## Query, probably should be replaced by input
-        raw_dir => undef, ## Directory of raw reads (/cbcb/lab/nelsayed/raw_data/ generally)
-        riboasite => 1,   ## Count the A site ribosomes (riboseq)?
-        ribopsite => 1,   ## Count the P site ribosomes (riboseq)?
-        riboesite => 1,   ## Count the P site ribosomes (riboseq)?
+        riboasite => 1,         ## Count the A site ribosomes (riboseq)?
+        ribopsite => 1,         ## Count the P site ribosomes (riboseq)?
+        riboesite => 1,         ## Count the P site ribosomes (riboseq)?
         ribominsize => 24, ## Minimum size to search for ribosome positions (riboseq)
         ribomaxsize => 36, ## Maximum size to search for ribosome positions (riboseq)
         ribominpos => -30, ## Minimum position for counting (riboseq)
@@ -414,27 +545,33 @@ sub Get_Defaults {
         ribocorrect => 1,  ## Correct ribosome positions for biases
         riboanchor => 'start', ## When correcting, use the start or end position as an anchor
         ribosizes => '25,26,27,28,29,30,31,32,33,34', ## Use these sizes for riboseq reads
-        runs => 1000,
-        sbatch_depends => 'afterok:',
-        sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
-        shell => '/usr/bin/bash',          ## Default shell
-        species => undef,                  ## Chosen species
-        stranded => 0,
+
+        ## Trimming options
+        maxlength => 42,
+        minlength => 8,
+        phred => 33,
+        qual => undef,          ## Quality string for cutadapt
+
+        ## QC Options
+        paired => 0,            ## Paired reads?
+
+        ## Phylogen Options
+        outgroup => undef,
         starting_tree => undef,
-        suffixes => ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'], ## Suffixes to remove when invoking basename
-        task => undef,
-        taxid => '353153',                  ## Default taxonomy ID
-        tnseq_trim => 0,                    ## Trim tnseq?
-        trimmer => 'trimmomatic',           ## Use cutadapt or trimomatic?
-        type => undef,                      ## Type!
+
+        ## SNP
         varfilter => 1,             ## Do a varFilter in variant searches
         vcf_cutoff => 10,           ## Minimum depth cutoff for variant searches
         vcf_minpct => 0.8,    ## Minimum percent agreement for variant searches.
-        verbose => 0,         ## Be chatty?
+
+        ## State
+        state => {
+            num_sequences => 0,
+        },
     };
 
     $defaults->{logdir} = qq"$defaults->{basedir}/outputs/logs";
-    $defaults->{blast_format} = qq"formatdb -p $defaults->{blast_peptide} -o T -s -i -n species";
+    $defaults->{blast_format} = qq"formatdb -p $defaults->{peptide} -o T -s -i -n species";
     return($defaults);
 }
 
@@ -444,142 +581,140 @@ sub Get_Menus {
             name => 'preparation',
             message => "Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.",
             choices => {
-                '(--read_samples): Read samples using a csv file to determine the raw data locations.' => 'Bio::Adventure::Prepare::Read_Samples',
-                '(--copyraw): Copy data from the raw data archive to scratch.' => 'Bio::Adventure::Prepare::Copy_Raw',
+                '(read_samples): Read samples using a csv file to determine the raw data locations.' => 'Bio::Adventure::Prepare::Read_Samples',
+                '(copyraw): Copy data from the raw data archive to scratch.' => 'Bio::Adventure::Prepare::Copy_Raw',
             },
         },
         RNASeq => {
             name => 'rnaseq',
             message => "The world is dark and full of terrors, take this and go to page 6022140.",
             choices => {
-                '(--biopieces): Use biopieces to graph some metrics of trimmed/raw data.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
-                '(--bowtie): Map trimmed reads with bowtie1 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie',
-                '(--bt2): Map trimmed reads with bowtie2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie2',
-                '(--ht2): Map trimmed reads with hisat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Hisat2',
-                '(--btmulti): Map trimmed reads and count using multiple bowtie1 option sets.' => 'Bio::Adventure::RNASeq_Map::BT_Multi',
-                '(--bwa): Map reads with bwa and count with htseq.' => 'Bio::Adventure::RNASeq_Map::BWA',
-                '(--fastqc): Use fastqc to check the overall quality of the raw data.' => 'Bio::Adventure::RNASeq_QA::Fastqc',
-                '(--htmulti): Use different option sets for counting with htseq.' => 'Bio::Adventure::RNASeq_Count::HT_Multi',
-                '(--indexbt1): Create bowtie1 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT1_Index',
-                '(--indexbt2): Create bowtie2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT2_Index',
-                '(--indexht2): Create hisat2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::HT2_Index',
-                '(--indexbwa): Create bwa compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BWA_Index',
-                '(--indexkallisto): Create kallisto compatible indexes.' => 'Bio::Adventure::RNASeq_Map::Kallisto_Index',
-                '(--indexrsem): Create rsem indexes.' => 'Bio::Adventure::RNASeq_Map::RSEM_Index',
-                '(--indexsalmon): Create salmon indexes.' => 'Bio::Adventure::RNASeq_Map::Salmon_Index',
-                '(--kallisto): Pseudo-align and count reads using kallisto.' => 'Bio::Adventure::RNASeq_Map::Kallisto',
-                '(--salmon): Pseudo-align and count reads using salmon.' => 'Bio::Adventure::RNASeq_Map::Salmon',
-                '(--star): Pseudo-align and count reads using STAR.' => 'Bio::Adventure::RNASeq_Map::STAR',
-                '(--mimap): Attempt to map reads explicitly to mature miRNA species.' => 'Bio::Adventure::RNASeq_Count::Mi_Map',
-                '(--rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
-                '(--rsem): Quantify reads using rsem.' => 'Bio::Adventure::RNASeq_Map::RSEM',
-                '(--sam2bam): Perform sorting/compression/indexing of bam/sam alignments.' => 'Bio::Adventure::Convert::Sam2Bam',
-                '(--snp): Map reads, search for variants, create a new genome.' => 'Bio::Adventure::SNP::Align_SNP_Search',
-                '(--snpsearch): Search for variant positions between a transcriptome and genome.' => 'Bio::Adventure::SNP::SNP_Search',
-                '(--tophat): Map reads using tophat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Tophat',
-                '(--trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
-                '(--trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
-                '(--trimomatic): Perform adapter trimming with Trimomatic.' => 'Bio::Adventure::RNASeq_Trim::Trimomatic',
+                '(biopieces): Use biopieces to graph some metrics of trimmed/raw data.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
+                '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie',
+                '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie2',
+                '(ht2): Map trimmed reads with hisat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Hisat2',
+                '(btmulti): Map trimmed reads and count using multiple bowtie1 option sets.' => 'Bio::Adventure::RNASeq_Map::BT_Multi',
+                '(bwa): Map reads with bwa and count with htseq.' => 'Bio::Adventure::RNASeq_Map::BWA',
+                '(fastqc): Use fastqc to check the overall quality of the raw data.' => 'Bio::Adventure::RNASeq_QA::Fastqc',
+                '(htmulti): Use different option sets for counting with htseq.' => 'Bio::Adventure::RNASeq_Count::HT_Multi',
+                '(kallisto): Pseudo-align and count reads using kallisto.' => 'Bio::Adventure::RNASeq_Map::Kallisto',
+                '(salmon): Pseudo-align and count reads using salmon.' => 'Bio::Adventure::RNASeq_Map::Salmon',
+                '(star): Pseudo-align and count reads using STAR.' => 'Bio::Adventure::RNASeq_Map::STAR',
+                '(mimap): Attempt to map reads explicitly to mature miRNA species.' => 'Bio::Adventure::RNASeq_Count::Mi_Map',
+                '(rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
+                '(rsem): Quantify reads using rsem.' => 'Bio::Adventure::RNASeq_Map::RSEM',
+                '(sam2bam): Perform sorting/compression/indexing of bam/sam alignments.' => 'Bio::Adventure::Convert::Sam2Bam',
+                '(snp): Map reads, search for variants, create a new genome.' => 'Bio::Adventure::SNP::Align_SNP_Search',
+                '(snpsearch): Search for variant positions between a transcriptome and genome.' => 'Bio::Adventure::SNP::SNP_Search',
+                '(tophat): Map reads using tophat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Tophat',
+                '(trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
+                '(trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
+                '(trimomatic): Perform adapter trimming with Trimomatic.' => 'Bio::Adventure::RNASeq_Trim::Trimomatic',
+                '(indexbt1): Create bowtie1 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT1_Index',
+                '(indexbt2): Create bowtie2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BT2_Index',
+                '(indexht2): Create hisat2 compatible indexes.' => 'Bio::Adventure::RNASeq_Map::HT2_Index',
+                '(indexbwa): Create bwa compatible indexes.' => 'Bio::Adventure::RNASeq_Map::BWA_Index',
+                '(indexkallisto): Create kallisto compatible indexes.' => 'Bio::Adventure::RNASeq_Map::Kallisto_Index',
+                '(indexrsem): Create rsem indexes.' => 'Bio::Adventure::RNASeq_Map::RSEM_Index',
+                '(indexsalmon): Create salmon indexes.' => 'Bio::Adventure::RNASeq_Map::Salmon_Index',
             },
         },
         TNSeq => {
             name => 'tnseq',
             message => "You have enterred a world of jumping DNA, be ware and go to page 42.",
             choices => {
-                '(--sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.' => 'Bio::Adventure::TNSeq::Sort_Indexes',
-                '(--cutadapt): Use cutadapt to remove the odd tnseq adapters.' => 'Bio::Adventure::RNASeq_Trim::Cutadapt',
-                '(--tacheck): Make certain that all reads have a leading or terminal TA.' => 'Bio::Adventure::TNSeq::TA_Check',
-                '(--biopieces): Make some plots of the demultiplexed/trimmed reads.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
-                '(--essentialityta): Count the hits/TA in preparation for essentiality.' => 'Bio::Adventure::TNSeq::Essentiality_TAs',
-                '(--runessentiality): Run the essentiality suite of tools.' => 'Bio::Adventure::TNSeq::Run_Essentiality',
-                '(--gumbel): Run the essentiality suite of tools on the ta counts.' => 'Bio::Adventure::TNSeq::Run_Essentiality'
+                '(sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.' => 'Bio::Adventure::TNSeq::Sort_Indexes',
+                '(cutadapt): Use cutadapt to remove the odd tnseq adapters.' => 'Bio::Adventure::RNASeq_Trim::Cutadapt',
+                '(tacheck): Make certain that all reads have a leading or terminal TA.' => 'Bio::Adventure::TNSeq::TA_Check',
+                '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
+                '(essentialityta): Count the hits/TA in preparation for essentiality.' => 'Bio::Adventure::TNSeq::Essentiality_TAs',
+                '(runessentiality): Run the essentiality suite of tools.' => 'Bio::Adventure::TNSeq::Run_Essentiality',
+                '(gumbel): Run the essentiality suite of tools on the ta counts.' => 'Bio::Adventure::TNSeq::Run_Essentiality'
             },
         },
         RiboSeq => {
             name => 'riboseq',
             message => "Awake Awake Fear Fire Foes!  Go to page 5291772",
             choices => {
-                '(--biopieces): Make some plots of the demultiplexed/trimmed reads.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
-                '(--cutadapt): Use cutadapt to remove the adapters.' => 'Bio::Adventure::RNASeq_Trim::Cutadapt',
-                '(--rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
-                '(--btmulti): Use bowtie1 to find putative ribosomal positions.' => 'Bio::Adventure::RNASeq_Map::BT_Multi',
-                '(--calibrate): Calibrate the positions of the a/p/e sites of the ribosomes.' => 'Bio::Adventure::Riboseq::Calibrate',
-                '(--countstates): Count the positions of a/p/e/etc sites across the genome/transcriptome.' => 'Bio::Adventure::Riboseq::Count_States',
-                '(--graphreads): Plot the coverage of ribosomes across the genome by ORF.' => 'Bio::Adventure::Riboseq::Graph_Reads',
+                '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => 'Bio::Adventure::RNASeq_QA::Biopieces_Graph',
+                '(cutadapt): Use cutadapt to remove the adapters.' => 'Bio::Adventure::RNASeq_Trim::Cutadapt',
+                '(rrnabowtie): Map rRNA reads using bowtie1.' => 'Bio::Adventure::RNASeq_Map::Bowtie_RRNA',
+                '(btmulti): Use bowtie1 to find putative ribosomal positions.' => 'Bio::Adventure::RNASeq_Map::BT_Multi',
+                '(calibrate): Calibrate the positions of the a/p/e sites of the ribosomes.' => 'Bio::Adventure::Riboseq::Calibrate',
+                '(countstates): Count the positions of a/p/e/etc sites across the genome/transcriptome.' => 'Bio::Adventure::Riboseq::Count_States',
+                '(graphreads): Plot the coverage of ribosomes across the genome by ORF.' => 'Bio::Adventure::Riboseq::Graph_Reads',
             },
         },
         Alignment => {
             name => 'alignment',
             message => "Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 6626070.",
             choices => {
-                '(--blastsplit): Split the input sequence into subsets and align with blast.' => 'Bio::Adventure::Align_Blast::Split_Align_Blast',
-                '(--fastasplit): Split the input sequence into subsets and align with fasta36.' => 'Bio::Adventure::Align_Fasta::Split_Align_Fasta',
-                '(--concat): Merge split searches into a single set of results.' => 'Bio::Adventure::Align::Concatenate_Searches',
-                '(--fastaparse): Parse fasta36 output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Fasta::Parse_Fasta',
-                '(--blastparse): Parse blast output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Blast::Parse_Blast',
-                '(--fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta',
-                '(--blastmerge): Merge and Parse blast output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Blast::Merge_Parse_Blast',
+                '(blastsplit): Split the input sequence into subsets and align with blast.' => 'Bio::Adventure::Align_Blast::Split_Align_Blast',
+                '(fastasplit): Split the input sequence into subsets and align with fasta36.' => 'Bio::Adventure::Align_Fasta::Split_Align_Fasta',
+                '(concat): Merge split searches into a single set of results.' => 'Bio::Adventure::Align::Concatenate_Searches',
+                '(fastaparse): Parse fasta36 output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Fasta::Parse_Fasta',
+                '(blastparse): Parse blast output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Blast::Parse_Blast',
+                '(fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta',
+                '(blastmerge): Merge and Parse blast output into a reasonably simple table of hits.' => 'Bio::Adventure::Align_Blast::Merge_Parse_Blast',
             },
         },
         Conversion => {
             name => 'convert',
             message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 2584981.",
             choices => {
-                '(--sam2bam): Convert a sam mapping to compressed/sorted/indexed bam.' => 'Bio::Adventure::Convert::Sam2Bam',
-                '(--gb2gff): Convert a genbank flat file to gff/fasta files.' => 'Bio::Adventure::Convert::Gb2Gff',
-                '(--gff2fasta): Convert a gff file to a fasta file.' => 'Bio::Adventure::Convert::Gff2Fasta',
-                '(--tritryp2text): Convert a TriTrypdb text database to a table.' => 'Bio::Adventure::Convert::TriTryp2Text',
-                '(--tritrypdownload): Download raw data from TriTrypdb.org.' => 'Bio::Adventure::Convert::TriTryp_Download',
+                '(sam2bam): Convert a sam mapping to compressed/sorted/indexed bam.' => 'Bio::Adventure::Convert::Sam2Bam',
+                '(gb2gff): Convert a genbank flat file to gff/fasta files.' => 'Bio::Adventure::Convert::Gb2Gff',
+                '(gff2fasta): Convert a gff file to a fasta file.' => 'Bio::Adventure::Convert::Gff2Fasta',
             },
         },
         Counting => {
             name => 'count',
             message => qq"Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812",
             choices => {
-                '(--htseq): Count mappings with htseq-count.' =>  'Bio::Adventure::RNASeq_Count::HTSeq',
-                '(--htmulti): Use different option sets for counting with htseq.' => 'Bio::Adventure::RNASeq_Count::HT_Multi',
-                '(--mimap): Count mature miRNA species.' => 'Bio::Adventure::RNASeq_Count::Mi_Map',
-                '(--countstates): Count ribosome positions.' => 'Bio::Adventure::Riboseq::Count_States',
+                '(htseq): Count mappings with htseq-count.' =>  'Bio::Adventure::RNASeq_Count::HTSeq',
+                '(htmulti): Use different option sets for counting with htseq.' => 'Bio::Adventure::RNASeq_Count::HT_Multi',
+                '(mimap): Count mature miRNA species.' => 'Bio::Adventure::RNASeq_Count::Mi_Map',
+                '(countstates): Count ribosome positions.' => 'Bio::Adventure::Riboseq::Count_States',
             },
         },
         Assembly => {
             name => 'assembly',
             message => qq"The wise man fears the wrath of a gentle heart. Go to page 314159.",
             choices => {
-                '(--extract_trinotate): Extract the most likely hits from Trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Extract_Trinotate',
-                '(--transdecoder):  Run transdecoder on a putative transcriptome.' => 'Bio::Adventure::RNASeq_Assembly::Transdecoder',
-                '(--trinotate): Perform de novo transcriptome annotation with trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Trinotate',
-                '(--trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
-                '(--trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
+                '(extract_trinotate): Extract the most likely hits from Trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Extract_Trinotate',
+                '(transdecoder):  Run transdecoder on a putative transcriptome.' => 'Bio::Adventure::RNASeq_Assembly::Transdecoder',
+                '(trinotate): Perform de novo transcriptome annotation with trinotate.' => 'Bio::Adventure::RNASeq_Assembly::Trinotate',
+                '(trinity): Perform de novo transcriptome assembly with trinity.' => 'Bio::Adventure::RNASeq_Assembly::Trinity',
+                '(trinitypost): Perform post assembly analyses with trinity.' =>  'Bio::Adventure::RNASeq_Assembly::Trinity_Post',
             },
         },
         Phylogeny => {
             name => 'phylogeny',
             message => qq"",
             choices => {
-                '(--gubbins): Run Gubbins with an input msa.' => 'Bio::Adventure::Phylogeny::Run_Gubbins',
+                '(gubbins): Run Gubbins with an input msa.' => 'Bio::Adventure::Phylogeny::Run_Gubbins',
             },
         },
         Pipeline => {
             name => 'pipeline',
             message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033",
             choices => {
-                '(--priboseq): Perform a preset pipeline of ribosome profiling tasks.' => 'Bio::Adventure::Pipeline_Riboseq',
-                '(--ptnseq): Perform a preset pipeline of TNSeq tasks.' => 'Bio::Adventure::Pipeline_TNSeq',
-                '(--pbt1): Perform a preset group of bowtie1 tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Bowtie',
-                '(--pbt2): Use preset bowtie2 tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Bowtie2',
-                '(--ptophat): Use preset tophat tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Tophat',
-                '(--pbwa): Try preset bwa tasks.' => 'Bio::Adventure::Pipeline_RNASeq_BWA',
-                '(--pkallisto): Try preset kallisto tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Kallisto',
+                '(priboseq): Perform a preset pipeline of ribosome profiling tasks.' => 'Bio::Adventure::Pipeline_Riboseq',
+                '(ptnseq): Perform a preset pipeline of TNSeq tasks.' => 'Bio::Adventure::Pipeline_TNSeq',
+                '(pbt1): Perform a preset group of bowtie1 tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Bowtie',
+                '(pbt2): Use preset bowtie2 tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Bowtie2',
+                '(ptophat): Use preset tophat tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Tophat',
+                '(pbwa): Try preset bwa tasks.' => 'Bio::Adventure::Pipeline_RNASeq_BWA',
+                '(pkallisto): Try preset kallisto tasks.' => 'Bio::Adventure::Pipeline_RNASeq_Kallisto',
             },
         },
         SNP => {
             name => 'snp',
             message => qq"When my god comes back I'll be waiting for him with a shotgun.  And I'm keeping the last shell for myself. (inexact quote)  Go to page 667408",
             choices => {
-                '(--snpsearch): Perform a search for variant positions against a reference genome.' => 'Bio::Adventure::SNP::SNP_Search',
-                '(--snpratio): Count the variant positions by position and create a new genome.' => 'Bio::Adventure::SNP::SNP_Ratio',
-                '(--snp): Perform alignments and search for variants.' => 'Bio::Adventure::SNP::Align_SNP_Search',
+                '(snpsearch): Perform a search for variant positions against a reference genome. (bam input)' => 'Bio::Adventure::SNP::SNP_Search',
+                '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => 'Bio::Adventure::SNP::SNP_Ratio',
+                '(snp): Perform alignments and search for variants. (fastq input)' => 'Bio::Adventure::SNP::Align_SNP_Search',
             },
         },
         Test => {
@@ -1081,7 +1216,8 @@ sub Submit {
             DIR => $options->{basedir},
             SUFFIX => '.pdata',
         );
-        my $data = $class->{options};
+        ## my $data = $class->{options};
+        my $data = $options;
         ## Why did I undef $data->{term}?
         ## $data->{term} = undef;
         my $stored = nstore($data, $option_file);
@@ -1250,7 +1386,7 @@ Email abelew@gmail.com
     L<Bio::Adventure::RNASeq_Assembly> L<Bio::Adventure::RNASeq_Count> L<Bio::Adventure::RNASeq_Aligners> L<Bio::Adventure::RNASeq_QA>
     L<Bio::Adventure::RNASeq_Trim> L<Bio::Adventure::Align_Blast> L<Bio::Adventure::Align_Fasta> L<Bio::Adventure::Align>
     L<Bio::Adventure::Cleanup> L<Bio::Adventure::Compress> L<Bio::Adventure::Convert> L<Bio::Adventure::PBS>
-    L<Bio::Adventure::Prepare> L<Bio::Adventure::Riboseq> L<Bio::Adventure::SeqMisc> L<Bio::Adventure::SNP> L<Bio::Adventure::Status>
+    L<Bio::Adventure::Prepare> L<Bio::Adventure::Riboseq> L<Bio::Adventure::SeqMisc> L<Bio::Adventure::SNP>
     L<Bio::Adventure::TNSeq>
 
 =cut

@@ -13,22 +13,18 @@ use File::Which qw"which";
 
 =head1 NAME
 
-    Bio::Adventure::RNASeq_QA - Use trimomatic/cutadapt/etc to trim libraries
+Bio::Adventure::RNASeq_QA - Use trimomatic/cutadapt/etc to trim libraries
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Fastqc();
+The functions here invoke various quality assurance programs.
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Biopieces_Graph>
 
-=item C<Biopieces_Graph>
-
-    Reads in a fastq file and uses biopieces to make some graphs
-    describing the sequences therein.
+Reads in a fastq file and uses biopieces to make some graphs describing the
+sequences therein.
 
 =cut
 sub Biopieces_Graph {
@@ -107,6 +103,11 @@ less ${input} | read_fastq -i - -e base_33 |\\
     return($bp);
 }
 
+=head2 C<Fastqc>
+
+Invoke fastqc on some sequence files.
+
+=cut
 sub Fastqc {
     my ($class, %args) = @_;
     my $check = which('fastqc');
@@ -124,9 +125,10 @@ sub Fastqc {
     return($fastqc_job);
 }
 
-=item C<Fastqc_Pairwise>
+=head2 C<Fastqc_Pairwise>
 
-    Fastqc_Pairwise()
+Invoke fastq with options suitable for pairwise sequence data, separating the
+forward and reverse read outputs.
 
 =cut
 sub Fastqc_Pairwise {
@@ -203,9 +205,9 @@ sub Fastqc_Pairwise {
     return($fqc);
 }
 
-=item C<Fastqc_Single>
+=head2 C<Fastqc_Single>
 
-    $hpgl->Fastqc_Single()
+Invoke fastqc with options suitable for a single-ended reads.
 
 =cut
 sub Fastqc_Single {
@@ -245,9 +247,10 @@ sub Fastqc_Single {
     return($fqc);
 }
 
-=item C<Fastqc_Stats>
+=head2 C<Fastqc_Stats>
 
-    $hpgl->Fastqc_Stats()
+Collect some information from the fastqc output files and present them in a
+simple-to-read csv file.
 
 =cut
 sub Fastqc_Stats {

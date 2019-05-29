@@ -18,58 +18,28 @@ use POSIX qw"ceil";
 
 =head1 NAME
 
-    Bio::Adventure::Alignment - Perform Sequence alignments with tools like Blast/Fasta
+Bio::Adventure::Align_Fasta - Perform Sequence alignments with the fasta suite of tools.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Split_Align(query => 'amino_query.fasta', library => 'amino_library.fasta');
+All the functions which live here work with the fasta36 suite of programs.  They write the scripts,
+invoke them on the cluster, collect the results, and (optionally) parse them into simplified
+tables.
 
-=head1 SYNOPSISold
+=head1 METHODS
 
-  The following is the original pod for this:
+=head2 C<Parse_Fasta>
 
-  split_align_blast.pl -i some_multi_fasta_query.fasta -l some_multi_fasta_library.fasta
-  split_align_blast --help
+Given the output from one of the fasta36 programs: ggsearch36, fasta36, etc.  This parses it
+and prints a simplified table of the results.
 
- Other options:  The following are some ways to pass options to this script and their results:
-  --best_only : tells this to print a summary table of only the best hits
-  --blast|-b : which blast program is desired? (blastn|blastp|tblastn|tblastx)
-  --blast_params|-bp ' -e 100 ' : Sets the minimum e-score to 100 -- set any arbitrary blast options here
-  --clean : Clean up the mess this script makes
-  --formatdb|-f : write out formatdb options (really shouldn't be needed)
-                  ('formatdb -p \$peptide -o T -n blastdb/\$lib -s -i ' by default)
-  --help|h : print out the help
-  --input|-i bob.fasta  : Sets the query library to bob.fasta
-  --lib|-l clbrener.fasta : Sets the database library to clbrener.fasta
-  --number|-n 10 : Sets the number of jobs to run to 10 (200 by default)
-  --output|-o : A file to which to write the concatenated last outputs (split_align_output.txt.gz)
-  --parse|-p : Add this argument to parse the blast output (1 by default, set to 0 to skip parsing)
-  --peptide|-p : T for a peptide database, F for a nucleotide for formatdb -- this will be overridden depending on the blast prorgam used
-  --queue|q : what pbs queue (workstation)
-  --skip : Skip the alignments and just try parsing the outputs
+=over
 
-  A couple of example invocations which I used in my own work:
-  split_align_blast.pl -i esmer_annotated_cds.fasta -l TriTrypDB-9.0_LmajorFriedlin_Genome.fasta -q workstation
-    That split the esmer_annotated_cds file into ~200 pieces and aligned them against the leishmania major genome on the workstation queue.
+=item I<best_only> - Print only the best hit for each search sequence. (false)
 
-  split_align_blast.pl -i esmer_annotated_cds.fasta -l TriTrypDB-9.0_LmajorFriedlin_Genome.fasta -b tblastx --parse 0
-    Same deal, but use tblastx and don't parse the output
+=item I<evalue> - Filter for only hits with a better evalue than this. (0.0001)
 
-=head1 DESCRIPTIONold
-
-    This script seeks to make running large blast jobs easier.  It will split the input query file
-    into many smaller files, format a blastdb appropriate for the alignment, submit them to the cluster,
-    collect the alignments, parse the outputs, and cleanup the mess.
-
-=head2 Methods
-
-=over 4
-
-=item C<Parse_Fasta>
-
-    hmmm
+=back
 
 =cut
 sub Parse_Fasta {
@@ -79,14 +49,14 @@ sub Parse_Fasta {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        best => 1,
-        sig => 0.0001,
+        best_only => 0,
+        evalue => 0.0001,
     );
         if ($args{interactive}) {
             print "Run this with: cyoa --task align --method fastaparse --input filename.\n";
         }
-    my $best = $options->{best};
-    my $sig = $options->{sig};
+    my $best_only = $options->{best_only};
+    my $evalue = $options->{evalue};
     my $input = $options->{input};
     my $output = $options->{output};
     unless ($output) {
@@ -99,7 +69,7 @@ sub Parse_Fasta {
     my $f = FileHandle->new("less ${input} |");
     ## This works, other attempts at using zipped input fail.
     my $searchio = Bio::SearchIO->new(-format => 'fasta', -fh => $f,
-                                      -best => ${best}, -signif => ${sig});
+                                      -best => ${best_only}, -signif => ${evalue});
     print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tLStrand\n";
     my $results = 0;
     while (my $result = $searchio->next_result()) {
@@ -147,17 +117,31 @@ sub Parse_Fasta {
     return($results);
 }
 
+=head2 C<Split_Align_Fasta>
+
+Split apart a set of query sequences into $args{align_jobs} pieces and align them all separately.
+
+=over
+
+=item I<align_jobs> - How many jobs should be spawned? (40)
+
+=item I<align_parse> - Start up a parsing job upon completion? (false)
+
+=item I<best_only> - Passed to the parser, only print the best hit? (false)
+
+=back
+
+=cut
 sub Split_Align_Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['query', 'library'],
         interactive => 0,
-        number => 40,
-        parse => 0,
+        align_jobs => 40,
+        align_parse => 0,
         num_dirs => 0,
         best_only => 0,
-        num_sequences => 0,
     );
     if ($options->{interactive}) {
         print "Run this with: cyoa --task align --method fastasplit --query filename.fasta --library another.fasta.\n";
@@ -173,10 +157,10 @@ sub Split_Align_Fasta {
     if ($options->{pbs}) {
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        print "Going to make $options->{number} directories with ${num_per_split} sequences each.\n";
+        print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
         print "Actually used ${actual} directories to write files.\n";
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, number => $actual, split => 1);
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual, split => 1);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
             depends => $alignment->{pbs_id},
@@ -184,11 +168,11 @@ sub Split_Align_Fasta {
         );
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
-        $options->{number} = 1;
+        $options->{align_jobs} = 1;
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, number => $actual);
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches($class, output=> $output,);
     }
 
@@ -211,6 +195,20 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     return($concat_job);
 }
 
+=head2 C<Make_Fasta_Job>
+
+This handles the creation of the files and directories required when splitting up a sequence into
+a bunch of pieces for a split-fasta search.
+
+=over
+
+=item I<split> - Split up the fasta jobs into multiple pieces? (false)
+
+=item I<output_type> - Format for the fasta output. (7 -- the xml format)
+
+=back
+
+=cut
 sub Make_Fasta_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -222,7 +220,7 @@ sub Make_Fasta_Job {
     my $dep = $options->{depends};
     my $split = $options->{split};
     my $library;
-    my $array_end = 1000 + $args{number};
+    my $array_end = 1000 + $args{align_jobs};
     my $array_string = qq"1000-${array_end}";
     if ($options->{parse}) {
         if ($options->{output_type} ne '7') {
@@ -234,7 +232,6 @@ sub Make_Fasta_Job {
     }
     my $jstring = '';
     if ($split) {
-        ## $options->{cpus} should be replaced with a slot from Torque->new().
         $jstring = qq!
 cd $options->{basedir}
 $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
@@ -267,19 +264,41 @@ cd $options->{basedir}
     return($fasta_jobs);
 }
 
-=item C<Parse_Global>
+=head2 C<Parse_Global>
 
-    Parse_Global makes a hard assumption about the structure of the hits in the output of the alignment program.  They should be
-    in a global/global search, thus we assume 1 hit / 1 result.
+Parse_Global makes a hard assumption about the structure of the hits in the output of the
+alignment program.  They should be in a global/global search, thus we assume 1 hit / 1 result.
+
+In addition, this will print summaries of hits in a few different files depending on how many
+hits were observed for each query sequence: singletons, doubles, triples, few (3-10), and
+many (10+).
+
+=over
+
+=item I<best_only> - Parse out only the best hit? (false)
+
+=item I<fasta_format> - Format of the search input (fasta)
+
+=item I<evalue> - Quality of hit filter (0.001)
+
+=item I<many_cutoff> - How many hits define 'many' hits? (10)
+
+=item I<min_score> - Provide a minimum score required for a hit?
+
+=item I<check_all_hits> - I am not sure what this does. (false)
+
+=item I<min_percent> - Add a percentage identity filter (false)
+
+=back
 
 =cut
 sub Parse_Fasta_Global {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        best_hit_only => 0,
-        format => 'fasta',
-        max_significance => 0.001,
+        best_only => 0,
+        fasta_format => 'fasta',
+        evalue => 0.001,
         many_cutoff => 10,
         min_score => undef,
         check_all_hits => 0,
@@ -291,10 +310,10 @@ sub Parse_Fasta_Global {
     $output = basename($output, ('.txt'));
 
     my $in = FileHandle->new("less $options->{input} |");
-    my $searchio = Bio::SearchIO->new(-format => $options->{format},
+    my $searchio = Bio::SearchIO->new(-format => $options->{fasta_format},
                                       -fh => $in,
-                                      -best_hit_only => $options->{best_hit_only},
-                                      -max_significance => $options->{max_significance},
+                                      -best_hit_only => $options->{best_only},
+                                      -max_significance => $options->{evalue},
                                       -check_all_hits => $options->{check_all_hits},
                                       -min_score => $options->{min_score},);
 

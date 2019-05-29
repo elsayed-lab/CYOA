@@ -17,90 +17,47 @@ use File::Path qw"make_path";
 use File::Which qw"which";
 use POSIX qw"ceil";
 
-my $out_fmt = 5;
-
 =head1 NAME
 
-    Bio::Adventure::Alignment - Perform Sequence alignments with tools like Blast/Fasta
+Bio::Adventure::Align_Blast - Perform Sequence alignments with the blast suite of tools.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Split_Align(query => 'amino_query.fasta', library => 'amino_library.fasta');
+The functions in this file work with blast and friends.  They write the scripts, invoke them on
+the cluster, collect the results, and (optionally) parse them into simplified tables.
 
-=head1 SYNOPSISold
+=head1 METHODS
 
-  The following is the original pod for this:
+=head2 C<Run_Blast_Parse>
 
-  split_align_blast.pl -i some_multi_fasta_query.fasta -l some_multi_fasta_library.fasta
-  split_align_blast --help
+$cyoa->Blast_Parse(query => 'nt_query.fasta', library => 'nt_library.fasta');
+will create a blast library from 'library' and perform individual blast searches
+for every sequence in nt_query.fasta against it.  Finally, it writes a summary
+of the results in a set of tables.
 
- Other options:  The following are some ways to pass options to this script and their results:
-  --best_only : tells this to print a summary table of only the best hits
-  --blast|-b : which blast program is desired? (blastn|blastp|tblastn|tblastx)
-  --blast_params|-bp ' -e 100 ' : Sets the minimum e-score to 100 -- set any arbitrary blast options here
-  --clean : Clean up the mess this script makes
-  --formatdb|-f : write out formatdb options (really shouldn't be needed)
-                  ('formatdb -p \$peptide -o T -n blastdb/\$lib -s -i ' by default)
-  --help|h : print out the help
-  --input|-i bob.fasta  : Sets the query library to bob.fasta
-  --lib|-l clbrener.fasta : Sets the database library to clbrener.fasta
-  --number|-n 10 : Sets the number of jobs to run to 10 (200 by default)
-  --output|-o : A file to which to write the concatenated last outputs (split_align_output.txt.gz)
-  --parse|-p : Add this argument to parse the blast output (1 by default, set to 0 to skip parsing)
-  --peptide|-p : T for a peptide database, F for a nucleotide for formatdb -- this will be overridden depending on the blast prorgam used
-  --queue|q : what pbs queue (workstation)
-  --skip : Skip the alignments and just try parsing the outputs
+Unfortunately, this function has not been updated in a very long time and
+therefore is missing a bunch of useful options.
 
-  A couple of example invocations which I used in my own work:
-  split_align_blast.pl -i esmer_annotated_cds.fasta -l TriTrypDB-9.0_LmajorFriedlin_Genome.fasta -q workstation
-    That split the esmer_annotated_cds file into ~200 pieces and aligned them against the leishmania major genome on the workstation queue.
+=over
 
-  split_align_blast.pl -i esmer_annotated_cds.fasta -l TriTrypDB-9.0_LmajorFriedlin_Genome.fasta -b tblastx --parse 0
-    Same deal, but use tblastx and don't parse the output
+=item I<evalue> - Filter for hits with a better value than this. (0.01)
 
-=head1 DESCRIPTIONold
-
-    This script seeks to make running large blast jobs easier.  It will split the input query file
-    into many smaller files, format a blastdb appropriate for the alignment, submit them to the cluster,
-    collect the alignments, parse the outputs, and cleanup the mess.
-
-=head2 Methods
-
-=over 4
-
-=item C<Blast_Parse>
-
-    $hpgl->Blast_Parse(query => 'nt_query.fasta', library => 'nt_library.fasta');
-    will create a blast library from 'library' and perform individual
-    blast searches for every sequence in nt_query.fasta against it.
-    Finally, it writes a summary of the results in a set of tables.
+=back
 
 =cut
 sub Run_Parse_Blast {
     my ($class, %args) = @_;
     my $check = which('blastp');
     die("Could not find blast in your PATH.") unless($check);
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(args => \%args,
+                                   evalue => 0.01);
     print STDERR qq"Please note that this function calls blastall
     separately for every sequence in the database.  As a result it is
     not recommended fo use with large sequence libraries.  Instead use
     the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
     followed by 'Parse_Blast()' which does these steps separately.";
     my $blast_program = 'blastp';
-    ## Search libraries are the various combinations of esmer, nonesmer, and unassigned which are of potential interest
-    ## # TODO: hus all 7 of the possible states
-    ## These libraries are generated in make_blast.sh
     my @search_libraries = ('nr',);
-    #my @search_libraries = ('esmer',
-    ##                       'non',
-    ##                       'unas',
-    ##                       'esmer-non',
-    ##                       'esmer-unas',
-    ##                       'non-unas',
-    ##                       'all',);
-    ## States to save: singles, doubles, few (3-10), many (10+)
     my $blast_output = Bio::SearchIO->new(-format => 'blast',);
     my $query = $options->{query};
     my $number_hits = 0;
@@ -155,7 +112,7 @@ sub Run_Parse_Blast {
                 my $hits = $result->num_hits();
                 my $hit_count = 0;
                 my $score_cutoff = 100;
-                my $sig_cutoff = 0.00001;
+                my $sig_cutoff = $options->{evalue};
               HITLOOP: while (my $hits = $result->next_hit()) {
                     $number_hits = $number_hits++;
                     my $hit_name = $hits->name();
@@ -193,10 +150,24 @@ sub Run_Parse_Blast {
     return($number_hits);
 }
 
-=item C<Split_Align>
+=head2 C<Split_Align_Blast>
 
-    $hpgl->Split_Align();
-    Split apart a set of query sequences into $args{number} pieces and align them all separately.
+Split apart a set of query sequences into $args{align_jobs} pieces and align
+them all separately.
+
+=over
+
+=item I<param> - Default parameters for blast (this should be blast_param)
+
+=item I<blast_tool> - Which blast method to invoke? (blastn)
+
+=item I<align_jobs> - How many jobs to invoke? (40)
+
+=item I<align_parse> - Start a parsing job upon completion? (false)
+
+=item I<blast_format> - Which blast format for the output? (5: blastxml)
+
+=item I<best_only> - Report only the best hits per search? (false)
 
 =cut
 sub Split_Align_Blast {
@@ -208,12 +179,12 @@ sub Split_Align_Blast {
         required => ["query","library", "blast_tool"],
         param => ' -e 10 ',
         blast_tool => 'blastn',
-        number => 40,
-        parse => 0,
+        align_jobs => 40,
+        align_parse => 0,
+        blast_format => 5,
         num_dirs => 0,
         best_only => 0,
         interactive => 0,
-        num_sequences => 0,
     );
     if ($options->{interactive}) {
         print "Run this with: cyoa --task align --method blastsplit --query something.fasta --library blastdb --blast_tool tblastx\n";
@@ -248,14 +219,14 @@ blastp is normal protein/protein.
     if ($options->{pbs}) {
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        print "Going to make $options->{number} directories with $num_per_split sequences each.\n";
+        print "Going to make $options->{align_jobs} directories with $num_per_split sequences each.\n";
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
             $class,
             library => $lib,
-            number => $actual,
-            output_type => ${out_fmt},
+            align_jobs => $actual,
+            output_type => $options->{blast_format},
         );
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
@@ -265,7 +236,7 @@ blastp is normal protein/protein.
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         print "Not using the cluster.\n";
-        $options = $class->Set_Vars(number => 1);
+        $options = $class->Set_Vars(align_jobs => 1);
         my $num_per_split = Bio::Adventure::Align::Get_Split($class);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         print "TESTME: Going to write $num_per_split sequences in 1 file.\n";
@@ -273,8 +244,8 @@ blastp is normal protein/protein.
         my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
             $class,
             library => $lib,
-            number => $actual,
-            output_type => ${out_fmt},
+            align_jobs => $actual,
+            output_type => $options->{blast_format},
         );
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
@@ -302,15 +273,29 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     return($concat_job);
 }
 
+=head2 C<Make_Blast_Job>
+
+This function is responsible for actually writing out an appropriate blast job.
+Hopefully, by the time this is called, all the appropriate options have been
+found.
+
+=over
+
+=item I<blast_format> - Which format for the output? (5: blastxml)
+
+=back
+
+=cut
 sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         depends => '',
+        blast_format => 5,
     );
     my $dep = $options->{depends};
     my $library = $options->{library};
-    my $array_end = 1000 + $options->{number};
+    my $array_end = 1000 + $options->{align_jobs};
     my $array_string = qq"1000-${array_end}";
 
     ## Handle array job types for slurm/torque.
@@ -323,22 +308,19 @@ sub Make_Blast_Job {
     ## 0=pairwise ; 1=query_anchored identies ; 2=query_anchored no identities ;
     ## 3=flat identities ; 4=flat no identities ; 5=blastxml ; 6=tabular
     ## 7=tabular commented ; 8=text asn1 ; 9=binary asn1 ; 10=csv ; 11=blast archive asn1
-    if ($args{output_type} ne '5') {
+    if ($options->{blast_format} ne '5') {
         print STDERR "If one wants to parse the output, it probably should be in the xml format, which may be done by adding --output_type 7 to this script.\n";
         print STDERR "This script will still try to parse a blast plain text output, but if it fails, don't say I didn't warn you.\n";
         print STDERR  "Sleeping for 3 seconds so you can hit Control-C if you want to rerun.\n";
         sleep(3);
     }
     my $jstring = '';
-    ## I have been getting null pointers, there is a bug report suggesting this is because of xml output
-    ## $args{output_type} = 1;
-    $args{output_type} = ${out_fmt};
     if ($options->{pbs}) {
         $jstring = qq!
 cd $options->{basedir}
-$options->{blast_tool} -outfmt $options->{output_type} \\
+$options->{blast_tool} -outfmt $options->{blast_format} \\
  -query $options->{basedir}/split/\${${queue_array_string}}/in.fasta \\
- -db ${library} \\
+ -db ${library} $options->{blast_params} \\
  -out $options->{basedir}/outputs/\${${queue_array_string}}.out \\
  1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
  2>>$options->{basedir}/split_align_errors.txt
@@ -346,7 +328,7 @@ $options->{blast_tool} -outfmt $options->{output_type} \\
     } else {
         $jstring = qq!
 cd $options->{basedir}
-$options->{blast_tool} -outfmt $options->{output_type} \\
+$options->{blast_tool} -outfmt $options->{blast_format} \\
   -query $options->{query} \\
   -db ${library} \\
   -out $options->{basedir}/outputs/$options->{blast_tool}.out \\
@@ -366,6 +348,12 @@ $options->{blast_tool} -outfmt $options->{output_type} \\
     return($blast_jobs);
 }
 
+=head2 C<Merge_Parse_Blast>
+
+This invokes Concatenate_Searches() and Parse_Search() in order to get the final
+parsed table from a series of blast searches.
+
+=cut
 sub Merge_Parse_Blast {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -385,7 +373,7 @@ my \$h = Bio::Adventure->new(input => \$input);
 my \$final = Bio::Adventure::Align_Blast->Parse_Search(\$h, search_type => 'blastxml',);
 ?;
     my $parse = $class->Submit(
-        depends => $concat->{pbs_id},
+        depends => $concat->{job_id},
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',
@@ -393,12 +381,19 @@ my \$final = Bio::Adventure::Align_Blast->Parse_Search(\$h, search_type => 'blas
     return($parse);
 }
 
-=item C<Parse_Blast>
+=head2 C<Parse_Blast>
 
-    Parse_Blast is responsible for parsing blast output, it makes some
-    attempt to be flexible vis a vis different formatting.  It prints a
-    table of each gene and some relevant statistics about the hits that
-    were found.
+Parse_Blast is responsible for parsing blast output, it makes some attempt to be
+flexible vis a vis different formatting.  It prints a table of each gene and
+some relevant statistics about the hits that were found.
+
+=over
+
+=item I<best_only> - Print only the best hit for each sequence? (false)
+
+=item I<evalue> - Filter for only hits with a better evalue than this? (false)
+
+=item I<search_type> - Name of the format used. (blastxml)
 
 =cut
 sub Parse_Blast {
@@ -407,8 +402,8 @@ sub Parse_Blast {
         args => \%args,
         required => ['input'],
         best_only => 0,
+        evalue => undef,
         search_type => 'blastxml',
-        num_sequences => 'unknown',
     );
     if ($args{interactive}) {
         print "Run with: cyoa --task align --method parseblast --intput filename.\n";
@@ -457,7 +452,7 @@ sub Parse_Blast {
   RESULT: while(my $result = $searchio->next_result()) {
         my $hit_count = 0;
         $result_count++;
-        print STDERR "Parsed $result_count of $options->{num_sequences} results.\n";
+        print STDERR "Parsed $result_count of $options->{state}->{num_sequences} results.\n";
         my $query_name = "";
         my $real_name = "";
         while (my $hit = $result->next_hit) {
@@ -506,10 +501,10 @@ sub Parse_Blast {
     return($result_count);
 }
 
-=item C<Check_Blastdb>
+=head2 C<Check_Blastdb>
 
-    Check_Blastdb makes sure that there is an appropriately formatted
-    blastdb for the library and type of blast performed.
+Check_Blastdb makes sure that there is an appropriately formatted blastdb for
+the library and type of blast performed.
 
 =cut
 sub Check_Blastdb {

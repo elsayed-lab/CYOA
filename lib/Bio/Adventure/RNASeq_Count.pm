@@ -16,21 +16,17 @@ use String::Approx qw"amatch";
 
 =head1 NAME
 
-    Bio::Adventure::RNASeq_Count - Perform Sequence alignments counting with HTSeq
+Bio::Adventure::RNASeq_Count - Perform Sequence alignments counting with HTSeq
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->HT_Multi();
+These functions handle the counting of reads, primarily via htseq.
 
-=head2 Methods
+=head1 METHODS
 
-=over 2
+=head2 C<HT_Multi>
 
-=item C<HT_Multi>
-
-    some stuff here
+Invoke htseq multiple times with options for counting different transcript types.
 
 =cut
 sub HT_Multi {
@@ -176,6 +172,14 @@ sub HT_Multi {
     return(\@jobs);
 }
 
+=head2 C<HT_TYPES>
+
+Read the first 100k lines of a gff file and use that to guess at the most likely
+type of feature when invoking htseq.
+
+FIXME: max_lines should be an option!
+
+=cut
 sub HT_Types {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -261,9 +265,9 @@ sub HT_Types {
     return($ret);
 }
 
-=head2
+=head2 C<HTSeq>
 
-    HTSeq()
+Invoke htseq-count.
 
 =cut
 sub HTSeq {
@@ -373,6 +377,11 @@ ${htseq_invocation}
     return($htseq);
 }
 
+=head2 C<Mi_Map>
+
+Given a set of alignments, map reads to mature/immature miRNA species.
+
+=cut
 sub Mi_Map {
     my ($class, %args) = @_;
 
@@ -420,7 +429,11 @@ sub Mi_Map {
 
 } ## End of Mi_Map
 
-## Quick and dirty sequence reader
+=head2 C<Read_Mi>
+
+Read an miRNA database.
+
+=cut
 sub Read_Mi {
     my ($class, %args) = @_;
     my $fasta = Bio::SeqIO->new(-file => $args{seqfile}, -format => "Fasta");
@@ -435,6 +448,12 @@ sub Read_Mi {
     return(\%sequences);
 }
 
+=head2 C<Read_Mappings_Mi>
+
+Read an miRNA database and get the connections between the various IDs, mature
+sequences, and immature sequences.
+
+=cut
 sub Read_Mappings_Mi {
     my ($class, %args) = @_;
     my $output = $args{output};
@@ -507,6 +526,11 @@ sub Read_Mappings_Mi {
     return($newdb);
 }
 
+=head2 C<Read_Bam_Mi>
+
+Read a bam file and cross reference it against an miRNA database.
+
+=cut
 sub Read_Bam_Mi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -576,6 +600,11 @@ sub Read_Bam_Mi {
     return($mappings);
 }
 
+=head2 C<Final_Print_Mi>
+
+Print out the final counts of miRNA mappings.
+
+=cut
 sub Final_Print_Mi {
     my ($class, %args) = @_;
     my $final = $args{data};

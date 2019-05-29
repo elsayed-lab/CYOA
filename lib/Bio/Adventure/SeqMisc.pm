@@ -14,38 +14,36 @@ our @EXPORT_OK = qw"$references";
 ## containing the sequence to be shuffled.
 
 =head1 NAME
-    Bio::Adventure::SeqMisc - Given a primary sequence, collect some information including:
-    amino acids in all reading frames, nucleotide/aa/dinucleotide/codon
-    frequencies.  Weights (in Daltons), pI of amino acids, volume of
-    amino acids, polarity of amino acids, hydrophobicity, solubility,
-    pYrimidine/puRine ratio, # hydrogen bonds by codon, charge by
-    amino acid, pkCOOH, pkNHHH, pkR, occurrence value, accessibility
-    value, %amino acid buried, isoelectric point, amino acid sequences
-    in all reading frames, dinucleotide sequences of the 12, 23, 31,
-    and 13 transitions.  Reverse sequence, complementary sequence,
-    revcomp.  GC/CT content.
 
-    Conversely, perform randomizations using a few algorithms
-    including via the external squid library.
-
+Bio::Adventure::SeqMisc - Given a primary sequence, collect some information.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    use Bio::Adventure::SeqMisc;
-    my $misc = new Bio::Adventure::SeqMisc(sequence => 'aaaa');
-    print $misc->{gc_content};
+The information collected includes the following:
 
-=head2 Data Structures
+amino acids in all reading frames, nucleotide/aa/dinucleotide/codon
+frequencies.  Weights (in Daltons), pI of amino acids, volume of
+amino acids, polarity of amino acids, hydrophobicity, solubility,
+pYrimidine/puRine ratio, # hydrogen bonds by codon, charge by
+amino acid, pkCOOH, pkNHHH, pkR, occurrence value, accessibility
+value, %amino acid buried, isoelectric point, amino acid sequences
+in all reading frames, dinucleotide sequences of the 12, 23, 31,
+and 13 transitions.  Reverse sequence, complementary sequence,
+revcomp.  GC/CT content.
 
-=over 4
+Conversely, perform randomizations using a few algorithms
+including via the external squid library.
+
+=head1 DATA STRUCTURES
+
+=over
 
 =item C<$references>
 
-    The namespace global variable '$references' contains some generic
-    information.  Note to self: I've been meaning for years to include
-    either the codon tables from the codon database or a way to read
-    in a text file.  Do that, damnit!
+The namespace global variable '$references' contains some generic
+information.  Note to self: I've been meaning for years to include
+either the codon tables from the codon database or a way to read
+in a text file.  Do that, damnit!
 
 =cut
 our $references = {
@@ -481,6 +479,14 @@ our $references = {
     },
 };
 
+=head1 METHODS
+
+=head2 C<new>
+
+Construct a new SeqMisc object.  In so doing, perform the various queries suggested by the
+global data structure above...
+
+=cut
 sub new {
     my ($class, %arg) = @_;
 #    $arg{sequence} = [] if (!defined($arg{sequence}));
@@ -597,7 +603,16 @@ sub new {
     return ($me);
 }
 
-###  Pick random nucleotides to replace our sequence, keep picking if you choose a stop codon.
+=head1 ATTRIBUTION
+
+I think Jonathan Jacobs wrote some of these, but the history of what has been
+lost to time I am afraid.
+
+=head2 C<Random>
+
+Randomize a sequence.
+
+=cut
 sub Random {
     my $me = shift;
     my @seq = @{$me->{sequence}};
@@ -626,7 +641,11 @@ sub Random {
     return (\@return);
 }
 
-###  Shuffle the codons, maintain codon frequencies.
+=head2 C<SameCodons>
+
+Randomize a sequence but maintain codons.
+
+=cut
 sub SameCodons {
     my $me = shift;
     my @codons = @{$me->{codonseq}};
@@ -640,6 +659,11 @@ sub SameCodons {
     return (\@return);
 }
 
+=head2 C<Get_CT>
+
+Gather the pyrimidine percentage of a sequence.  I don't remember why.
+
+=cut
 sub Get_CT {
     my $me = shift;
     my $arr = shift;
@@ -667,6 +691,11 @@ sub Get_CT {
     return($ct);
 }
 
+=head2 C<Get_GC>
+
+This gets the more common GC content.
+
+=cut
 sub Get_GC {
     my $me = shift;
     my $arr = shift;
@@ -694,6 +723,11 @@ sub Get_GC {
     return($gc);
 }
 
+=head2 C<Same31Random>
+
+Maintain the percentages of first, third codon positions when randomizing a sequence.
+
+=cut
 sub Same31Random {
     my $me = shift;
     my @dint31seq = @{$me->{dint31seq}};
@@ -732,54 +766,11 @@ sub Same31Random {
     return (\@return);
 }
 
-####  SameDint takes two args: saved_positions and freq_positions
-##  saved_positions defines positions which must remain the exact same
-##   from parent to child sequence.
-##  freq_positions are positions which must maintain the same frequencies
-##   from parent to child sequence -- thus shuffled
-##  So if I call SameDint(['12'], undef) then I want the first two nucleotides
-##   every codon to remain the same from parent to child, all else is randomized.
-##  If I call SameDint(undef, ['12','23','31']) I want to maintain all codon dinucleotide frequencies.
+=head2 C<Sameaa>
 
-## This does not do anything right now
-sub SameDint {
-#    my $me = shift;
-    return(undef);
-#    my $saved_positions = shift;
-#    my $freq_positions  = shift;
-#    ## The parent dinucleotide sequences
-#    my @onetwo = @{$me->{dintseq}{12}};
-#    my @twothree = @{$me->{dintseq}{23}};
-#    my @threeone = @{$me->{dintseq}{31}};
-#
-#    my @return;
-#    my $count = 0;
-#    my $rotate = 0;
-#
-#    while (scalar(@dint) > 0) {
-#	if ($rotate == 1) {
-#	    my @tmp;
-#	    if ($saved_positions->[0] eq '12') {
-#		@tmp = split(//, shift @onetwo);
-#	    } elsif ($freq_positions->[0] eq '12') {
-#		@tmp = split(//, splice(@onetwo, int(rand(scalar(@onetwo)))));
-#	    } else {
-#		shift @onetwo;
-#		push(@tmp, $me->{nt}->{int(rand(4))});
-#		push(@tmp, $me->{nt}->{int(rand(4))});
-#	    }
-#	    $rotate++;
-#	}
-#    }  ## End top level while
-#    my $pull = int(rand(scalar(@dint)));
-#    my ($one, $two) = split(//, $dint[$pull]);
-#    push(@return, $one, $two);
-#    splice(@dint, $pull, 1);
-#    return (\@return);
-}
+Maintain amino acid frequencies but choose a random codon from those available for each amino acid.
 
-###  Maintain amino acid frequencies but choose a random codon from those
-###   available for each amino acid.
+=cut
 sub Sameaa {
     my $me = shift;
     my $aaref = shift;
@@ -793,15 +784,18 @@ sub Sameaa {
     return (\@return);
 }
 
-## Step 1:  Acquire a sequence to randomize
-## Step 2:  pick an amino acid to consider out of pool of amino acids not yet considered.
-## Step 3:  Choose two random codons in the sequence which code for this amino acid.
-##   "Consider the consequences of swapping the 1st and jth codons."
-##  Make the swap if the 1,3 dinucleotides do not change after the swap.
-##  If they do change, make a list of all reciprocal swaps remaining, pick one at random, make both swaps.
-##  Mark both pairs as 'swapped'
-##  Recurse for all other codons for all amino acids.
+=head2 C<Same31Composite>
 
+Step 1:  Acquire a sequence to randomize
+Step 2:  pick an amino acid to consider out of pool of amino acids not yet considered.
+Step 3:  Choose two random codons in the sequence which code for this amino acid.
+  "Consider the consequences of swapping the 1st and jth codons."
+ Make the swap if the 1,3 dinucleotides do not change after the swap.
+ If they do change, make a list of all reciprocal swaps remaining, pick one at random, make both swaps.
+ Mark both pairs as 'swapped'
+ Recurse for all other codons for all amino acids.
+
+=cut
 sub Same31Composite {
     my $me = shift;
     my @dint31seq = @{$me->{dint31seq}};
@@ -834,6 +828,11 @@ sub Same31Composite {
     return (\@codons);
 }
 
+=head2 C<Find_Alternates
+
+Find alternate codons for a given codon.
+
+=cut
 sub Find_Alternates {
     my $me = shift;
     my $amino = shift;
@@ -843,42 +842,52 @@ sub Find_Alternates {
     return ($starters) if ($spec eq '...');
     my ($dumbone, $dumbtwo, $dumbthree) = split(//, $spec);
     if ($dumbtwo eq '.' and $dumbone eq '.') {
-	foreach my $codon (@{$starters}) {
-	    my ($one, $two, $three) = split(//, $codon);
-	    push(@return, $codon) if ($dumbthree eq $three);
-	}
+        foreach my $codon (@{$starters}) {
+            my ($one, $two, $three) = split(//, $codon);
+            push(@return, $codon) if ($dumbthree eq $three);
+        }
     } elsif ($dumbtwo eq '.') {
-	foreach my $codon (@{$starters}) {
-	    my ($one, $two, $three) = split(//, $codon);
-	    push(@return, $codon) if ($dumbthree eq $three and $dumbone eq $one);
-	}
+        foreach my $codon (@{$starters}) {
+            my ($one, $two, $three) = split(//, $codon);
+            push(@return, $codon) if ($dumbthree eq $three and $dumbone eq $one);
+        }
     } else {
-	print "What!?\n";
+        print "What!?\n";
     }
     return (\@return);
 }
 
+=head2 C<Translate>
+
+Translate some sequence.  There are so many versions of this function, I bet
+this one is amont the worst.
+
+=cut
 sub Translate {
     my $me = shift;
     my $sequence = $me->{seqstring};
     $sequence =~ tr/atgcT/AUGCU/;
     if ((!$me->{sequence}) and (!defined($sequence))) {
-##	Callstack(message => "Nothing to work with.", die => 1);
         die("Nothing to work with.");
     } elsif (defined($sequence)) {
-	my @seqtmp = split(//, $sequence);
-	my $t = new SeqMisc(sequence => \@seqtmp);
-	my $aaseq = join("", @{$t->{aaseq}});
-	undef $t;
-	return ($aaseq);
+        my @seqtmp = split(//, $sequence);
+        my $t = new SeqMisc(sequence => \@seqtmp);
+        my $aaseq = join("", @{$t->{aaseq}});
+        undef $t;
+        return ($aaseq);
     } else {
-	my $aaseq = join("", @{$me->{aaseq}});
-	return ($aaseq);
+        my $aaseq = join("", @{$me->{aaseq}});
+        return ($aaseq);
     }
 }
-## Expect an array reference, return same reference, but array changed.
-## Just do a pseudo random number randomization of each incoming nucleotide
-## Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+
+=head2 C<Coin_Random>
+
+Expect an array reference, return same reference, but array changed.
+Just do a pseudo random number randomization of each incoming nucleotide
+Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+
+=cut
 sub Coin_Random {
   my $me = shift;
   my $sequence = shift;
@@ -889,9 +898,12 @@ sub Coin_Random {
   return ($sequence);
 }
 
-## Expect an array reference
-## Perform a shuffle by substitution
-## Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+=head2 C<Nucleotide_Montecarlo>
+
+Expect an array reference, Perform a shuffle by substitution
+Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+
+=cut
 sub Nucleotide_Montecarlo {
   my $start_sequence = shift;
   my @st = @{$start_sequence};
@@ -906,10 +918,14 @@ sub Nucleotide_Montecarlo {
   return ($new_sequence);
 }
 
-## Expect an array reference
-## Perform a shuffle keeping the same dinucleotide frequencies as original sequence.
-## Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
-## I don't know why, but I love the way Jonathan wrote this.
+=head2 C<Dinucleotide>
+
+Expect an array reference
+Perform a shuffle keeping the same dinucleotide frequencies as original sequence.
+Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+I don't know why, but I love the way Jonathan wrote this.
+
+=cut
 sub Dinucletode {
     my $start_sequence = shift;
     my @st = @{$start_sequence};
@@ -928,9 +944,13 @@ sub Dinucletode {
     return (\@new_sequence);
 }
 
-## Expect an array reference
-## Perform a shuffle keeping the same triplet frequencies as original sequence.
-## Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+=head2 C<Codon_montecarlo>
+
+Expect an array reference
+Perform a shuffle keeping the same triplet frequencies as original sequence.
+Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+
+=cut
 sub Codon_montecarlo {
     my $start_sequence = shift;
     my @new_sequence = ();
@@ -945,10 +965,14 @@ sub Codon_montecarlo {
     return (\@new_sequence);
 }
 
-## Expect an array reference
-## Perform a shuffle keeping the same triplet frequencies as original sequence.
-## Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
-## This will clearly not work anymore.
+=head2 C<Related_Codon>
+
+Expect an array reference
+Perform a shuffle keeping the same triplet frequencies as original sequence.
+Code shamelessly taken from Jonathan Jacobs' <jlj email> work from 2003.
+This will clearly not work anymore.
+
+=cut
 sub Related_Codon {
     my $start_sequence = shift;
     my @codons = $start_sequence =~ /(\w\w\w)/g;
@@ -959,10 +983,12 @@ sub Related_Codon {
     return (\@codons);
 }
 
-## ARRAYSHUFFLE
-##
-## This shuffles a referenced array like a deck of cards.
-## From the Perl cookbook. Uses the Fischer-Yates Shuffle.
+=head2 C<Array_Shuffle>
+
+This shuffles a referenced array like a deck of cards.
+From the Perl cookbook. Uses the Fischer-Yates Shuffle.
+
+=cut
 sub ArrayShuffle {
     my $seqArrayREF = shift;
     my @arrayREF = @$seqArrayREF;
@@ -974,6 +1000,11 @@ sub ArrayShuffle {
     return (\@arrayREF);
 }
 
+=head2 C<Squid>
+
+Invoke squid and use its better methods for shuffling.
+
+=cut
 sub Squid {
     my $inarray = shift;
     my $shuffle = shift;
@@ -984,28 +1015,33 @@ sub Squid {
     else { $shuffle_exe = 'shuffle'; }
     my $out_text;
     {    ## Begin a File::Temp Block
-	my $fh = new File::Temp(DIR => qq"$ENV{HOME}/tmp", UNLINK => 0,);
-	## OPEN $fh in Squid
-	print $fh ">tmpsquid
+        my $fh = new File::Temp(DIR => qq"$ENV{HOME}/tmp", UNLINK => 0,);
+        ## OPEN $fh in Squid
+        print $fh ">tmpsquid
 $inseq
 ";
-	my $infile = $fh->filename;
-	my $command = "$shuffle_exe $infile";
-	open(CMD, "$command |");
-	## OPEN CMD in Squid
-	while (my $line = <CMD>) {
-	    chomp $line;
-	    next if ($line =~ /^\>/);
-	    $out_text = join('', $out_text, $line);
-	}    ## End while
-	close(CMD);
-	unlink($infile);
-	## CLOSE CMD in Squid
+        my $infile = $fh->filename;
+        my $command = "$shuffle_exe $infile";
+        open(CMD, "$command |");
+        ## OPEN CMD in Squid
+        while (my $line = <CMD>) {
+            chomp $line;
+            next if ($line =~ /^\>/);
+            $out_text = join('', $out_text, $line);
+        }    ## End while
+        close(CMD);
+        unlink($infile);
+        ## CLOSE CMD in Squid
     }    ## End a File::Temp Block -- the tempfile should now no longer exist.
     my @out_array = split(//, $out_text);
     return (\@out_array);
 }
 
+=head2 C<Squid_Dinuc>
+
+Use Squid to dinucleotide shuffle some sequence.
+
+=cut
 sub Squid_Dinuc {
     my $inarray = shift;
     my $shuffle = shift;
@@ -1016,26 +1052,31 @@ sub Squid_Dinuc {
     else { $shuffle_exe = qq($ENV{HOME}/bin/shuffle); }
     my $out_text = '';
     {    ## Begin a File::Temp Block
-	my $fh = new File::Temp(DIR => qq"$ENV{HOME}/tmp", UNLINK => 0,);
-	print $fh ">tmp
+        my $fh = new File::Temp(DIR => qq"$ENV{HOME}/tmp", UNLINK => 0,);
+        print $fh ">tmp
 $inseq
 ";
-	my $infile = $fh->filename;
-	my $command = qq($shuffle_exe -d $infile);
-	open(CMD, "$command |");
-	## OPEN CMD in Squid_Dinuc
-	while (my $line = <CMD>) {
-	    chomp $line;
-	    next if ($line =~ /^\>/);
-	    $out_text = join('', $out_text, $line);
-	}
-	close(CMD);
-	unlink($infile);
+        my $infile = $fh->filename;
+        my $command = qq($shuffle_exe -d $infile);
+        open(CMD, "$command |");
+        ## OPEN CMD in Squid_Dinuc
+        while (my $line = <CMD>) {
+            chomp $line;
+            next if ($line =~ /^\>/);
+            $out_text = join('', $out_text, $line);
+        }
+        close(CMD);
+        unlink($infile);
     }    ## End a ifile::temp block
     my @out_array = split(//, $out_text);
     return (\@out_array);
 }
 
+=head2 C<Codon_Distribution>
+
+Gather the distribution of codons from a sequence.
+
+=cut
 sub Codon_Distribution {
     my $me = shift;
     my %args = @_;
@@ -1059,6 +1100,11 @@ sub Codon_Distribution {
     return($dist_array);
 }
 
+=head2 C<Add_One>
+
+Count!
+
+=cut
 sub Add_One {
     my $me = shift;
     my $pos = shift;
@@ -1066,15 +1112,15 @@ sub Add_One {
     my @array = @{$arr};
     my $len = $#array;
     if ($len >= $pos) {
-	$arr->[$pos]++;
-	return($arr);
+        $arr->[$pos]++;
+        return($arr);
     } else {
-	my $c = 0;
-	while ($c < $pos) {
-	    $array[$c] = 0 unless ($array[$c]);
-	    $c++;
-	}
-	return(\@array);
+        my $c = 0;
+        while ($c < $pos) {
+            $array[$c] = 0 unless ($array[$c]);
+            $c++;
+        }
+        return(\@array);
     }
 }
 

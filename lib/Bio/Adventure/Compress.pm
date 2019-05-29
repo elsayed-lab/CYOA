@@ -10,9 +10,21 @@ extends 'Bio::Adventure';
 
 use File::Basename;
 
-=head2
+=head1 NAME
 
-    Recompress()
+Bio::Adventure::Compress - Handle the (de/re)compression of data files.
+
+=head1 SYNOPSIS
+
+Some tools can handle compressed input, some cannot.  Bio::Adventure makes heavy use
+of bash subshells <(less filename) to automagically handle any format, but at times
+one must still decompress/recompress some data.
+
+=head1 METHODS
+
+=head2 C<Recompress>
+
+Invoke xz to recompress a given input file.
 
 =cut
 sub Recompress {
@@ -80,9 +92,9 @@ sub Recompress {
     return($compression);
 }
 
-=head2
+=head2 C<Uncompress>
 
-    Uncompress()
+This really should not be necessary for anything anymore given my use of bash's <().
 
 =cut
 sub Uncompress {

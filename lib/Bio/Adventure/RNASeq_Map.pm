@@ -12,32 +12,29 @@ use File::Which qw"which";
 
 =head1 NAME
 
-    Bio::Adventure::RNASeq_Map - Perform highthroughput sequence alignments with tools like bowtie/tophat/etc
+Bio::Adventure::RNASeq_Map - Perform highthroughput sequence alignments with tools like bowtie/tophat/etc
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Bowtie();
+use Bio::Adventure;
+my $hpgl = new Bio::Adventure;
+$hpgl->Bowtie();
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Bowtie>
 
-=item C<Bowtie>
+Perform a bowtie alignment.  Unless instructed otherwise, it will do so with 0
+mismatches and with multi-matches randomly placed 1 time among the
+possibilities. (options -v 0 -M 1)
 
-    $hpgl->Bowtie() performs a bowtie alignment.  Unless instructed
-    otherwise, it will do so with 0 mismatches and with multi-matches
-    randomly placed 1 time among the possibilities. (options -v 0 -M 1)
+It checks to see if a bowtie1 compatible index is in
+$libdir/$libtype/indexes/$species, if not it attempts to create
+them.
 
-
-    It checks to see if a bowtie1 compatible index is in
-    $libdir/$libtype/indexes/$species, if not it attempts to create
-    them.
-
-    It will continue on to convert the bowtie sam output to a
-    compressed, sorted, indexed bam file, and pass that to htseq-count
-    using a gff file of the same species.
+It will continue on to convert the bowtie sam output to a compressed, sorted,
+indexed bam file, and pass that to htseq-count using a gff file of the same
+species.
 
 =cut
 sub Bowtie {
@@ -74,7 +71,7 @@ sub Bowtie {
 
     my $uncompress_jobid = undef;
     my $index_jobid = undef;
-    ##if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
+    ## if ($bt_input =~ /\.gz$|\.bz2$|\.xz$/ ) {
     ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
     ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
     ##        $class,
@@ -236,19 +233,19 @@ sub Bowtie {
     return(\%bt_jobs);
 }
 
-=item C<Bowtie2>
+=head2 C<Bowtie2>
 
-    $hpgl->Bowtie2() performs a bowtie2 alignment.  Unless instructed
-    otherwise, it will do so with 0 mismatches and with multi-matches
-    randomly placed 1 time among the possibilities. (options -v 0 -M 1)
+Perform a bowtie2 alignment.  Unless instructed otherwise, it will do so with 0
+mismatches and with multi-matches randomly placed 1 time among the
+possibilities. (options -v 0 -M 1)
 
-    It checks to see if a bowtie2 compatible index is in
-    $libdir/$libtype/indexes/$species, if not it attempts to create
-    them.
+It checks to see if a bowtie2 compatible index is in
+$libdir/$libtype/indexes/$species, if not it attempts to create
+them.
 
-    It will continue on to convert the bowtie sam output to a
-    compressed, sorted, indexed bam file, and pass that to htseq-count
-    using a gff file of the same species.
+It will continue on to convert the bowtie sam output to a
+compressed, sorted, indexed bam file, and pass that to htseq-count
+using a gff file of the same species.
 
 =cut
 sub Bowtie2 {
@@ -443,13 +440,12 @@ fi
     return(\%bt_jobs);
 }
 
-=item C<BT_Multi>
+=head2 C<BT_Multi>
 
-    $hpgl->BT_Multi() attempts to run multiple bowtie1 runs for a
-    given species.  One run is performed for each of a few parameters
-    which are kept in the variable '$hpgl->{bt_types}' and generally
-    include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
-    hit, 0 randomly placed hits, or default options.
+Attempts to run multiple bowtie1 runs for a given species.  One run is performed
+for each of a few parameters which are kept in the variable '$hpgl->{bt_types}'
+and generally include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
+hit, 0 randomly placed hits, or default options.
 
 =cut
 sub BT_Multi {
@@ -480,17 +476,16 @@ sub BT_Multi {
     return(\@jobs);
 }
 
-=item C<Bowtie_RRNA>
+=head2 C<Bowtie_RRNA>
 
-    $hpgl->Bowtie_RRNA() performs an alignment against a home-curated
-    set of ribosomal RNA/tRNA sequences.  The alignment requires a
-    fastq input library and fasta library found in
-    'libraries/rRNA/$class->{species}.fasta'
+Perform an alignment against a home-curated set of ribosomal RNA/tRNA sequences.
+The alignment requires a fastq input library and fasta library found in
+'libraries/rRNA/$class->{species}.fasta'
 
-  Example:
-    my $rrna = $hpgl->Bowtie_RRNA();
-    ## If you want to exclude the rRNA sequences from future alignments:
-    my $rrna = $hpgl->Bowtie_RRNA(exclude => 1);
+Example:
+  my $rrna = $hpgl->Bowtie_RRNA();
+  ## If you want to exclude the rRNA sequences from future alignments:
+  my $rrna = $hpgl->Bowtie_RRNA(exclude => 1);
 
 =cut
 sub Bowtie_RRNA {
@@ -525,10 +520,10 @@ sub Bowtie_RRNA {
     return($job);
 }
 
-=item C<BT1_Index>
+=head2 C<BT1_Index>
 
-    $hpgl->BT1_Index() creates a bowtie1 index using
-    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+Create a bowtie1 index using $hpgl->{species}.fasta and leaves it in the
+indexes/ directory.
 
 =cut
 sub BT1_Index {
@@ -552,10 +547,10 @@ sub BT1_Index {
     return($bt1_index);
 }
 
-=item C<BT2_Index>
+=head2 C<BT2_Index>
 
-    $hpgl->BT2_Index() creates a bowtie2 index using
-    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+Create a bowtie2 index using ${species}.fasta and leaves it in the indexes/
+directory.
 
 =cut
 sub BT2_Index {
@@ -590,11 +585,11 @@ bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
     return($indexer);
 }
 
-=item C<BWA>
+=head2 C<BWA>
 
-    $hpgl->BWA() performs a bwa alignment using both the sam(s|p)e and
-    aln algorithms.  It then converts the output (when appropriate) to
-    sorted/indexed bam and passes them to htseq.
+Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
+converts the output (when appropriate) to sorted/indexed bam and passes them to
+htseq.
 
 =cut
 sub BWA {
@@ -774,9 +769,9 @@ ${reporter_string}
     return(\%bwa_jobs);
 }
 
-=item C<BWA_Stats>
+=head2 C<BWA_Stats>
 
-    $hpgl->BWA_Stats() collects some alignment statistics from bwa.
+Collect some alignment statistics from bwa.
 
 =cut
 sub BWA_Stats {
@@ -830,9 +825,9 @@ echo "\${stat_string}" >> ${stat_output}!;
     return($stats);
 }
 
-=item C<BWA_Index>
+=head2 C<BWA_Index>
 
-    $hpgl->BWA_Index() creates bwa indexes.
+Create bwa indexes.
 
 =cut
 sub BWA_Index {
@@ -863,9 +858,9 @@ cd \$start
     return($bwa_index);
 }
 
-=item C<BT2_Stats>
+=head2 C<BT2_Stats>
 
-    $hpgl->BT2_Stats() collects alignment statistics from bowtie 2.
+Collects alignment statistics from bowtie 2.
 
 =cut
 sub BT2_Stats {
@@ -912,6 +907,11 @@ echo "\$stat_string" >> ${output}!;
     return($stats);
 }
 
+=head2 C<Hisat2>
+
+Invoke hisat2
+
+=cut
 sub Hisat2 {
     my ($class, %args) = @_;
     my $check = which('hisat2-build');
@@ -1087,10 +1087,10 @@ fi
 return(\%ht_jobs);
 }
 
-=item C<HT2_Index>
+=head2 C<HT2_Index>
 
-    $hpgl->HT2_Index() creates a bowtie2 index using
-    $hpgl->{species}.fasta and leaves it in the indexes/ directory.
+Create a hisat2 index using ${species}.fasta and leaves it in the indexes/
+directory.
 
 =cut
 sub HT2_Index {
@@ -1125,9 +1125,9 @@ hisat2-build $options->{libdir}/genome/$options->{species}.fasta \\
     return($indexer);
 }
 
-=item C<HT2_Stats>
+=head2 C<HT2_Stats>
 
-    $hpgl->HT2_Stats() collects alignment statistics from hisat 2.
+Collect alignment statistics from hisat 2.
 
 =cut
 sub HT2_Stats {
@@ -1173,10 +1173,9 @@ echo "\$stat_string" >> ${output}!;
     return($stats);
 }
 
+=head2 C<Kallisto_Index
 
-=item C<Kallisto_Index
-
-    $hpgl->Kallisto_Index() uses kallisto and an annotated_CDS fasta sequence library to do the expected.
+Use kallisto and an annotated_CDS fasta sequence library to create an index.
 
 =cut
 sub Kallisto_Index {
@@ -1209,10 +1208,9 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/$options->{species}.idx 
     return($jobid);
 }
 
-=item C<Kallisto>
+=head2 C<Kallisto>
 
-    $hpgl->Kallisto() should perform a kallisto alignment, I have not
-    yet properly tested this  TODO!
+Perform a kallisto transcript quantification.
 
 =cut
 sub Kallisto {
@@ -1345,10 +1343,10 @@ kallisto quant ${ka_args} \\
     return(\%ka_jobs);
 }
 
+=head2 C<Salmon_Index>
 
-=item C<Salmon_Index
-
-    $hpgl->Salmon_Index() uses salmon and an annotated_CDS fasta sequence library to do the expected.
+Invoke salmon with an annotated_CDS fasta sequence library to create a
+transcript index.
 
 =cut
 sub Salmon_Index {
@@ -1381,9 +1379,9 @@ salmon index -t ${genome} -i $options->{libdir}/${libtype}/indexes/$options->{sp
     return($jobid);
 }
 
-=item C<Salmon>
+=head2 C<Salmon>
 
-    $hpgl->Salmon() should perform a salmon quantification.
+Perform a salmon quantification of transcript abundances.
 
 =cut
 sub Salmon {
@@ -1484,6 +1482,11 @@ salmon quant -i ${sa_reflib} \\
     return(\%sa_jobs);
 }
 
+=head2 C<STAR>
+
+Invoke STAR for transcript abundances.
+
+=cut
 sub STAR {
     my ($class, %args) = @_;
     my $check = which('STAR');
@@ -1583,6 +1586,11 @@ STAR \\
     return(\%star_jobs);
 }
 
+=head2 C<STAR_Index>
+
+Create indexes appropriate for STAR.
+
+=cut
 sub STAR_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -1620,7 +1628,7 @@ STAR \\
 
 =item C<RSEM_Index
 
-    $hpgl->RSEM_Index() uses RSEM and an annotated_CDS fasta sequence library to do the expected.
+Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
 
 =cut
 sub RSEM_Index {
@@ -1646,6 +1654,11 @@ rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
     return($jobid);
 }
 
+=head2 C<RSEM>
+
+Invoke RSEM.
+
+=cut
 sub RSEM {
     my ($class, %args) = @_;
     my $check = which('rsem-prepare-reference');
@@ -1732,11 +1745,10 @@ sub RSEM {
     return(\%rsem_jobs);
 }
 
-=item C<Tophat>
+=head2 C<Tophat>
 
-    $hpgl->Tophat() runs... guess... tophat!  It also sorts/indexes
-    the accepted_hits file, collects some statistics, and passes the
-    hits to htseq-count.
+Invokes tophat!  It also sorts/indexes the accepted_hits file, collects some
+statistics, and passes the hits to htseq-count.
 
 =cut
 sub Tophat {
@@ -1903,10 +1915,9 @@ fi
     return($tophat);
 }
 
-=item C<BT1_Stats>
+=head2 C<BT1_Stats>
 
-    $hpgl->BT1_Stats() collects some alignment statistics from
-    bowtie1.
+Collect some alignment statistics from bowtie1.
 
 =cut
 sub BT1_Stats {
@@ -1960,10 +1971,10 @@ echo "\$stat_string" >> ${stat_output}!;
     return($stats);
 }
 
-=item C<Tophat_Stats>
+=head2 C<Tophat_Stats>
 
-    $hpgl->Tophat_Stats() collects alignment statistics from the
-    accepted_hits.bam/unaligned.bam files generated by a tophat run.
+Collect alignment statistics from the accepted_hits.bam/unaligned.bam files
+generated by a tophat run.
 
 =cut
 sub Tophat_Stats {

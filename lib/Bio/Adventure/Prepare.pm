@@ -11,36 +11,33 @@ use Text::CSV;
 
 =head1 NAME
 
-    Bio::Adventure::Prepare - get raw data ready for processing
+Bio::Adventure::Prepare - Get raw data ready for processing.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Prepare(csv => 'all_samples.csv');
+use Bio::Adventure;
+my $hpgl = new Bio::Adventure;
+$hpgl->Prepare(csv => 'all_samples.csv');
 
-=over 4
+=head1 Methods
 
-=Methods
+=head2 C<Copy_Raw>
 
-=cut
-
-=item C<Copy_Raw>
-
-    Copy from the raw_data store
+Copy from the raw_data store.  This is probably no longer useful.
 
 =cut
 sub Copy_Raw {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args, required => ['raw_dir']);
+    my $options = $class->Get_Vars(args => \%args,
+                                   required => ['raw_dir', 'sampleid'],);
     if ($args{interactive}) {
         print "Run with: cyoa --task prepare --method copy --csv all_samples.csv --raw_dir /some/directory
-      or: cyoa --task prepare --method copy --raw_dir /some/directory --hpgl HPGL0xxx\n";
+      or: cyoa --task prepare --method copy --raw_dir /some/directory --sampleid HPGL0xxx\n";
     }
     my $data = {};
-    if ($options->{hpgl}) {
-        my $hpgl = $options->{hpgl};
-        $data->{$hpgl} = "raw";
+    if ($options->{sampleid}) {
+        my $id = $options->{sampleid};
+        $data->{$id} = "raw";
     } else {
         $data = Bio::Adventure::Prepare::Read_Samples($class, %args);
     }
@@ -77,9 +74,9 @@ sub Copy_Raw {
     return($files_read);
 }
 
-=item C<Read_Samples>
+=head2 C<Read_Samples>
 
-    Read the sample csv file.
+Read the sample csv file.
 
 =cut
 sub Read_Samples {

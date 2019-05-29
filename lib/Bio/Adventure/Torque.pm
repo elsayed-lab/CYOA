@@ -43,22 +43,19 @@ sub Check_Qsub {
 
 =head1 NAME
 
-    Bio::Adventure::Qsub - Submit jobs to the torque cluster.
+Bio::Adventure::Torque - Submit jobs to a torque cluster.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Cutadapt();
+Caveat, we no longer have a torque cluster, so this might not work anymore.
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=over
 
-=item C<Qsub>
+=head2 C<Submit>
 
-    $hpgl->Qsub(); invokes qsub with (hopefully) appropriate
-    parameters for various jobs on our Torque cluster.
+Invoke qsub with (hopefully) appropriate parameters for various jobs on our Torque cluster.
 
 =cut
 sub Submit {

@@ -44,21 +44,19 @@ sub Check_Sbatch {
 
 =head1 NAME
 
-    Bio::Adventure::Slurm - Submit jobs to the Slurm cluster.
+Bio::Adventure::Slurm - Submit jobs to the Slurm cluster.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure::Slurm;
+use Bio::Adventure;
+my $hpgl = new Bio::Adventure::Slurm;
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Submit>
 
-=item C<Submit>
-
-    $hpgl->Submit(); invokes sbatch with (hopefully) appropriate
-    parameters for various jobs on our Slurm cluster.
+$hpgl->Submit(); invokes sbatch with (hopefully) appropriate
+parameters for various jobs on our Slurm cluster.
 
 =cut
 sub Submit {

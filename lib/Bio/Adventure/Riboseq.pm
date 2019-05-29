@@ -15,6 +15,17 @@ use Math::BigFloat ':constant';
 use PerlIO;
 use POSIX;
 
+=head1 NAME
+
+Bio::Adventure::Riboseq - Various functions for working with ribosome profiling data.
+
+=head1 METHODS
+
+=head2 C<Riboseq_Calibrate>
+
+Figure out the relationships between read length and likely positions of the ribosomal A/P/E sites.
+
+=cut
 sub Riboseq_Calibrate {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -44,6 +55,13 @@ new observations.\n";
     my $bam = Bio::Adventure::Riboseq::Riboseq_Bam($class, %args);
 }
 
+=head2 C<Calibrate>
+
+This uses some pre-defined read-length adjustments to calibrate the read
+positions.  These are supposed to be provided by a parameter file so that I can
+change them according to each experiment.
+
+=cut
 sub Calibrate {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -87,7 +105,11 @@ sub Calibrate {
     return($rel_pos);
 }
 
+=head2 C<Graph_Reads>
 
+Create a series of svg plots of transcripts and reads.
+
+=cut
 sub Graph_Reads {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -117,6 +139,11 @@ Likely options include:
     return($counted);
 }
 
+=head2 C<Read_Counts>
+
+Gather reads by position for future processing.
+
+=cut
 sub Read_Counts {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args,
@@ -164,6 +191,13 @@ sub Read_Counts {
     return($line_count);
 }
 
+=head2 C<Correct>
+
+Perform the actual changing of read positions according to size.  Is this
+redundant?  It has been so long since I did this that I no longer know what I
+was thinking here...
+
+=cut
 sub Correct {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -255,6 +289,11 @@ sub Correct {
     return($rel_pos);
 }
 
+=head2 C<Print_Chromosome>
+
+This should be moved, I use it in other places for working with chromosomes...
+
+=cut
 sub Print_Chromosome {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -587,35 +626,9 @@ sub Riboseq_Good_Size {
 
 __END__
 
-=head1 NAME
-
-count_reads.pl - Describe the usage of script briefly
-
-=head1 SYNOPSIS
-
-count_reads.pl [options] args
-
-      -opt --long      Option description
-
-=head1 DESCRIPTION
-
-Stub documentation for count_reads.pl,
-
 =head1 AUTHOR
 
 Ashton Trey Belew, E<lt>abelew@gmail.comE<gt>
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright (C) 2014 by Ashton Trey Belew
-
-This program is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.2 or,
-at your option, any later version of Perl 5 you may have available.
-
-=head1 BUGS
-
-None reported... yet.
 
 =cut
 

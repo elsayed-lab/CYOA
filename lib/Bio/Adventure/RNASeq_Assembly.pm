@@ -15,22 +15,19 @@ use Parse::CSV;
 
 =head1 NAME
 
-    Bio::Adventure::RNASeq_Assembly - Perform some denovo assembly tasks
+Bio::Adventure::RNASeq_Assembly - Perform some denovo assembly tasks.
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Trinity();
+The functions here pretty much all deal with trinity, as that is the primary assembler
+I have played with.  I keep meaning to add masurca, but I have not.
 
-=head2 Methods
+=head1 METHODS
 
-=over 4
+=head2 C<Transdecoder>
 
-=item C<Transdecoder>
-
-    $hpgl->Transdecoder() submits a trinity denovo sequence assembly and
-    runs its default post-processing tools.
+$hpgl->Transdecoder() submits a trinity denovo sequence assembly and runs its
+default post-processing tools.
 
 =cut
 sub Transdecoder {
@@ -74,10 +71,9 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
     return($transdecoder_job);
 }
 
-=item C<Trinotate>
+=head2 C<Trinotate>
 
-    $hpgl->Trinotate() submits a trinity denovo sequence assembly and
-    runs its default post-processing tools.
+$hpgl->Trinotate() submits a trinity denovo sequence assembly to trinotate.
 
 =cut
 sub Trinotate {
@@ -122,10 +118,10 @@ ${trinotate_exe_dir}/auto/autoTrinotate.pl \\
     return($trinotate_job);
 }
 
-=item C<Trinity>
+=head2 C<Trinity>
 
-    $hpgl->Trinity() submits a trinity denovo sequence assembly and
-    runs its default post-processing tools.
+$hpgl->Trinity() submits a trinity denovo sequence assembly and runs its default
+post-processing tools.
 
 =cut
 sub Trinity {
@@ -194,6 +190,11 @@ sub Trinity {
     return($jobs);
 }
 
+=head2 C<Trinity_Post>
+
+Perform some of the post-processing tools provided by trinity.
+
+=cut
 sub Trinity_Post {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -268,18 +269,31 @@ cd \${start}
     return($trinpost_job);
 }
 
+=head2 C<Extract_Trinotate>
+
+The trinotate output format is a bit... unwieldy.  This seeks to parse out the
+useful information from it.
+
+=over
+
+=item I<evalue> - Evalue cutoff for trinotate output.
+
+=item I<identity> - Minimum percent identity cutoff for trinotate output.
+
+=back
+
+=cut
 sub Extract_Trinotate {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        jname => "trin_rsem",
-        output => 'interesting.fasta',
-        evalue => 1e-10,
-        identity => 70,
-    );
+    my ($class, %args) = @_; my
+        $options = $class->Get_Vars(args => \%args,
+                                    required => ['input'],
+                                    jname => "trin_rsem",
+                                    output => 'interesting.fasta',
+                                    evalue => 1e-10,
+                                    identity => 70, );
     my $job_basename = $class->Get_Job_Name();
-    my $trinity_out_dir = qq"outputs/trinity_${job_basename}";
+    my $trinity_out_dir =
+        qq"outputs/trinity_${job_basename}";
 
 
     my $input = FileHandle->new("<$options->{input}");
@@ -305,7 +319,11 @@ sub Extract_Trinotate {
     $input->close();
 }
 
+=head2 C<Read_Write_Annotation>
 
+Write out the trinotate csv information into an easier-to-read format.
+
+=cut
 sub Read_Write_Annotation {
     my ($class, $object, %args) = @_;
     my $annotations = $args{db};
@@ -486,6 +504,11 @@ sub Read_Write_Annotation {
     return($filled_in);
 }
 
+=head2 C<Extract_Annotations>
+
+Used above for getting the annotations out of the encoded fields.
+
+=cut
 sub Extract_Annotations {
     my ($class, $datum, %args) = @_;
     my $min_identity = $args{identity};

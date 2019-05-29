@@ -13,21 +13,19 @@ use File::ShareDir ':ALL';
 use File::Which qw"which";
 
 =head1 NAME
-    Bio::Adventure::RNASeq_Trim - Use trimomatic/cutadapt/etc to trim libraries
+
+Bio::Adventure::RNASeq_Trim - Use trimomatic/cutadapt/etc to trim libraries
 
 =head1 SYNOPSIS
 
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->Cutadapt();
+This file is responsible for invoking the various sequence trimmers.
 
-=head2 Methods
+=head1 METHODS
 
-=item C<Cutadapt>
+=head2 C<Cutadapt>
 
-    $hpgl->Cutadapt(); will use biopieces/cutadapt to attempt to
-    remove sequence adapters from a library.  This is most common used
-    by me for ribosome profiling libraries.
+Use biopieces/cutadapt to attempt to remove sequence adapters from a library.
+This is most common used by me for ribosome profiling libraries.
 
 =cut
 sub Cutadapt {
@@ -162,13 +160,11 @@ mkdir -p ${out_dir} && \\
     return($cutadapt);
 }
 
-=item C<Trimomatic>
+=head2 C<Trimomatic>
 
-    $hpgl->Trimomatic(); calls the java tool trimomatic to remove
-    adapters/low quality sequences.  If $args{input} has a ':' or ','
-    then this will assume the input is comprised of two pairwise files
-    and will call 'Trimomatic_Pairwise()', otherwise
-    'Trimomatic_Single()'.
+Call trimomatic to remove adapters/low quality sequences.  If $args{input} has a
+':' or ',' then this will assume the input is comprised of two pairwise files
+and will call 'Trimomatic_Pairwise()', otherwise 'Trimomatic_Single()'.
 
 =cut
 sub Trimomatic {
@@ -186,10 +182,9 @@ sub Trimomatic {
     return($trim);
 }
 
-=item C<Trimomatic_Pairwise>
+=head2 C<Trimomatic_Pairwise>
 
-    $hpgl->Trimomatic_Pairwise(); invokes trimomatic with parameters
-    suitable for pairwise sequence libraries.
+Invoke trimomatic with parameters suitable for pairwise sequence libraries.
 
 =cut
 sub Trimomatic_Pairwise {
@@ -318,10 +313,9 @@ ln -s ${r2o} reverse.fastq.gz
     return($trim);
 }
 
-=item C<Trimomatic_Single>
+=head2 C<Trimomatic_Single>
 
-    $hpgl->Trimomatic_Single(); invokes trimomatic with parameters
-    suitable for single-read sequence libraries.
+Invoke trimomatic with parameters suitable for single-read sequence libraries.
 
 =cut
 sub Trimomatic_Single {
@@ -401,10 +395,10 @@ ${exe} \\
     return($trim);
 }
 
-=item C<Trimomatic_Stats>
+=head2 C<Trimomatic_Stats>
 
-    Collect the trimming statistics from the output file
-    'trimomatic.out' and report them in a .csv file by library.
+Collect the trimming statistics from the output file 'trimomatic.out' and report
+them in a .csv file by library.
 
 =cut
 sub Trimomatic_Stats {
