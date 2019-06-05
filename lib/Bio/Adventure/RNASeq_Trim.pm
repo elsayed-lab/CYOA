@@ -231,7 +231,10 @@ sub Trimomatic_Pairwise {
     $r1b = basename($r1b, @suff);
     my $r2b = basename($r2, @suff);
     $r2b = basename($r2b, @suff);
-
+    my $reader = qq"${r1} ${r2}";
+    if ($r1 =~ /\.xz$/) {
+        $reader = qq"<(less ${r1}) <(less ${r2})";
+    }
     my $r1o = qq"${r1b}-trimmed.fastq.gz";
     my $r1op = qq"${r1b}-trimmed_paired.fastq.gz";
     my $r1ou = qq"${r1b}-trimmed_unpaired.fastq.gz";
@@ -261,7 +264,7 @@ fi
 ${exe} \\
   -threads 1 \\
   -phred33 \\
-  <(less ${r1}) <(less ${r2}) \\
+  ${reader} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
   ILLUMINACLIP:${adapter_file}:2:20:4 \\
@@ -273,7 +276,7 @@ if [[ "\${excepted}" \!= "" ]]; then
   ${exe} \\
     -threads 1 \\
     -phred33 \\
-    <(less ${r1}) <(less ${r2}) \\
+    ${reader} \\
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     SLIDINGWINDOW:4:25 MINLEN:50\\
@@ -295,6 +298,8 @@ ln -s ${r2o} reverse.fastq.gz
         jstring => $jstring,
         output => $output,
         queue => "workstation",
+        cpus => 3,
+        mem => 20,
         prescript => $args{prescript},
         postscript => $args{postscript},
         walltime => "12:00:00",

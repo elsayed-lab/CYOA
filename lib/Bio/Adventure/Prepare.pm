@@ -74,6 +74,68 @@ sub Copy_Raw {
     return($files_read);
 }
 
+=head2 C<Fastq_Dump>
+
+Invoke fastq_dump to download some data from sra.
+
+=cut
+sub Fastq_Dump {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        output => undef);
+
+    my $fastq_comment = qq"## This script should download an sra accession to local fastq.gz files.
+";
+    my $job_basename = $class->Get_Job_Name();
+
+    my @inputs = split(/\,/, $options->{input});
+    my @outputs = ();
+    my $first_output = undef;
+    if (defined($options->{output})) {
+        @outputs = split(/\,/, $options->{output});
+        $first_output = $outputs[0];
+    }
+
+    my %fastq_jobs = ();
+    for my $i (0 .. $#inputs) {
+        my $in = $inputs[$i];
+        print "Invoking fastq-dump for ${in}.\n";
+        my $jstring = "";
+        if (defined($outputs[$i]) || defined($first_output)) {
+            $outputs[$i] = $first_output if (!defined($outputs[$i]));
+            $jstring = qq"mkdir -p $outputs[$i] && \\
+  fastq-dump --outdir $outputs[$i] \\
+    --gzip --skip-technical --readids \\
+    --read-filter pass --dumpbase \\
+    --split-3 --clip ${in} && \\
+  cd $outputs[$i] && \\
+  ln -s ${in}_1.fastq.gz f.fastq.gz && \\
+  ln -s ${in}_2.fastq.gz r.fastq.gz
+";
+        } else {
+            $jstring = qq"fastq-dump --gzip --skip-technical --readids \\
+    --read-filter pass --dumpbase \\
+    --split-3 --clip ${in} && \\
+  ln -s ${in}_1.fastq.gz f.fastq.gz && \\
+  ln -s ${in}_2.fastq.gz r.fastq.gz
+";
+        }
+        my $fastq_job = $class->Submit(
+            comment => $fastq_comment,
+            input => $in,
+            jname => qq"fqd_${in}",
+            jstring => $jstring,
+            jprefix => "01",
+            mem => 12,
+            walltime => '6:00:00',
+        );
+        $fastq_jobs{$i} = $fastq_job
+    }
+    return(\%fastq_jobs);
+}
+
 =head2 C<Read_Samples>
 
 Read the sample csv file.

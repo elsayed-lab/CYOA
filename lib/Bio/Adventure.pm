@@ -583,6 +583,7 @@ sub Get_Menus {
             choices => {
                 '(read_samples): Read samples using a csv file to determine the raw data locations.' => 'Bio::Adventure::Prepare::Read_Samples',
                 '(copyraw): Copy data from the raw data archive to scratch.' => 'Bio::Adventure::Prepare::Copy_Raw',
+                '(fastqdump): Download data from sra.' => 'Bio::Adventure::Prepare::Fastq_Dump',
             },
         },
         RNASeq => {
@@ -770,6 +771,7 @@ sub Get_TODOs {
         "fastamerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta'},
         "fastaparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta'},
         "fastqct+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_QA::Fastqc'},
+        "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
