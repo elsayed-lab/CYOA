@@ -110,16 +110,11 @@ sub Fastq_Dump {
     --gzip --skip-technical --readids \\
     --read-filter pass --dumpbase \\
     --split-3 --clip ${in} && \\
-  cd $outputs[$i] && \\
-  ln -s ${in}_1.fastq.gz f.fastq.gz && \\
-  ln -s ${in}_2.fastq.gz r.fastq.gz
 ";
         } else {
             $jstring = qq"fastq-dump --gzip --skip-technical --readids \\
     --read-filter pass --dumpbase \\
-    --split-3 --clip ${in} && \\
-  ln -s ${in}_1.fastq.gz f.fastq.gz && \\
-  ln -s ${in}_2.fastq.gz r.fastq.gz
+    --split-3 --clip ${in}
 ";
         }
         my $fastq_job = $class->Submit(

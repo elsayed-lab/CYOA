@@ -620,19 +620,6 @@ sub BWA {
 
     my $uncompress_jobid = undef;
     my $index_jobid = undef;
-    ##if ($bwa_input =~ /\.gz$|\.bz2$|\.xz$/) {
-    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
-    ##        $class,
-    ##        input => $bwa_input,
-    ##        depends => $bwa_depends_on,
-    ##    );
-    ##    $bwa_input = basename($bwa_input, ('.gz', '.bz2', '.xz'));
-    ##    $bwa_jobs{uncompress} = $uncomp;
-    ##    $options = $class->Set_Vars(input => $bwa_input);
-    ##    $uncompress_jobid = $uncomp->{job_id};
-    ##}
-
     ## Check that the indexes exist
     my $bwa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
     my $bwa_reftest = qq"${bwa_reflib}.sa";
@@ -647,14 +634,8 @@ sub BWA {
     }
 
     ## Make a depends string containing the uncompress, indexer, or both
-    if (defined($index_jobid) && defined($uncompress_jobid)) {
-        $bwa_depends_on = qq"${index_jobid}:${uncompress_jobid}";
-    } elsif (defined($index_jobid)) {
+    if (defined($index_jobid)) {
         $bwa_depends_on = $index_jobid;
-    } elsif (defined($uncompress_jobid)) {
-        $bwa_depends_on = $uncompress_jobid;
-    } else {
-        $bwa_depends_on = "";
     }
 
     ## Include logic to deal with paired end/single end reads.
@@ -669,25 +650,28 @@ sub BWA {
 
     my $aln_sam = qq"${bwa_dir}/${job_basename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/${job_basename}_mem.sam";
+    my $aln_args = qq"";
+    my $mem_args = qq"";
+    my $sam_args = qq"";
     my $jstring = qq!mkdir -p ${bwa_dir}
-bwa mem -a ${bwa_reflib} <(less ${bwa_input}) \\
+bwa mem ${mem_args} -a ${bwa_reflib} <(less ${bwa_input}) \\
   2>${bwa_dir}/bwa.err 1>${mem_sam}
 !;
-    my $reporter_string = qq"bwa samse ${bwa_reflib} \\
+    my $reporter_string = qq"bwa samse ${sam_args} ${bwa_reflib} \\
   ${bwa_dir}/${job_basename}_aln-forward.sai <(less ${bwa_input}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
-    my $aln_string = qq"bwa aln ${bwa_reflib} \\
+    my $aln_string = qq"bwa aln ${aln_args} ${bwa_reflib} \\
   ${forward_reads} \\
   2>${bwa_dir}/${job_basename}_aln-forward.err \\
   1>${bwa_dir}/${job_basename}_aln-forward.sai";
     if (defined($reverse_reads)) {
         $aln_string = qq"${aln_string}
-bwa aln ${bwa_reflib} \\
+bwa aln ${aln_args} ${bwa_reflib} \\
   <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}_aln-reverse.err \\
   1>${bwa_dir}/${job_basename}_aln-reverse.sai";
-        $reporter_string = qq"bwa sampe ${bwa_reflib} \\
+        $reporter_string = qq"bwa ${sam_args} sampe ${bwa_reflib} \\
   ${bwa_dir}/${job_basename}_aln-forward.sai ${bwa_dir}/${job_basename}_aln-reverse.sai \\
   <(less ${forward_reads}) <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
@@ -947,19 +931,6 @@ sub Hisat2 {
         $ht_dir = $args{ht_dir};
     }
     my $ht_input = $options->{input};
-    ##if ($ht_input =~ /\.xz$/ ) {
-    ##    print "The input needs to be uncompressed, doing that now.\n" if ($options->{debug});
-    ##    my $uncomp = Bio::Adventure::Compress::Uncompress(
-    ##        $class,
-    ##        input => $ht_input,
-    ##        depends => $ht_depends_on,
-    ##    );
-    ##    $ht_input =~ s/\:|\;|\,|\s+/ /g;
-    ##    $ht_input =~ s/\.xz//g;
-    ##    $ht_input = $ht_inputbasename($ht_input, ('.xz'));
-    ##    $options = $class->Set_Vars(input => $ht_input);
-    ##    $ht_depends_on = $uncomp->{job_id};
-    ##}
 
     my $test_file = "";
     if ($ht_input =~ /\:|\;|\,|\s+/) {
@@ -976,7 +947,8 @@ sub Hisat2 {
     ## Check that the indexes exist
     my $ht_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
     my $ht_reftest = qq"${ht_reflib}.1.ht2";
-    if (!-r $ht_reftest) {
+    my $ht_reftestl = qq"${ht_reflib}.1.ht2l";
+    if (!-r $ht_reftest && !-r $ht_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${ht_reftest}\n";
         sleep(20);
         my $index_job = Bio::Adventure::RNASeq_Map::HT2_Index(
@@ -1477,9 +1449,59 @@ salmon quant -i ${sa_reflib} \\
         postscript => $args{postscript},
         queue => "workstation",
     );
+
+    my $stats = Bio::Adventure::RNASeq_Map::Salmon_Stats(
+        $class,
+        input => qq"${outdir}/lib_format_counts.json",
+        depends => $sa_job->{job_id},
+        jname => "sastats_$options->{species}",
+        jprefix => "33",
+    );
+
     $sa_jobs{salmon} = $sa_job;
 
     return(\%sa_jobs);
+}
+
+sub Salmon_Stats {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(args => \%args);
+    my $depends = $options->{depends};
+    my $jname = "stats";
+    $jname = $options->{jname} if ($options->{jname});
+    my $job_basename = $options->{job_basename};
+    my $jobid = qq"${job_basename}_stats";
+    my $output = "outputs/salmon_stats.csv";
+    my $comment = qq!## This is a stupidly simple job to collect salmon alignment statistics.!;
+    my $jstring = qq!
+if [ \! -r "${output}" ]; then
+  echo "basename,species,fragments,assigned,consistent,inconsistent,bias" > ${output}
+fi
+reads_tmp=\$(grep "^num_compatible" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+reads=\${reads_tmp:-0}
+aligned_tmp=\$(grep "^num_assigned" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+aligned=\${aligned_tmp:-0}
+consistent_tmp=\$(grep "^concordant" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+consistent=\${consistent_tmp:-0}
+inconsistent_tmp=\$(grep "^inconsistent" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+inconsistent=\${inconsistent_tmp:-0}
+bias_tmp=\$(grep "^mapping_bias" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+bias=\${bias_tmp:-0}
+stat_string=\$(printf "${job_basename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
+echo "\$stat_string" >> "${output}"!;
+    my $stats = $class->Submit(
+        comment => $comment,
+        cpus => 1,
+        input => $options->{input},
+        jname => $jname,
+        depends => $depends,
+        jprefix => $args{jprefix},
+        jstring => $jstring,
+        mem => 1,
+        queue => "throughput",
+        walltime => "00:10:00",
+    );
+    return($stats);
 }
 
 =head2 C<STAR>

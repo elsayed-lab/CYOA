@@ -358,6 +358,8 @@ samtools view -b -f 2 -o ${paired}.bam ${output} && \\
   samtools index ${paired}.bam
 bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
   bamtools stats -in ${paired}.bam 2>${paired}.stats 1>&2
+##bamtools filter -tag XM:0 -in ${output} -out ${sorted}_nomismatch.bam &&
+##  samtools index ${sorted}_nomismatch.bam
 !;
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats

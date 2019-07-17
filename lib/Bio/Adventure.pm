@@ -428,6 +428,7 @@ sub Get_Basename {
 
 =item C<SNP Arguments>
 
+  trim - Trim raw sequence with options more appropriate for SNP calling.
   varfilter - Filter variants by variance. (true)
   vcf_cutoff - Minimum reads for a variant call. (10)
   vcf_minpct - Minimum percent agreement for a variant call. (0.8)
@@ -713,9 +714,15 @@ sub Get_Menus {
             name => 'snp',
             message => qq"When my god comes back I'll be waiting for him with a shotgun.  And I'm keeping the last shell for myself. (inexact quote)  Go to page 667408",
             choices => {
+                '(trim): Trim sequence with an additional rule to remove the first 10 nucleotides.' => 'Bio::Adventure::RNASeq_Trim::Trimomatic',
+                '(bwa): Map reads with bwa and count with htseq.' => 'Bio::Adventure::RNASeq_Map::BWA',
+                '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie',
+                '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Bowtie2',
+                '(ht2): Map trimmed reads with hisat2 and count with htseq.' => 'Bio::Adventure::RNASeq_Map::Hisat2',
                 '(snpsearch): Perform a search for variant positions against a reference genome. (bam input)' => 'Bio::Adventure::SNP::SNP_Search',
                 '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => 'Bio::Adventure::SNP::SNP_Ratio',
                 '(snp): Perform alignments and search for variants. (fastq input)' => 'Bio::Adventure::SNP::Align_SNP_Search',
+                '(snippy): Invoke snippy. (fastq and genbank inputs)' => 'Bio::Adventure::SNP::Snippy',
             },
         },
         Test => {
@@ -804,6 +811,7 @@ sub Get_TODOs {
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
         "salmon+" => \$todo_list->{todo}{'Bio::Adventure::RNASeq_Map::Salmon'},
+        "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
         "snp+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
         "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
         "snpratio+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},

@@ -108,8 +108,8 @@ if [ "\$?" -ne "0" ]; then
 exit 1
 fi
 !;
-        }  ## End checking if the pileup input does not have sorted.
-    } ## Found the input for samtools mpileup
+        }              ## End checking if the pileup input does not have sorted.
+    }                  ## Found the input for samtools mpileup
     $jstring .= qq!
 if [ \! -r "${genome}.fai" ]; then
     samtools faidx ${genome}
@@ -377,6 +377,68 @@ sub Make_SNP_Ratio {
         print "No differences were detected by bcftools call.\n";
     }
     return($count);
+}
+
+sub Snippy {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+    );
+    my $species = $options->{species};
+    my $genome = "$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $query = $options->{input};
+    my $query_home = dirname(${query});
+    my $query_base = basename(${query}, (".fastq"));
+    $query = qq"${query_home}/${query_base}";
+
+    my $prefix_name = qq"snippy";
+    my $snippy_name = qq"${prefix_name}_$options->{species}";
+    my $suffix_name = $prefix_name;
+    if ($options->{jname}) {
+        $snippy_name .= qq"_$options->{jname}";
+        $suffix_name .= qq"_$options->{jname}";
+    }
+
+    my $snippy_input = $options->{input};
+    my $test_file = "";
+    if ($snippy_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $snippy_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        $snippy_input = qq" --R1 $pair_listing[0] --R2 $pair_listing[1] ";
+        $test_file = $pair_listing[0];
+    } else {
+        $test_file = File::Spec->rel2abs($snippy_input);
+        $snippy_input = qq" --R1 ${test_file} ";
+    }
+
+    my $snippy_dir = qq"outputs/snippy_$options->{species}";
+    my $jstring = qq!mkdir -p ${snippy_dir}
+eval \$(modulecmd bash purge)
+eval \$(modulecmd bash add snippy)
+eval \$(modulecmd bash add gubbins)
+eval \$(modulecmd bash add fasttree)
+echo "Started snippy at \$(date)" >> ${snippy_dir}/snippy_$options->{species}.out
+
+snippy --force \\
+  --outdir ${snippy_dir} \\
+  --ref ${genome} \\
+  ${snippy_input}
+!;
+    my $comment_string = qq!## Invoke snippy on some reads.!;
+    my $snippy = $class->Submit(
+        comment => $comment_string,
+        depends => $options->{depends},
+        jname => $snippy_name,
+        jprefix => '70',
+        job_type => 'snippy',
+        jstring => $jstring,
+        queue => 'workstation',
+        walltime => '10:00:00',
+        mem => 48,
+    );
+    return($snippy);
 }
 
 1;

@@ -89,7 +89,10 @@ sub Cutadapt {
     my $output = qq"${basename}-trimmed_ca.${out_suffix}";
     my $jstring = qq!
 mkdir -p ${out_dir} && \\
- ${input_flags} ${type_flag} ${adapter_flags} -e $options->{maxerr} -n $options->{maxremoved} -m $options->{minlength} -M $options->{maxlength} \\
+ ${input_flags} \\
+  ${type_flag} ${adapter_flags} \\
+  -e $options->{maxerr} -n $options->{maxremoved} \\
+  -m $options->{minlength} -M $options->{maxlength} \\
   --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
@@ -243,6 +246,11 @@ sub Trimomatic_Pairwise {
     my $r2op = qq"${r2b}-trimmed_paired.fastq.gz";
     my $r2ou = qq"${r2b}-trimmed_unpaired.fastq.gz";
 
+    my $leader_trim = "";
+    if ($options->{task} eq 'dnaseq') {
+        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    }
+
     $options = $class->Set_Vars(basename => $basename);
     my $output = qq"${r1o}:${r2o}";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
@@ -267,8 +275,8 @@ ${exe} \\
   ${reader} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
-  ILLUMINACLIP:${adapter_file}:2:20:4 \\
-  SLIDINGWINDOW:4:25 MINLEN:50 \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  SLIDINGWINDOW:4:25 MINLEN:40 \\
   1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
@@ -279,7 +287,7 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${reader} \\
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
-    SLIDINGWINDOW:4:25 MINLEN:50\\
+    ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
     1>outputs/${basename}-trimomatic.out 2>&1
 fi
 sleep 10
@@ -299,7 +307,7 @@ ln -s ${r2o} reverse.fastq.gz
         output => $output,
         queue => "workstation",
         cpus => 3,
-        mem => 20,
+        mem => 40,
         prescript => $args{prescript},
         postscript => $args{postscript},
         walltime => "12:00:00",
@@ -347,12 +355,18 @@ sub Trimomatic_Single {
     if ($args{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
     }
+
+    my $leader_trim = "";
+    if ($options->{task} eq 'dnaseq') {
+        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    }
+
     my $input = $options->{input};
     my $basename = $input;
     $basename = basename($basename, (".gz"));
     $basename = basename($basename, (".fastq"));
     my $job_basename = $class->Get_Job_Name();
-    my $output = qq"${basename}-trimmed.fastq";
+    my $output = qq"${basename}-trimmed.fastq.gz";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
@@ -372,7 +386,7 @@ ${exe} \\
   -phred33 \\
   ${input} \\
   ${output} \\
-  ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:20:4 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
   1>outputs/${basename}-trimomatic.out 2>&1
 !;
