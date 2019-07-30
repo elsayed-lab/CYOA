@@ -28,6 +28,75 @@ tables.
 
 =head1 METHODS
 
+=head2 C<Make_Fasta_Job>
+
+This handles the creation of the files and directories required when splitting up a sequence into
+a bunch of pieces for a split-fasta search.
+
+=over
+
+=item I<split> (FALSE) Split up the fasta jobs into multiple pieces?
+
+=item I<output_type> (7: xml) Format for the fasta output.
+
+=back
+
+=cut
+sub Make_Fasta_Job {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        depends => '',
+        split => 0,
+        output_type => 7,
+    );
+    my $dep = $options->{depends};
+    my $split = $options->{split};
+    my $library;
+    my $array_end = 1000 + $args{align_jobs};
+    my $array_string = qq"1000-${array_end}";
+    if ($options->{parse}) {
+        if ($options->{output_type} ne '7') {
+            print "If one wants to parse the output, it probably should be in the xml format, which may be done by adding --output_type 7 to this script.\n";
+            print "This script will still try to parse a blast plain text output, but if it fails, don't say I didn't warn you.\n";
+            print "Sleeping for 10 seconds so you can hit Control-C if you want to rerun.\n";
+            sleep(10);
+        }
+    }
+    my $jstring = '';
+    if ($split) {
+        $jstring = qq!
+cd $options->{basedir}
+$options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
+ $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
+ $options->{library} \\
+ 1>$options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
+ 2>>$options->{basedir}/split_align_errors.txt
+!;
+    } else {
+        $jstring = qq!
+cd $options->{basedir}
+  $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
+  $options->{query} \\
+  $options->{library} \\
+  1>$options->{basedir}/outputs/$options->{fasta_tool}.out \\
+  2>>$options->{basedir}/split_align_errors.txt
+!;
+    }
+    my $comment = qq!## Running multiple fasta jobs.!;
+    my $fasta_jobs = $class->Submit(
+        comment => $comment,
+        depends_type => 'array',
+        depends => $dep,
+        jname => 'fasta_multi',
+        jstring => $jstring,
+        qsub_args => " $options->{qsub_args} -t ${array_string} ",
+        queue => 'long',
+        walltime => '96:00:00',
+    );
+    return($fasta_jobs);
+}
+
 =head2 C<Parse_Fasta>
 
 Given the output from one of the fasta36 programs: ggsearch36, fasta36, etc.  This parses it
@@ -35,11 +104,20 @@ and prints a simplified table of the results.
 
 =over
 
-=item I<best_only> - Print only the best hit for each search sequence. (false)
+=item I<input> * File containing a completed fasta search output.
 
-=item I<evalue> - Filter for only hits with a better evalue than this. (0.0001)
+=item I<best_only> (FALSE) Print only the best hit for each search sequence.
+
+=item I<evalue> (0.0001) Filter for only hits with a better evalue than this.
 
 =back
+
+=head3 C<Invocation>
+
+> cyoa --task align --method parsefasta --input fasta_output.txt.gz
+
+A little caveat here, the primary place this and Parse_Fasta_Global()
+should be called is in Bio::Adventure::Align::Parse_Search().
 
 =cut
 sub Parse_Fasta {
@@ -52,9 +130,6 @@ sub Parse_Fasta {
         best_only => 0,
         evalue => 0.0001,
     );
-        if ($args{interactive}) {
-            print "Run this with: cyoa --task align --method fastaparse --input filename.\n";
-        }
     my $best_only = $options->{best_only};
     my $evalue = $options->{evalue};
     my $input = $options->{input};
@@ -117,154 +192,7 @@ sub Parse_Fasta {
     return($results);
 }
 
-=head2 C<Split_Align_Fasta>
-
-Split apart a set of query sequences into $args{align_jobs} pieces and align them all separately.
-
-=over
-
-=item I<align_jobs> - How many jobs should be spawned? (40)
-
-=item I<align_parse> - Start up a parsing job upon completion? (false)
-
-=item I<best_only> - Passed to the parser, only print the best hit? (false)
-
-=back
-
-=cut
-sub Split_Align_Fasta {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['query', 'library'],
-        interactive => 0,
-        align_jobs => 40,
-        align_parse => 0,
-        num_dirs => 0,
-        best_only => 0,
-    );
-    if ($options->{interactive}) {
-        print "Run this with: cyoa --task align --method fastasplit --query filename.fasta --library another.fasta.\n";
-    }
-
-    ## $args{library} = basename($options->{library}, ('.fasta'));
-    my $lib = basename($options->{library}, ('.fasta'));
-    my $que = basename($options->{query}, ('.fasta'));
-    my $outdir = qq"$options->{basedir}/outputs/fasta";
-    make_path("${outdir}") unless(-d ${outdir});
-    my $output = qq"${outdir}/${que}_vs_${lib}.txt.gz";
-    my $concat_job;
-    if ($options->{pbs}) {
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
-        print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
-        print "Actually used ${actual} directories to write files.\n";
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual, split => 1);
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches(
-            $class,
-            depends => $alignment->{pbs_id},
-            output => $output,
-        );
-    } else {
-        ## If we don't have pbs, force the number of jobs to 1.
-        $options->{align_jobs} = 1;
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual);
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches($class, output=> $output,);
-    }
-
-    my $parse_input = $output;
-    my $comment_string = qq!## I don't know if this will work.!;
-    my $jstring = qq?
-use Bio::Adventure;
-use Bio::Adventure::Align;
-use Bio::Adventure::Align_Fasta;
-Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type => 'global_fasta',);
-?;
-    my $parse_job = $class->Submit(
-        comment => $comment_string,
-        depends => $concat_job->{pbs_id},
-        jname => "parse_search",
-        jstring => $jstring,
-        language => 'perl',
-        shell => '/usr/bin/env perl',
-    );
-    return($concat_job);
-}
-
-=head2 C<Make_Fasta_Job>
-
-This handles the creation of the files and directories required when splitting up a sequence into
-a bunch of pieces for a split-fasta search.
-
-=over
-
-=item I<split> - Split up the fasta jobs into multiple pieces? (false)
-
-=item I<output_type> - Format for the fasta output. (7 -- the xml format)
-
-=back
-
-=cut
-sub Make_Fasta_Job {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        depends => '',
-        split => 0,
-        output_type => 7,
-    );
-    my $dep = $options->{depends};
-    my $split = $options->{split};
-    my $library;
-    my $array_end = 1000 + $args{align_jobs};
-    my $array_string = qq"1000-${array_end}";
-    if ($options->{parse}) {
-        if ($options->{output_type} ne '7') {
-            print "If one wants to parse the output, it probably should be in the xml format, which may be done by adding --output_type 7 to this script.\n";
-            print "This script will still try to parse a blast plain text output, but if it fails, don't say I didn't warn you.\n";
-            print "Sleeping for 10 seconds so you can hit Control-C if you want to rerun.\n";
-            sleep(10);
-        }
-    }
-    my $jstring = '';
-    if ($split) {
-        $jstring = qq!
-cd $options->{basedir}
-$options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
- $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
- $options->{library} \\
- 1>$options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
- 2>>$options->{basedir}/split_align_errors.txt
-!;
-    } else {
-        $jstring = qq!
-cd $options->{basedir}
-  $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
-  $options->{query} \\
-  $options->{library} \\
-  1>$options->{basedir}/outputs/$options->{fasta_tool}.out \\
-  2>>$options->{basedir}/split_align_errors.txt
-!;
-    }
-    my $comment = qq!## Running multiple fasta jobs.!;
-    my $fasta_jobs = $class->Submit(
-        comment => $comment,
-        depends_type => 'array',
-        depends => $dep,
-        jname => 'fasta_multi',
-        jstring => $jstring,
-        qsub_args => " $options->{qsub_args} -t ${array_string} ",
-        queue => 'long',
-        walltime => '96:00:00',
-    );
-    return($fasta_jobs);
-}
-
-=head2 C<Parse_Global>
+=head2 C<Parse_Fasta_Global>
 
 Parse_Global makes a hard assumption about the structure of the hits in the output of the
 alignment program.  They should be in a global/global search, thus we assume 1 hit / 1 result.
@@ -275,21 +203,27 @@ many (10+).
 
 =over
 
-=item I<best_only> - Parse out only the best hit? (false)
+=item I<best_only> (FALSE) Parse out only the best hit?
 
-=item I<fasta_format> - Format of the search input (fasta)
+=item I<fasta_format> (FALSE) Format of the search input
 
-=item I<evalue> - Quality of hit filter (0.001)
+=item I<evalue> (0.001) Quality of hit filter
 
-=item I<many_cutoff> - How many hits define 'many' hits? (10)
+=item I<many_cutoff> (10) How many hits define 'many' hits?
 
-=item I<min_score> - Provide a minimum score required for a hit?
+=item I<min_score> (FALSE) Provide a minimum score required for a hit?
 
-=item I<check_all_hits> - I am not sure what this does. (false)
+=item I<check_all_hits> (FALSE) I am not sure what this does.
 
-=item I<min_percent> - Add a percentage identity filter (false)
+=item I<min_percent> (FALSE) Add a percentage identity filter
 
 =back
+
+=head3 C<Invocation>
+
+A little caveat here, the primary place this and Parse_Fasta()
+should be called is in Bio::Adventure::Align::Parse_Search().
+
 
 =cut
 sub Parse_Fasta_Global {
@@ -382,6 +316,88 @@ sub Parse_Fasta_Global {
     $all->close();
     $in->close();
     return($seq_count);
+}
+
+=head2 C<Split_Align_Fasta>
+
+Split apart a set of query sequences into $args{align_jobs} pieces and align them all separately.
+
+=over
+
+=item I<query> * File containing sequences to search _for_.
+
+=item I<library> * File containing sequences to searc _from_.
+
+=item I<align_jobs> (40) How many jobs should be spawned?
+
+=item I<align_parse> (FALSE) Start up a parsing job upon completion?
+
+=item I<best_only> (FALSE) Passed to the parser, only print the best hit?
+
+=back
+
+=head3 C<Invocation>
+
+> cyoa --task fastasplit --query query.fasta --library library.fasta --best_only 1
+
+=cut
+sub Split_Align_Fasta {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['query', 'library'],
+        interactive => 0,
+        align_jobs => 40,
+        align_parse => 0,
+        num_dirs => 0,
+        best_only => 0,
+    );
+
+    my $lib = basename($options->{library}, ('.fasta'));
+    my $que = basename($options->{query}, ('.fasta'));
+    my $outdir = qq"$options->{basedir}/outputs/fasta";
+    make_path("${outdir}") unless(-d ${outdir});
+    my $output = qq"${outdir}/${que}_vs_${lib}.txt.gz";
+    my $concat_job;
+    if ($options->{pbs}) {
+        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        $options = $class->Set_Vars(num_per_split => $num_per_split);
+        print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
+        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
+        print "Actually used ${actual} directories to write files.\n";
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual, split => 1);
+        $concat_job = Bio::Adventure::Align::Concatenate_Searches(
+            $class,
+            depends => $alignment->{pbs_id},
+            output => $output,
+        );
+    } else {
+        ## If we don't have pbs, force the number of jobs to 1.
+        $options->{align_jobs} = 1;
+        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        $options = $class->Set_Vars(num_per_split => $num_per_split);
+        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual);
+        $concat_job = Bio::Adventure::Align::Concatenate_Searches($class, output=> $output,);
+    }
+
+    my $parse_input = $output;
+    my $comment_string = qq!## I don't know if this will work.!;
+    my $jstring = qq?
+use Bio::Adventure;
+use Bio::Adventure::Align;
+use Bio::Adventure::Align_Fasta;
+Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type => 'global_fasta',);
+?;
+    my $parse_job = $class->Submit(
+        comment => $comment_string,
+        depends => $concat_job->{pbs_id},
+        jname => "parse_search",
+        jstring => $jstring,
+        language => 'perl',
+        shell => '/usr/bin/env perl',
+    );
+    return($concat_job);
 }
 
 1;

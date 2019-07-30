@@ -24,6 +24,17 @@ These functions set up and clean up blast/fasta/etc searches. (I need to set up 
 
 =head1 METHODS
 
+=head2 C<Cleanup>
+
+Cleans up the mess of temporary files/directories left behind by these tools.
+
+=cut
+sub Cleanup {
+    my ($class, %args) = @_;
+    my $ret = qx("rm -rf outputs split blastdb formatdb.log split_align_submission.sh");
+    return($ret);
+}
+
 =head2 C<Concatenate_Searches>
 
 This function waits until the cluster finishes processing all the blast jobs, then
@@ -52,35 +63,61 @@ rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do xz -9e -c \$i >> ${out
     return($concatenate);
 }
 
-=head2 C<Parse_Search>
+=head2 C<Duplicate_Remove>
 
-This passes off to other parsers depending on the input format.
+Get rid of duplicate sequences when writing out fasta files.
 
 =cut
-sub Parse_Search {
+sub Duplicate_Remove {
     my ($class, %args) = @_;
-    my $ret;
-    if ($args{search_type} eq 'blastxml') {
-        $ret = Bio::Adventure::Align_Blast::Parse_Blast($class, %args);
-    } elsif ($args{search_type} eq 'local_fasta') {
-        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta($class, %args);
-    } elsif ($args{search_type} eq 'global_fasta') {
-        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta_Global($class, %args);
-    } else {
-        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta($class, %args);
+    my $options = $class->Get_Vars(args => \%args);
+    my $input = $options->{input};
+    my $output = qq"${input}_removed.txt";
+    my $in = FileHandle->new("<$input");
+    my @entries = ();
+    while (my $line = <$in>) {
+        chomp $line;
+        my ($self, $others) = split(/\t/, $line);
+        my @other_list = split(/ /, $others);
+        my $entry = {self => $self, others => \@other_list};
+        print "Pushing self: $self others: @other_list\n";
+        push(@entries, $entry);
     }
-    return($ret);
-}
-
-=head2 C<Cleanup>
-
-Cleans up the mess of temporary files/directories left behind by these tools.
-
-=cut
-sub Cleanup {
-    my ($class, %args) = @_;
-    my $ret = qx("rm -rf outputs split blastdb formatdb.log split_align_submission.sh");
-    return($ret);
+    $in->close();
+    my $out = FileHandle->new(">$output");
+    my $num_found = 0;
+    while (scalar(@entries) > 0) {
+        my $keeper = shift(@entries);
+        my $self = $keeper->{self};
+        my $others = $keeper->{others};
+        ## Write down this first entry
+        print "Writing $self to out.\n";
+        print $out qq"${self}\n";
+        ## Now remove all instances of the 'others' from the list and future consideration.
+        my $other_length = scalar(@{$others});
+      OTHERS: foreach my $other (@{$others}) {
+            my ($other_name, $other_ident, $other_e) = split(/:/, $other);
+            print "Checking for $other_name in entries.\n";
+            my @tmp = @entries;
+            my $length = scalar(@tmp);
+            my @new = ();
+            print "The length of entries is now: $length\n";
+          CHECK: foreach my $tmp_entry (@tmp) {
+                my $self_check = $tmp_entry->{self};
+                if ($self_check eq $other_name) {
+                    $num_found = $num_found + 1;
+                    ## print "FOUND! $self_check $other_name\n";
+                    next CHECK;
+                } else {
+                    ## print "NOT FOUND! $self_check $other_name\n";
+                    push(@new, $tmp_entry);
+                }
+            }
+            @entries = @new;
+        }
+    }
+    $out->close();
+    return($num_found);
 }
 
 =head2 C<Get_Split>
@@ -106,6 +143,55 @@ sub Get_Split {
     }
     print "Get_Split: Making $options->{align_jobs} directories with $ret sequences.\n";
     return($ret);
+}
+
+=head2 Ids_to_Sequence
+
+Writes relatively nicely formatted fasta files given a genome and gff file.
+
+=cut
+sub Ids_to_Sequences {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(args => \%args);
+    my $id_input_file = $options->{id_list};
+    my $id_in = FileHandle->new("<$id_input_file");
+    my $chromosomes = $class->Read_Genome(genome => $class->{genome});
+    my $gff_info = $class->Read_GFF(gff => $class->{gff});
+    ## Now I have the set of start/stops for all IDs
+    my %sequences = ();
+    ## Create a set of sequences by ID
+    foreach my $chr (keys %{$gff_info}) {
+        my %inner = %{$gff_info};
+        foreach my $id (keys %inner) {
+            my $start = $inner{$id}->{start};
+            my $end = $inner{$id}->{end};
+            $sequences{$id} = $chromosomes->{$chr}->subseq($start, $end);
+        }
+    }
+    my $id_output_file = qq"${id_input_file}.fasta";
+    my $id_out = FileHandle->new(">$id_output_file");
+    while (my $line = <$id_in>) {
+        chomp $line;
+        my $seq = join("\n",($sequences{$line} =~ m/.{1,80}/g));
+        print $id_out ">$line
+$sequences{$seq}
+";
+    }
+    $id_out->close();
+    $id_in->close();
+    ## This should generate files which end in _parsed.txt for the library
+    my $concat = Bio::Tools::Adventure::Align_Fasta::Split_Align_Fasta(
+        $class,
+        library => $id_output_file,
+        max_significance => 0.0001,
+        min_percent => 0.80,
+        query => $id_output_file,
+    );
+    my $duplicates = Bio::Tools::Adventure::Align::Duplicate_Remove(
+        $class,
+        input => $id_output_file,
+    );
+    return($concat);
 }
 
 =head2 C<Make_Directories>
@@ -168,110 +254,24 @@ $seq
     return($actual_number_dirs_used);
 }
 
-=head2 Ids_to_Sequence
+=head2 C<Parse_Search>
 
-Writes relatively nicely formatted fasta files given a genome and gff file.
-
-=cut
-sub Ids_to_Sequences {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $id_input_file = $options->{id_list};
-    my $id_in = FileHandle->new("<$id_input_file");
-    my $chromosomes = $class->Read_Genome(genome => $class->{genome});
-    my $gff_info = $class->Read_GFF(gff => $class->{gff});
-    ## Now I have the set of start/stops for all IDs
-    my %sequences = ();
-    ## Create a set of sequences by ID
-    foreach my $chr (keys %{$gff_info}) {
-        my %inner = %{$gff_info};
-        foreach my $id (keys %inner) {
-            my $start = $inner{$id}->{start};
-            my $end = $inner{$id}->{end};
-            $sequences{$id} = $chromosomes->{$chr}->subseq($start, $end);
-        }
-    }
-    my $id_output_file = qq"${id_input_file}.fasta";
-    my $id_out = FileHandle->new(">$id_output_file");
-    while (my $line = <$id_in>) {
-        chomp $line;
-        my $seq = join("\n",($sequences{$line} =~ m/.{1,80}/g));
-        print $id_out ">$line
-$sequences{$seq}
-";
-    }
-    $id_out->close();
-    $id_in->close();
-    ## This should generate files which end in _parsed.txt for the library
-    my $concat = Bio::Tools::Adventure::Align_Fasta::Split_Align_Fasta(
-        $class,
-        library => $id_output_file,
-        max_significance => 0.0001,
-        min_percent => 0.80,
-        query => $id_output_file,
-    );
-    my $duplicates = Bio::Tools::Adventure::Align::Duplicate_Remove(
-        $class,
-        input => $id_output_file,
-    );
-    return($concat);
-}
-
-=head2 C<Duplicate_Remove>
-
-Get rid of duplicate sequences when writing out fasta files.
+This passes off to other parsers depending on the input format.
 
 =cut
-sub Duplicate_Remove {
+sub Parse_Search {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $input = $options->{input};
-    my $output = qq"${input}_removed.txt";
-    my $in = FileHandle->new("<$input");
-    my @entries = ();
-    while (my $line = <$in>) {
-        chomp $line;
-        my ($self, $others) = split(/\t/, $line);
-        my @other_list = split(/ /, $others);
-        my $entry = {self => $self, others => \@other_list};
-        print "Pushing self: $self others: @other_list\n";
-        push(@entries, $entry);
+    my $ret;
+    if ($args{search_type} eq 'blastxml') {
+        $ret = Bio::Adventure::Align_Blast::Parse_Blast($class, %args);
+    } elsif ($args{search_type} eq 'local_fasta') {
+        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta($class, %args);
+    } elsif ($args{search_type} eq 'global_fasta') {
+        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta_Global($class, %args);
+    } else {
+        $ret = Bio::Adventure::Align_Fasta::Parse_Fasta($class, %args);
     }
-    $in->close();
-    my $out = FileHandle->new(">$output");
-    my $num_found = 0;
-    while (scalar(@entries) > 0) {
-        my $keeper = shift(@entries);
-        my $self = $keeper->{self};
-        my $others = $keeper->{others};
-        ## Write down this first entry
-        print "Writing $self to out.\n";
-        print $out qq"${self}\n";
-        ## Now remove all instances of the 'others' from the list and future consideration.
-        my $other_length = scalar(@{$others});
-      OTHERS: foreach my $other (@{$others}) {
-            my ($other_name, $other_ident, $other_e) = split(/:/, $other);
-            print "Checking for $other_name in entries.\n";
-            my @tmp = @entries;
-            my $length = scalar(@tmp);
-            my @new = ();
-            print "The length of entries is now: $length\n";
-          CHECK: foreach my $tmp_entry (@tmp) {
-                my $self_check = $tmp_entry->{self};
-                if ($self_check eq $other_name) {
-                    $num_found = $num_found + 1;
-                    ## print "FOUND! $self_check $other_name\n";
-                    next CHECK;
-                } else {
-                    ## print "NOT FOUND! $self_check $other_name\n";
-                    push(@new, $tmp_entry);
-                }
-            }
-            @entries = @new;
-        }
-    }
-    $out->close();
-    return($num_found);
+    return($ret);
 }
 
 1;

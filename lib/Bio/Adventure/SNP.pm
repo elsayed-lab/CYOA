@@ -40,7 +40,7 @@ sub Align_SNP_Search {
     my $query_base = basename(${query}, (".bam"));
     $query = qq"${query_home}/${query_base}";
     print "About to start Bowtie2 search against of $query against $options->{species}.\n";
-    my $bt2_job = Bio::Adventure::RNASeq_Map::Bowtie2(
+    my $bt2_job = Bio::Adventure::Map::Bowtie2(
         $class,
         htseq_type => "exon",
         input => $query,
