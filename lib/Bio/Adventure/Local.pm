@@ -218,15 +218,13 @@ fi
     return($job);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<Bio::Tools::Run::StandAloneBlast>
+    L<Bio::Adventure::Slurm> L<Bio::Adventure::Torque>
 
 =cut
 

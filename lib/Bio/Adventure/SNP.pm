@@ -441,4 +441,15 @@ snippy --force \\
     return($snippy);
 }
 
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<samtools> L<snippy> L<vcfutils>
+
+=cut
+
+
 1;

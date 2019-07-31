@@ -612,15 +612,13 @@ sub Final_Print_Mi {
     return($hits);
 }                               ## End of Final_Print
 
-=back
-
 =head1 AUTHOR - atb
 
 Email <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<htseq-count>
+    L<htseq-count> L<Bio::DB::Sam> L<Bio::SeqIO>
 
 =cut
 

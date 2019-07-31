@@ -19,6 +19,8 @@ use Bio::Adventure;
 my $hpgl = new Bio::Adventure;
 $hpgl->Cleanup();
 
+=head1 METHODS
+
 =head2 C<Cleanup>
 
 Delete the various directories/files from the RNASeq tools invoked by Bio::Adventure.pm.
@@ -42,8 +44,6 @@ sub Cleanup {
     print "Execute: $jstring\n";
     return(1);
 }
-
-=back
 
 =head1 AUTHOR - atb
 

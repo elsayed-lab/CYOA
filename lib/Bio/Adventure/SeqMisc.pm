@@ -45,6 +45,8 @@ information.  Note to self: I've been meaning for years to include
 either the codon tables from the codon database or a way to read
 in a text file.  Do that, damnit!
 
+=back
+
 =cut
 our $references = {
     aminos => {
@@ -828,7 +830,7 @@ sub Same31Composite {
     return (\@codons);
 }
 
-=head2 C<Find_Alternates
+=head2 C<Find_Alternates>
 
 Find alternate codons for a given codon.
 
@@ -1123,8 +1125,6 @@ sub Add_One {
         return(\@array);
     }
 }
-
-=back
 
 =head1 AUTHOR - atb
 

@@ -51,8 +51,6 @@ Caveat, we no longer have a torque cluster, so this might not work anymore.
 
 =head1 METHODS
 
-=over
-
 =head2 C<Submit>
 
 Invoke qsub with (hopefully) appropriate parameters for various jobs on our Torque cluster.
@@ -300,15 +298,13 @@ $args{jstring}" if ($class->{verbose});
   ##return([$shell_job, $perl_job]);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<Bio::Tools::Run::StandAloneBlast>
+L<Bio::Adventure::Local> L<Bio::Adventure::Slurm> L<qsub>
 
 =cut
 

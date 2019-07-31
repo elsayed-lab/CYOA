@@ -165,4 +165,14 @@ sub Read_Samples {
     return($data);
 }
 
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<fastq-dump>
+
+=cut
+
 1;

@@ -274,4 +274,14 @@ sub Parse_Search {
     return($ret);
 }
 
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<Bio::Adventure::Align_Blast> L<Bio::Adventure::Align_Fasta>
+
+=cut
+
 1;

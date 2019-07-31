@@ -558,15 +558,13 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
     return($samtools);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email abelew@gmail.com
 
 =head1 SEE ALSO
 
-    L<samtools> L<Bio::FeatureIO>
+L<samtools> L<Bio::FeatureIO> L<Bio::Tools::GFF> L<Bio::Seq> L<Bio::SeqIO>
 
 =cut
 

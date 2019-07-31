@@ -483,15 +483,13 @@ echo "\$stat_string" >> ${stat_output}
     return($stats);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<Bio::Tools::Run::StandAloneBlast>
+L<trimomatic> L<cutadapt>
 
 =cut
 

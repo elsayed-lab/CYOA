@@ -16,9 +16,11 @@ Invoke gubbins to search for optimal trees given an outgroup, starting tree, and
 
 =over
 
-=item I<outgroup> - Name of chosen outgroup.
+=item I<input> * Input fasta file.
 
-=item I<starting_tree> - Name of start tree.
+=item I<outgroup> * Name of an outgroup taxon.
+
+=item I<starting_tree> * Name of start tree.
 
 =back
 
@@ -61,5 +63,16 @@ sub Run_Gubbins {
     );
     return($gubbins);
 }
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<gubbins>
+
+=cut
+
 
 1;

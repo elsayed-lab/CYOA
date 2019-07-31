@@ -155,4 +155,14 @@ sub Uncompress {
     return($compression);
 }
 
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<xz> L<gzip> L<bash>
+
+=cut
+
 1;

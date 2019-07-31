@@ -590,15 +590,13 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     return($concat_job);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<Bio::Tools::Run::StandAloneBlast>
+L<Bio::Tools::Run::StandAloneBlast> L<blast>
 
 =cut
 

@@ -400,4 +400,14 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     return($concat_job);
 }
 
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+L<fasta36>
+
+=cut
+
 1;

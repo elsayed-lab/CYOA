@@ -627,7 +627,7 @@ Submit sequences for a generic assembly by velvet and pass it to ragoo.
 
 =back
 
-=head C<Invocation>
+=head3 C<Invocation>
 
 > cyoa --task assembly --method velvet --input forward.fastq.gz:reverse.fastq.gz
 
@@ -687,15 +687,13 @@ sub Velvet {
     return($velvet_job);
 }
 
-=back
-
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<trinity> L<trinotate> L<transdecoder> L<velvet> L<ragoo>
+L<trinity> L<trinotate> L<transdecoder> L<velvet> L<ragoo>
 
 =cut
 
