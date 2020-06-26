@@ -20,7 +20,7 @@ has depends_prefix => (is => 'rw', default => '--dependency=afterok');
 has jname => (is => 'rw', default => 'unnamed');
 has language => (is => 'rw', default => 'bash');
 has loghost => (is => 'rw', default => 'localhost');
-has mem => (is => 'rw', default => '6');
+has mem => (is => 'rw', default => '12');
 has sbatch => (is => 'rw', default => Check_Sbatch());
 has sbatch_args => (is => 'rw', default => '--export=ALL --mail-type=NONE');
 has sbatch_logdir => (is => 'rw', default => getcwd());
@@ -87,15 +87,24 @@ use FileHandle;
 use Bio::Adventure;
 my \$out = FileHandle->new(">>outputs/log.txt");
 my \$d = qx'date';
-print \$out "###Started $script_file at \${d}";
+print \$out "### Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
         if ($class->{options_file}) {
             $perl_start .= qq!
-use Storable qw "freeze thaw store retrieve";
+use Storable qw "retrieve";
 local $Storable::Eval = 1;
-my \$options = retrieve($class->{option_file});
+use FileHandle;
+##use JSON;
+##my \$opened = FileHandle->new("<\$class->{option_file}");
+##my \$json_text = "";
+##while (my \$line = <\$opened>) {
+##  \$json_text .= \$line;
+##}
+##\$opened->close();
+##my \$options = decode_json(\$json_text);
+my \$options = retrieve(\$class->{option_file});
 \$h->{options} = \$options;
 !;
         }
@@ -103,7 +112,7 @@ my \$options = retrieve($class->{option_file});
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
 my \$end_d = qx'date';
-print \$out "####Finished \${jobid} ${script_base} at \${end_d}.";
+print \$out "#### Finished \${jobid} ${script_base} at \${end_d}.";
 close(\$out);
 !;
         $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
@@ -126,7 +135,7 @@ $args{jstring}" if ($options->{verbose});
     my $script_start = qq?#!/usr/bin/env bash
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
-#SBATCH --workdir=$options->{basedir}
+#SBATCH --chdir=$options->{basedir}
 #SBATCH --partition=$options->{partition}
 #SBATCH --qos=$options->{queue}
 #SBATCH --nodes=1
@@ -142,13 +151,13 @@ $args{jstring}" if ($options->{verbose});
     }
     $script_start .= qq?
 
-echo "####Started ${script_file} at \$(date) on \$(hostname)" >> outputs/log.txt
+echo "#### Started ${script_file} at \$(date) on \$(hostname)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
 
     my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/$options->{jname}.status
-echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "### Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
@@ -217,25 +226,25 @@ fi
     }
     print "\n";
 
-    $job = {basedir => $options->{basedir},
-            cpus => $options->{cpus},
-            depends_string => $depends_string,
-            job_args => \%args,
-            job_id => $short_jobid,
-            job_input => $options->{job_input},
-            jname => $options->{jname},
-            job_output => $options->{job_output},
-            log => $sbatch_log,
-            mem => $options->{mem},
-            queue => $options->{queue},
-            pbs_id => $job_id,
-            sbatch_args => $options->{sbatch_args},
-            script_body => $options->{jstring},
-            script_file => $script_file,
-            script_start => $script_start,
-            submitter => $sbatch_cmd_line,
-            walltime => $options->{walltime},
-        };
+    $job = { basedir => $options->{basedir},
+             cpus => $options->{cpus},
+             depends_string => $depends_string,
+             job_args => \%args,
+             job_id => $short_jobid,
+             job_input => $options->{job_input},
+             jname => $options->{jname},
+             job_output => $options->{job_output},
+             log => $sbatch_log,
+             mem => $options->{mem},
+             queue => $options->{queue},
+             pbs_id => $job_id,
+             sbatch_args => $options->{sbatch_args},
+             script_body => $options->{jstring},
+             script_file => $script_file,
+             script_start => $script_start,
+             submitter => $sbatch_cmd_line,
+             walltime => $options->{walltime},
+         };
     return($job);
 }
 

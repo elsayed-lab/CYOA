@@ -9,6 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Bio::Tools::GFF;
+use Cwd;
 use File::Basename;
 use File::Path qw"make_path";
 use File::Which qw"which";
@@ -35,10 +36,17 @@ sub HT_Multi {
     die("Could not find htseq in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "htseq_input"],
+        required => ['species', 'htseq_input', 'htseq_stranded'],
+        job_output => $class->{options}->{input},
+        htseq_type => 'gene',
+        htseq_id => 'ID',
+        libtype => 'genome',
     );
     my $species = $options->{species};
     my $htseq_input = $options->{htseq_input};
+    my $stranded = $options->{htseq_stranded};
+    my $htseq_type = $options->{htseq_type};
+    my $htseq_id = $options->{htseq_id};
     my @jobs = ();
 
     my $script_suffix = qq"";
@@ -74,14 +82,15 @@ sub HT_Multi {
         my $gtf = $gff;
         $gtf =~ s/\.gff/\.gtf/g;
         my $output = qq"${out_suffixdir}/${out_basename}_${type}.count";
-        my $htseq_jobname = qq"ht${type}_$options->{species}";
+        my $htseq_jobname = qq"hts_${out_basename}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
         if (-r "$gff") {
             print "Found $gff, performing htseq with it.\n";
             my $ht = Bio::Adventure::Count::HTSeq(
                 $class,
                 htseq_gff => $gff,
                 htseq_input => $htseq_input,
-                htseq_type => $gff_types{$type},
+                htseq_type => $gff_types{$type}->[0],
+                htseq_id => $gff_types{$type}->[1],
                 depends => $options->{depends},
                 jname => $htseq_jobname,
                 job_output => $output,
@@ -99,7 +108,8 @@ sub HT_Multi {
                 $class,
                 htseq_gff => $gtf,
                 htseq_input => $htseq_input,
-                htseq_type => $gff_types{$type},
+                htseq_type => $gff_types{$type}->[0],
+                htseq_id => $gff_types{$type}->[1],
                 depends => $options->{depends},
                 jname => $htseq_jobname,
                 job_output => $output,
@@ -119,10 +129,7 @@ sub HT_Multi {
     $gtf =~ s/\.gff/\.gtf/g;
     my $output = $htseq_input;
     $output =~ s/\.bam$/\.count/g;
-    my $htall_jobname = qq"htall_$options->{species}";
-    if ($options->{jname}) {
-        $htall_jobname = qq"htall_$options->{jname}";
-    }
+    my $htall_jobname = qq"htall_${out_basename}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
     if (-r "$gff") {
         print "Found $gff, performing htseq_all with it.\n";
         my $ht = Bio::Adventure::Count::HTSeq(
@@ -177,8 +184,11 @@ sub HT_Types {
     my $options = $class->Get_Vars(
         args => \%args,
     );
-    my $my_type = $options->{type};
+    my $my_type = $options->{htseq_type};
+    my $my_id = $options->{htseq_id};
+    print "Calling htseq with options for type: $my_type and tag: $my_id\n";
     $my_type = "" unless($my_type);
+    $my_type = "" unless($my_id);
     my $gff_out = {};
     my $max_lines = 100000;
     my $count = 0;
@@ -243,7 +253,7 @@ sub HT_Types {
             $max_can = $can;
             $max_canonical = $found_canonical{$can};
         }
-    } ## End the loop
+    }                           ## End the loop
     my $returned_canonical = $max_can;
 
     my $returned_type = "";
@@ -269,9 +279,12 @@ sub HTSeq {
         required => ["species", "htseq_stranded", "htseq_args",],
         htseq_input => $class->{options}->{input},
         job_output => $class->{options}->{input},
+        htseq_type => 'gene',
+        htseq_id => 'ID',
         depends => '',
         jname => '',
         jprefix => '',
+        mapper => 'hisat2',
         libtype => 'genome',
     );
     my $basename = $options->{basename};
@@ -279,10 +292,6 @@ sub HTSeq {
     my $htseq_type = $options->{htseq_type};
     my $htseq_id = $options->{htseq_id};
     my $output = $options->{job_output};
-    my $htseq_jobname = qq"hts_$options->{species}";
-    if ($options->{jname}) {
-        $htseq_jobname = $options->{jname};
-    }
     my $htseq_input = $options->{htseq_input};
     my $error = $htseq_input;
     my $gff = qq"$options->{libdir}/$options->{libtype}/$options->{species}.gff";
@@ -294,7 +303,7 @@ sub HTSeq {
         my $suffix = $options->{suffix};
         $output =~ s/\.bam/_${suffix}\.count/g;
     } else {
-        $output =~ s/\.bam/\.count/g;
+        $output =~ s/\.bam//g;
     }
     $error =~ s/\.bam/_htseq\.err/g;
     if (!-r "${gff}" and !-r "${gtf}") {
@@ -329,13 +338,15 @@ sub HTSeq {
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     }
-
+    my $dir = basename(getcwd());
+    $output = qq"${output}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}.count";
+    my $htseq_jobname = qq"hts_${dir}_$options->{mapper}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
     ## Much like samtools, htseq versions on travis are old.
     ## Start with the default, non-stupid version.
     my $htseq_version = qx"htseq-count -h | grep version";
     my $htseq_invocation = qq!htseq-count  --help 2>&1 | tail -n 3
 htseq-count \\
-  -q -f bam -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+  -q -f bam -s ${stranded} ${htseq_type_arg} ${htseq_id_arg} \\!;
     if ($htseq_version =~ /0\.5/) {
         ## Versions older than 0.6 are stupid.
         $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
@@ -419,7 +430,7 @@ sub Mi_Map {
         output => $final_map,
     );
 
-} ## End of Mi_Map
+}                               ## End of Mi_Map
 
 =head2 C<Read_Mi>
 
@@ -611,6 +622,173 @@ sub Final_Print_Mi {
     $output->close();
     return($hits);
 }                               ## End of Final_Print
+
+sub Count_Alignments {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'genome'],
+        para_pattern => '^Tc',
+        host_pattern => '',
+    );
+    my $result = {
+        mapped => 0,
+        unmapped => 0,
+        multi_count => 0,
+        single_count => 0,
+        unmapped_count => 0,
+        single_para => 0,       ## Single-hit parasite
+        single_host => 0,       ## Single-hit host
+        multi_host => 0, ## Multi-hit host -- keep in mind htseq will not count these.
+        multi_para => 0, ## Ditto parasite
+        single_both => 0, ## These are the dangerzone reads, 1 hit on both. -- false positives
+        single_para_multi_host => 0,
+        single_host_multi_para => 0,
+        multi_both => 0,      ## These have multi on both and are not a problem.
+        zero_both => 0,       ## This should stay zero.
+        wtf => 0,
+    };
+
+    my %group = (
+        para => 0,
+        host => 0,
+    );
+    my %null_group = (
+        para => 0,
+        host => 0,
+    );
+
+    print "TESTME: $options->{input} and $options->{genome}\n";
+
+    my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+
+    my $sam = Bio::DB::Sam->new(-bam => $options->{input},
+                                -fasta => $fasta,);
+    my @targets = $sam->seq_ids;
+    my $num = scalar(@targets);
+    my $bam = Bio::DB::Bam->open($options->{input});
+    my $header = $bam->header;
+    my $target_count = $header->n_targets;
+    my $target_names = $header->target_name;
+    my $align_count = 0;
+    my $million_aligns = 0;
+    my $alignstats = qx"samtools idxstats $options->{input}";
+    my @alignfun = split(/\n/, $alignstats);
+    my @aligns = split(/\t/, $alignfun[0]);
+    my @unaligns = split(/\t/, $alignfun[1]);
+    my $number_reads = $aligns[2] + $unaligns[3];
+    my $output_name = qq"$options->{input}.out";
+    my $out = FileHandle->new(">${output_name}");
+    print $out "There are ${number_reads} alignments in $options->{input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
+    my $last_readid = "";
+  BAMLOOP: while (my $align = $bam->read1) {
+        $align_count++;
+        ##if ($class->{debug}) {  ## Stop after a relatively small number of reads when debugging.
+        ##    last BAMLOOP if ($align_count > 200);
+        ##}
+        if (($align_count % 1000000) == 0) {
+            $million_aligns++;
+            print $out "Finished $million_aligns million alignments out of ${number_reads}.\n";
+        }
+        my $seqid = $target_names->[$align->tid];
+        my $readid = $align->qname;
+        ## my $start = $align->pos + 1;
+        ## my $end = $align->calend;
+        my $start = $align->pos;
+        my $end = $align->calend - 1;
+        my $cigar = $align->cigar_str;
+        my $strand = $align->strand;
+        my $seq = $align->query->dna;
+        my $qual= $align->qual;
+        if ($cigar eq '') {
+            $result->{unmapped}++;
+            ##print "$result->{unmapped} $readid unaligned.\n";
+            next BAMLOOP;
+        } else {
+            ## Everything which follows is for a mapped read.
+            $result->{mapped}++;
+            my $type;
+            if ($options->{para_pattern}) {
+                if ($seqid =~ m/$options->{para_pattern}/) {
+                    $type = 'para';
+                } else {
+                    $type = 'host';
+                }
+            } elsif ($options->{host_pattern}) {
+                if ($seqid =~ m/$options->{host_pattern}/) {
+                    $type = 'host';
+                } else {
+                    $type = 'para';
+                }
+            }
+            ##print "TESTME: $type ";
+            if ($readid ne $last_readid) {
+                ## Count up what is currently in the group, then reset it.
+                my $reads_in_group = $group{host} + $group{para};
+                if ($reads_in_group > 1) {
+                    $result->{multi_count}++;
+                } elsif ($reads_in_group == 1) {
+                    $result->{single_count}++;
+                } else {
+                    $result->{unmapped_count}++;
+                }
+                ##print "TESTME $group{host} $group{para}\n";
+                if ($group{host} == 0) {
+                    if ($group{para} == 0) {
+                        $result->{zero_both}++;
+                    } elsif ($group{para} == 1) {
+                        $result->{single_para} = $result->{single_para} + $reads_in_group;
+                    } elsif ($group{para} > 1) {
+                        $result->{multi_para} = $result->{multi_para} + $reads_in_group;
+                    } else {
+                        $result->{wtf}++;
+                    }
+                } elsif ($group{host} == 1) {
+                    if ($group{para} == 0) {
+                        $result->{single_host} = $result->{single_host} + $reads_in_group;
+                    } elsif ($group{para} == 1) {
+                        $result->{single_both} = $result->{single_both} + $reads_in_group;
+                    } elsif ($group{para} > 1) {
+                        $result->{single_host_multi_para} = $result->{single_host_multi_para} + $reads_in_group;
+                    } else {
+                        $result->{wtf}++;
+                    }
+                } elsif ($group{host} > 1) {
+                    if ($group{para} == 0) {
+                        $result->{multi_host} = $result->{multi_host} + $reads_in_group;
+                    } elsif ($group{para} == 1) {
+                        $result->{single_para_multi_host} = $result->{single_para_multi_host} + $reads_in_group;
+                    } elsif ($group{host} > 1) {
+                        $result->{multi_both} = $result->{multi_both} + $reads_in_group;
+                    } else {
+                        $result->{wtf}++;
+                    }
+                } else {
+                    $result->{wtf}++;
+                }
+                print "Map:$result->{mapped} Un:$result->{unmapped} SingleC:$result->{single_count} MultC:$result->{multi_count} sp:$result->{single_para} sh:$result->{single_host} mh:$result->{multi_host} mp:$result->{multi_para} SB:$result->{single_both} spmh:$result->{single_para_multi_host} shmp:$result->{single_host_multi_para} bm:$result->{multi_both} bz:$result->{zero_both} wtf:$result->{wtf}\n" if ($options->{debug});
+                %group = %null_group;
+                ## Now set the first read for the new group to the type of this read.
+                $group{$type}++;
+            } else {
+                $group{$type}++;
+            }
+        }
+        $last_readid = $readid;
+    }                           ## End reading each bam entry
+    print $out "Mapped: $result->{mapped}
+Unmapped: $result->{unmapped}
+Multi-mapped: $result->{multi}
+Single-parasite: $result->{single_para}
+Single-host: $result->{single_host}
+Multi-parasite, no host: $result->{multi_para}
+Multi-host, no parasite: $result->{multi_host}
+DANGER Single-both: $result->{single_both}
+DANGER Single-parasite, multi-host: $result->{single_para_multi_host}
+DANGER Single-host, multi-parasite: $result->{single_host_multi_para}
+Multi-both: $result->{both_multi}\n";
+    $out->close();
+}
 
 =head1 AUTHOR - atb
 

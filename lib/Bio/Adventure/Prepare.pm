@@ -112,7 +112,8 @@ sub Fastq_Dump {
     --split-3 --clip ${in} && \\
 ";
         } else {
-            $jstring = qq"fastq-dump --gzip --skip-technical --readids \\
+            $jstring = qq"mkdir -p ${in} && \\
+  fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
     --read-filter pass --dumpbase \\
     --split-3 --clip ${in}
 ";

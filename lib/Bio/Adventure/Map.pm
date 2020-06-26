@@ -41,7 +41,7 @@ sub Bowtie {
     my ($class, %args) = @_;
     my $check = which('bowtie-build');
     die("Could not find bowtie in your PATH.") unless($check);
-
+    print "Recall that you can change the bowtie arguments via 'bt_type'.";
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
@@ -49,6 +49,7 @@ sub Bowtie {
         count => 1,
         libtype => 'genome',
     );
+    my %start_options = %{$options};
     my $species = $options->{species};
 
     if ($options->{species} =~ /\:/) {
@@ -74,8 +75,20 @@ sub Bowtie {
     $bt_depends_on = $options->{depends} if ($options->{depends});
     my $job_basename = $options->{job_basename};
 
+    my $test_file = "";
+    if ($bt_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        $bt_input = qq" <(less $pair_listing[0]) <(less $pair_listing[1]) ";
+        $test_file = $pair_listing[0];
+    } else {
+        $test_file = File::Spec->rel2abs($bt_input);
+        $bt_input = qq" <(less ${test_file}) ";
+    }
+
     my $jname = qq"bt${bt_type}_${species}";
-    $jname = $options->{jname} if ($options->{jname});
+    ##$jname = $options->{jname} if ($options->{jname});
     my $libtype = $options->{libtype};
     my $count = $options->{count};
 
@@ -129,7 +142,7 @@ sub Bowtie {
   ${bt_reflib} \\
   ${bt_args} \\
   -p ${cpus} \\
-  ${bowtie_input_flag} <(less ${bt_input}) \\
+  ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
@@ -199,6 +212,7 @@ sub Bowtie {
                 libtype => $libtype,
                 queue => 'workstation',
                 suffix => $bt_type,
+                mapper => 'bowtie1',
             );
         } else {
             $htmulti = Bio::Adventure::Count::HT_Multi(
@@ -212,6 +226,7 @@ sub Bowtie {
                 libtype => $libtype,
                 queue => 'workstation',
                 suffix => $bt_type,
+                mapper => 'bowtie1',
             );
             $bt_jobs{htseq} = $htmulti;
         }
@@ -229,6 +244,7 @@ sub Bowtie {
     );
     $bt_jobs{stats} = $stats;
 
+    $class->{options} = \%start_options;
     return(\%bt_jobs);
 }
 
@@ -257,6 +273,7 @@ sub Bowtie2 {
         required => ['species', 'input', 'htseq_type'],
         do_htseq => 1,
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -334,13 +351,31 @@ sub Bowtie2 {
     my $aligned_filename = qq"${bt_dir}/${job_basename}_aligned_$options->{species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/${job_basename}_unaligned_$options->{species}.fastq";
     my $sam_filename = qq"${bt_dir}/${job_basename}.sam";
-    my $jstring = qq!if [[ -e "/scratch0" ]]; then
-  scratchdir=\$(mktemp -d "/scratch0/\${USER}.XXXX")
-  echo "Working in: \${scratchdir} on \$(hostname)."
-  cd "\${scratchdir}" || exit
-fi
-
-mkdir -p ${bt_dir} && \\
+    ## Removing the usage of /scratch0 until I figure out how to deal with annoying symlinks.
+    ##my $jstring = qq!if [[ -e "/scratch0" ]]; then
+##  scratchdir=\$(mktemp -d "/scratch0/\${USER}.XXXX")
+##  echo "Working in: \${scratchdir} on \$(hostname)."
+##  cd "\${scratchdir}" || exit
+##fi
+##
+##mkdir -p ${bt_dir} && \\
+##  sleep ${sleep_time} && \\
+##  bowtie2 -x ${bt_reflib} ${bt2_args} \\
+##    -p ${cpus} \\
+##    ${bowtie_input_flag} ${bt_input} \\
+##    --un ${unaligned_filename} \\
+##    --al ${aligned_filename} \\
+##    -S ${sam_filename} \\
+##    2>${error_file} \\
+##    1>${bt_dir}/${job_basename}.out
+##
+##if [[ -e "/scratch0" ]]; then
+##  cd $options->{basedir} && \\
+##    rsync -a "\${scratchdir}/${bt_dir}/" ${bt_dir} && \\
+##    rm -r "\${scratchdir}"
+##fi
+##!;
+    my $jstring = qq!mkdir -p ${bt_dir} && \\
   sleep ${sleep_time} && \\
   bowtie2 -x ${bt_reflib} ${bt2_args} \\
     -p ${cpus} \\
@@ -350,12 +385,6 @@ mkdir -p ${bt_dir} && \\
     -S ${sam_filename} \\
     2>${error_file} \\
     1>${bt_dir}/${job_basename}.out
-
-if [[ -e "/scratch0" ]]; then
-  cd $options->{basedir} && \\
-    rsync -a "\${scratchdir}/${bt_dir}/" ${bt_dir} && \\
-    rm -r "\${scratchdir}"
-fi
 !;
 
     my $bt2_job = $class->Submit(
@@ -366,7 +395,7 @@ fi
         depends => $bt_depends_on,
         jstring => $jstring,
         jprefix => "15",
-        mem => 24,
+        mem => 28,
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -424,6 +453,7 @@ fi
                 jname => $suffix_name,
                 jprefix => "20",
                 libtype => $libtype,
+                mapper => 'bowtie2',
             );
         } else {
             $htmulti = Bio::Adventure::Count::HT_Multi(
@@ -433,10 +463,12 @@ fi
                 jname => $suffix_name,
                 jprefix => "21",
                 libtype => $libtype,
+                mapper => 'bowtie2',
             );
             $bt_jobs{htseq} = $htmulti;
         }
     }
+    $class->{options} = \%start_options;
     return(\%bt_jobs);
 }
 
@@ -458,6 +490,7 @@ sub Bowtie_RRNA {
         args => \%args,
         required => ["species"],
     );
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     $job_basename = qq"rRNA_${job_basename}";
     my $exclude = 0;
@@ -481,6 +514,7 @@ sub Bowtie_RRNA {
     );
     ## Return the basename back to normal so that future tasks don't
     ## get confuseled.
+    $class->{options} = \%start_options;
     return($job);
 }
 
@@ -498,6 +532,7 @@ sub BT_Multi {
         args => \%args,
         required => ["species", "input", "htseq_type"],
     );
+    my %start_options = %{$options};
     my $bt_input = $options->{input};
     my $job_basename = $options->{job_basename};
     my $species = $options->{species};
@@ -517,6 +552,7 @@ sub BT_Multi {
         );
         push(@jobs, $job);
     }
+    $class->{options} = \%start_options;
     return(\@jobs);
 }
 
@@ -530,6 +566,7 @@ sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args, required => ["species"],
                                    depends => "");
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $jstring = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
   $options->{libdir}/$options->{libtype}/indexes/$options->{species}
@@ -544,6 +581,7 @@ sub BT1_Index {
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
+    $class->{options} = \%start_options;
     return($bt1_index);
 }
 
@@ -556,6 +594,7 @@ directory.
 sub BT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args, required => ["species"]);
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $dep = "";
     $dep = $options->{depends};
@@ -582,6 +621,7 @@ bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
         prescript => $args{prescript},
         postscript => $args{postscript},
     );
+    $class->{options} = \%start_options;
     return($indexer);
 }
 
@@ -593,6 +633,7 @@ Collect some alignment statistics from bowtie1.
 sub BT1_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $bt_input = $options->{bt_input};
     my $job_basename = $options->{job_basename};
     my $bt_type = "";
@@ -638,6 +679,7 @@ echo "\$stat_string" >> ${stat_output}!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 
@@ -649,6 +691,7 @@ Collects alignment statistics from bowtie 2.
 sub BT2_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $bt_input = $options->{bt_input};
     my $job_basename = $options->{job_basename};
     my $bt_type = $options->{bt_type};
@@ -687,6 +730,7 @@ echo "\$stat_string" >> ${output}!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 
@@ -708,6 +752,7 @@ sub BWA {
         species => 'lmajor',
         libtype => 'genome',
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -727,6 +772,23 @@ sub BWA {
     my $bwa_depends_on;
     $bwa_depends_on = $options->{depends} if ($options->{depends});
     my $job_basename = $options->{job_basename};
+
+    my $test_file = "";
+    my $forward_reads = "";
+    my $reverse_reads = undef;
+    if ($bwa_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $bwa_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        $test_file = $pair_listing[0];
+        $forward_reads = qq" <(less $pair_listing[0])";
+        $reverse_reads = qq" <(less $pair_listing[1])";
+        $bwa_input = qq" ${forward_reads} ${reverse_reads} ";
+    } else {
+        $test_file = File::Spec->rel2abs($bwa_input);
+        $bwa_input = qq" <(less ${test_file}) ";
+        $forward_reads = $bwa_input;
+    }
 
     my $jname = qq"bwa_$options->{species}";
     $jname = $options->{jname} if ($options->{jname});
@@ -755,85 +817,118 @@ sub BWA {
         $bwa_depends_on = $index_jobid;
     }
 
-    ## Include logic to deal with paired end/single end reads.
-    my $test_file = "";
-    my @pair_listing = ();
-    my ($forward_reads, $reverse_reads);
-    if ($bwa_input =~ /\s+/) {
-        ($forward_reads, $reverse_reads) = split(/\s+/, $bwa_input);
-    } else {
-        $forward_reads = $bwa_input;
-    }
-
     my $aln_sam = qq"${bwa_dir}/${job_basename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/${job_basename}_mem.sam";
     my $aln_args = qq"";
-    my $mem_args = qq"";
+    my $mem_args = qq"-M ";
     my $sam_args = qq"";
-    my $jstring = qq!mkdir -p ${bwa_dir}
-bwa mem ${mem_args} -a ${bwa_reflib} <(less ${bwa_input}) \\
-  2>${bwa_dir}/bwa.err 1>${mem_sam}
+    my $mem_string = qq!mkdir -p ${bwa_dir}
+bwa mem ${mem_args} \\
+  -a ${bwa_reflib} \\
+  ${bwa_input} \\
+  2>${bwa_dir}/bwa.err \\
+  1>${mem_sam}
 !;
-    my $reporter_string = qq"bwa samse ${sam_args} ${bwa_reflib} \\
-  ${bwa_dir}/${job_basename}_aln-forward.sai <(less ${bwa_input}) \\
+    my $reporter_string = qq"bwa samse ${sam_args} \\
+  ${bwa_reflib} \\
+  ${bwa_dir}/${job_basename}_aln-forward.sai \\
+  ${bwa_input} \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
-    my $aln_string = qq"bwa aln ${aln_args} ${bwa_reflib} \\
+    my $aln_string = qq"bwa aln ${aln_args} \\
+  ${bwa_reflib} \\
   ${forward_reads} \\
   2>${bwa_dir}/${job_basename}_aln-forward.err \\
   1>${bwa_dir}/${job_basename}_aln-forward.sai";
     if (defined($reverse_reads)) {
         $aln_string = qq"${aln_string}
-bwa aln ${aln_args} ${bwa_reflib} \\
+bwa aln ${aln_args} \\
+  ${bwa_reflib} \\
   <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}_aln-reverse.err \\
   1>${bwa_dir}/${job_basename}_aln-reverse.sai";
-        $reporter_string = qq"bwa ${sam_args} sampe ${bwa_reflib} \\
-  ${bwa_dir}/${job_basename}_aln-forward.sai ${bwa_dir}/${job_basename}_aln-reverse.sai \\
+        $reporter_string = qq"bwa ${sam_args} \\
+  sampe ${bwa_reflib} \\
+  ${bwa_dir}/${job_basename}_aln-forward.sai \\
+  ${bwa_dir}/${job_basename}_aln-reverse.sai \\
   <(less ${forward_reads}) <(less ${reverse_reads}) \\
   2>${bwa_dir}/${job_basename}.samerr \\
   1>${aln_sam}";
     }
 
-    my $comment = qq!## This is a BWA alignment of ${bwa_input} against
+    my $mem_comment = qq!## This is a BWA mem alignment of ${bwa_input} against
 ## ${bwa_reflib}.
-## It will perform a separate bwa mem run and bwa aln run.!;
-
-    $jstring = qq!${jstring}
-${aln_string}
-${reporter_string}
 !;
-    my $bwa_job = $class->Submit(
-        comment => $comment,
+    my $aln_comment = qq!## This is a BWA aln alignment of ${bwa_input} against
+## ${bwa_reflib}.
+!;
+    my $report_comment = qq!## This is a BWA sam report of ${bwa_input} against
+## ${bwa_reflib}.
+!;
+
+    ## MEM Runs
+    my $mem_job = $class->Submit(
+        comment => $mem_comment,
         input => $bwa_input,
         depends => $bwa_depends_on,
-        jname => "bwa_$options->{species}",
-        job_output => qq"${bwa_dir}/${job_basename}_mem.sam",
-        jprefix => "20",
-        jstring => $jstring,
+        jname => "bwamem_$options->{species}",
+        job_output => $mem_sam,
+        jprefix => '50',
+        jstring => $mem_string,
+        mem => '36',
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         queue => 'workstation',
     );
-    $bwa_jobs{bwa} = $bwa_job;
-
+    $bwa_jobs{bwa} = $mem_job;
     my $mem_sam_job = Bio::Adventure::Convert::Samtools(
         $class,
-        input => $bwa_job->{job_output},
-        depends => $bwa_job->{job_id},
+        input => $mem_sam,
+        depends => $mem_job->{job_id},
         jname => "s2b_mem",
-        jprefix => "21",
+        mem => '20',
+        jprefix => '51',
     );
     $bwa_jobs{samtools_mem} = $mem_sam_job;
 
+    ## ALN Runs
+    my $aln_job = $class->Submit(
+        comment => $aln_comment,
+        input => $bwa_input,
+        depends => $bwa_depends_on,
+        jname => "bwaaln_$options->{species}",
+        job_output => qq"${bwa_dir}/${job_basename}_aln-forward.sai",
+        jprefix => '52',
+        jstring => $aln_string,
+        mem => '36',
+        postscript => $options->{postscript},
+        prescript => $options->{prescript},
+        queue => 'workstation',
+    );
+    $bwa_jobs{aln} = $aln_job;
+    my $rep_job = $class->Submit(
+        comment => $report_comment,
+        input => $aln_job->{job_output},
+        depends => $aln_job->{job_id},
+        jname => "bwarep_$options->{species}",
+        job_output => $aln_sam,
+        jprefix => '53',
+        jstring => $reporter_string,
+        mem => '36',
+        postscript => $options->{postscript},
+        prescript => $options->{prescript},
+        queue => 'workstation',
+    );
+    $bwa_jobs{reporter} = $rep_job;
     my $aln_sam_job = Bio::Adventure::Convert::Samtools(
         $class,
-        input => ${aln_sam},
-        depends => $mem_sam_job->{job_id},
+        input => $aln_sam,
+        depends => $rep_job->{job_id},
         jname => "s2b_aln",
-        jprefix => "21",
+        mem => '20',
+        jprefix => '54',
     );
-    $bwa_jobs{samtools_mem} = $aln_sam_job;
+    $bwa_jobs{samtools_aln} = $aln_sam_job;
 
     my $mem_htmulti = Bio::Adventure::Count::HT_Multi(
         $class,
@@ -842,7 +937,8 @@ ${reporter_string}
         htseq_type => $options->{htseq_type},
         depends => $mem_sam_job->{job_id},
         jname => "htmem_${jname}",
-        jprefix => '22',
+        jprefix => '55',
+        mapper => 'bwa',
     );
     $bwa_jobs{htseq_mem} = $mem_htmulti;
 
@@ -853,7 +949,8 @@ ${reporter_string}
         htseq_type => $options->{htseq_type},
         depends => $aln_sam_job->{job_id},
         jname => "htaln_${jname}",
-        jprefix => '22',
+        jprefix => '56',
+        mapper => 'bwa',
     );
     $bwa_jobs{htseq_aln} = $aln_htmulti;
 
@@ -861,12 +958,13 @@ ${reporter_string}
         $class,
         depends => $mem_sam_job->{job_id},
         jname => 'bwastats',
-        jprefix => "25",
+        jprefix => '57',
         aln_output => $aln_sam_job->{job_output},
         mem_output => $mem_sam_job->{job_output},
     );
     $bwa_jobs{stats} = $bwa_stats;
 
+    $class->{options} = \%start_options;
     return(\%bwa_jobs);
 }
 
@@ -878,6 +976,7 @@ Create bwa indexes.
 sub BWA_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $jstring = qq!
 if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
@@ -900,6 +999,7 @@ cd \$start
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
+    $class->{options} = \%start_options;
     return($bwa_index);
 }
 
@@ -911,6 +1011,7 @@ Collect some alignment statistics from bwa.
 sub BWA_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $aln_input = $options->{aln_output};
     $aln_input = qq"${aln_input}.stats";
@@ -956,6 +1057,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 
@@ -974,6 +1076,7 @@ sub Hisat2 {
         required => ['species', 'input', 'htseq_type'],
         do_htseq => 1,
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1049,48 +1152,40 @@ sub Hisat2 {
 ## ${ht_reflib} using arguments: ${ht2_args}.
 ## This jobs depended on: ${ht_depends_on}
 !;
-    my $aligned_filename = qq"${ht_dir}/${job_basename}_aligned_$options->{species}.fastq";
-    my $unaligned_filename = qq"${ht_dir}/${job_basename}_unaligned_$options->{species}.fastq";
+    my $aligned_discordant_filename = qq"${ht_dir}/${job_basename}_aligned_discordant_$options->{species}.fastq.gz";
+    my $unaligned_discordant_filename = qq"${ht_dir}/${job_basename}_unaligned_discordant_$options->{species}.fastq.gz";
+    my $aligned_concordant_filename = qq"${ht_dir}/${job_basename}_aligned_concordant_$options->{species}.fastq.gz";
+    my $unaligned_concordant_filename = qq"${ht_dir}/${job_basename}_unaligned_concordant_$options->{species}.fastq.gz";
     my $sam_filename = qq"${ht_dir}/${job_basename}.sam";
-    my $jstring = qq!if [[ -e "/scratch0" ]]; then
-  scratchdir=\$(mktemp -d "/scratch0/\${USER}.XXXX")
-  echo "Working in: \${scratchdir} on \$(hostname)."
-  cd "\${scratchdir}" || exit
-fi
-
-mkdir -p ${ht_dir} && \\
+    my $jstring = qq!mkdir -p ${ht_dir} && \\
   sleep ${sleep_time} && \\
   hisat2 -x ${ht_reflib} ${ht2_args} \\
     -p ${cpus} \\
     ${hisat_input_flag} ${ht_input} \\
     --phred$options->{phred} \\
-    --un ${unaligned_filename} \\
-    --al ${aligned_filename} \\
+    --un-gz ${unaligned_discordant_filename} \\
+    --al-gz ${aligned_discordant_filename} \\
+    --un-conc-gz ${unaligned_concordant_filename} \\
+    --al-conc-gz ${aligned_concordant_filename} \\
     -S ${sam_filename} \\
     2>${error_file} \\
     1>${ht_dir}/${job_basename}.out
-
-if [[ -e "/scratch0" ]]; then
-  cd $options->{basedir} && \\
-    rsync -a "\${scratchdir}/${ht_dir}/" ${ht_dir} && \\
-    rm -r "\${scratchdir}"
-fi
 !;
 
     my $ht2_job = $class->Submit(
-        aligned => $aligned_filename,
+        aligned => $aligned_concordant_filename,
         comment => $comment,
         input => $ht_input,
         jname => $ht2_name,
         depends => $ht_depends_on,
         jstring => $jstring,
         jprefix => "15",
-        mem => 32,
-        walltime => '24:00:00',
+        mem => 45,
+        walltime => '124:00:00',
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        unaligned => $unaligned_filename,
+        unaligned => $unaligned_concordant_filename,
     );
     $ht_jobs{hisat} = $ht2_job;
 
@@ -1124,6 +1219,7 @@ fi
                 jname => $suffix_name,
                 jprefix => "20",
                 libtype => $libtype,
+                mapper => 'hisat2',
             );
         } else {
             $htmulti = Bio::Adventure::Count::HT_Multi(
@@ -1133,11 +1229,13 @@ fi
                 jname => $suffix_name,
                 jprefix => "21",
                 libtype => $libtype,
+                mapper => 'hisat2',
             );
             $ht_jobs{htseq} = $htmulti;
         }
     }
-return(\%ht_jobs);
+    $class->{options} = \%start_options;
+    return(\%ht_jobs);
 }
 
 =head2 C<HT2_Index>
@@ -1149,6 +1247,7 @@ directory.
 sub HT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args, required => ["species"]);
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $dep = "";
     $dep = $options->{depends};
@@ -1169,13 +1268,14 @@ hisat2-build $options->{libdir}/genome/$options->{species}.fasta \\
     my $indexer = $class->Submit(
         comment => $comment,
         depends => $dep,
-        jname => "ht2idx",
+        jname => qq"ht2idx_$options->{species}",
         jprefix => "15",
         jstring => $jstring,
         prescript => $args{prescript},
         postscript => $args{postscript},
-        walltime => "00:08:00",
+        walltime => "08:00:00",
     );
+    $class->{options} = \%start_options;
     return($indexer);
 }
 
@@ -1187,6 +1287,7 @@ Collect alignment statistics from hisat 2.
 sub HT2_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $ht_input = $options->{ht_input};
     my $job_basename = $options->{job_basename};
     my $jname = "ht2_stats";
@@ -1224,6 +1325,7 @@ echo "\$stat_string" >> ${output}!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 
@@ -1240,6 +1342,7 @@ sub Kallisto {
         args => \%args,
         required => ["species","input"],
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1349,7 +1452,7 @@ kallisto quant ${ka_args} \\
         queue => "workstation",
     );
     $ka_jobs{kallisto} = $ka_job;
-
+    $class->{options} = \%start_options;
     return(\%ka_jobs);
 }
 
@@ -1364,6 +1467,7 @@ sub Kallisto_Index {
         args => \%args,
         required => ["species", "genome"],
     );
+    my %start_options = %{$options};
 
     my $job_basename = $options->{job_basename};
     my $dep = "";
@@ -1386,6 +1490,7 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/$options->{species}.idx 
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
+    $class->{options} = \%start_options;
     return($jobid);
 }
 
@@ -1403,6 +1508,7 @@ sub RSEM {
         args => \%args,
         required => ['species', 'input'],
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1477,6 +1583,7 @@ sub RSEM {
         walltime => '36:00:00',
     );
     $rsem_jobs{rsem} = $rsem_job;
+    $class->{options} = \%start_options;
     return(\%rsem_jobs);
 }
 
@@ -1491,6 +1598,7 @@ sub RSEM_Index {
         args => \%args,
         required => ["species",],
     );
+    my %start_options = %{$options};
     my $dep = $options->{depends};
     my $comment = qq"## RSEM Index creation.";
     my $jstring = qq!
@@ -1505,6 +1613,7 @@ rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
+    $class->{options} = \%start_options;
     return($jobid);
 }
 
@@ -1521,6 +1630,7 @@ sub Salmon {
         args => \%args,
         required => ["species","input"],
     );
+    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1611,7 +1721,7 @@ salmon quant -i ${sa_reflib} \\
     );
 
     $sa_jobs{salmon} = $sa_job;
-
+    $class->{options} = \%start_options;
     return(\%sa_jobs);
 }
 
@@ -1627,7 +1737,7 @@ sub Salmon_Index {
         args => \%args,
         required => ["species", "genome"],
     );
-
+    my %start_options = %{$options};
     my $job_basename = $options->{job_basename};
     my $dep = "";
     $dep = $options->{depends};
@@ -1644,11 +1754,13 @@ salmon index -t ${genome} -i $options->{libdir}/${libtype}/indexes/$options->{sp
         comment => $comment,
         depends => $dep,
         jstring => $jstring,
-        jname => "salidx",
-        jprefix => $options->{jprefix},
+        jname => "salidx_$options->{species}",
+        mem => 24,
+        jprefix => "15",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
     );
+    $class->{options} = \%start_options;
     return($jobid);
 }
 
@@ -1660,6 +1772,7 @@ Collect some summary statistics from a salmon run.
 sub Salmon_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $depends = $options->{depends};
     my $jname = "stats";
     $jname = $options->{jname} if ($options->{jname});
@@ -1695,6 +1808,7 @@ echo "\$stat_string" >> "${output}"!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 
@@ -1711,7 +1825,7 @@ sub STAR {
         args => \%args,
         required => ["species","input"],
     );
-
+    my %start_options = %{$options};
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1810,7 +1924,7 @@ STAR \\
         queue => "large",
     );
     $star_jobs{salmon} = $star_job;
-
+    $class->{options} = \%start_options;
     return(\%star_jobs);
 }
 
@@ -1825,6 +1939,7 @@ sub STAR_Index {
         args => \%args,
         required => ["species",],
     );
+    my %start_options = %{$options};
     my $dep = $options->{depends};
     my $comment = qq"## STAR Index creation.";
     my $libtype = 'genome';
@@ -1851,6 +1966,7 @@ STAR \\
         queue => 'xlarge',
         walltime => '20-00:00:00',
     );
+    $class->{options} = \%start_options;
     return($jobid);
 }
 
@@ -1868,7 +1984,7 @@ sub Tophat {
         args => \%args,
         required => ["species", "input", "htseq_type"],
     );
-
+    my %start_options = %{$options};
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -2002,7 +2118,8 @@ fi
         htseq_type => $options->{htseq_type},
         depends => $tophat->{job_id},
         jname => qq"hts_$options->{species}",
-        jprefix => "32",
+        jprefix => '32',
+        maper => 'tophat',
     );
     $tophat->{htseq} = $htmulti;
     ## Perform a separate htseq run using only the successfully paired hits
@@ -2014,7 +2131,8 @@ fi
             htseq_type => $options->{htseq_type},
             depends => $tophat->{job_id},
             jname => qq"htsp_$options->{species}",
-            jprefix => "32",
+            jprefix => '32',
+            mapper => 'tophat',
         );
     }
     ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
@@ -2033,7 +2151,7 @@ fi
         unaccepted_input => $unaccepted,
     );
     $tophat->{stats} = $stats;
-
+    $class->{options} = \%start_options;
     return($tophat);
 }
 
@@ -2046,6 +2164,7 @@ generated by a tophat run.
 sub Tophat_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my %start_options = %{$options};
     my $accepted_input = $options->{accepted_input};
     my $accepted_output = qq"${accepted_input}.stats";
     my $unaccepted_input = $options->{unaccepted_input};
@@ -2097,6 +2216,7 @@ echo "\$stat_string" >> "${output}"!;
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 

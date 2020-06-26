@@ -88,12 +88,12 @@ sub Submit {
 #PBS -d $options->{basedir}
 #PBS -N $options->{jname} -l mem=$options->{mem}gb -l walltime=$options->{walltime} -l ncpus=$options->{cpus}
 #PBS -o ${log} $options->{args}
-echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
+echo "#### Started ${script_file} at \$(date)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
   my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/$options->{jname}.status
-echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "### Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
   ## It turns out that if a job was an array (-t) job, then the following does not work because
   ## It doesn't get filled in properly by qstat -f...
@@ -106,13 +106,13 @@ echo "###Finished \${PBS_JOBID} $script_base at \$(date), it took \$(( SECONDS /
   if ($has_pbs) {
     $script_end .= qq!
 walltime=\$(qstat -f -t \"\${PBS_JOBID}\" | grep 'resources_used.walltime' | awk -F ' = ' '{print \$2}')
-echo "####PBS walltime used by \${PBS_JOBID} was: \${walltime:-null}" >> outputs/log.txt
+echo "#### PBS walltime used by \${PBS_JOBID} was: \${walltime:-null}" >> outputs/log.txt
 mem=\$(qstat -f -t | grep \"\${PBS_JOBID}\" | grep 'resources_used.mem' | awk -F ' = ' '{print \$2}')
-echo "####PBS memory used by \${PBS_JOBID} was: \${mem:-null}" >> outputs/log.txt
+echo "#### PBS memory used by \${PBS_JOBID} was: \${mem:-null}" >> outputs/log.txt
 vmmemory=\$(qstat -f -t \"\${PBS_JOBID}\" | grep 'resources_used.vmem' | awk -F ' = ' '{print \$2}')
-echo "####PBS vmemory used by \${PBS_JOBID} was: \${vmmemory:-null}" >> outputs/log.txt
+echo "#### PBS vmemory used by \${PBS_JOBID} was: \${vmmemory:-null}" >> outputs/log.txt
 cputime=\$(qstat -f -t \"\${PBS_JOBID}\" | grep 'resources_used.cput' | awk -F ' = ' '{print \$2}')
-echo "####PBS cputime used by \${PBS_JOBID} was: \${cputime:-null}" >> outputs/log.txt
+echo "#### PBS cputime used by \${PBS_JOBID} was: \${cputime:-null}" >> outputs/log.txt
 ##qstat -f -t \${PBS_JOBID} >> outputs/log.txt
 !;
   }
@@ -245,14 +245,14 @@ use strict;
 use FileHandle;
 my \$out = FileHandle->new(">>outputs/log.txt");
 my \$d = qx'date';
-print \$out "###Started $script_file at \${d}";
+print \$out "### Started $script_file at \${d}";
 chdir("$class->{basedir}");
 ?;
   my $script_end = qq!## The following lines give status codes and some logging
 my \$jobid = "";
 \$jobid = \$ENV{PBS_JOBID} if (\$ENV{PBS_JOBID});
 my \$end_d = qx'date';
-print \$out "####Finished \${jobid} ${script_base} at \${end_d}.";
+print \$out "### Finished \${jobid} ${script_base} at \${end_d}.";
 close(\$out);
 !;
   print "The job is:

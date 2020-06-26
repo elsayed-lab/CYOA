@@ -10,6 +10,7 @@ extends 'Bio::Adventure';
 
 use File::Basename;
 use File::ShareDir ':ALL';
+use File::Temp qw":POSIX";
 use File::Which qw"which";
 
 =head1 NAME
@@ -40,6 +41,7 @@ sub Cutadapt {
         maxerr => 0.1,
         maxremoved => 3,
     );
+    my %start_options = %{$options};
     my $job_basename = $class->Get_Job_Name();
 
     if ($options->{task}) {
@@ -123,7 +125,7 @@ mkdir -p ${out_dir} && \\
     my $comp_short = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the tooshort sequences.",
-        input => qq"${out_dir}/${basename}_tooshort.fastq",
+        xz_input => qq"${out_dir}/${basename}_tooshort.fastq",
         depends => $cutadapt->{pbs_id},
         jname => "xzcutshort_${job_basename}",
         jprefix => "08",
@@ -133,7 +135,7 @@ mkdir -p ${out_dir} && \\
     my $comp_long = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
-        input => qq"${out_dir}/${basename}_toolong.fastq",
+        xz_input => qq"${out_dir}/${basename}_toolong.fastq",
         depends => $cutadapt->{pbs_id},
         jname => "xzcutlong_${job_basename}",
         jprefix => "08",
@@ -143,7 +145,7 @@ mkdir -p ${out_dir} && \\
     my $comp_un = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
-        input => qq"${out_dir}/${basename}_untrimmed.fastq",
+        xz_input => qq"${out_dir}/${basename}_untrimmed.fastq",
         depends => $cutadapt->{pbs_id},
         jname => "xzuncut_${job_basename}",
         jprefix => "08",
@@ -153,14 +155,68 @@ mkdir -p ${out_dir} && \\
     my $comp_original = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the original sequence.",
-        input => qq"$input",
+        xz_input => qq"$input",
         depends => $cutadapt->{pbs_id},
         jname => "xzorig_${job_basename}",
         jprefix => "08",
         queue => "workstation",
         walltime => "04:00:00",
     );
+    $class->{options} = \%start_options;
     return($cutadapt);
+}
+
+sub Racer {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        length => 1000000,
+        required => ['input',],
+    );
+    my %start_options = %{$options};
+    my $job_basename = $class->Get_Job_Name();
+    my $input = $options->{input};
+    my @input_list = split(/:|\,/, $input);
+    my @suffixes = (".fastq",".gz",".xz");
+    my @base_list = ();
+    for my $in (@input_list) {
+        my $shorted = basename($in, @suffixes);
+        push(@base_list, basename($shorted, @suffixes));
+    }
+    my $comment = qq!## This calls RACER to try to remove
+## arbitrary errors in sequencing data.
+!;
+    my $jstring = qq"";
+
+    foreach my $c (0 .. $#input_list) {
+        my $name = File::Temp::tempnam('.', 'racer');
+        my $output = qq"$base_list[$c]-corrected.fastq";
+        $jstring .= "zcat $input_list[$c] > ${name}.fastq &&
+  RACER \\
+  ${name}.fastq \\
+  ${output} \\
+  $options->{length} \\
+  2>outputs/racer.out 1>&2 &&
+  rm ${name}.fastq
+gzip -9 ${output}
+";
+    }
+
+    my $racer = $class->Submit(
+        comment => $comment,
+        input => $input,
+        jname => "racer_${job_basename}",
+        jprefix => "07",
+        jstring => $jstring,
+        queue => "workstation",
+        cpus => 4,
+        mem => 30,
+        prescript => $args{prescript},
+        postscript => $args{postscript},
+        walltime => "12:00:00",
+    );
+    ## Set the input   for future tools to the output from trimming.
+    return($racer);
 }
 
 =head2 C<Trimomatic>
@@ -176,12 +232,14 @@ sub Trimomatic {
         args => \%args,
         required => ['input',],
     );
+    my %start_options = %{$options};
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
     } else {
         $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
     }
+    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -196,6 +254,7 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
     );
+    my %start_options = %{$options};
     my $job_basename = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
@@ -275,7 +334,7 @@ ${exe} \\
   ${reader} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
-  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10:2:keepBothReads \\
   SLIDINGWINDOW:4:25 MINLEN:40 \\
   1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
@@ -323,6 +382,7 @@ ln -s ${r2o} r2_trimmed.fastq.gz
         pairwise => 1,
     );
     $trim->{stats} = $trim_stats;
+    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -337,6 +397,7 @@ sub Trimomatic_Single {
         args => \%args,
         required => ['input',],
     );
+    my %start_options = %{$options};
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
@@ -386,7 +447,7 @@ ${exe} \\
   -phred33 \\
   ${input} \\
   ${output} \\
-  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:20:4 \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
   1>outputs/${basename}-trimomatic.out 2>&1
 !;
@@ -408,9 +469,8 @@ ${exe} \\
         jname => "trst_${job_basename}",
         jprefix => "06",
     );
-    ## Set the input for future tools to the output from this trimming operation.
     $trim->{stats} = $trim_stats;
-    $options = $class->Set_Vars(input => $output);
+    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -425,6 +485,8 @@ sub Trimomatic_Stats {
     my $options = $class->Get_Vars(
         args => \%args,
     );
+    ## Dereferencing the options to keep a safe copy.
+    my %start_options = %{$options};
     my $basename = $options->{basename};
     my $input_file = "outputs/${basename}-trimomatic.out";
     my $depends = $options->{depends};
@@ -480,6 +542,7 @@ echo "\$stat_string" >> ${stat_output}
         queue => "throughput",
         walltime => "00:10:00",
     );
+    $class->{options} = \%start_options;
     return($stats);
 }
 

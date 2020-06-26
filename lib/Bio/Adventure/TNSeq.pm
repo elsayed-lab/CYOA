@@ -423,14 +423,15 @@ essentiality_tas -f genome.fasta -o output.txt -n genome_name -g genome.gff -b b
 =cut
 sub Essentiality_TAs {
     my ($class, %args) = @_;
-    my $output_directory = qq"outputs/essentiality";
-    make_path($output_directory);
     ## A smarter way of handling counting inter-cds regions would be to use the Read_GFF() functions to pull the intercds regions rather than the hackish @inter_starts @inter_ends.
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        feature_type => 'exon',
+        htseq_type => 'exon',
+        htseq_id => 'gene_id',
     );
+    my $output_directory = qq"outputs/essentiality_$options->{species}";
+    make_path($output_directory);
     my $input = $options->{input};
     my $checked_input = $class->Check_Input(files => $input);
     die("Essentiality_TAs requires a bam input, you gave: ${input}") unless ($input =~ /\.bam$/);
@@ -452,13 +453,16 @@ sub Essentiality_TAs {
     ## These 5 arrays will hold the lists of start/ends of each region of interest
     ## This is a somewhat dirty method for this, but I just wanted something easy
     my $cds_gff = $class->Read_Genome_GFF(
-        feature_type => $options->{feature_type},
+        feature_type => $options->{htseq_type},
         gff => $genome_gff,
-        gff_tag => $options->{gff_tag},
+        id_tag => $options->{htseq_id},
     );
-    ## use Data::Dumper;
-    ## print Dumper $cds_gff;
-    my $chr_name = $cds_gff->{stats}->{chromosomes}->[0]; ## Grab the name of the first chromosome
+    my $chr_name = "Unknown";
+    if ($cds_gff->{stats}->{chromosomes}->[0]) {
+        $chr_name = $cds_gff->{stats}->{chromosomes}->[0];
+    } else {
+        die("Reading features from the genome failed.");
+    }
     my @names = @{$cds_gff->{stats}->{feature_names}};
     my @cds_starts = @{$cds_gff->{stats}->{cds_starts}};
     my @cds_ends = @{$cds_gff->{stats}->{cds_ends}};
@@ -466,6 +470,9 @@ sub Essentiality_TAs {
     my @inter_ends = @{$cds_gff->{stats}->{inter_ends}};
     my $num_starts = scalar(@cds_starts);
     print "About to start counting against chromosome: ${chr_name} with ${num_starts} features.\n";
+    if ($num_starts == 0) {
+        die("The feature_type and/or gff_tag is incorrect, delete the pdata file lest it screw you up.\n");
+    }
 
     print $out "Counting TAs in ${input}, this takes a while.\n";
     my $datum = Bio::Adventure::TNSeq::Count_TAs(
@@ -570,10 +577,11 @@ sub Run_Essentiality {
     print "Remember, tn_hmm requires a .wig input file while mh_ess wants a something_gene_tas.txt.\n";
     my $output = basename($input, ('.txt'));
     ## Set up the tn_hmm job -- these inputs are likely wrong
-    my $input_wig = basename($input, ('.txt')) . '.wig';
+    my $input_wig = qq"${output}.wig";
+    my $output_dir = dirname($input);
     $input_wig =~ s/_gene//g;
     $input_wig =~ s/_tas//g;
-    $input_wig = qq"outputs/essentiality/${input_wig}";
+    $input_wig = qq"${output_dir}/${input_wig}";
     my $gff = qq"$options->{libdir}/genome/$options->{species}.gff";
     my $output_file = qq"tn_hmm-${output}.csv";
     my $error_file =  qq"tn_hmm-${output}.err";
@@ -588,16 +596,16 @@ if [ "Python 2.7.9" \!= "\$(python --version 2>&1)" ]; then
 fi
 
 tn-hmm.py -f ${input_wig} -gff ${gff} \\
-  1>outputs/essentiality/${output_file} \\
-  2>outputs/essentiality/${error_file}
+  1>${output_dir}/${output_file} \\
+  2>${output_dir}/${error_file}
 
-process_genes.py -f outputs/essentiality/${output_file} \\
-  1>outputs/essentiality/genes_${output_file} \\
-  2>outputs/essentiality/genes_${error_file}
+process_genes.py -f ${output_dir}/${output_file} \\
+  1>${output_dir}/genes_${output_file} \\
+  2>${output_dir}/genes_${error_file}
 
 process_segments.py -f outputs/essentiality/${output_file} \\
-  1>outputs/essentiality/segments_${output_file} \\
-  2>outputs/essentiality/segments_${error_file}
+  1>${output_dir}/segments_${output_file} \\
+  2>${output_dir}/segments_${error_file}
 !;
     ## tn-hmm requires a wig file and gff
     my $tn_hmm = $class->Submit(jname => "tn_hmm",
@@ -623,14 +631,14 @@ if [ "Python 2.7.9" \!= "\$(python --version 2>&1)" ]; then
 fi
 
 gumbelMH.py -f ${input} -m ${param} -s $options->{runs} \\
-  1>outputs/essentiality/${output_file} \\
-  2>outputs/essentiality/${error_file}
+  1>${output_dir}/${output_file} \\
+  2>${output_dir}/${error_file}
 !;
         my $comment = qq!# Run mh-ess using the min hit: $param!;
         my $mh_ess = $class->Submit(
             comment => $comment,
             depends => $options->{depends},
-            jname => "mh_ess-${param}",
+            jname => qq"mh_ess${param}_$options->{species}",
             jprefix => '16',
             jstring => $jstring,
             output => $output_file,
@@ -651,6 +659,9 @@ sub Count_TAs {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        ## If the TA was trimmed off the reads, then the position will be off by 2 nucleotides, so
+        ## set this.
+        ta_offset => 0,
         required => ['species'],
     );
     my $length = $options->{length};
@@ -688,8 +699,8 @@ sub Count_TAs {
         my $seqid = $target_names->[$align->tid];
         ## my $start = $align->pos + 1;
         ## my $end = $align->calend;
-        my $start = $align->pos;
-        my $end = $align->calend - 1;
+        my $start = $align->pos + $options->{ta_offset};
+        my $end = $align->calend - 1 + $options->{ta_offset};
         my $cigar = $align->cigar_str;
         my $strand = $align->strand;
         my $seq = $align->query->dna;

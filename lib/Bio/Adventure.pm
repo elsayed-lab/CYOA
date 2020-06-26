@@ -19,7 +19,7 @@ use Bio::Tools::GFF;
 use Carp qw"croak carp confess cluck longmess";
 use Cwd qw"cwd";
 use Digest::MD5 qw"md5 md5_hex md5_base64";
-use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS CEPH_HOST CEPH_ID CEPH_KEY HOME";
+use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS HOME";
 use File::Basename;
 use File::Find;
 use File::Spec;
@@ -29,11 +29,12 @@ use File::Temp;
 use FileHandle;
 use Getopt::Long qw"GetOptionsFromArray";
 use IO::String;
+use JSON -convert_blessed_universally;
 use Log::Log4perl;
 ##use Log::Log4perl::Level;
 use PerlIO;
 use Pod::Usage;
-use Storable qw"freeze thaw store retrieve nstore";
+use Storable qw"store retrieve nstore";
 use Term::ReadLine;
 use Term::UI;
 
@@ -66,6 +67,7 @@ has option_file => (is => 'rw');
 has sbatch_path => (is => 'rw', default => My_Which('sbatch'));
 has qsub_path => (is => 'rw', default => My_Which('qsub'));
 has bash_path => (is => 'rw', default => My_Which('bash'));
+##has menus => (is => 'ro', default => Get_Menus());
 
 our $AUTOLOAD;
 ##our @EXPORT_OK = qw"";
@@ -235,12 +237,11 @@ sub BUILDARGS {
     $job_basename =~ s/-trimmed.*//g;
     $attribs->{job_basename} = $job_basename;
 
+    ## These are both problematic when (n)storing the data.
     $attribs->{menus} = Get_Menus();
-
     ## Extract a function reference for running a job here.
-    my $classthods_to_run = Get_TODOs(task => $attribs->{task}, method => $attribs->{method});
-    $attribs->{methods_to_run} = $classthods_to_run;
-
+    my $methods_to_run = Get_TODOs(task => $attribs->{task}, method => $attribs->{method});
+    $attribs->{methods_to_run} = $methods_to_run;
     $args{options} = $attribs;
     return \%args;
 }
@@ -378,11 +379,10 @@ sub Get_Basename {
 
 =item C<Counting Arguments>
 
-  feature_type - extracted from the gff file for htseq. (exon)
-  gff_tag - also from the gff file for htseq. (gene_id)
   htseq_args - Some default arguments for htseq. (--order=name --idattr=gene_id --minaqual=10 --type exon --stranded=yes --mode=union)
   htseq_stranded - Use htseq in stranded mode? (no)
-  htseq_type - Which identifier to use in htseq? (gene_id)
+  htseq_type - Which gff type (3rd column) to use in htseq? (exon)
+  htseq_id - Which gff ID (tag in the last column) to use in htseq? (gene_id)
   mi_genome - Database of miRNA sequences for counting small RNA sequences.
   mature_fasta - Database of miRNA mature sequences when counting small RNA sequences.
   mirbase_data - Location of the full miRbase data when counting small RNA.
@@ -443,21 +443,21 @@ sub Get_Defaults {
         ## General options
         basedir => cwd(), ## The base directory when invoking various shell commands
         config_file => qq"${HOME}/.config/cyoa.conf", ## A config file to read to replace these values.
-        directories => undef,  ## Apply a command to multiple input directories.
-        input => undef,        ## Generic input argument
-        output => undef,       ## Generic output argument
-        genome => undef,       ## Which genome to use?
-        species => undef,      ## Chosen species
-        gff => undef,          ## A default gff file!
+        directories => undef, ## Apply a command to multiple input directories.
+        input => undef, ## Generic input argument
+        output => undef, ## Generic output argument
+        genome => undef, ## Which genome to use?
+        species => undef, ## Chosen species
+        gff => undef, ## A default gff file!
         libdir => "${HOME}/libraries", ## Directory of libraries for mapping rnaseq reads
         libtype => 'genome', ## Type of rnaseq mapping to perform (genomic/rrna/contaminants)
         task => undef,
         method => undef,
-        raw_dir => undef,       ## Directory containing raw reads
-        type => undef,          ## Type!
+        raw_dir => undef, ## Directory containing raw reads
+        type => undef, ## Type!
         suffixes => ['.fastq', '.gz', '.xz', '.fasta', '.sam', '.bam', '.count', '.csfasta', '.qual'], ## Suffixes to remove when invoking basename
-        debug => 0,             ## Debugging?
-        help => undef,          ## Ask for help?
+        debug => 0, ## Debugging?
+        help => undef, ## Ask for help?
 
         ## Cluster options
         depends => "",      ## A flag for PBS telling what each job depends upon
@@ -475,7 +475,7 @@ sub Get_Defaults {
         sbatch_depends => 'afterok:',
         sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
         loghost => 'localhost',            ## Host to which to send logs
-        mem => 6,                          ## Number of gigs of ram to request
+        mem => 18,                          ## Number of gigs of ram to request
         queue => 'workstation',            ## What queue will jobs default to?
         queues => ['throughput','workstation','long','large'], ## Other possible queues
         shell => '/usr/bin/bash', ## Default qsub shell
@@ -501,8 +501,8 @@ sub Get_Defaults {
         bt_args => { def => '', ## A series of default bowtie1 arguments
                      v0M1 => '--best -v 0 -M 1',
                      v1M1 => '--best -v 1 -M 1',
-                     ##v1M1l10 => '--best -v 1 -M 1 -y -l 15',
-                     ##v2M1 => '--best -v 2 -M 1',
+                     v1M1l10 => '--best -v 1 -M 1 -y -l 15',
+                     v2M1 => '--best -v 2 -M 1',
                  },
         bt2_args => ' --very-sensitive -L 14 ', ## A boolean to decide whether to use multiple bowtie1 argument sets
         bt_type => 'v0M1',
@@ -510,8 +510,6 @@ sub Get_Defaults {
         stranded => 0,
 
         ## Counting options
-        feature_type => 'exon', ## A default feature type when examining gff files
-        gff_tag => 'gene_id',   ## The idattr argument passed to htseq-count
         htseq_args => {         ##hsapiens => " ",
             ## mmusculus => " -i ID ",
             ## lmajor => " -i ID ",
@@ -520,21 +518,25 @@ sub Get_Defaults {
             ## all => " ", ## Options chosen by specific species, this should be removed.
         },
         htseq_stranded => 'no', ## Use htseq stranded options?
-        htseq_type => 'gene_id', ## The identifier flag passed to htseq (probably should be moved to feature_type)
-        mi_genome => undef,      ## miRbase genome to search
-        mature_fasta => undef,   ## Database of mature miRNA sequences
-        mirbase_data => undef,   ## Database of miRNA annotations from mirbase
+        htseq_type => 'exon', ## The identifier flag passed to htseq (probably should be moved to feature_type)
+        htseq_id => 'gene_id',
+        mapper => 'hisat2', ## What was used to map the input
+        mi_genome => undef, ## miRbase genome to search
+        mature_fasta => undef, ## Database of mature miRNA sequences
+        mirbase_data => undef, ## Database of miRNA annotations from mirbase
 
         ## Conversion options
         bamfile => undef, ## Used for mimapping for now, but should also be used for tnseq/riboseq/etc
-        taxid => '353153',      ## Default taxonomy ID
+        taxid => '353153', ## Default taxonomy ID
+        tag => 'gene_id',
 
         ## Preparation options
         csv_file => 'all_samples.csv',
-        sampleid => undef,      ## An hpgl identifier
+        sampleid => undef, ## An hpgl identifier
 
         ## TNSeq options
         index_file => 'indexes.txt', ## The default input file when demultiplexing tnseq data
+        ta_offset => 0, ## When counting TAs, this is either 0 or 2 depending on if the TA was removed.
         runs => 1000,
 
         ## Ribosome Profiling options
@@ -596,7 +598,7 @@ sub Get_Menus {
         },
         Assembly => {
             name => 'assembly',
-            message => qq"The wise man fears the wrath of a gentle heart. Go to page 314159.",
+            message => 'The wise man fears the wrath of a gentle heart. Go to page 314159.',
             choices => {
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Assembly::Extract_Trinotate,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
@@ -608,7 +610,7 @@ sub Get_Menus {
         },
         Conversion => {
             name => 'convert',
-            message => qq"And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 2584981.",
+            message => 'And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 2584981.',
             choices => {
                 '(sam2bam): Convert a sam mapping to compressed/sorted/indexed bam.' => \&Bio::Adventure::Convert::Sam2Bam,
                 '(gb2gff): Convert a genbank flat file to gff/fasta files.' => \&Bio::Adventure::Convert::Gb2Gff,
@@ -617,7 +619,7 @@ sub Get_Menus {
         },
         Counting => {
             name => 'count',
-            message => qq"Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812",
+            message => 'Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812',
             choices => {
                 '(htseq): Count mappings with htseq-count.' =>  \&Bio::Adventure::Count::HTSeq,
                 '(htmulti): Use different option sets for counting with htseq.' => \&Bio::Adventure::Count::HT_Multi,
@@ -631,7 +633,7 @@ sub Get_Menus {
             choices => {
                 '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => \&Bio::Adventure::Map::Bowtie,
                 '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
-                '(ht2): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
+                '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
                 '(btmulti): Map trimmed reads and count using multiple bowtie1 option sets.' => \&Bio::Adventure::Map::BT_Multi,
                 '(bwa): Map reads with bwa and count with htseq.' => \&Bio::Adventure::Map::BWA,
                 '(kallisto): Pseudo-align and count reads using kallisto.' => \&Bio::Adventure::Map::Kallisto,
@@ -643,7 +645,7 @@ sub Get_Menus {
                 '(tophat): Map reads using tophat2 and count with htseq.' => \&Bio::Adventure::Map::Tophat,
                 '(indexbt1): Create bowtie1 compatible indexes.' => \&Bio::Adventure::Map::BT1_Index,
                 '(indexbt2): Create bowtie2 compatible indexes.' => \&Bio::Adventure::Map::BT2_Index,
-                '(indexht2): Create hisat2 compatible indexes.' => \&Bio::Adventure::Map::HT2_Index,
+                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Map::HT2_Index,
                 '(indexbwa): Create bwa compatible indexes.' => \&Bio::Adventure::Map::BWA_Index,
                 '(indexkallisto): Create kallisto compatible indexes.' => \&Bio::Adventure::Map::Kallisto_Index,
                 '(indexrsem): Create rsem indexes.' => \&Bio::Adventure::Map::RSEM_Index,
@@ -652,14 +654,14 @@ sub Get_Menus {
         },
         Phylogeny => {
             name => 'phylogeny',
-            message => qq"",
+            message => '',
             choices => {
                 '(gubbins): Run Gubbins with an input msa.' => \&Bio::Adventure::Phylogeny::Run_Gubbins,
             },
         },
         Pipeline => {
             name => 'pipeline',
-            message => qq"When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033",
+            message => 'When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033',
             choices => {
                 '(priboseq): Perform a preset pipeline of ribosome profiling tasks.' => \&Bio::Adventure::Pipeline_Riboseq,
                 '(ptnseq): Perform a preset pipeline of TNSeq tasks.' => \&Bio::Adventure::Pipeline_TNSeq,
@@ -672,7 +674,7 @@ sub Get_Menus {
         },
         Prepare => {
             name => 'preparation',
-            message => "Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.",
+            message => 'Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.',
             choices => {
                 '(read_samples): Read samples using a csv file to determine the raw data locations.' => \&Bio::Adventure::Prepare::Read_Samples,
                 '(copyraw): Copy data from the raw data archive to scratch.' => \&Bio::Adventure::Prepare::Copy_Raw,
@@ -686,12 +688,13 @@ sub Get_Menus {
                 '(biopieces): Use biopieces to graph some metrics of the data.' => \&Bio::Adventure::QA::Biopieces_Graph,
                 '(cutadapt): Perform adapter trimming with cutadapt.' => \&Bio::Adventure::Trim::Cutadapt,
                 '(fastqc): Use fastqc to check the overall quality of the raw data.' => \&Bio::Adventure::QA::Fastqc,
+                '(racer): Perform sequence correction with hitec/RACER.' => \&Bio::Adventure::Trim::Racer,
                 '(trimomatic): Perform adapter trimming with Trimomatic.' => \&Bio::Adventure::Trim::Trimomatic,
             },
         },
         RiboSeq => {
             name => 'riboseq',
-            message => "Awake Awake Fear Fire Foes!  Go to page 5291772",
+            message => 'Awake Awake Fear Fire Foes!  Go to page 5291772',
             choices => {
                 '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => \&Bio::Adventure::QA::Biopieces_Graph,
                 '(cutadapt): Use cutadapt to remove the adapters.' => \&Bio::Adventure::Trim::Cutadapt,
@@ -710,7 +713,7 @@ sub Get_Menus {
                 '(bwa): Map reads with bwa and count with htseq.' => \&Bio::Adventure::Map::BWA,
                 '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => \&Bio::Adventure::Map::Bowtie,
                 '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
-                '(ht2): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
+                '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
                 '(snpsearch): Perform a search for variant positions against a reference genome. (bam input)' => \&Bio::Adventure::SNP::SNP_Search,
                 '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => \&Bio::Adventure::SNP::SNP_Ratio,
                 '(snp): Perform alignments and search for variants. (fastq input)' => \&Bio::Adventure::SNP::Align_SNP_Search,
@@ -719,7 +722,7 @@ sub Get_Menus {
         },
         TNSeq => {
             name => 'tnseq',
-            message => "You have enterred a world of jumping DNA, be ware and go to page 42.",
+            message => 'You have enterred a world of jumping DNA, be ware and go to page 42.',
             choices => {
                 '(sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.' => \&Bio::Adventure::TNSeq::Sort_Indexes,
                 '(cutadapt): Use cutadapt to remove the odd tnseq adapters.' => \&Bio::Adventure::Trim::Cutadapt,
@@ -732,7 +735,7 @@ sub Get_Menus {
         },
         Test => {
             name => 'test',
-            message => qq"All happy families are happy in the same way. Go to page 5670367.",
+            message => 'All happy families are happy in the same way. Go to page 5670367.',
             choices => {
                 '(test): Run a test job' => \&Test_Job,
             },
@@ -791,9 +794,9 @@ sub Get_TODOs {
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::Count::HT_Multi'},
-        "ht2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
+        "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htseq+" => \$todo_list->{todo}{'Bio::Adventure::Count::HTSeq'},
-        "indexht2+" => \$todo_list->{todo}{'Bio::Adventure::Map::HT2_Index'},
+        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::HT2_Index'},
         "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT1_Index'},
         "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT2_Index'},
         "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA_Index'},
@@ -812,6 +815,7 @@ sub Get_TODOs {
         "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
+        "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
         "readsample+" =>  \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
@@ -1056,7 +1060,7 @@ sub Last_Stat {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $input_filename = $options->{input};
-    my $input = FileHandle->new("${input_filename}", q{<});
+    my $input = FileHandle->new("<${input_filename}");
     ##$input->open("<$input_filename");
     my ($line, $last);
     while ($line = <$input>) {
@@ -1116,11 +1120,13 @@ sub Read_Genome_Fasta {
 =cut
 sub Read_Genome_GFF {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
-                                   feature_type => 'exon',
-                                   gff_tag => 'gene_id');
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['gff'],
+        feature_type => 'exon',
+        id_tag => 'gene_id');
     my $feature_type = $options->{feature_type};
-    my $gff_tag = $options->{gff_tag};
+    my $id_tag = $options->{id_tag};
     my $annotation_in = Bio::Tools::GFF->new(-file => "$options->{gff}", -gff_version => 3);
     my $gff_out = { stats => { chromosomes => [],
                                lengths => [],
@@ -1132,6 +1138,8 @@ sub Read_Genome_GFF {
                            },};
     my $gff_name = basename($args{gff}, ['.gff']);
     my $data_file = qq"$options->{basedir}/${gff_name}.pdata";
+    print "Reading $options->{gff}, seeking features tagged (last column ID) $id_tag,
+ type (3rd column): $feature_type.\n";
     if (-r $data_file && !$options->{debug}) {
         $gff_out = retrieve($data_file);
     } else {
@@ -1156,7 +1164,7 @@ sub Read_Genome_GFF {
             $start = $location->start();
             $end = $location->end();
             my $strand = $location->strand();
-            my @ids = $feature->each_tag_value($gff_tag);
+            my @ids = $feature->each_tag_value($id_tag);
             my $id = "";
             my $gff_chr = $feature->{_gsf_seq_id};
             my $gff_string = $annotation_in->gff_string($feature);
@@ -1177,15 +1185,16 @@ sub Read_Genome_GFF {
             push(@cds_ends, $end);
             ##push(@inter_ends, $old_start-1);
             push(@inter_ends, $start-1);
-            my $annot = {id => $id,
-                         start => $start, ## Genomic coordinate of the start codon
-                         end => $end,     ## And stop codon
-                         strand => $strand,
-                         description_string => $description_string,
-                         chromosome => $gff_chr,
-                     };
+            my $annot = {
+                id => $id,
+                start => $start, ## Genomic coordinate of the start codon
+                end => $end, ## And stop codon
+                strand => $strand,
+                description_string => $description_string,
+                chromosome => $gff_chr,
+            };
             $gff_out->{$gff_chr}->{$id} = $annot;
-        }                       ## End looking at every gene in the gff file
+        } ## End looking at every gene in the gff file
         $gff_out->{stats}->{chromosomes} = \@chromosome_list;
         $gff_out->{stats}->{feature_names} = \@feature_names;
         $gff_out->{stats}->{cds_starts} = \@cds_starts;
@@ -1193,8 +1202,11 @@ sub Read_Genome_GFF {
         $gff_out->{stats}->{inter_starts} = \@inter_starts;
         $gff_out->{stats}->{inter_ends} = \@inter_ends;
         print STDERR "Not many hits were observed, do you have the right feature type?  It is: ${feature_type}\n" if ($hits < 1000);
+        if (-f $data_file) {
+            unlink($data_file);
+        }
         store($gff_out, $data_file);
-    }                           ## End looking for the gff data file
+    } ## End looking for the gff data file
     return($gff_out);
 }
 
@@ -1217,36 +1229,47 @@ $end
 
 sub Submit {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    ## Adding this to avoid overwriting data in $class, not sure if this is correct.
+    my $runner = $class;
+    my $opts = $runner->Get_Vars(args => \%args);
+    my %options = %{$opts};
 
     ## If we are invoking an indirect job, we need a way to serialize the options
     ## in order to get them passed to the eventual interpreter
     my $option_file = "";
-    if ($options->{language} eq 'perl') {
+    if ($options{language} eq 'perl') {
         ## I think this might be required as per:
         ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
         $Storable::Deparse = 1;
         $Storable::Eval = 1;
         $option_file = File::Temp->new(
             TEMPLATE => 'optionsXXXX',
-            DIR => $options->{basedir},
+            DIR => $options{basedir},
             SUFFIX => '.pdata',
         );
-        ## my $data = $class->{options};
-        my $data = $options;
-        ## Why did I undef $data->{term}?
-        ## $data->{term} = undef;
-        ##use Data::Dumper;
-        ##print Dumper $data;
-        my $stored = nstore($data, $option_file);
+        my $opt = \%options;
+        ## Code references are invalid for these things...
+        $opt->{menus} = undef;
+        $opt->{methods_to_run} = undef;
+        ## Why is it that periodically I get this error?
+        ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?
+        my $stored = nstore(\%options, $option_file);
+        ##my $stored = store(\%options, $option_file);
+        ##$utf8_encoded_json_text = encode_json $perl_hash_or_arrayref;
+        ##$perl_hash_or_arrayref  = decode_json $utf8_encoded_json_text;
+        ##my $json = JSON->new->allow_nonref->convert_blessed;
+        ##my $stored_text = $json->encode($opt);
+        ##my $stored_file = FileHandle->new(">${option_file}");
+        ##print $stored_file $stored_text;
+        ##$stored_file->close();
         $args{option_file} = $option_file;
     }
     my $job;
-    if ($class->{sbatch_path}) {
+    if ($runner->{sbatch_path}) {
         $job = Bio::Adventure::Slurm->new();
-    } elsif ($class->{qsub_path}) {
+    } elsif ($runner->{qsub_path}) {
         $job = Bio::Adventure::Torque->new();
-    } elsif ($class->{bash_path}) {
+    } elsif ($runner->{bash_path}) {
         ## I should probably have something to handle gracefully bash jobs.
         $job = Bio::Adventure::Local->new();
     } else {

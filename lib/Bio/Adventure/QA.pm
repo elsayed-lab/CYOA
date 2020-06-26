@@ -176,7 +176,7 @@ sub Fastqc_Pairwise {
         jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
+        queue => "throughput",
     );
     my $forward_indir = qq"${outdir}/${r1}_fastqc";
     $forward_indir =~ s/\.fastq//g;
@@ -233,7 +233,7 @@ sub Fastqc_Single {
         jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
+        queue => "throughput",
     );
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $fqc_stats = Bio::Adventure::QA::Fastqc_Stats(
@@ -255,51 +255,53 @@ simple-to-read csv file.
 =cut
 sub Fastqc_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
+    my $opt = $class->Get_Vars(
         args => \%args,
         jname => 'fqcst',
         depends => '',
         paired => 1,
     );
-    my $jname = $options->{jname};
-    my $input_file = qq"$options->{indir}/fastqc_data.txt";
-    if ($options->{paired}) {
-        $input_file = qq"$options->{indir}/fastqc_data.txt";
+    ## Dereferencing the options to keep a safe copy.
+    my %start_options = %{$opt};
+    my $jname = $opt->{jname};
+    my $input_file = qq"$opt->{indir}/fastqc_data.txt";
+    if ($opt->{paired}) {
+        $input_file = qq"$opt->{indir}/fastqc_data.txt";
     }
-    my $depends = $options->{depends};
+    my $depends = $opt->{depends};
     my $stat_output = qq"outputs/fastqc_stats.csv";
-    if ($options->{direction}) {
-        $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
-        $jname = qq"${jname}_$options->{direction}";
+    if ($opt->{direction}) {
+        $stat_output = qq"outputs/fastqc_$opt->{direction}_stats.csv";
+        $jname = qq"${jname}_$opt->{direction}";
     }
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $jstring = qq!
 if [ \! -r $stat_output ]; then
   echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
 fi
-total_reads_tmp=\$(grep "^Total Sequences" $input_file | awk -F '\\\\t' '{print \$2}')
+total_reads_tmp=\$(grep "^Total Sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
 total_reads=\${total_reads_tmp:-0}
-poor_quality_tmp=\$(grep "^Sequences flagged as poor quality" $input_file | awk -F '\\\\t' '{print \$2}')
+poor_quality_tmp=\$(grep "^Sequences flagged as poor quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
 poor_quality=\${poor_quality_tmp:-0}
-per_quality_tmp=\$(grep "Per base sequence quality" $input_file | awk -F '\\\\t' '{print \$2}')
+per_quality_tmp=\$(grep "Per base sequence quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
 per_quality=\${per_quality_tmp:-0}
-per_base_content_tmp=\$(grep "Per base sequence content" $input_file | awk -F '\\\\t' '{print \$2}')
+per_base_content_tmp=\$(grep "Per base sequence content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 per_base_content=\${per_base_content_tmp:-0}
-per_sequence_gc_tmp=\$(grep "Per sequence GC content" $input_file | awk -F '\\\\t' '{print \$2}')
+per_sequence_gc_tmp=\$(grep "Per sequence GC content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 per_sequence_gc=\${per_sequence_gc_tmp:-0}
-per_base_n_tmp=\$(grep "Per base N content" $input_file | awk -F '\\\\t' '{print \$2}')
+per_base_n_tmp=\$(grep "Per base N content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 per_base_n=\${per_base_n_tmp:-0}
-per_seq_length_tmp=\$(grep "Sequence Length Distribution" $input_file | awk -F '\\\\t' '{print \$2}')
+per_seq_length_tmp=\$(grep "Sequence Length Distribution" ${input_file} | awk -F '\\\\t' '{print \$2}')
 per_seq_length=\${per_seq_length_tmp:-0}
-over_rep_tmp=\$(grep "Overrepresented sequences" $input_file | awk -F '\\\\t' '{print \$2}')
+over_rep_tmp=\$(grep "Overrepresented sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
 over_rep=\${over_rep_tmp:-0}
-adapter_content_tmp=\$(grep "Adapter Content" $input_file | awk -F '\\\\t' '{print \$2}')
+adapter_content_tmp=\$(grep "Adapter Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 adapter_content=\${adapter_content_tmp:-0}
-kmer_content_tmp=\$(grep "Kmer Content" $input_file | awk -F '\\\\t' '{print \$2}')
+kmer_content_tmp=\$(grep "Kmer Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 kmer_content=\${kmer_content_tmp:-0}
 
 stat_string=\$(printf "${jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
-echo "\$stat_string" >> $stat_output
+echo "\$stat_string" >> ${stat_output}
 !;
     my $stats = $class->Submit(
         comment => $comment,
@@ -307,12 +309,15 @@ echo "\$stat_string" >> $stat_output
         input => $input_file,
         depends => $depends,
         jname => $jname,
-        jprefix => $options->{jprefix},
+        jprefix => $opt->{jprefix},
         jstring => $jstring,
         mem => 1,
         queue => "throughput",
         walltime => "00:10:00",
     );
+    ## Added to return the state of the system to what it was
+    ## before we messed with the options.
+    $class->{options} = \%start_options;
     return($stats);
 }
 

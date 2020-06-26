@@ -556,7 +556,6 @@ blastp is normal protein/protein.
         $options = $class->Set_Vars(align_jobs => 1);
         my $num_per_split = Bio::Adventure::Align::Get_Split($class);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        print "TESTME: Going to write $num_per_split sequences in 1 file.\n";
         my $actual = Bio::Adventure::Align::Make_Directories($class);
         my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
             $class,

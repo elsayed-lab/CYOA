@@ -207,17 +207,21 @@ sub Gff2Fasta {
     my $options = $class->Get_Vars(args => \%args,
                                    required => ['gff', 'genome'],
                                    tag => 'gene_id',
+                                   feature_type => undef,
                                );
     my $genome = $options->{genome};
     my $gff = $options->{gff};
     my $tag = $options->{tag};
+    my $ftype = $options->{feature_type};
+    print "TESTME Gff2Fasta: $ftype\n";
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
     my $gff_handle = FileHandle->new("less ${gff} |");
     my $out_fasta_amino = FileHandle->new(qq">${genome_basename}_cds_aa.fasta");
     my $out_fasta_nt = FileHandle->new(qq">${genome_basename}_cds_nt.fasta");
     my @tag_list = ('ID','gene_id','locus_tag','transcript_id');
-    my $feature_type = Bio::Adventure::Count::HT_Types($class, annotation => $gff);
+    my $feature_type = Bio::Adventure::Count::HT_Types($class, annotation => $gff,
+                                                       feature_type => $ftype);
     $feature_type = $feature_type->[0];
     my $annotation_in = Bio::Tools::GFF->new(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
@@ -396,13 +400,14 @@ sub Read_GFF {
         my @gff_information = split(/\t+/, $gff_string);
         my $description_string = $gff_information[8];
         my $orf_chromosome = $gff_chr;
-        my $annot = {id => $id,
-                     start => $start, ## Genomic coordinate of the start codon
-                     end => $end,     ## And stop codon
-                     strand => $strand,
-                     description_string => $description_string,
-                     chromosome => $gff_chr,
-                 };
+        my $annot = {
+            id => $id,
+            start => $start, ## Genomic coordinate of the start codon
+            end => $end,     ## And stop codon
+            strand => $strand,
+            description_string => $description_string,
+            chromosome => $gff_chr,
+        };
         $gff_out->{$gff_chr}->{$id} = $annot;
     }                           ## End looking at every gene in the gff file
     $gff->close();
@@ -491,11 +496,12 @@ have the alignments in a bam file.
 =cut
 sub Samtools {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
-                                   required => ['input', 'species'],
-                                   jname => 'sam',
-                                   jprefix => '',
-                               );
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jname => 'sam',
+        jprefix => '',
+    );
 
     my $job_basename = $options->{job_basename};
     my $input = $options->{input};
@@ -544,10 +550,11 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
 ## This job depended on: $options->{depends}!;
+    my $jobname = qq"$options->{jname}_$options->{species}";
     my $samtools = $class->Submit(comment => $comment,
                                   depends => $options->{depends},
                                   input => $input,
-                                  jname => $options->{jname},
+                                  jname => $jobname,
                                   job_output => qq"${output}",
                                   job_paired => qq"${paired}.bam",
                                   jprefix => $options->{jprefix},

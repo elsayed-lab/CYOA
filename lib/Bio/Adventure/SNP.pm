@@ -30,7 +30,7 @@ sub Align_SNP_Search {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'gff_tag'],
-        vcf_cutoff => 4,
+        vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
 
@@ -69,7 +69,7 @@ sub SNP_Search {
         args => \%args,
         required => ['input', 'species', 'gff_tag'],
         varfilter => 0,
-        vcf_cutoff => 10,
+        vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
@@ -165,7 +165,7 @@ sub SNP_Ratio {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'gff_tag'],
-        vcf_cutoff => 4,
+        vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
     my $print_input = $options->{input};
@@ -223,7 +223,7 @@ sub Make_SNP_Ratio {
     my $options = $class->Get_Vars(
         args => \%args,
         gff_tag => 'ID',
-        vcf_cutoff => 4,
+        vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
     my $input = $options->{input};
@@ -450,6 +450,5 @@ Email  <abelew@gmail.com>
 L<samtools> L<snippy> L<vcfutils>
 
 =cut
-
 
 1;

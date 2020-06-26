@@ -112,7 +112,7 @@ sub Iterate {
         my $start_dir = cwd();
         my @dirs = ($start_dir);
         if (defined($options->{directories})) {
-            my @dirs = split(/:/, $options->{directories});
+            my @dirs = split(/:|\s+|\,/, $options->{directories});
         }
         foreach my $d (@dirs) {
             chdir($d);
@@ -160,11 +160,13 @@ sub Run_Method {
         my $start_dir = cwd();
         my @dirs = ($start_dir);
         if (defined($options->{directories})) {
-            my @dirs = split(/:/, $options->{directories});
+            @dirs = split(/:|\s+|\,/, $options->{directories});
         }
+        my $class_copy = $class;
         foreach my $d (@dirs) {
+            sleep(2);
             chdir($d);
-            $process = $job->($class, type => $type, interactive => $args{interactive});
+            $process = $job->($class_copy, type => $type, interactive => $args{interactive}, %args);
             chdir($start_dir);
         }
     }
