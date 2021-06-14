@@ -73,7 +73,6 @@ sub Submit {
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $sbatch_cmd_line = qq"$options->{sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
-    make_path("$options->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$options->{basedir}/outputs/status");
     make_path("$options->{sbatch_logdir}", {verbose => 0}) unless (-r qq"$options->{sbatch_logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
@@ -157,7 +156,7 @@ cd $options->{basedir} || exit
 ?;
 
     my $script_end = qq!## The following lines give status codes and some logging
-echo \$? > outputs/status/$options->{jname}.status
+echo "## Job status: \$? " >> outputs/log.txt
 echo "## Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 
 !;

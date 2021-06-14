@@ -44,13 +44,14 @@ concatenates all the output files into one compressed file .
 sub Concatenate_Searches {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
+    my $workdir = $options->{workdir};
     my $finished = 0;
-    my $output = qq"$options->{basedir}/outputs/split_search.txt";
+    my $output = qq"${workdir}/split_search.txt";
     $output = $options->{output} if (defined($options->{output}));
     $output .= ".xz" unless ($output =~ /\.xz$/);
     my $comment_string = qq"## Concatenating the output files into ${output}\n";
     my $jstring = qq!
-rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do xz -9e -c \$i >> ${output}; done
+rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${output}; done
 !;
     my $concatenate = $class->Submit(
         comment => $comment_string,
@@ -205,16 +206,17 @@ sub Make_Directories {
     my $options = $class->Get_Vars(args => \%args);
     my $num_per_split = $options->{num_per_split};
     my $splits = $options->{align_jobs};
+    my $workdir = $options->{workdir};
     ## I am choosing to make directories starting at 1000
     ## This way I don't have to think about the difference from
     ## 99 to 100 (2 characters to 3) as long as no one splits more than 9000 ways...
     print "Make_Directories: Making $options->{align_jobs} directories with $options->{num_per_split} sequences.\n";
     my $dir = 1000;
 
-    remove_tree("split", {verbose => 0 });
+    remove_tree("${workdir}/split", {verbose => 0 });
     for my $c ($dir .. ($dir + $splits)) {
         ## print "Making directory: split/$c\n";
-        make_path("split/$c") if (!-d "split/$c" and !-f "split/$c");
+        make_path("${workdir}/split/$c") if (!-d "${workdir}/split/$c" and !-f "${workdir}/split/$c");
     }
 
     my $in = Bio::SeqIO->new(-file => $options->{input},);
@@ -223,8 +225,8 @@ sub Make_Directories {
         my $id = $in_seq->id();
         my $seq = $in_seq->seq();
         $seq = join("\n", ($seq =~ m/.{1,80}/g));
-        my $output_file = qq"split/${dir}/in.fasta";
-        my $outfile = FileHandle->new(">>split/${dir}/in.fasta");
+        my $output_file = qq"${workdir}/split/${dir}/in.fasta";
+        my $outfile = FileHandle->new(">>${workdir}/split/${dir}/in.fasta");
         my $out_string = qq!>$id
 $seq
 !;

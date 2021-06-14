@@ -65,7 +65,6 @@ sub Submit {
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
-    make_path("$options->{basedir}/outputs/status", {verbose => 0}) unless (-r qq"$options->{basedir}/outputs/status");
     make_path("$options->{bash_logdir}", {verbose => 0}) unless (-r qq"$options->{bash_logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
@@ -132,7 +131,7 @@ echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
-echo \$? > outputs/status/$options->{jname}.status
+echo "###Job status:\$?" >> outputs/log.txt
 echo "###Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because

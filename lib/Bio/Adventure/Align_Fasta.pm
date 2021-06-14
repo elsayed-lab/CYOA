@@ -10,7 +10,7 @@ use Bio::SearchIO::blast;
 use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Bio::Tools::Run::StandAloneBlast;
-use Cwd;
+use Cwd 'abs_path';
 use File::Basename qw"dirname basename";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
@@ -48,7 +48,7 @@ sub Make_Fasta_Job {
         args => \%args,
         depends => '',
         split => 0,
-        output_type => "9",
+        output_type => undef,
         );
     my $dep = $options->{depends};
     my $split = $options->{split};
@@ -57,11 +57,15 @@ sub Make_Fasta_Job {
     my $array_end = 1000 + $args{align_jobs};
     my $array_string = qq"1000-${array_end}";
     my $jstring = '';
+    my $type_string = '';
+    if (defined($output_type)) {
+        $type_string = "-m ${output_type}";
+    }
     if ($split) {
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} $options->{fasta_args} -m ${output_type} -T $options->{cpus} \\
- $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
+$options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{cpus} \\
+ $options->{workdir}/split/\${PBS_ARRAYID}/in.fasta \\
  $options->{library} \\
  1>$options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
  2>>$options->{basedir}/split_align_errors.txt
@@ -69,10 +73,10 @@ $options->{fasta_tool} $options->{fasta_args} -m ${output_type} -T $options->{cp
     } else {
         $jstring = qq!
 cd $options->{basedir}
-  $options->{fasta_tool} $options->{fasta_args} -m ${output_type} -T $options->{cpus} \\
+  $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{cpus} \\
   $options->{input} \\
   $options->{library} \\
-  1>$options->{basedir}/outputs/$options->{fasta_tool}.out \\
+  1>$options->{workdir}/$options->{fasta_tool}.out \\
   2>>$options->{basedir}/split_align_errors.txt
 !;
     }
@@ -136,7 +140,6 @@ sub Parse_Fasta {
     my $out = FileHandle->new(">${output}");
     ## This works, other attempts I've used for zipped input fail.
     my $f = FileHandle->new("less ${input} |");
-    ## This works, other attempts at using zipped input fail.
     my $searchio = Bio::SearchIO->new(-format => 'fasta',
                                       -fh => $f,
                                       -best => ${best_only},
@@ -354,23 +357,27 @@ sub Split_Align_Fasta {
 
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
-    my $outdir = qq"$options->{basedir}/outputs/fasta";
+    my $outdir = qq"$options->{basedir}/outputs/fasta_${que}_${lib}";
     make_path("${outdir}") unless(-d ${outdir});
     my $output = qq"${outdir}/${que}_vs_${lib}.txt.xz";
     my $concat_job;
     if ($options->{pbs}) {
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
+        $options = $class->Set_Vars(workdir => $outdir);
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
+        my $actual = Bio::Adventure::Align::Make_Directories($class, %args,
+                                                             workdir => $outdir);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class,
                                                                     align_jobs => $actual,
+                                                                    workdir => $outdir,
                                                                     split => 1);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
             depends => $alignment->{pbs_id},
             output => $output,
+            workdir => $outdir,
             jprefix => "92",
             );
     } else {
@@ -378,10 +385,16 @@ sub Split_Align_Fasta {
         $options->{align_jobs} = 1;
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual);
+        $options = $class->Set_Vars(workdir => $outdir);
+        my $actual = Bio::Adventure::Align::Make_Directories($class,
+                                                             workdir => $outdir,
+                                                             %args);
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class,
+                                                                    workdir => $outdir,
+                                                                    align_jobs => $actual);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches($class,
-                                                                  output=> $output,
+                                                                  workdir => $outdir,
+                                                                  output => $output,
                                                                   jprefix => "92");
     }
 

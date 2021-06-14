@@ -8,6 +8,7 @@ extends 'Bio::Adventure';
 
 use Bio::FeatureIO;
 use Bio::Tools::GFF;
+use Bio::Root::Exception;
 use File::Basename;
 use File::Which qw"which";
 use List::MoreUtils qw"uniq";
@@ -69,51 +70,69 @@ sub Gb2Gff {
             $gffout->write_feature($feature);
             my $feat_count = 0;
         }
-        for my $feat_object ($seq->get_SeqFeatures) {
-            $feature_count++;
-            my $feat_count = 0;
-            if ($feat_object->primary_tag eq "CDS") {
-                $cds_gff->write_feature($feat_object);
-                $feat_count++;
-                my $id_string = "";
-                my $id_hash = {};
-                foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
-                    my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
-                    $id_hash->{$thing} = $arr[0];
-                }
-                my $id = qq"$id_hash->{protein_id}";
-                my $desc = "";
-                if (defined($id_hash->{gene})) {
-                    $desc .= "$id_hash->{gene} ; ";
-                }
-                if (defined($id_hash->{db_xref})) {
-                    $desc .= "$id_hash->{db_xref} ; ";
-                }
-                if (defined($id_hash->{product})) {
-                    $desc .= "$id_hash->{product}";
-                }
-                $desc .= "\n";
-                my $start = $feat_object->start;
-                my $end = $feat_object->end;
-                my $len = $feat_object->length;
-                my $seq = $feat_object->spliced_seq->seq;
-                my $pep = $feat_object->spliced_seq->translate->seq;
-                my $size = {
-                    id => $id,
-                    start => $start,
-                    end => $end,
-                    len => $len,
-                    feat => $feat_object,
-                };
-                push(@feature_list, $size);
-                my $seq_object = Bio::PrimarySeq->new(-id => $id, -seq => $seq, description => $desc);
-                my $pep_object = Bio::PrimarySeq->new(-id => $id, -seq => $pep, description => $desc);
-                $cds_fasta->write_seq($seq_object);
-                my $ttseq = $seq_object->seq;
-                $pep_fasta->write_seq($pep_object);
-            } elsif ($feat_object->primary_tag eq "gene") {
-                $gene_gff->write_feature($feat_object);
-            }
+      FEAT: for my $feat_object ($seq->get_SeqFeatures) {
+          $feature_count++;
+          my $feat_count = 0;
+          if ($feat_object->primary_tag eq "CDS") {
+              $cds_gff->write_feature($feat_object);
+              $feat_count++;
+              my $id_string = "";
+              my $id_hash = {};
+              foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
+                  my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
+                  $id_hash->{$thing} = $arr[0];
+              }
+              my $id = qq"";
+              if (defined($id_hash->{protein_id})) {
+                  $id = qq"$id_hash->{protein_id}";
+              }
+              my $desc = "";
+              if (defined($id_hash->{gene})) {
+                  $desc .= "$id_hash->{gene} ; ";
+              }
+              if (defined($id_hash->{db_xref})) {
+                  $desc .= "$id_hash->{db_xref} ; ";
+              }
+              if (defined($id_hash->{product})) {
+                  $desc .= "$id_hash->{product}";
+              }
+              $desc .= "\n";
+              my $start = $feat_object->start;
+              my $end = $feat_object->end;
+              my $len = $feat_object->length;
+              ## This is in response to the puzzling error:
+              ## "Error::throw("Bio::Root::Exception", "Location end (601574) exceeds length (0) of called sequence C"...) called at /sw/local/perl/5.28.1/perl5/Bio/Root/Root.pm line 449"
+              my $seq = qq'';
+              my $pep = qq'';
+
+              try {
+                  $seq = $feat_object->spliced_seq->seq;
+              } catch {
+                  print "Something went wrong getting the sequence.\n";
+                  next FEAT;
+              }
+              try {
+                  $pep = $feat_object->spliced_seq->translate->seq;
+              } catch {
+                  print "Something went wrong getting the peptide sequence.\n";
+                  next FEAT;
+              }
+              my $size = {
+                  id => $id,
+                  start => $start,
+                  end => $end,
+                  len => $len,
+                  feat => $feat_object,
+              };
+              push(@feature_list, $size);
+              my $seq_object = Bio::PrimarySeq->new(-id => $id, -seq => $seq, description => $desc);
+              my $pep_object = Bio::PrimarySeq->new(-id => $id, -seq => $pep, description => $desc);
+              $cds_fasta->write_seq($seq_object);
+              my $ttseq = $seq_object->seq;
+              $pep_fasta->write_seq($pep_object);
+          } elsif ($feat_object->primary_tag eq "gene") {
+              $gene_gff->write_feature($feat_object);
+          }
         } ## End looking at every feature and putting them into the @feature_list
         ## Now make a hash from it and fill in the inter-cds data
 
