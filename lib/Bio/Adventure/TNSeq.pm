@@ -13,6 +13,7 @@ use Cwd qw(abs_path getcwd);
 use File::Basename;
 use FileHandle;
 use File::Path qw"make_path";
+use File::Which qw"which";
 use PerlIO;
 use PerlIO::gzip;
 use String::Approx qw"amatch";
@@ -427,7 +428,7 @@ sub Essentiality_TAs {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        htseq_type => 'exon',
+        htseq_type => 'gene',
         htseq_id => 'gene_id',
     );
     my $output_directory = qq"outputs/essentiality_$options->{species}";
@@ -574,7 +575,7 @@ sub Run_Essentiality {
         runs => 1000,
     );
     my $input = $options->{input};
-    print "Remember, tn_hmm requires a .wig input file while mh_ess wants a something_gene_tas.txt.\n";
+    print "Remember, this function assumes the gene_tas file as input.\n";
     my $output = basename($input, ('.txt'));
     ## Set up the tn_hmm job -- these inputs are likely wrong
     my $input_wig = qq"${output}.wig";
@@ -603,7 +604,7 @@ process_genes.py -f ${output_dir}/${output_file} \\
   1>${output_dir}/genes_${output_file} \\
   2>${output_dir}/genes_${error_file}
 
-process_segments.py -f outputs/essentiality/${output_file} \\
+process_segments.py -f ${output_dir}/${output_file} \\
   1>${output_dir}/segments_${output_file} \\
   2>${output_dir}/segments_${error_file}
 !;
@@ -718,6 +719,27 @@ sub Count_TAs {
         ## 7.  No hit
         my $forward_hit = 0;
         my $reverse_hit = 0;
+        my $missing_base = undef;
+        if (!defined($seq_array[0])) {
+            print "The 'T' is missing from $seq while reading forward.\n";
+            $missing_base = 1;
+        }
+        if (!defined($seq_array[1])) {
+            print "The 'A' is missing from $seq while reading forward.\n";
+            $missing_base = 1;
+        }
+        if (!defined($seq_array[-1])) {
+            print "The 'A' is missing from $seq while reading reverse.\n";
+            $missing_base = 1;
+        }
+        if (!defined($seq_array[-2])) {
+            print "The 'T' is missing from $seq while reading reverse.\n";
+            $missing_base = 1;
+        }
+
+        if ($missing_base) {
+            next BAMLOOP;
+        }
         if ($seq_array[0] eq 'T' and $seq_array[1] eq 'A') {
             $forward_hit = 1;
         }
@@ -725,6 +747,7 @@ sub Count_TAs {
             $reverse_hit = 1;
         }
         my $new_end = $end - 1;
+
         if ($cigar eq '') {
             ## print "This did not align.\n";
             next BAMLOOP;
@@ -858,6 +881,150 @@ sub Allocate_Genome {
     }
     $genome->{data} = $data;
     return($genome);
+}
+
+=head2 C<Hisat2>
+
+Invoke hisat2
+
+=cut
+sub Transit_TPP {
+    my ($class, %args) = @_;
+    my $check = which('tpp');
+    die("Could not find tpp in your PATH.") unless($check);
+
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species', 'input',],
+        htseq_type => 'gene',
+        htseq_id => 'locus_tag',
+        primer => 'GGGACTTATCATCCAACCTGT',
+        do_htseq => 1,
+        );
+    my %start_options = %{$options};
+
+    if ($options->{species} =~ /\:/) {
+        my @species_lst = split(/:/, $options->{species});
+        my @result_lst = ();
+        foreach my $sp (@species_lst) {
+            print "Invoking tpp on ${sp}\n";
+            $options = $class->Set_Vars(species => $sp);
+            my $result = Bio::Adventure::TNSeq::TPP($class);
+            push (@result_lst, $result);
+        }
+        return(@result_lst);
+    }
+
+    my $ready = $class->Check_Input(
+        files => $options->{input},
+    );
+    my $sleep_time = 3;
+    my %tpp_jobs = ();
+    my $libtype = 'genome';
+    my $tpp_depends_on = "";
+    $tpp_depends_on = $options->{depends} if ($options->{depends});
+    my $tpp_args = '';
+    $tpp_args = $options->{tpp_args} if ($options->{tpp_args});
+
+    my $prefix_name = qq"tpp";
+    my $tpp_name = qq"${prefix_name}_$options->{species}";
+    my $suffix_name = $prefix_name;
+    if ($options->{jname}) {
+        $tpp_name .= qq"_$options->{jname}";
+        $suffix_name .= qq"_$options->{jname}";
+    }
+
+    my $job_basename = $options->{job_basename};
+    my $tpp_dir = qq"outputs/transit_$options->{species}";
+    if ($args{tpp_dir}) {
+        $tpp_dir = $args{tpp_dir};
+    }
+    my $tpp_input = $options->{input};
+
+    my $tpp_basename = "";
+    my $test_file = "";
+    if ($tpp_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        $tpp_input = qq" -reads1 $pair_listing[0] -reads2 $pair_listing[1] ";
+        $test_file = $pair_listing[0];
+        $tpp_basename = basename($pair_listing[0], ('.gz', '.xz'));
+        $tpp_basename = basename($tpp_basename, ('.fastq'));
+    } else {
+        $test_file = File::Spec->rel2abs($tpp_input);
+        $tpp_input = qq" -reads1 ${tpp_input} ";
+        $tpp_basename = basename($test_file, ('.gz', '.xz'));
+        $tpp_basename = basename($tpp_basename, ('.fastq'));
+    }
+
+    my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
+    
+    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${job_basename}.err";
+    my $comment = qq!## This is a transit preprocessing alignment of ${tpp_input} against
+## ${tpp_genome} using arguments: ${tpp_args}.
+## This jobs depended on: ${tpp_depends_on}
+!;
+    my $jstring = qq!mkdir -p ${tpp_dir}
+sleep ${sleep_time}
+tpp -ref ${tpp_genome} \\
+  -primer $options->{primer} \\
+  -bwa \$(which bwa) \\
+  ${tpp_input} \\
+  -output ${tpp_dir}/${tpp_basename}
+!;
+    my $tpp_job = $class->Submit(
+        comment => $comment,
+        input => $tpp_input,
+        jname => $tpp_name,
+        depends => $tpp_depends_on,
+        jstring => $jstring,
+        jprefix => "60",
+        mem => 24,
+        walltime => '124:00:00',
+        output => $sam_filename,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+    );
+    $tpp_jobs{tpp} = $tpp_job;
+
+    my $sam_job = Bio::Adventure::Convert::Samtools(
+        $class,
+        input => $sam_filename,
+        depends => $tpp_job->{job_id},
+        jname => "s2b_${tpp_name}",
+        jprefix => "61",
+    );
+    $tpp_jobs{samtools} = $sam_job;
+    my $htseq_input = $sam_job->{job_output};
+    my $htmulti;
+    if ($options->{do_htseq}) {
+        if ($libtype eq 'rRNA') {
+            $htmulti = Bio::Adventure::Count::HTSeq(
+                $class,
+                htseq_input => $sam_job->{job_output},
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => '62',
+                libtype => $libtype,
+                mapper => 'hisat2',
+            );
+        } else {
+            $htmulti = Bio::Adventure::Count::HT_Multi(
+                $class,
+                htseq_input => $sam_job->{job_output},
+                depends => $sam_job->{job_id},
+                jname => $suffix_name,
+                jprefix => '62',
+                libtype => $libtype,
+                mapper => 'bwa',
+            );
+            $tpp_jobs{htseq} = $htmulti;
+        }
+    }
+    $class->{options} = \%start_options;
+    return(\%tpp_jobs);
 }
 
 =head1 AUTHOR - atb

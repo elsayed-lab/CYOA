@@ -48,6 +48,8 @@ sub Bowtie {
         bt_type => 'v0M1',
         count => 1,
         libtype => 'genome',
+        htseq_type => 'gene',
+        htseq_id => 'ID',
     );
     my %start_options = %{$options};
     my $species = $options->{species};
@@ -270,7 +272,9 @@ sub Bowtie2 {
 
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'htseq_type'],
+        required => ['species', 'input',],
+        htseq_type => 'gene',
+        htseq_id => 'ID',
         do_htseq => 1,
     );
     my %start_options = %{$options};
@@ -449,6 +453,8 @@ sub Bowtie2 {
             $htmulti = Bio::Adventure::Count::HTSeq(
                 $class,
                 htseq_input => $sam_job->{job_output},
+                htseq_type => $options->{htseq_type},
+                htseq_id => $options->{htseq_id},
                 depends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => "20",
@@ -459,6 +465,8 @@ sub Bowtie2 {
             $htmulti = Bio::Adventure::Count::HT_Multi(
                 $class,
                 htseq_input => $sam_job->{job_output},
+                htseq_type => $options->{htseq_type},
+                htseq_id => $options->{htseq_id},
                 depends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => "21",
@@ -1073,7 +1081,9 @@ sub Hisat2 {
 
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'htseq_type'],
+        required => ['species', 'input',],
+        htseq_type => 'gene',
+        htseq_id => 'ID',
         do_htseq => 1,
     );
     my %start_options = %{$options};
@@ -1147,7 +1157,7 @@ sub Hisat2 {
     $hisat_input_flag = "-f " if (${ht_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
-    my $error_file = qq"${ht_dir}/${job_basename}.err";
+    my $error_file = qq"${ht_dir}/hisat2_$options->{species}_${job_basename}.err";
     my $comment = qq!## This is a hisat2 alignment of ${ht_input} against
 ## ${ht_reflib} using arguments: ${ht2_args}.
 ## This jobs depended on: ${ht_depends_on}
@@ -1169,7 +1179,7 @@ sub Hisat2 {
     --al-conc-gz ${aligned_concordant_filename} \\
     -S ${sam_filename} \\
     2>${error_file} \\
-    1>${ht_dir}/${job_basename}.out
+    1>${ht_dir}/hisat2_$options->{species}_${job_basename}.out
 !;
 
     my $ht2_job = $class->Submit(
@@ -1180,7 +1190,7 @@ sub Hisat2 {
         depends => $ht_depends_on,
         jstring => $jstring,
         jprefix => "15",
-        mem => 45,
+        mem => 48,
         walltime => '124:00:00',
         output => $sam_filename,
         prescript => $options->{prescript},
@@ -1217,7 +1227,7 @@ sub Hisat2 {
                 htseq_input => $sam_job->{job_output},
                 depends => $sam_job->{job_id},
                 jname => $suffix_name,
-                jprefix => "20",
+                jprefix => '20',
                 libtype => $libtype,
                 mapper => 'hisat2',
             );
@@ -1227,7 +1237,7 @@ sub Hisat2 {
                 htseq_input => $sam_job->{job_output},
                 depends => $sam_job->{job_id},
                 jname => $suffix_name,
-                jprefix => "21",
+                jprefix => '21',
                 libtype => $libtype,
                 mapper => 'hisat2',
             );
@@ -1299,13 +1309,13 @@ sub HT2_Stats {
     my $output = "outputs/hisat2_stats.csv";
     my $jstring = qq!
 if [ \! -e "${output}" ]; then
-    echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
+    echo "id, original reads, single hits, failed reads, multi-hits, rpm" > ${output}
 fi
 original_reads_tmp=\$(grep " reads; of these" "${ht_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
 original_reads=\${original_reads_tmp:-0}
 one_align_tmp=\$(grep " aligned exactly 1 time" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
 one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep " aligned 0 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+failed_tmp=\$(grep " aligned 0 times" "${ht_input}" | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
 failed=\${failed_tmp:-0}
 sampled_tmp=\$(grep " aligned >1 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}

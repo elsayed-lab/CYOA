@@ -37,7 +37,7 @@ a bunch of pieces for a split-fasta search.
 
 =item I<split> (FALSE) Split up the fasta jobs into multiple pieces?
 
-=item I<output_type> (7: xml) Format for the fasta output.
+=item I<output_type> (9 xml) Format for the fasta output.
 
 =back
 
@@ -48,26 +48,19 @@ sub Make_Fasta_Job {
         args => \%args,
         depends => '',
         split => 0,
-        output_type => 7,
-    );
+        output_type => "9",
+        );
     my $dep = $options->{depends};
     my $split = $options->{split};
+    my $output_type = $options->{output_type};
     my $library;
     my $array_end = 1000 + $args{align_jobs};
     my $array_string = qq"1000-${array_end}";
-    if ($options->{parse}) {
-        if ($options->{output_type} ne '7') {
-            print "If one wants to parse the output, it probably should be in the xml format, which may be done by adding --output_type 7 to this script.\n";
-            print "This script will still try to parse a blast plain text output, but if it fails, don't say I didn't warn you.\n";
-            print "Sleeping for 10 seconds so you can hit Control-C if you want to rerun.\n";
-            sleep(10);
-        }
-    }
     my $jstring = '';
     if ($split) {
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
+$options->{fasta_tool} $options->{fasta_args} -m ${output_type} -T $options->{cpus} \\
  $options->{basedir}/split/\${PBS_ARRAYID}/in.fasta \\
  $options->{library} \\
  1>$options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
@@ -76,8 +69,8 @@ $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
     } else {
         $jstring = qq!
 cd $options->{basedir}
-  $options->{fasta_tool} $options->{fasta_args} -T $options->{cpus} \\
-  $options->{query} \\
+  $options->{fasta_tool} $options->{fasta_args} -m ${output_type} -T $options->{cpus} \\
+  $options->{input} \\
   $options->{library} \\
   1>$options->{basedir}/outputs/$options->{fasta_tool}.out \\
   2>>$options->{basedir}/split_align_errors.txt
@@ -90,10 +83,11 @@ cd $options->{basedir}
         depends => $dep,
         jname => 'fasta_multi',
         jstring => $jstring,
+        jprefix => "91",
         qsub_args => " $options->{qsub_args} -t ${array_string} ",
         queue => 'long',
         walltime => '96:00:00',
-    );
+        );
     return($fasta_jobs);
 }
 
@@ -114,7 +108,7 @@ and prints a simplified table of the results.
 
 =head3 C<Invocation>
 
-> cyoa --task align --method parsefasta --input fasta_output.txt.gz
+> cyoa --task align --method parsefasta --input fasta_output.txt.xz
 
 A little caveat here, the primary place this and Parse_Fasta_Global()
 should be called is in Bio::Adventure::Align::Parse_Search().
@@ -129,7 +123,7 @@ sub Parse_Fasta {
         required => ['input'],
         best_only => 0,
         evalue => 0.0001,
-    );
+        );
     my $best_only = $options->{best_only};
     my $evalue = $options->{evalue};
     my $input = $options->{input};
@@ -143,50 +137,55 @@ sub Parse_Fasta {
     ## This works, other attempts I've used for zipped input fail.
     my $f = FileHandle->new("less ${input} |");
     ## This works, other attempts at using zipped input fail.
-    my $searchio = Bio::SearchIO->new(-format => 'fasta', -fh => $f,
-                                      -best => ${best_only}, -signif => ${evalue});
+    my $searchio = Bio::SearchIO->new(-format => 'fasta',
+                                      -fh => $f,
+                                      -best => ${best_only},
+                                      -signif => ${evalue});
     print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tLStrand\n";
     my $results = 0;
     while (my $result = $searchio->next_result()) {
-        $results++;
-        while (my $hit = $result->next_hit) {
-            my $query_name = $result->query_name();
-            my $query_length = $result->query_length();
-            my $accession = $hit->accession();
-            my $library_id = $hit->name();
-            my $length = $hit->length();
-            my $score = $hit->raw_score();
-            my $sig = $hit->significance();
-            my $ident = $hit->frac_identical();
-            my $lstrand = $hit->strand('hit');
-
-            my $hit_len;
-            my $hit_matches;
-            my $first_qstart = -1;
-            my $first_qend = -1;
-            my $first_lstart = -1;
-            my $first_lend = -1;
-            my $hsp_count = 0;
-            while (my $hsp = $hit->next_hsp) {
-                $hsp_count++;
-                if ($hsp_count == 1) {
-                    $first_qstart = $hsp->start('query');
-                    $first_qend = $hsp->end('query');
-                    $first_lstart = $hsp->start('subject');
-                    $first_lend = $hsp->end('subject');
-                }
-                $hit_len = $hsp->length('total');
-                my @matches = $hsp->matches(-seq => 'hit');
-                $hit_matches = $matches[1];
-            }
-            ##print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tQStrand\tLStrand\n";
-            print $out "$query_name\t$query_length\t$library_id\t$length\t$score\t$sig\t$ident\t$hit_matches\t$first_qstart\t$first_qend\t$first_lstart\t$first_lend\t$lstrand\n";
-            ## process the Bio::Search::Hit::HitI object
-            ## while(my $hsp = $hit->next_hsp) {
-            ## process the Bio::Search::HSP::HSPI object
-            ## }
-        }   ## End of each hit of a result.
-    }       ## End of each result.
+      ##use Data::Dumper;
+      ##print Dumper $result;
+      $results++;
+      my $hit_count = 0;
+    HIT: while (my $hit = $result->next_hit) {
+        $hit_count++;
+        my $query_name = $result->query_name();
+        my $query_length = $result->query_length();
+        my $accession = $hit->accession();
+        my $library_id = $hit->name();
+        my $length = $hit->length();
+        my $score = $hit->raw_score();
+        my $sig = $hit->significance();
+        my $ident = $hit->frac_identical();
+        my $lstrand = $hit->strand('hit');
+        my $hit_len;
+        my $hit_matches;
+        my $first_qstart = -1;
+        my $first_qend = -1;
+        my $first_lstart = -1;
+        my $first_lend = -1;
+        my $hsp_count = 0;
+      HSP: while (my $hsp = $hit->next_hsp) {
+          $hsp_count++;
+          if ($hsp_count == 1) {
+              $first_qstart = $hsp->start('query');
+              $first_qend = $hsp->end('query');
+              $first_lstart = $hsp->start('subject');
+              $first_lend = $hsp->end('subject');
+          }
+          $hit_len = $hsp->length('total');
+          my @matches = $hsp->matches(-seq => 'hit');
+          $hit_matches = $matches[1];
+      }
+        ##print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tQStrand\tLStrand\n";
+        print $out "$query_name\t$query_length\t$library_id\t$length\t$score\t$sig\t$ident\t$hit_matches\t$first_qstart\t$first_qend\t$first_lstart\t$first_lend\t$lstrand\n";
+        ## process the Bio::Search::Hit::HitI object
+        ## while(my $hsp = $hit->next_hsp) {
+        ## process the Bio::Search::HSP::HSPI object
+        ## }
+    }   ## End of each hit of a result.
+  }       ## End of each result.
     $f->close();
     $out->close();
     return($results);
@@ -237,7 +236,7 @@ sub Parse_Fasta_Global {
         min_score => undef,
         check_all_hits => 0,
         min_percent => undef,
-    );
+        );
     my $output = $options->{input};
     my $outdir = dirname($output);
     $output = basename($output, ('.gz', '.xz'));
@@ -252,7 +251,7 @@ sub Parse_Fasta_Global {
                                       -min_score => $options->{min_score},);
 
     my $counts = FileHandle->new(qq">${outdir}/${output}.count");
-    my $parsed = FileHandle->new(qq">${outdir}/${output}.parsed");
+    my $parsed = FileHandle->new(qq">${outdir}/${output}.parsed.txt");
     my $singles = FileHandle->new(qq">${outdir}/${output}_singles.txt");
     my $doubles = FileHandle->new(qq">${outdir}/${output}_doubles.txt");
     my $few = FileHandle->new(qq">${outdir}/${output}_few.txt");
@@ -268,29 +267,29 @@ sub Parse_Fasta_Global {
         my $entry = qq"${query_name}\t";
         my $hit_count = 0;
       HITLOOP: while(my $hit = $result->next_hit) {
-            ##my $query_name = $result->query_name();
-            my $query_length = $result->query_length();
-            my $accession = $hit->accession();
-            my $acc2 = $hit->name();
-            my $length = $hit->length();
-            my $score = $hit->raw_score();
-            my $sig = $hit->significance();
-            my $ident = $hit->frac_identical();
-            my $hit_len;
-            my $hit_matches;
-            if (defined($args{min_percent})) {
-                next HITLOOP if ($ident < $args{min_percent});
-            }
-            ## If we pass the min_percet threshold, increment the number of hits.
-            $hit_count++;
-            while (my $hsp = $hit->next_hsp) {
-                $hit_len = $hsp->length('total');
-                my @matches = $hsp->matches(-seq => 'hit');
-                $hit_matches = $matches[1];
-            }
-            $entry .= "${acc2}:${ident}:${sig} ";
-            print $parsed "$query_name\t$query_length\t$acc2\t$length\t$score\t$sig\t$ident\t$hit_len\t$hit_matches\n";
-        }                       ## End iterating over every hit for a sequence.
+          ##my $query_name = $result->query_name();
+          my $query_length = $result->query_length();
+          my $accession = $hit->accession();
+          my $acc2 = $hit->name();
+          my $length = $hit->length();
+          my $score = $hit->raw_score();
+          my $sig = $hit->significance();
+          my $ident = $hit->frac_identical();
+          my $hit_len;
+          my $hit_matches;
+          if (defined($args{min_percent})) {
+              next HITLOOP if ($ident < $args{min_percent});
+          }
+          ## If we pass the min_percet threshold, increment the number of hits.
+          $hit_count++;
+          while (my $hsp = $hit->next_hsp) {
+              $hit_len = $hsp->length('total');
+              my @matches = $hsp->matches(-seq => 'hit');
+              $hit_matches = $matches[1];
+          }
+          $entry .= "${acc2}:${ident}:${sig} ";
+          print $parsed "$query_name\t$query_length\t$acc2\t$length\t$score\t$sig\t$ident\t$hit_len\t$hit_matches\n";
+      }                       ## End iterating over every hit for a sequence.
         $entry .= "\n";
         print $all $entry;
         if ($hit_count == 1) {
@@ -345,19 +344,19 @@ sub Split_Align_Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['query', 'library'],
+        required => ['input', 'library'],
         interactive => 0,
         align_jobs => 40,
         align_parse => 0,
         num_dirs => 0,
         best_only => 0,
-    );
+        );
 
     my $lib = basename($options->{library}, ('.fasta'));
-    my $que = basename($options->{query}, ('.fasta'));
+    my $que = basename($options->{input}, ('.fasta'));
     my $outdir = qq"$options->{basedir}/outputs/fasta";
     make_path("${outdir}") unless(-d ${outdir});
-    my $output = qq"${outdir}/${que}_vs_${lib}.txt.gz";
+    my $output = qq"${outdir}/${que}_vs_${lib}.txt.xz";
     my $concat_job;
     if ($options->{pbs}) {
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
@@ -365,12 +364,15 @@ sub Split_Align_Fasta {
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
         print "Actually used ${actual} directories to write files.\n";
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual, split => 1);
+        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class,
+                                                                    align_jobs => $actual,
+                                                                    split => 1);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
             depends => $alignment->{pbs_id},
             output => $output,
-        );
+            jprefix => "92",
+            );
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         $options->{align_jobs} = 1;
@@ -378,7 +380,9 @@ sub Split_Align_Fasta {
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
         my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class, align_jobs => $actual);
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches($class, output=> $output,);
+        $concat_job = Bio::Adventure::Align::Concatenate_Searches($class,
+                                                                  output=> $output,
+                                                                  jprefix => "92");
     }
 
     my $parse_input = $output;
@@ -394,9 +398,10 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
         depends => $concat_job->{pbs_id},
         jname => "parse_search",
         jstring => $jstring,
+        jprefix => "93",
         language => 'perl',
         shell => '/usr/bin/env perl',
-    );
+        );
     return($concat_job);
 }
 

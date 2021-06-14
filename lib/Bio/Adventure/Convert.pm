@@ -120,63 +120,63 @@ sub Gb2Gff {
         my %inter_features = ();
         my ($p_st, $p_en, $c_st, $c_en, $inter_start, $inter_end) = 0;
       INTER: for my $c (0 .. $#feature_list) {
-            my $p_size = {};
-            if ($c == 0) {
-                $p_size = $feature_list[$#feature_list];
-            } else {
-                $p_size = $feature_list[$c - 1];
-            }
+          my $p_size = {};
+          if ($c == 0) {
+              $p_size = $feature_list[$#feature_list];
+          } else {
+              $p_size = $feature_list[$c - 1];
+          }
 
-            my $c_size = $feature_list[$c];
-            next INTER if (!defined($p_size->{start}));
-            next INTER if (!defined($p_size->{end}));
-            next INTER if (!defined($c_size->{start}));
-            next INTER if (!defined($c_size->{end}));
+          my $c_size = $feature_list[$c];
+          next INTER if (!defined($p_size->{start}));
+          next INTER if (!defined($p_size->{end}));
+          next INTER if (!defined($c_size->{start}));
+          next INTER if (!defined($c_size->{end}));
 
-            my $p_start = $p_size->{start};
-            my $p_end = $p_size->{end};
-            my $c_start = $c_size->{start};
-            my $c_end = $c_size->{end};
-            my $interstart = 0;
-            my $interend = 0;
+          my $p_start = $p_size->{start};
+          my $p_end = $p_size->{end};
+          my $c_start = $c_size->{start};
+          my $c_end = $c_size->{end};
+          my $interstart = 0;
+          my $interend = 0;
 
-            if ($p_start > $p_end) {
-                $interstart = $p_start;
-            } else {
-                $interstart = $p_end;
-            }
-            if ($c_start < $c_end) {
-                $interend = $c_start;
-            } else {
-                $interend = $c_end;
-            }
-            my $tmp_start = $interstart;
-            my $tmp_end = $interend;
-            if ($tmp_start > $tmp_end) {
-                $interstart = $tmp_end;
-                $interend = $tmp_start;
-            }
-            ## I need a little logic to catch the first feature
-            ## As it is currently written, it grabs the position of the last feature
-            ## and uses that number rather than the beginning of the chromosome.
-            ## Therefore we end up with a first feature which contains the entire chromosome.
-            if ($c <= 2) {   ## Arbitrarily set it to check the first 2 features
-                if ($interend >= 100000) { ## If the first feature take >= 1/2 the chromosome
-                    $interend = $interstart;
-                    $interstart = 1;
-                }
-            }
+          if ($p_start > $p_end) {
+              $interstart = $p_start;
+          } else {
+              $interstart = $p_end;
+          }
+          if ($c_start < $c_end) {
+              $interend = $c_start;
+          } else {
+              $interend = $c_end;
+          }
+          my $tmp_start = $interstart;
+          my $tmp_end = $interend;
+          if ($tmp_start > $tmp_end) {
+              $interstart = $tmp_end;
+              $interend = $tmp_start;
+          }
+          ## I need a little logic to catch the first feature
+          ## As it is currently written, it grabs the position of the last feature
+          ## and uses that number rather than the beginning of the chromosome.
+          ## Therefore we end up with a first feature which contains the entire chromosome.
+          if ($c <= 2) {   ## Arbitrarily set it to check the first 2 features
+              if ($interend >= 100000) { ## If the first feature take >= 1/2 the chromosome
+                  $interend = $interstart;
+                  $interstart = 1;
+              }
+          }
 
-            my $new_feature = $c_size->{feat};
-            my $inter_location = Bio::Location::Atomic->new(-start => $interstart, -end => $interend, -strand => 1);
-            $new_feature->{_location} = $inter_location;
-            $inter_gffout->write_feature($new_feature);
-        }
+          my $new_feature = $c_size->{feat};
+          my $inter_location = Bio::Location::Atomic->new(-start => $interstart, -end => $interend, -strand => 1);
+          $new_feature->{_location} = $inter_location;
+          $inter_gffout->write_feature($new_feature);
+      }
     }                           ## End while every sequence
     my $ret_stats = {num_sequences => $seq_count,
                      total_nt => $total_nt,
                      num_features => $feature_count,
-                 };
+    };
     close($in);
     return($ret_stats);
 }
@@ -206,13 +206,13 @@ sub Gff2Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args,
                                    required => ['gff', 'genome'],
-                                   tag => 'gene_id',
-                                   feature_type => undef,
-                               );
+                                   htseq_id => 'gene_id',
+                                   htseq_type => undef,
+        );
     my $genome = $options->{genome};
     my $gff = $options->{gff};
-    my $tag = $options->{tag};
-    my $ftype = $options->{feature_type};
+    my $tag = $options->{htseq_id};
+    my $ftype = $options->{htseq_type};
     print "TESTME Gff2Fasta: $ftype\n";
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
@@ -228,50 +228,52 @@ sub Gff2Fasta {
     my $features_read = 0;
 
   LOOP: while(my $feature = $annotation_in->next_feature()) {
-        $features_read++;
-        next LOOP unless ($feature->{_primary_tag} eq $feature_type);
-        my $location = $feature->{_location};
-        my $start = $location->start();
-        my $end = $location->end();
-        my $strand = $location->strand();
-        my @something = $feature->each_tag_value();
-        my $chosen_tag = $options->{tag};
-        my @ids;
-        try {
-            @ids = $feature->each_tag_value($chosen_tag);
-        } catch {
-            next LOOP;
-        }
-        my $gff_chr = $feature->{_gsf_seq_id};
-        my $gff_string = $annotation_in->{$gff_chr};
-        if (!defined($chromosomes->{$gff_chr})) {
-            print STDERR "Something is wrong with $gff_chr\n";
-            next LOOP;
-        }
-        my $id = "";
-        foreach my $i (@ids) {
-            $id .= "$i ";
-        }
-        $id =~ s/(\s+$)//g;
-        my $genome_obj = $chromosomes->{$gff_chr}->{obj};
-        my $cds = $genome_obj->subseq($start, $end);
-        if ($strand == -1) {
-            $cds = reverse($cds);
-            $cds =~ tr/ATGCatgc/TACGtacg/;
-        }
-        my $seq_obj = Bio::Seq->new();
-        $seq_obj->seq($cds);
-        my $aa_cds = $seq_obj->translate->seq();
-        $aa_cds = join("\n", ($aa_cds =~ m/.{1,80}/g));
-        $cds = join("\n", ($cds =~ m/.{1,80}/g));
-        print $out_fasta_amino ">${gff_chr}_${id}
+      $features_read++;
+      ## print "TESTME: $feature->{_primary_tag} vs $feature_type\n";
+      next LOOP unless ($feature->{_primary_tag} eq $feature_type);
+      my $location = $feature->{_location};
+      my $start = $location->start();
+      my $end = $location->end();
+      my $strand = $location->strand();
+      my @something = $feature->each_tag_value();
+      my @ids;
+      try {
+          @ids = $feature->each_tag_value($tag);
+      } catch {
+          print "Did not find the tag: ${tag}, perhaps check the gff file.\n";
+          next LOOP;
+      }
+      print "Passed the try/catch\n";
+      my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_string = $annotation_in->{$gff_chr};
+      if (!defined($chromosomes->{$gff_chr})) {
+          print STDERR "Something is wrong with $gff_chr\n";
+          next LOOP;
+      }
+      my $id = "";
+      foreach my $i (@ids) {
+          $id .= "$i ";
+      }
+      $id =~ s/(\s+$)//g;
+      my $genome_obj = $chromosomes->{$gff_chr}->{obj};
+      my $cds = $genome_obj->subseq($start, $end);
+      if ($strand == -1) {
+          $cds = reverse($cds);
+          $cds =~ tr/ATGCatgc/TACGtacg/;
+      }
+      my $seq_obj = Bio::Seq->new();
+      $seq_obj->seq($cds);
+      my $aa_cds = $seq_obj->translate->seq();
+      $aa_cds = join("\n", ($aa_cds =~ m/.{1,80}/g));
+      $cds = join("\n", ($cds =~ m/.{1,80}/g));
+      print $out_fasta_amino ">${gff_chr}_${id}
 ${aa_cds}
 ";
-        print $out_fasta_nt ">${gff_chr}_${id}
+      print $out_fasta_nt ">${gff_chr}_${id}
 ${cds}
 ";
-        $features_written++;
-    }                           ## End LOOP
+      $features_written++;
+  }                           ## End LOOP
     $gff_handle->close();
     $out_fasta_amino->close();
     $out_fasta_nt->close();
@@ -307,58 +309,58 @@ sub Gff2Gtf {
     my $features_written = 0;
     my $in_features = 0;
   FEATURES: while (my $feature = $in_gff->next_feature()) {
-        $in_features++;
-        ## the output handle is reset for every file
-        ## According to UCSC, GTF file contains 9 column:
-        ## <seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes]
-        ## An example working gtf line: (except the double spaces are tabs...)
-        ## TcChr20-S  TriTrypDB  CDS  14765  15403  .  -  0    gene_id "cds_TcCLB.397937.10-1"; transcript_id "cds_TcCLB.397937.10-1";
+      $in_features++;
+      ## the output handle is reset for every file
+      ## According to UCSC, GTF file contains 9 column:
+      ## <seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes]
+      ## An example working gtf line: (except the double spaces are tabs...)
+      ## TcChr20-S  TriTrypDB  CDS  14765  15403  .  -  0    gene_id "cds_TcCLB.397937.10-1"; transcript_id "cds_TcCLB.397937.10-1";
 
-        my @tags = $feature->get_all_tags();
-        my $seqid = $feature->seq_id();
-        my $location = $feature->location();
-        my $start = $feature->start();
-        my $end = $feature->end();
-        my $strand = $feature->strand();
-        if ($strand == 1) {
-            $strand = '+';
-        } else {
-            $strand = '-';
-        }
-        my $source = $feature->source_tag();
-        my $primary_id = $feature->primary_tag();
-        my $phase = '.';
-        if ($primary_id eq 'CDS') {
-            $phase = $feature->phase();
-        }
-        next FEATURES if ($primary_id eq 'supercontig' or $primary_id eq 'region' or $primary_id eq 'chromosome');
-        ## my $string = qq"${seqid}\t${source}\tCDS\t$start\t$end\t.\t$strand\t0\t";
-        my $string = qq"${seqid}\t${source}\t${primary_id}\t${start}\t${end}\t.\t${strand}\t${phase}\t";
+      my @tags = $feature->get_all_tags();
+      my $seqid = $feature->seq_id();
+      my $location = $feature->location();
+      my $start = $feature->start();
+      my $end = $feature->end();
+      my $strand = $feature->strand();
+      if ($strand == 1) {
+          $strand = '+';
+      } else {
+          $strand = '-';
+      }
+      my $source = $feature->source_tag();
+      my $primary_id = $feature->primary_tag();
+      my $phase = '.';
+      if ($primary_id eq 'CDS') {
+          $phase = $feature->phase();
+      }
+      next FEATURES if ($primary_id eq 'supercontig' or $primary_id eq 'region' or $primary_id eq 'chromosome');
+      ## my $string = qq"${seqid}\t${source}\tCDS\t$start\t$end\t.\t$strand\t0\t";
+      my $string = qq"${seqid}\t${source}\t${primary_id}\t${start}\t${end}\t.\t${strand}\t${phase}\t";
 
-        my $last_column = "";
-        my $annot = $feature->{annotation};
-        my $stringified;
-        my $transcript_string = "";
-        my $geneid_string = "";
-        foreach my $key ($annot->get_all_annotation_keys()) {
-            my @values = $annot->get_Annotations($key);
-            foreach my $value (@values) {
-                $stringified = $value->{value};
-                $stringified = $value->{term}->{name} unless($stringified);
-                $last_column .= qq!${key} "${stringified}"; !;
-            }
-            if ($key eq 'ID') {
-                $transcript_string = qq!transcript_id "${stringified}"; !;
-            }
-            if ($key eq 'seq_id') {
-                $geneid_string = qq!gene_id "${stringified}"; !;
-            }
-        }
-        my $seq_string = $string . ${transcript_string} . ${geneid_string} . $last_column;
-        $seq_string =~ s/\s+$//g;
-        print $out_gtf $seq_string;
-        $features_written++;
-    }                           ## End iterating over every FEATURES
+      my $last_column = "";
+      my $annot = $feature->{annotation};
+      my $stringified;
+      my $transcript_string = "";
+      my $geneid_string = "";
+      foreach my $key ($annot->get_all_annotation_keys()) {
+          my @values = $annot->get_Annotations($key);
+          foreach my $value (@values) {
+              $stringified = $value->{value};
+              $stringified = $value->{term}->{name} unless($stringified);
+              $last_column .= qq!${key} "${stringified}"; !;
+          }
+          if ($key eq 'ID') {
+              $transcript_string = qq!transcript_id "${stringified}"; !;
+          }
+          if ($key eq 'seq_id') {
+              $geneid_string = qq!gene_id "${stringified}"; !;
+          }
+      }
+      my $seq_string = $string . ${transcript_string} . ${geneid_string} . $last_column;
+      $seq_string =~ s/\s+$//g;
+      print $out_gtf $seq_string;
+      $features_written++;
+  }                           ## End iterating over every FEATURES
     $out_gtf->close();
     ##close(OUT_GTF);
     return($features_written);
@@ -378,38 +380,38 @@ sub Read_GFF {
     my $gff_out = {};
     print "Starting to read gff: $args{gff}\n";
   LOOP: while(my $feature = $annotation_in->next_feature()) {
-        next LOOP unless ($feature->{_primary_tag} eq $args{gff_type});
-        my $location = $feature->{_location};
-        my $start = $location->start();
-        my $end = $location->end();
-        my $strand = $location->strand();
-        my @ids = $feature->each_tag_value("ID");
-        my $id = "";
-        my $gff_chr = $feature->{_gsf_seq_id};
-        my $gff_string = $annotation_in->gff_string($feature);
-        if (!defined($chromosomes->{$gff_chr})) {
-            print STDERR "Something is wrong with $gff_chr\n";
-            next LOOP;
-        }
-        foreach my $i (@ids) {
-            $i =~ s/^cds_//g;
-            $i =~ s/\-\d+$//g;
-            $id .= "$i ";
-        }
-        $id =~ s/\s+$//g;
-        my @gff_information = split(/\t+/, $gff_string);
-        my $description_string = $gff_information[8];
-        my $orf_chromosome = $gff_chr;
-        my $annot = {
-            id => $id,
-            start => $start, ## Genomic coordinate of the start codon
-            end => $end,     ## And stop codon
-            strand => $strand,
-            description_string => $description_string,
-            chromosome => $gff_chr,
-        };
-        $gff_out->{$gff_chr}->{$id} = $annot;
-    }                           ## End looking at every gene in the gff file
+      next LOOP unless ($feature->{_primary_tag} eq $args{gff_type});
+      my $location = $feature->{_location};
+      my $start = $location->start();
+      my $end = $location->end();
+      my $strand = $location->strand();
+      my @ids = $feature->each_tag_value("ID");
+      my $id = "";
+      my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_string = $annotation_in->gff_string($feature);
+      if (!defined($chromosomes->{$gff_chr})) {
+          print STDERR "Something is wrong with $gff_chr\n";
+          next LOOP;
+      }
+      foreach my $i (@ids) {
+          $i =~ s/^cds_//g;
+          $i =~ s/\-\d+$//g;
+          $id .= "$i ";
+      }
+      $id =~ s/\s+$//g;
+      my @gff_information = split(/\t+/, $gff_string);
+      my $description_string = $gff_information[8];
+      my $orf_chromosome = $gff_chr;
+      my $annot = {
+          id => $id,
+          start => $start, ## Genomic coordinate of the start codon
+          end => $end,     ## And stop codon
+          strand => $strand,
+          description_string => $description_string,
+          chromosome => $gff_chr,
+      };
+      $gff_out->{$gff_chr}->{$id} = $annot;
+  }                           ## End looking at every gene in the gff file
     $gff->close();
     return($gff_out);
 }
@@ -501,7 +503,7 @@ sub Samtools {
         required => ['input', 'species'],
         jname => 'sam',
         jprefix => '',
-    );
+        );
 
     my $job_basename = $options->{job_basename};
     my $input = $options->{input};
@@ -561,7 +563,9 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
                                   jstring => $jstring,
                                   postscript => $options->{postscript},
                                   prescript => $options->{prescript},
-                              );
+                                  queue => 'throughput',
+                                  mem => '28',
+        );
     return($samtools);
 }
 

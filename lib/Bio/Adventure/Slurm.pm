@@ -87,7 +87,7 @@ use FileHandle;
 use Bio::Adventure;
 my \$out = FileHandle->new(">>outputs/log.txt");
 my \$d = qx'date';
-print \$out "### Started $script_file at \${d}";
+print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
@@ -112,7 +112,8 @@ my \$options = retrieve(\$class->{option_file});
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
 my \$end_d = qx'date';
-print \$out "#### Finished \${jobid} ${script_base} at \${end_d}.";
+print \$out "## Finished \${jobid} ${script_base} at \${end_d}.
+";
 close(\$out);
 !;
         $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
@@ -151,13 +152,14 @@ $args{jstring}" if ($options->{verbose});
     }
     $script_start .= qq?
 
-echo "#### Started ${script_file} at \$(date) on \$(hostname)" >> outputs/log.txt
+echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
 
     my $script_end = qq!## The following lines give status codes and some logging
 echo \$? > outputs/status/$options->{jname}.status
-echo "### Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "## Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...

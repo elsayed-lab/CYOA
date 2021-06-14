@@ -40,6 +40,10 @@ sub Cutadapt {
         maxlength => 42,
         maxerr => 0.1,
         maxremoved => 3,
+	arbitrary => undef,
+	left => undef,
+	right => undef,
+	either => undef,
     );
     my %start_options = %{$options};
     my $job_basename = $class->Get_Job_Name();
@@ -53,6 +57,11 @@ sub Cutadapt {
         $type = $options->{type};
     } else {
         $type = 'tnseq';
+    }
+
+    my $arbitrary = '';
+    if (defined($options->{arbitrary})) {
+        $arbitrary = $options->{arbitrary};
     }
 
     my $input = $options->{input};
@@ -92,7 +101,7 @@ sub Cutadapt {
     my $jstring = qq!
 mkdir -p ${out_dir} && \\
  ${input_flags} \\
-  ${type_flag} ${adapter_flags} \\
+  ${type_flag} ${adapter_flags} ${arbitrary} \\
   -e $options->{maxerr} -n $options->{maxremoved} \\
   -m $options->{minlength} -M $options->{maxlength} \\
   --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
@@ -118,7 +127,7 @@ mkdir -p ${out_dir} && \\
             comment => qq"## Check that TAs exist.",
             input => qq"${output}",
             jname => qq"tach_${job_basename}",
-            depends => $cutadapt->{pbs_id},
+            depends => $cutadapt->{job_id},
             jprefix => "08",
         );
     }
@@ -126,7 +135,7 @@ mkdir -p ${out_dir} && \\
         $class,
         comment => qq"## Compressing the tooshort sequences.",
         xz_input => qq"${out_dir}/${basename}_tooshort.fastq",
-        depends => $cutadapt->{pbs_id},
+        depends => $cutadapt->{job_id},
         jname => "xzcutshort_${job_basename}",
         jprefix => "08",
         queue => "workstation",
@@ -136,7 +145,7 @@ mkdir -p ${out_dir} && \\
         $class,
         comment => qq"## Compressing the toolong sequences.",
         xz_input => qq"${out_dir}/${basename}_toolong.fastq",
-        depends => $cutadapt->{pbs_id},
+        depends => $cutadapt->{job_id},
         jname => "xzcutlong_${job_basename}",
         jprefix => "08",
         queue => "workstation",
@@ -146,7 +155,7 @@ mkdir -p ${out_dir} && \\
         $class,
         comment => qq"## Compressing the toolong sequences.",
         xz_input => qq"${out_dir}/${basename}_untrimmed.fastq",
-        depends => $cutadapt->{pbs_id},
+        depends => $cutadapt->{job_id},
         jname => "xzuncut_${job_basename}",
         jprefix => "08",
         queue => "workstation",
@@ -155,13 +164,24 @@ mkdir -p ${out_dir} && \\
     my $comp_original = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the original sequence.",
-        xz_input => qq"$input",
-        depends => $cutadapt->{pbs_id},
+        xz_input => $input,
+        depends => $cutadapt->{job_id},
         jname => "xzorig_${job_basename}",
         jprefix => "08",
         queue => "workstation",
         walltime => "04:00:00",
     );
+    my $comp_output = Bio::Adventure::Compress::Recompress(
+        $class,
+        comment => qq"## Compressing the output sequence.",
+        xz_input => $output,
+        depends => $cutadapt->{job_id},
+        jname => "xzout_${job_basename}",
+        jprefix => "08",
+        queue => "workstation",
+        walltime => "04:00:00",
+    );
+
     $class->{options} = \%start_options;
     return($cutadapt);
 }
@@ -378,7 +398,7 @@ ln -s ${r2o} r2_trimmed.fastq.gz
         basename => $basename,
         jprefix => "06",
         jname => "trst_${job_basename}",
-        depends => $trim->{pbs_id},
+        depends => $trim->{job_id},
         pairwise => 1,
     );
     $trim->{stats} = $trim_stats;
@@ -465,7 +485,7 @@ ${exe} \\
     my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
         $class,
         basename => $basename,
-        depends => $trim->{pbs_id},
+        depends => $trim->{job_id},
         jname => "trst_${job_basename}",
         jprefix => "06",
     );

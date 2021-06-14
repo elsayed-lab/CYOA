@@ -41,23 +41,24 @@ use Term::UI;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 use Bio::Adventure::Align_Fasta;
-use Bio::Adventure::Local;
+use Bio::Adventure::Annotation;
+use Bio::Adventure::Assembly;
 use Bio::Adventure::Cleanup;
+use Bio::Adventure::Count;
 use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
-use Bio::Adventure::Prepare;
-use Bio::Adventure::Riboseq;
-use Bio::Adventure::Phylogeny;
-use Bio::Adventure::Assembly;
-use Bio::Adventure::Count;
+use Bio::Adventure::Local;
 use Bio::Adventure::Map;
+use Bio::Adventure::Prepare;
+use Bio::Adventure::Phylogeny;
+use Bio::Adventure::Riboseq;
 use Bio::Adventure::QA;
-use Bio::Adventure::Trim;
 use Bio::Adventure::SeqMisc;
 use Bio::Adventure::Slurm;
 use Bio::Adventure::SNP;
 use Bio::Adventure::TNSeq;
 use Bio::Adventure::Torque;
+use Bio::Adventure::Trim;
 
 has task => (is => 'rw', default => 'rnaseq');
 has method => (is => 'rw');
@@ -158,6 +159,20 @@ sub BUILDARGS {
         }
     }
 
+    if ($#ARGV > 0) {
+        ## Make a log of command line arguments passed.
+        my $arg_string = '';
+        foreach my $a (@ARGV) {
+            $arg_string .= "$a ";
+        }
+        make_path("outputs/", {verbose => 0}) unless (-r qq"outputs/");
+        my $out = FileHandle->new(">>outputs/log.txt");
+        my $d = qx'date';
+        chomp $d;
+        print $out "# Started CYOA at ${d} with arguments: $arg_string.\n";
+        $out->close();
+    }
+
     ## If one desires, use a configuration file to replace/augment those values.
     my $appconfig = AppConfig->new({CASE => 1,
                                     CREATE => 1,
@@ -168,7 +183,7 @@ sub BUILDARGS {
                                                EXPAND_UID => 1,
                                                DEFAULT => 'unset',
                                                ARGCOUNT => 1,
-                                           },});
+                                    },});
     if (-r $defaults->{config_file}) {
         my $open = $appconfig->file($defaults->{config_file});
         my %data = $appconfig->varlist("^.*");
@@ -192,7 +207,7 @@ sub BUILDARGS {
                                 "in|i:s" => \$conf{input},
                                 "pb|p:i" => \$conf{pbs},
                                 "sp|s:s" => \$conf{species},
-                            );
+        );
     ## This makes both of the above groups command-line changeable
     foreach my $name (keys %conf_specification_temp) {
         $conf_specification{$name} = $conf_specification_temp{$name};
@@ -236,6 +251,11 @@ sub BUILDARGS {
     $job_basename =~ s/_R1.*//g;
     $job_basename =~ s/-trimmed.*//g;
     $attribs->{job_basename} = $job_basename;
+
+    ## Remove backslashes from arbitrary arguments
+    if ($attribs->{arbitrary}) {
+        $attribs->{arbitrary} =~ s/\\//g;
+    }
 
     ## These are both problematic when (n)storing the data.
     $attribs->{menus} = Get_Menus();
@@ -441,6 +461,7 @@ sub Get_Basename {
 sub Get_Defaults {
     my $defaults = {
         ## General options
+        arbitrary => undef, ## Pass arbitrary options
         basedir => cwd(), ## The base directory when invoking various shell commands
         config_file => qq"${HOME}/.config/cyoa.conf", ## A config file to read to replace these values.
         directories => undef, ## Apply a command to multiple input directories.
@@ -475,7 +496,7 @@ sub Get_Defaults {
         sbatch_depends => 'afterok:',
         sbatch_dependsarray => 'afterok:', ## String to pass for an array of jobs
         loghost => 'localhost',            ## Host to which to send logs
-        mem => 18,                          ## Number of gigs of ram to request
+        mem => 24,                          ## Number of gigs of ram to request
         queue => 'workstation',            ## What queue will jobs default to?
         queues => ['throughput','workstation','long','large'], ## Other possible queues
         shell => '/usr/bin/bash', ## Default qsub shell
@@ -485,13 +506,13 @@ sub Get_Defaults {
         best_only => 0,
         align_jobs => 40, ## How many blast/fasta alignment jobs should we make?
         align_blast_format => 5, ## Which alignment type should we use?
-                                 ## (5 is blastxml for blast, 0 is tabular for fasta36)
+        ## (5 is blastxml for blast, 0 is tabular for fasta36)
         align_parse => 1,
         blast_params => ' -e 10 ',
         peptide => 'F', ## The flag for blast deciding whether or not to perform a peptide formatdb/alignment
         blast_tool => undef, ## Valid choices are blastn blastp tblastn tblastx and I'm sure some others I can't remember
         library => undef,   ## The library to be used for fasta36/blast searches
-        evalue => 1,        ## Alignment specific: Filter hits by e-value.
+        evalue => 0.001,        ## Alignment specific: Filter hits by e-value.
         identity => 70, ## Alignment specific: Filter hits by sequence identity percent.
         fasta_args => ' -b 20 -d 20 ', ## Default arguments for the fasta36 suite
         fasta_tool => 'ggsearch36',    ## Which fasta36 program to run
@@ -503,7 +524,7 @@ sub Get_Defaults {
                      v1M1 => '--best -v 1 -M 1',
                      v1M1l10 => '--best -v 1 -M 1 -y -l 15',
                      v2M1 => '--best -v 2 -M 1',
-                 },
+        },
         bt2_args => ' --very-sensitive -L 14 ', ## A boolean to decide whether to use multiple bowtie1 argument sets
         bt_type => 'v0M1',
         btmulti => 0, ## Use the following configuration file to overwrite options for these scripts
@@ -569,6 +590,8 @@ sub Get_Defaults {
         varfilter => 1,       ## Do a varFilter in variant searches
         vcf_cutoff => 10,     ## Minimum depth cutoff for variant searches
         vcf_minpct => 0.8,    ## Minimum percent agreement for variant searches.
+        gff_tag => 'gene_id', ## Which ID tag to use when snp searching.
+        gff_type => 'gene',   ## Which gff type to use when snp searching.
 
         ## State
         state => {
@@ -582,18 +605,26 @@ sub Get_Defaults {
 }
 
 sub Get_Menus {
-    my $classnus = {
+    my $menus = {
         Alignment => {
             name => 'alignment',
             message => 'Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 6626070.',
             choices => {
-                '(blastsplit): Split the input sequence into subsets and align with blast.' => \&Bio::Adventure::Align_Blast::Split_Align_Blast,
-                '(fastasplit): Split the input sequence into subsets and align with fasta36.' => \&Bio::Adventure::Align_Fasta::Split_Align_Fasta,
-                '(concat): Merge split searches into a single set of results.' => \&Bio::Adventure::Align::Concatenate_Searches,
-                '(fastaparse): Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Parse_Fasta,
-                '(blastparse): Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Parse_Blast,
-                '(fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Merge_Parse_Fasta,
-                '(blastmerge): Merge and Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Merge_Parse_Blast,
+                    '(blastsplit): Split the input sequence into subsets and align with blast.' => \&Bio::Adventure::Align_Blast::Split_Align_Blast,
+                    '(fastasplit): Split the input sequence into subsets and align with fasta36.' => \&Bio::Adventure::Align_Fasta::Split_Align_Fasta,
+                    '(concat): Merge split searches into a single set of results.' => \&Bio::Adventure::Align::Concatenate_Searches,
+                    '(fastaparse): Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Parse_Fasta,
+                    '(blastparse): Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Parse_Blast,
+                    '(fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Merge_Parse_Fasta,
+                    '(blastmerge): Merge and Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Merge_Parse_Blast,
+            },
+        },
+        Annotation => {
+            name => 'annotation',
+            message => 'How come Aquaman can control whales?  They are mammals!  Makes no sense.',
+            choices =>  {
+                '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
+                '(resfinder): Search for antimicrobial resistance genes.' => \&Bio::Adventure::Annotation::Resfinder,
             },
         },
         Assembly => {
@@ -601,11 +632,14 @@ sub Get_Menus {
             message => 'The wise man fears the wrath of a gentle heart. Go to page 314159.',
             choices => {
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Assembly::Extract_Trinotate,
+                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Assembly::Extend_Kraken_DB,
+                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Assembly::Kraken,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
                 '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Assembly::Trinotate,
                 '(trinity): Perform de novo transcriptome assembly with trinity.' => \&Bio::Adventure::Assembly::Trinity,
                 '(trinitypost): Perform post assembly analyses with trinity.' => \&Bio::Adventure::Assembly::Trinity_Post,
                 '(velvet): Perform de novo genome assembly with velvet.' => \&Bio::Adventure::Assembly::Velvet,
+                '(shovill): Perform the shovill pre/post processing with spades.' => \&Bio::Adventure::Assembly::Shovill,
             },
         },
         Conversion => {
@@ -730,7 +764,8 @@ sub Get_Menus {
                 '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => \&Bio::Adventure::QA::Biopieces_Graph,
                 '(essentialityta): Count the hits/TA in preparation for essentiality.' => \&Bio::Adventure::TNSeq::Essentiality_TAs,
                 '(runessentiality): Run the essentiality suite of tools.' => \&Bio::Adventure::TNSeq::Run_Essentiality,
-                '(gumbel): Run the essentiality suite of tools on the ta counts.' => \&Bio::Adventure::TNSeq::Run_Essentiality
+                '(gumbel): Run the essentiality suite of tools on the ta counts.' => \&Bio::Adventure::TNSeq::Run_Essentiality,
+                '(tpp): Run the transit preprocessing script.' => \&Bio::Adventure::TNSeq::Transit_TPP,
             },
         },
         Test => {
@@ -741,7 +776,7 @@ sub Get_Menus {
             },
         },
     };
-    return($classnus);
+    return($menus);
 }
 
 sub Get_Job_Name {
@@ -763,7 +798,6 @@ sub Get_TODOs {
     my %args = @_;
     my $todo_list = ();
     my $possible_todos = {
-        "arbitrary+" => \$todo_list->{todo}{'Bio::Adventure::PBS::Qsub_Arbitrary'},
         "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
         "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
         "blastparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Blast_Parse'},
@@ -780,8 +814,10 @@ sub Get_TODOs {
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
         "cutadapt+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cutadapt'},
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
+        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Extend_Kraken_DB'},
         "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Extract_Trinotate'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
+        "fastado+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Do_Fasta'},
         "fastasplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastamerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta'},
         "fastaparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta'},
@@ -789,6 +825,7 @@ sub Get_TODOs {
         "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
+        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},    
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
         "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
@@ -804,6 +841,7 @@ sub Get_TODOs {
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM_Index'},
         "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon_Index'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
+        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Kraken'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "pbt1+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie'},
@@ -816,11 +854,13 @@ sub Get_TODOs {
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
         "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
-        "readsample+" =>  \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
+        "readsample+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
+        "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},    
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
         "salmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon'},
+        "shovill+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Shovill'},
         "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
         "snp+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
         "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
@@ -832,6 +872,7 @@ sub Get_TODOs {
         "tacheck+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::TA_Check'},
         "test+" => \$todo_list->{todo}{'Bio::Adventure::PBS::Test_Job'},
         "tophat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Tophat'},
+        "tpp+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Transit_TPP'},
         "transdecoder+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Transdecoder'},
         "trimomatic+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Trimomatic'},
         "trinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity'},
@@ -840,6 +881,7 @@ sub Get_TODOs {
         "tritrypdownload+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp_Download'},
         "tritryp2text+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp2Text'},
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
+        "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
         "help+" => \$todo_list->{todo}{'Bio::Adventure::Adventure_Help'},
     };
 
@@ -1135,7 +1177,7 @@ sub Read_Genome_GFF {
                                cds_ends => [],
                                inter_starts => [],
                                inter_ends => [],
-                           },};
+                    },};
     my $gff_name = basename($args{gff}, ['.gff']);
     my $data_file = qq"$options->{basedir}/${gff_name}.pdata";
     print "Reading $options->{gff}, seeking features tagged (last column ID) $id_tag,
@@ -1156,45 +1198,45 @@ sub Read_Genome_GFF {
         my $end = 1;
         my $old_end = 1;
       LOOP: while(my $feature = $annotation_in->next_feature()) {
-            next LOOP unless ($feature->{_primary_tag} eq $feature_type);
-            $hits++;
-            my $location = $feature->{_location};
-            $old_start = $start;
-            $old_end = $end;
-            $start = $location->start();
-            $end = $location->end();
-            my $strand = $location->strand();
-            my @ids = $feature->each_tag_value($id_tag);
-            my $id = "";
-            my $gff_chr = $feature->{_gsf_seq_id};
-            my $gff_string = $annotation_in->gff_string($feature);
-            foreach my $i (@ids) {
-                $i =~ s/^cds_//g;
-                $i =~ s/\-\d+$//g;
-                $id .= "$i ";
-            }
-            $id =~ s/\s+$//g;
-            my @gff_information = split(/\t+/, $gff_string);
-            my $description_string = $gff_information[8];
-            my $orf_chromosome = $gff_chr;
-            ## Add the chromosome to the list of chromosomes if it is not there already.
-            push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
-            push(@feature_names, $id);
-            push(@cds_starts, $start);
-            push(@inter_starts, $old_start+1);
-            push(@cds_ends, $end);
-            ##push(@inter_ends, $old_start-1);
-            push(@inter_ends, $start-1);
-            my $annot = {
-                id => $id,
-                start => $start, ## Genomic coordinate of the start codon
-                end => $end, ## And stop codon
-                strand => $strand,
-                description_string => $description_string,
-                chromosome => $gff_chr,
-            };
-            $gff_out->{$gff_chr}->{$id} = $annot;
-        } ## End looking at every gene in the gff file
+          next LOOP unless ($feature->{_primary_tag} eq $feature_type);
+          $hits++;
+          my $location = $feature->{_location};
+          $old_start = $start;
+          $old_end = $end;
+          $start = $location->start();
+          $end = $location->end();
+          my $strand = $location->strand();
+          my @ids = $feature->each_tag_value($id_tag);
+          my $id = "";
+          my $gff_chr = $feature->{_gsf_seq_id};
+          my $gff_string = $annotation_in->gff_string($feature);
+          foreach my $i (@ids) {
+              $i =~ s/^cds_//g;
+              $i =~ s/\-\d+$//g;
+              $id .= "$i ";
+          }
+          $id =~ s/\s+$//g;
+          my @gff_information = split(/\t+/, $gff_string);
+          my $description_string = $gff_information[8];
+          my $orf_chromosome = $gff_chr;
+          ## Add the chromosome to the list of chromosomes if it is not there already.
+          push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
+          push(@feature_names, $id);
+          push(@cds_starts, $start);
+          push(@inter_starts, $old_start+1);
+          push(@cds_ends, $end);
+          ##push(@inter_ends, $old_start-1);
+          push(@inter_ends, $start-1);
+          my $annot = {
+              id => $id,
+              start => $start, ## Genomic coordinate of the start codon
+              end => $end, ## And stop codon
+              strand => $strand,
+              description_string => $description_string,
+              chromosome => $gff_chr,
+          };
+          $gff_out->{$gff_chr}->{$id} = $annot;
+      } ## End looking at every gene in the gff file
         $gff_out->{stats}->{chromosomes} = \@chromosome_list;
         $gff_out->{stats}->{feature_names} = \@feature_names;
         $gff_out->{stats}->{cds_starts} = \@cds_starts;
@@ -1246,7 +1288,7 @@ sub Submit {
             TEMPLATE => 'optionsXXXX',
             DIR => $options{basedir},
             SUFFIX => '.pdata',
-        );
+            );
         my $opt = \%options;
         ## Code references are invalid for these things...
         $opt->{menus} = undef;

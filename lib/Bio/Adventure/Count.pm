@@ -33,7 +33,7 @@ Invoke htseq multiple times with options for counting different transcript types
 sub HT_Multi {
     my ($class, %args) = @_;
     my $check = which('htseq-count');
-    die("Could not find htseq in your PATH.") unless($check);
+    die('Could not find htseq in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'htseq_input', 'htseq_stranded'],
@@ -42,13 +42,13 @@ sub HT_Multi {
         htseq_id => 'ID',
         libtype => 'genome',
     );
+    my %ro_opts = %{$options};
     my $species = $options->{species};
     my $htseq_input = $options->{htseq_input};
     my $stranded = $options->{htseq_stranded};
     my $htseq_type = $options->{htseq_type};
     my $htseq_id = $options->{htseq_id};
     my @jobs = ();
-
     my $script_suffix = qq"";
     if ($args{suffix}) {
         $script_suffix = $args{suffix};
@@ -56,26 +56,26 @@ sub HT_Multi {
     my $jprefix = "";
     $jprefix = $args{jprefix} if ($args{jprefix});
     my %gff_types = (
-        antisense => ["exon", "ID"],
-        exon => ["exon", "ID"],
-        fiveputr => ["five_prime_UTR", "ID"],
-        interCDS => ["CDS", "ID"],
-        linc => ["gene", "ID"],
-        mi => ["exon", "ID"],
-        misc => ["transcript", "ID"],
-        nmd => ["exon", "ID"],
-        operons => ["gene", "ID"],
-        pseudo => ["exon", "ID"],
-        rintron => ["exon", "ID"],
-        rrna => ["gene", "ID"],
-        sn => ["exon", "ID"],
-        sno => ["exon", "ID"],
-        threeputr => ["three_prime_UTR", "ID"],
+        antisense => ['exon', 'ID'],
+        exon => ['exon', 'ID'],
+        fiveputr => ['five_prime_UTR', 'ID'],
+        interCDS => ['CDS', 'ID'],
+        linc => ['gene', 'ID'],
+        mi => ['exon', 'ID'],
+        misc => ['transcript', 'ID'],
+        nmd => ['exon', 'ID'],
+        operons => ['gene', 'ID'],
+        pseudo => ['exon', 'ID'],
+        rintron => ['exon', 'ID'],
+        rrna => ['gene', 'ID'],
+        sn => ['exon', 'ID'],
+        sno => ['exon', 'ID'],
+        threeputr => ['three_prime_UTR', 'ID'],
     );
     my $htseq_runs = 0;
     ## my $aligntype = $args{aligntype};
     ## my $out_prefix = $input;
-    my $out_basename = basename($htseq_input, (".bam", ".sam"));
+    my $out_basename = basename($htseq_input, ('.bam', '.sam'));
     my $out_suffixdir = dirname($htseq_input); ## The directory name we will change from bowtie/tophat/whatever to htseq
     foreach my $type (keys %gff_types) {
         my $gff = qq"$options->{libdir}/genome/${species}_${type}.gff";
@@ -129,15 +129,15 @@ sub HT_Multi {
     $gtf =~ s/\.gff/\.gtf/g;
     my $output = $htseq_input;
     $output =~ s/\.bam$/\.count/g;
-    my $htall_jobname = qq"htall_${out_basename}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
+    my $htall_jobname = qq"htall_${out_basename}_$options->{species}_s${stranded}_$ro_opts{htseq_type}_$ro_opts{htseq_id}";
     if (-r "$gff") {
         print "Found $gff, performing htseq_all with it.\n";
         my $ht = Bio::Adventure::Count::HTSeq(
             $class,
             htseq_gff => $gff,
-            htseq_id => $options->{htseq_id},
+            htseq_id => $ro_opts{htseq_id},
             htseq_input => $htseq_input,
-            htseq_type => $options->{htseq_type},
+            htseq_type => $ro_opts{htseq_type},
             depends => $options->{depends},
             jname => $htall_jobname,
             job_output => $output,

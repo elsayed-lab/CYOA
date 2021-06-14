@@ -29,7 +29,9 @@ sub Align_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'gff_tag'],
+        required => ['input', 'species'],
+        htseq_id => 'ID',
+        htseq_type => 'gene',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
@@ -53,7 +55,8 @@ sub Align_SNP_Search {
         input => $bamfile,
         depends => $bt2_job->{samtools}->{job_id},
         species => $options->{species},
-        gff_tag => $options->{gff_tag},
+        gff_tag => $options->{htseq_id},
+        gff_type => $options->{htseq_type},
     );
     return($search);
 }
@@ -67,7 +70,7 @@ sub SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'gff_tag'],
+        required => ['input', 'species', 'gff_tag', 'gff_type'],
         varfilter => 0,
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
@@ -93,7 +96,7 @@ sub SNP_Search {
     my $final_output = qq"${vcfutils_dir}/${query_base}.bcf";
     my $final_error = qq"${vcfutils_dir}/${query_base}_bcf.err";
     my $jstring = qq!mkdir -p ${vcfutils_dir}
-echo "Started samtools sort at \$(date)" >> outputs/vcfutils_$options->{species}.out
+echo "Started samtools sort at \$(date)" >> ${vcfutils_dir}/vcfutils_$options->{species}.out
 !;
     unless (-r "${pileup_input}") {
         if ($query =~ m/sorted/) {
@@ -102,29 +105,30 @@ echo "Started samtools sort at \$(date)" >> outputs/vcfutils_$options->{species}
 fi
 !;
         } else {
-            $jstring .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} 2>outputs/samtools_sort.out 1>&2
+            $jstring .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} \\
+  2>${vcfutils_dir}/samtools_sort.out 1>&2
 if [ "\$?" -ne "0" ]; then
     echo "samtools sort failed."
 exit 1
 fi
 !;
-        }              ## End checking if the pileup input does not have sorted.
-    }                  ## Found the input for samtools mpileup
+        } ## End checking if the pileup input does not have sorted.
+    }     ## Found the input for samtools mpileup
     $jstring .= qq!
 if [ \! -r "${genome}.fai" ]; then
     samtools faidx ${genome}
 fi
-samtools mpileup -uvf ${genome} 2>samtools_mpileup.err \\
+samtools mpileup -uvf ${genome} 2>${vcfutils_dir}/samtools_mpileup.err \\
     ${pileup_input} |\\
-  bcftools call -c - 2>bcftools_call.err |\\
+  bcftools call -c - 2>${vcfutils_dir}/bcftools_call.err |\\
   bcftools view -l 9 -o ${final_output} -O b - \\
     2>${call_error}
 if [ "\$?" -ne "0" ]; then
     echo "mpileup/bcftools failed."
     exit 1
 fi
-bcftools index ${final_output} 2>bcftools_index.err
-echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
+bcftools index ${final_output} 2>${vcfutils_dir}/bcftools_index.err
+echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.out
 !;
 
     my $comment_string = qq!## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.!;
@@ -151,6 +155,7 @@ echo "Successfully finished." >> outputs/vcfutils_$options->{species}.out
         species => $options->{species},
         depends => $pileup->{job_id},
         gff_tag => $options->{gff_tag},
+        gff_type => $options->{gff_type},
     );
     return([$pileup, $parse]);
 }
@@ -164,7 +169,7 @@ sub SNP_Ratio {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'gff_tag'],
+        required => ['input', 'species', 'gff_tag', 'gff_type'],
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
@@ -196,6 +201,7 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
   vcf_cutoff => '$options->{vcf_cutoff}',
   vcf_minpct => '$options->{vcf_minpct}',
   gff_tag => '$options->{gff_tag}',
+  gff_type => '$options->{gff_type}',
 );
 ";
 
@@ -223,6 +229,7 @@ sub Make_SNP_Ratio {
     my $options = $class->Get_Vars(
         args => \%args,
         gff_tag => 'ID',
+        gff_type => 'gene',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
@@ -292,7 +299,9 @@ sub Make_SNP_Ratio {
     if ($num_variants > 0) {
         my $input_genome = Bio::Adventure::Read_Genome_Fasta($class, %args, fasta => $genome,);
         my $input_data = FileHandle->new("<${output_base}_pct.txt");
-        my $annotations = Bio::Adventure::Read_Genome_GFF($class, gff => $gff, feature_type => 'gene', %args);
+        my $annotations = Bio::Adventure::Read_Genome_GFF($class, gff => $gff,
+                                                          feature_type => $options->{gff_type},
+                                                          %args);
         my $output_by_gene = FileHandle->new(">${output_base}_hits_by_gene.txt");
         my $vars_by_gene = {};
       READER: while (my $line = <$input_data>) {

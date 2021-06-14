@@ -142,6 +142,101 @@ sub Extract_Trinotate {
     $input->close();
 }
 
+sub Extend_Kraken_DB {
+    my ($class, %args) = @_;
+    my $check = which('kraken2');
+    die("Could not find kraken2 in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'viral',
+        );
+    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
+    my $job_basename = $class->Get_Job_Name();
+    my %kraken_jobs = ();
+    my $kraken_depends_on;
+    my $output_dir = qq"outputs/extend_kraken";
+
+    my $comment = qq!## This is a script to extend an existing kraken2 library with some new sequences.
+!;
+    my $jstring = qq!mkdir -p ${output_dir} && \\
+  kraken2-build --add-to-library $options->{input} --db $options->{library} \\
+    2>${output_dir}/kraken2-build.out 1>&2
+  kraken2-build --build --db $options->{library} \\
+    2>>${output_dir}/kraken2-build.out 1>&2
+!;
+    my $kraken_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        depends => $kraken_depends_on,
+        jname => "kraken_${job_basename}",
+        jprefix => "99",
+        jstring => $jstring,
+        mem => 96,
+        output => qq"outputs/kraken_extend.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "large",
+        walltime => "144:00:00",
+    );
+    my $jobs = {
+        kraken => $kraken_job,
+    };
+    return($jobs);
+}
+
+sub Kraken {
+    my ($class, %args) = @_;
+    my $check = which('kraken2');
+    die("Could not find kraken2 in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'viral',
+        );
+    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
+    my $job_basename = $class->Get_Job_Name();
+    my %kraken_jobs = ();
+    my $kraken_depends_on;
+    my $output_dir = qq"outputs/kraken_${job_basename}";
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" --paired $in[0]  $in[1] ";
+    } else {
+        $input_string = qq"$options->{input} ";
+    }
+    my $comment = qq!## This is a kraken2 submission script
+!;
+    my $jstring = qq!mkdir -p ${output_dir} && \\
+  kraken2 --db $options->{library} \\
+    --report ${output_dir}/kraken_report.txt --use-names \\
+    ${input_string} \\
+    --classified-out ${output_dir}/classified#.fastq.gz \\
+    --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
+    2>${output_dir}/kraken.out 1>&2
+!;
+    my $kraken_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        depends => $kraken_depends_on,
+        jname => "kraken_${job_basename}",
+        jprefix => "45",
+        jstring => $jstring,
+        mem => 96,
+        output => qq"outputs/kraken.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "large",
+        walltime => "144:00:00",
+    );
+    my $jobs = {
+        kraken => $kraken_job,
+    };
+    return($jobs);
+}
+
+
 =head2 C<Read_Write_Annotation>
 
 Called by Extract_Trinotate() to help write out the trinotate csv information
@@ -685,6 +780,49 @@ sub Velvet {
         walltime => "4:00:00",
     );
     return($velvet_job);
+}
+
+
+sub Shovill {
+    my ($class, %args) = @_;
+    my $check = which('shovill');
+    die("Could not find shovill in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+    );
+    my $job_basename = $class->Get_Job_Name();
+    my %shovill_jobs = ();
+    my $output_dir = qq"outputs/shovill_${job_basename}";
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" -R1 $in[0] -R2 $in[1]";
+    } else {
+        $input_string = qq" -R1 $options->{input}";
+    }
+    my $comment = qq!## This is a shovill submission script
+!;
+    my $jstring = qq!mkdir -p ${output_dir} && \\
+  shovill --force --outdir ${output_dir} \\
+    $input_string \\
+    2>${output_dir}/shovill_${job_basename}.err \\
+    1>${output_dir}/shovill_${job_basename}.out
+!;
+    my $shovill_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        jname => "shovill_${job_basename}",
+        jprefix => "46",
+        jstring => $jstring,
+        mem => 30,
+        output => qq"outputs/shovill.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+        walltime => "4:00:00",
+    );
+    return($shovill_job);
 }
 
 =head1 AUTHOR - atb

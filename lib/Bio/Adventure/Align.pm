@@ -47,7 +47,7 @@ sub Concatenate_Searches {
     my $finished = 0;
     my $output = qq"$options->{basedir}/outputs/split_search.txt";
     $output = $options->{output} if (defined($options->{output}));
-    $output .= ".gz" unless ($output =~ /\.gz$/);
+    $output .= ".xz" unless ($output =~ /\.xz$/);
     my $comment_string = qq"## Concatenating the output files into ${output}\n";
     my $jstring = qq!
 rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do xz -9e -c \$i >> ${output}; done
@@ -58,6 +58,7 @@ rm -f ${output} && for i in \$(/bin/ls outputs/*.out); do xz -9e -c \$i >> ${out
         depends => $options->{depends},
         jname => "concat",
         jstring => $jstring,
+        jprefix => $options->{jprefix},
         output => qq"${output}",
     );
     return($concatenate);
@@ -131,7 +132,7 @@ because they will be 1099 and 1100 instead.)
 sub Get_Split {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
-    my $in = Bio::SeqIO->new(-file => $options->{query},);
+    my $in = Bio::SeqIO->new(-file => $options->{input},);
     my $seqs = 0;
     while (my $in_seq = $in->next_seq()) {
         $seqs++;
@@ -216,7 +217,7 @@ sub Make_Directories {
         make_path("split/$c") if (!-d "split/$c" and !-f "split/$c");
     }
 
-    my $in = Bio::SeqIO->new(-file => $options->{query},);
+    my $in = Bio::SeqIO->new(-file => $options->{input},);
     my $count = 0;
     while (my $in_seq = $in->next_seq()) {
         my $id = $in_seq->id();
