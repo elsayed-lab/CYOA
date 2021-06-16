@@ -19,6 +19,50 @@ Bio::Adventure::Annotation - Do some searches to help annotate genes.
 =head1 SYNOPSIS
 
 =cut
+
+sub Aragorn {
+    my ($class, %args) = @_;
+    my $check = which('aragorn');
+    die("Could not find aragorn in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        species => undef,
+        arbitrary => ' -rp -fasta -w -m -t -mt ',
+        );
+    my $aragorn_args = $options->{arbitrary};
+    my $job_basename = $class->Get_Job_Name();
+    my %aragorn_jobs = ();
+    my $aragorn_depends_on;
+    my $output_dir = qq"outputs/aragorn";
+    my $species_string = qq"";
+    my $comment = qq!## This is a script to run aragorn.
+!;
+    my $jstring = qq!mkdir -p ${output_dir} && \\
+  aragorn $options->{arbitrary} \\
+    -o ${output_dir}/aragorn.txt \\
+    $options->{input}
+!;
+
+    my $aragorn_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        depends => $aragorn_depends_on,
+        jname => "aragorn_${job_basename}",
+        jprefix => "64",
+        jstring => $jstring,
+        mem => 24,
+        output => qq"outputs/aragorn.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+    );
+    my $jobs = {
+        aragorn => $aragorn_job,
+    };
+    return($jobs);
+}
+
 sub Resfinder {
     my ($class, %args) = @_;
     my $check = which('run_resfinder.py');
@@ -199,6 +243,49 @@ glimmer3 -o50 -g110 -t30 -b ${output_dir}/third_run_motif.txt -P \${startuse} \\
     );
     my $jobs = {
         glimmer => $glimmer_job,
+    };
+    return($jobs);
+}
+
+sub tRNAScan {
+    my ($class, %args) = @_;
+    my $check = which('trnascan');
+    die("Could not find trnascan in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        species => undef,
+        arbitrary => ' -G ',
+        );
+    my $trnascan_args = $options->{arbitrary};
+    my $job_basename = $class->Get_Job_Name();
+    my %trnascan_jobs = ();
+    my $trnascan_depends_on;
+    my $output_dir = qq"outputs/trnascan";
+    my $species_string = qq"";
+    my $comment = qq!## This is a script to run trnascan.
+!;
+    my $jstring = qq!mkdir -p ${output_dir} && \\
+  tRNAscan-SE $options->{arbitrary} \\
+    -o ${output_dir}/trnascan.txt \\
+    $options->{input}
+!;
+
+    my $trnascan_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        depends => $trnascan_depends_on,
+        jname => "trnascan_${job_basename}",
+        jprefix => "64",
+        jstring => $jstring,
+        mem => 24,
+        output => qq"outputs/trnascan.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+    );
+    my $jobs = {
+        trnascan => $trnascan_job,
     };
     return($jobs);
 }
