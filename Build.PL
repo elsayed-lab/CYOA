@@ -71,6 +71,7 @@ my %module_build_args = (
   "script_files" => [
       "script/cyoa",
       'script/cyoa.pl',
+      'script/cyoa_invoke_glimmer.pl',
   ],
   "share_dir" => [ 'share' ],
   "test_requires" => {

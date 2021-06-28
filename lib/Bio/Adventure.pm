@@ -468,6 +468,7 @@ sub Get_Defaults {
         input => undef, ## Generic input argument
         output => undef, ## Generic output argument
         genome => undef, ## Which genome to use?
+        kingdom => undef, ## Choose a taxonomy kingdom
         species => undef, ## Chosen species
         gff => undef, ## A default gff file!
         libdir => "${HOME}/libraries", ## Directory of libraries for mapping rnaseq reads
@@ -516,6 +517,9 @@ sub Get_Defaults {
         identity => 70, ## Alignment specific: Filter hits by sequence identity percent.
         fasta_args => ' -b 20 -d 20 ', ## Default arguments for the fasta36 suite
         fasta_tool => 'ggsearch36',    ## Which fasta36 program to run
+
+        ## Annotation options
+        gcode => undef,  ## Used for prokka/prodigal
 
         ## Mapping options
         mapper => 'salmon',     ## Use this aligner if none is chosen
@@ -624,23 +628,30 @@ sub Get_Menus {
             message => 'How come Aquaman can control whales?  They are mammals!  Makes no sense.',
             choices =>  {
                 '(aragorn): Search for tRNAs with aragorn.' => \&Bio::Adventure::Annotation::Aragorn,
+                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
+                '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,    
+                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
+                '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Annotation::Phageterm,
+                '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,    
                 '(resfinder): Search for antimicrobial resistance genes.' => \&Bio::Adventure::Annotation::Resfinder,
-                '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Annotation::tRNAScan,    
+                '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Annotation::tRNAScan,
             },
         },
         Assembly => {
             name => 'assembly',
             message => 'The wise man fears the wrath of a gentle heart. Go to page 314159.',
             choices => {
-                '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Assembly::Extract_Trinotate,
-                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Assembly::Extend_Kraken_DB,
-                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Assembly::Kraken,
+                '(abyss): Run abyss to create a new assembly.' => \&Bio::Adventure::Assembly::Abyss,
+                '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
+                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
+                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
-                '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Assembly::Trinotate,
+                '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Annotation::Trinotate,
                 '(trinity): Perform de novo transcriptome assembly with trinity.' => \&Bio::Adventure::Assembly::Trinity,
                 '(trinitypost): Perform post assembly analyses with trinity.' => \&Bio::Adventure::Assembly::Trinity_Post,
                 '(velvet): Perform de novo genome assembly with velvet.' => \&Bio::Adventure::Assembly::Velvet,
+                '(unicycler): Perform de novo assembly with unicycler.' => \&Bio::Adventure::Assembly::Unicycler,
                 '(shovill): Perform the shovill pre/post processing with spades.' => \&Bio::Adventure::Assembly::Shovill,
             },
         },
@@ -800,6 +811,7 @@ sub Get_TODOs {
     my %args = @_;
     my $todo_list = ();
     my $possible_todos = {
+        "abyss+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Abyss'},
         "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Aragorn'},
         "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
         "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
@@ -817,8 +829,8 @@ sub Get_TODOs {
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
         "cutadapt+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cutadapt'},
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
-        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Extend_Kraken_DB'},
-        "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Extract_Trinotate'},
+        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extend_Kraken_DB'},
+        "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extract_Trinotate'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastado+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Do_Fasta'},
         "fastasplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
@@ -828,7 +840,7 @@ sub Get_TODOs {
         "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
-        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},    
+        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
         "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
@@ -843,22 +855,25 @@ sub Get_TODOs {
         "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto_Index'},
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM_Index'},
         "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon_Index'},
+        "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},    
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
-        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Kraken'},
+        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "pbt1+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie'},
         "pbt2+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie2'},
         "pbwa+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_BWA'},
+        "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
         "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Kallisto'},
         "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Tophat'},
         "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::TNseq_Pipeline'},
         "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
+        "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},    
         "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
         "readsample+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
-        "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},    
+        "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
@@ -880,10 +895,11 @@ sub Get_TODOs {
         "trimomatic+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Trimomatic'},
         "trinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity'},
         "trinitypost+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
-        "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinotate'},
+        "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Trinotate'},
         "tritrypdownload+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp_Download'},
         "tritryp2text+" => \$todo_list->{todo}{'Bio::Adventure::Convert::TriTryp2Text'},
-        "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::tRNAScan'},    
+        "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::tRNAScan'},
+        "unicycler+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler'},    
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
         "help+" => \$todo_list->{todo}{'Bio::Adventure::Adventure_Help'},

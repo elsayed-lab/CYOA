@@ -1131,11 +1131,15 @@ sub Hisat2 {
         my @pair_listing = split(/\:|\;|\,|\s+/, $ht_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $ht_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        ## After years of working without problem, suddenly my lesspipe
+        ## process substitution pre-filter for arbitrarily compressed files
+        ## stopped working and might well give me an aneurysm trying to figure out.
+        ## $ht_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        $ht_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($ht_input);
-        $ht_input = qq" <(less ${ht_input}) ";
+        $ht_input = qq" ${ht_input} ";
     }
 
     ## Check that the indexes exist

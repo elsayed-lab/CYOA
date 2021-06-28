@@ -273,6 +273,7 @@ sub Trimomatic_Pairwise {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
+        quality => '20',
     );
     my %start_options = %{$options};
     my $job_basename = $class->Get_Job_Name();
@@ -354,8 +355,8 @@ ${exe} \\
   ${reader} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
-  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10:2:keepBothReads \\
-  SLIDINGWINDOW:4:25 MINLEN:40 \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
+  SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
   1>outputs/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.

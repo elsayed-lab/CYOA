@@ -8,6 +8,7 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Cwd qw"abs_path getcwd";
 use File::Basename;
 use File::Spec;
 use File::Which qw"which";
@@ -24,460 +25,62 @@ I have played with.  I keep meaning to add masurca, but I have not.
 
 =head1 METHODS
 
-=head2 C<Extract_Annotations>
-
-Used by Extract_Trinotate to extract annotations from the strangely encoded trinotate outputs.
-
-=over
-
-=item I<evalue> Evalue cutoff for trinotate output.
-
-=item I<identity> Minimum percent identity cutoff for trinotate output.
-
-=item I<ids> IDs to extract.
-
-=item I<fh> Filehandle to parse.
-
-=back
-
 =cut
-sub Extract_Annotations {
-    my ($class, $datum, %args) = @_;
-    my $min_identity = $args{identity};
-    my $eval_max = $args{evalue};
-    my $ids = $args{ids};
-    my $fh = $args{fh};
-    my $options = $class->Get_Vars();
-
-    my $id = $datum->{prot_id};
-    $id = $datum->{transcript_id} if ($id eq '.');
-    if (defined($options->{species})) {
-        my $species = $options->{species};
-        $species =~ s/\s+/_/g;
-        $id =~ s/TRINITY/${species}/g;
-    }
-    $id =~ s/\:\:/; /g;
-
-    if (defined($ids->{$id})) {
-        ## Then this record has been processed, just increment it and move on.
-        $ids->{$id}++;
-    } elsif (!defined($datum->{swissprot} && !defined($datum->{rnammer}))) {
-        $ids->{$id} = 1;
-    } elsif (defined($datum->{rnammer})) {
-        my $seq = $datum->{sequence};
-        $seq = join("\n", ($seq =~ m/.{1,80}/g));
-        $ids->{$id} = 1;
-        my $header_string = qq"${id}; ${id}; undef; undef; $datum->{rnammer}->[0]->{name}, $datum->{rnammer}->[0]->{region}; undef; undef";
-        print $fh qq">${header_string}
-${seq}
-";
-    } elsif ($datum->{swissprot}->[0]->{identity} >= $min_identity &&
-                 $datum->{swissprot}->[0]->{e_value} <= $eval_max) {
-        $ids->{$id} = 1;
-        my $seq = $datum->{sequence};
-        $seq = join("\n", ($seq =~ m/.{1,80}/g));
-        my $header_string = qq"${id}; $datum->{swissprot}->[0]->{fullname}; $datum->{swissprot}->[0]->{species}; $datum->{swissprot}->[0]->{e_value}; $datum->{swissprot}->[0]->{identity}";
-        print $fh qq">${header_string}
-${seq}
-";
-    }
-    return($ids);
-}
-
-=head2 C<Extract_Trinotate>
-
-The trinotate output format is a bit... unwieldy.  This seeks to parse out the
-useful information from it.
-
-=over
-
-=item I<input> * Input csv file from trinotate.
-
-=item I<output> (interesting.fasta) Output for the parsed csv.
-
-=item I<evalue> (1e-10) Evalue cutoff for trinotate output.
-
-=item I<identity> (70) Minimum percent identity cutoff for trinotate output.
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task assembly --method extract --input trinotate_output.csv
-
-=cut
-sub Extract_Trinotate {
-    my ($class, %args) = @_; my
-        $options = $class->Get_Vars(args => \%args,
-                                    required => ['input'],
-                                    jname => "trin_rsem",
-                                    output => 'interesting.fasta',
-                                    evalue => 1e-10,
-                                    identity => 70, );
-    my $job_basename = $class->Get_Job_Name();
-    my $trinity_out_dir =
-        qq"outputs/trinity_${job_basename}";
-
-
-    my $input = FileHandle->new("<$options->{input}");
-    my $parser = Parse::CSV->new(
-        handle => $input,
-        sep_char => "\t",
-        names => 1,
-    );
-
-    my $count = 0;
-    my $all_annotations = [];
-    my $out = FileHandle->new(">$options->{output}");
-    while (my $object = $parser->fetch) {
-        my $filled_in = Read_Write_Annotation($class, $object,
-                                              db => $all_annotations,
-                                              count => $count,
-                                              evalue => $options->{evalue},
-                                              identity => $options->{identity},
-                                              fh => $out);
-        $count = $count + 1;
-    }
-    $out->close();
-    $input->close();
-}
-
-sub Extend_Kraken_DB {
+sub Abyss {
     my ($class, %args) = @_;
-    my $check = which('kraken2');
-    die("Could not find kraken2 in your PATH.") unless($check);
+    ## abyss-pe k=41 name=EAb01 in="r1_trimmed-corrected.fastq.gz r2_trimmed-corrected.fastq.gz"
+    my $check = which('abyss-pe');
+    die("Could not find abyss in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        library => 'viral',
-        );
-    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
-    my $job_basename = $class->Get_Job_Name();
-    my %kraken_jobs = ();
-    my $kraken_depends_on;
-    my $output_dir = qq"outputs/extend_kraken";
-
-    my $comment = qq!## This is a script to extend an existing kraken2 library with some new sequences.
-!;
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  kraken2-build --add-to-library $options->{input} --db $options->{library} \\
-    2>${output_dir}/kraken2-build.out 1>&2
-  kraken2-build --build --db $options->{library} \\
-    2>>${output_dir}/kraken2-build.out 1>&2
-!;
-    my $kraken_job = $class->Submit(
-        cpus => 6,
-        comment => $comment,
-        depends => $kraken_depends_on,
-        jname => "kraken_${job_basename}",
-        jprefix => "99",
-        jstring => $jstring,
-        mem => 96,
-        output => qq"outputs/kraken_extend.sbatchout",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        queue => "large",
-        walltime => "144:00:00",
+        k => 41,
     );
-    my $jobs = {
-        kraken => $kraken_job,
-    };
-    return($jobs);
-}
-
-sub Kraken {
-    my ($class, %args) = @_;
-    my $check = which('kraken2');
-    die("Could not find kraken2 in your PATH.") unless($check);
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        library => 'viral',
-        );
-    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_basename = $class->Get_Job_Name();
-    my %kraken_jobs = ();
-    my $kraken_depends_on;
-    my $output_dir = qq"outputs/kraken_${job_basename}";
+    my %abyss_jobs = ();
+    my $outname = basename(getcwd());
+    my $output_dir = qq"outputs/abyss_${outname}";
+    my $k_string = qq"k=$options->{k} ";
+    my $name_string = qq"name=${outname} ";
     my $input_string = "";
+    my $executable = "abyss-pe";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq" --paired $in[0]  $in[1] ";
+        my $r1 = abs_path($in[0]);
+        my $r2 = abs_path($in[1]);
+        $input_string = qq!in="${r1} ${r2}" !;
     } else {
-        $input_string = qq"$options->{input} ";
+        my $r1 = abs_path($options->{input});
+        $input_string = qq!in=${r1} "!;
+        $executable = "abyss-se"
     }
-    my $comment = qq!## This is a kraken2 submission script
+    my $comment = qq!## This is a abyss submission script
 !;
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  kraken2 --db $options->{library} \\
-    --report ${output_dir}/kraken_report.txt --use-names \\
+    my $jstring = qq!start=\$(pwd)
+mkdir -p ${output_dir}
+cd ${output_dir}
+rm -f ./*
+${executable} -C \$(pwd) \\
+    ${k_string} ${name_string} \\
     ${input_string} \\
-    --classified-out ${output_dir}/classified#.fastq.gz \\
-    --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-    2>${output_dir}/kraken.out 1>&2
+    2>abyss_${outname}.err \\
+    1>abyss_${outname}.out
+cd \${start}
 !;
-    my $kraken_job = $class->Submit(
+    my $abyss_job = $class->Submit(
         cpus => 6,
         comment => $comment,
-        depends => $kraken_depends_on,
-        jname => "kraken_${job_basename}",
-        jprefix => "45",
+        jname => "abyss_${job_basename}",
+        jprefix => "46",
         jstring => $jstring,
-        mem => 96,
-        output => qq"outputs/kraken.sbatchout",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        queue => "large",
-        walltime => "144:00:00",
-    );
-    my $jobs = {
-        kraken => $kraken_job,
-    };
-    return($jobs);
-}
-
-
-=head2 C<Read_Write_Annotation>
-
-Called by Extract_Trinotate() to help write out the trinotate csv information
-into an easier-to-read format.
-
-=cut
-sub Read_Write_Annotation {
-    my ($class, $object, %args) = @_;
-    my $annotations = $args{db};
-    my $element_number = $args{count};
-    my $fh = $args{fh};
-    ## $object is a hash reference containing the various csv fields.
-    ## Extract them by name and dump them to the array of material
-    my $element = {};
-    my $filled_in = 0;
-    my $ids = {};
-
-    foreach my $key (keys %{$object}) {
-        my @result_list = ();
-        my @field_elements = ();
-        my $field_text = $object->{$key};
-        if ($field_text =~ /\`/) {
-            @field_elements = split(/\`/, $field_text);
-        } else {
-            $field_elements[0] = $field_text;
-        }
-
-        for my $t (0..$#field_elements) {
-            my $ret = {};
-            if ($key eq 'sprot_Top_BLASTX_hit') {
-                if ($field_text eq '.') {
-                    ## Null case: if a . then just drop out.
-                    $element->{swissprot} = undef;
-                } else {
-                    ## The swissprot elements look something like:
-                    ## Name        ## ARIA_ARATH^
-                    ## Name again? ## ARIA_ARATH^
-                    ## Query range ## Q:7-573,H:513-701^
-                    ## %identity   ## 75.66%ID^
-                    ## E-value     ## E:3e-102^
-                    ## Full name   ## RecName: Full=ARM REPEAT PROTEIN INTERACTING WITH ABF2;^
-                    ## Ontology    ## Eukaryota; Viridiplantae; Streptophyta; Embryophyta; Tracheophyta; Spermatophyta; Magnoliophyta; eudicotyledons; Gunneridae; Pentapetalae; rosids; malvids; Brassicales; Brassicaceae; Camelineae; Arabidopsis',
-                    ## Start by pulling apart the data using the chosen (somewhat odd) separator '^'.
-                    my ($name, $name_again, $query_coords, $identity, $e_value, $fullname, $ontology) = split(/\^/, $field_text);
-                    ## Clean up the fields a little
-                    $identity =~ s/\%ID//g;
-                    $e_value =~ s/E://g;
-                    $fullname =~ s/RecName: //g;
-                    $fullname =~ s/Full=//g;
-                    $fullname =~ s/\;//g;
-                    my ($query, $h) = split(/\,/, $query_coords);
-                    $query =~ s/Q\://g;
-                    $h =~ s/H\://g;
-                    $name =~ s/Full=//g;
-                    my @ontology_list = split(/; /, $ontology);
-                    my $species = qq"$ontology_list[$#ontology_list - 1] $ontology_list[$#ontology_list]";
-                    ## Put them back into the $ret
-                    $ret->{name} = $name;
-                    $ret->{coords} = $query_coords;
-                    $ret->{identity} = $identity;
-                    $ret->{e_value} = $e_value;
-                    $ret->{fullname} = $fullname;
-                    $ret->{species} = $species;
-                    $filled_in = $filled_in + 6;
-                    ## And refill field_elements with this information.
-                    $field_elements[$t] = $ret;
-                    ## Finally, fill in the swissprot entry with this information.
-                    $element->{swissprot} = \@field_elements;
-                }
-            } elsif ($key eq 'gene_ontology_pfam') {
-                if ($field_text eq '.') {
-                    $element->{pfam_go} = undef;
-                } else {
-                    my ($id, $ontology, $name) = split(/\^/, $field_text);
-                    $ret->{id} = $id;
-                    $ret->{ontology} = $ontology;
-                    $ret->{name} = $name;
-                    $filled_in = $filled_in + 3;
-                    $field_elements[$t] = $ret;
-                    $element->{pfam_go} = \@field_elements;
-                }
-            } elsif ($key eq 'gene_ontology_blast') {
-                if ($field_text eq '.') {
-                    $element->{blast_go} = undef;
-                } else {
-                    my ($id, $ontology, $name) = split(/\^/, $field_text);
-                    $ret->{id} = $id;
-                    $ret->{ontology} = $ontology;
-                    $ret->{name} = $name;
-                    $filled_in = $filled_in + 3;
-                    $field_elements[$t] = $ret;
-                    $element->{blast_go} = \@field_elements;
-                }
-            } elsif ($key eq 'RNAMMER') {
-                if ($field_text eq '.') {
-                    $element->{rnammer} = undef;
-                } else {
-                    my ($name, $region) = split(/\^/, $field_text);
-                    $ret->{name} = $name;
-                    $ret->{region} = $region;
-                    $filled_in = $filled_in + 2;
-                    $field_elements[$t] = $ret;
-                    $element->{rnammer} = \@field_elements;
-                }
-            } elsif ($key eq 'eggnog') {
-                if ($field_text eq '.') {
-                    $element->{eggnog} = undef;
-                } else {
-                    my ($id, $name) = split(/\^/, $field_text);
-                    $ret->{id} = $id;
-                    $ret->{name} = $name;
-                    $filled_in = $filled_in + 2;
-                    $field_elements[$t] = $ret;
-                    $element->{eggnog} = \@field_elements;
-                }
-            } elsif ($key eq 'transcript_id') {
-                $filled_in = $filled_in + 1;
-                $element->{transcript_id} = $field_text;
-            } elsif ($key eq 'Kegg') {
-                if ($field_text eq '.') {
-                    $element->{kegg} = undef;
-                } else {
-                    my ($id, $name) = split(/\^/, $field_text);
-                    $ret->{id} = $id;
-                    $ret->{name} = $name;
-                    $filled_in = $filled_in + 2;
-                    $field_elements[$t] = $ret;
-                    $element->{kegg} = \@field_elements;
-                }
-            } elsif ($key eq 'prot_coords') {
-                if ($field_text eq '.') {
-                    $element->{prot_coords} = undef;
-                } else {
-                    $filled_in = $filled_in + 1;
-                    $element->{prot_coords} = $field_text;
-                }
-            } elsif ($key eq 'prot_id') {
-                $element->{prot_id} = $field_text;
-            } elsif ($key eq 'transcript') {
-                $element->{sequence} = $field_text;
-            } elsif ($key eq 'TmHMM') {
-                ## An example field
-                ## ExpAA=124.31^PredHel=6^Topology=i59-78o83-105i126-148o152-174i187-209o229-251i
-                if ($field_text eq '.') {
-                    $element->{tmhmm} = undef;
-                } else {
-                    my ($expaa, $pred_helixes, $topology) = split(/\^/, $field_text);
-                    $expaa =~ s/ExpAA=//g;
-                    $pred_helixes =~ s/PredHel=//g;
-                    $topology =~ s/Topology=//g;
-                    $ret->{expaa} = $expaa;
-                    $ret->{pred_helixes} = $pred_helixes;
-                    $ret->{topology} = $topology;
-                    $filled_in = $filled_in + 3;
-                    $field_elements[$t] = $ret;
-                    $element->{tmhmm} = \@field_elements;
-                }
-            } elsif ($key eq 'SignalP') {
-                ## sigP:1^18^0.613^YES
-                if ($field_text eq '.') {
-                    $element->{signalp} = undef;
-                } else {
-                    my ($first, $second, $third, $boolean) = split(/\^/, $field_text);
-                    $first =~ s/sigP\://g;
-                    $ret->{first} = $first;
-                    $ret->{second} = $second;
-                    $ret->{third} = $third;
-                    $ret->{boolean} = $boolean;
-                    $filled_in = $filled_in + 4;
-                    $field_elements[$t] = $ret;
-                    $element->{tmhmm} = \@field_elements;
-                }
-            }
-            ## Set the nth annotation to its annotation.
-            $annotations->[$element_number] = $element;
-        } ## End iterating over every element in a multi-element field
-    } ## End the foreach every key in the object
-    $ids = Extract_Annotations($class, $element,
-                               ids => $ids,
-                               fh => $fh,
-                               evalue => $args{evalue},
-                               identity => $args{identity},
-                           );
-    return($filled_in);
-}
-
-=head2 C<Transdecoder>
-
-$hpgl->Transdecoder() submits a trinity denovo sequence assembly and runs its
-default post-processing tools.
-
-=over
-
-=item I<input> * Output from trinity for post processing.
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task assembly --method transdecoder --input trinity.fasta
-
-=cut
-sub Transdecoder {
-    my ($class, %args) = @_;
-    my $check = which('TransDecoder.LongOrfs');
-    die("Could not find transdecoder in your PATH.") unless($check);
-    my $transdecoder_exe_dir = dirname($check);
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-    );
-    my $transdecoder_input = File::Spec->rel2abs($options->{input});
-    my $job_basename = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/trinity_${job_basename}";
-    my $comment = qq!## This is a transdecoder submission script
-!;
-    my $jstring = qq!mkdir -p ${output_dir} && cd ${output_dir} && \\
-  TransDecoder.LongOrfs -t ${transdecoder_input} \\
-    2>${output_dir}/transdecoder_longorfs_${job_basename}.err \\
-    1>${output_dir}/transdecoder_longorfs_${job_basename}.out
-TransDecoder.Predict -t ${transdecoder_input} \\
-  2>${output_dir}/transdecoder_predict_${job_basename}.err \\
-  1>${output_dir}/transdecoder_predict_${job_basename}.out
-${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
-  ${output_dir}/transcripts.fasta.transdecoder.gff3 \\
-  ${output_dir}/transcripts.gff3 \\
-  ${transdecoder_input} \\
-  2>${output_dir}/cdna_alignment_${job_basename}.err \\
-  1>${output_dir}/transcripts.fasta.transdecoder.genome.gff3
-!;
-    my $transdecoder_job = $class->Submit(
-        comment => $comment,
-        jname => "transdecoder_${job_basename}",
-        jprefix => "47",
-        jstring => $jstring,
-        output => qq"outputs/transdecoder.sbatchout",
+        mem => 30,
+        output => qq"outputs/abyss.sbatchout",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         queue => "workstation",
+        walltime => "4:00:00",
     );
-    return($transdecoder_job);
+    return($abyss_job);
 }
 
 =head2 C<Trinity>
@@ -549,7 +152,7 @@ sub Trinity {
         jname => "trin_rsem",
         input => $options->{input},
     );
-    my $trinotate_job = Bio::Adventure::Assembly::Trinotate(
+    my $trinotate_job = Bio::Adventure::Annotation::Trinotate(
         $class,
         %args,
         depends => $trin_job->{pbs_id},
@@ -653,62 +256,6 @@ cd \${start}
     return($trinpost_job);
 }
 
-=head2 C<Trinotate>
-
-Submit a trinity denovo sequence assembly to trinotate.
-
-=over
-
-=item I<input> * Input fasta from trinity.
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task assembly --method trinotate --input trinity.fasta
-
-=cut
-sub Trinotate {
-    my ($class, %args) = @_;
-    my $check = which('Trinotate');
-    die("Could not find trinotate in your PATH.") unless($check);
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/trinity_${job_basename}";
-    my $trinotate_exe_dir = dirname($check);
-    my $input_dir = dirname($options->{input});
-    my $input_name = basename($options->{input});
-    my $comment = qq!## This is a trinotate submission script
-!;
-    my $jstring = qq!cd ${input_dir}
-${trinotate_exe_dir}/auto/autoTrinotate.pl \\
-  --Trinotate_sqlite ${trinotate_exe_dir}/sample_data/Trinotate.boilerplate.sqlite \\
-  --transcripts $input_name \\
-  --gene_to_trans_map Trinity.fasta.gene_trans_map \\
-  --conf ${trinotate_exe_dir}/auto/conf.txt \\
-  --CPU 6 \\
-  2>trinotate_${job_basename}.err \\
-  1>trinotate_${job_basename}.out
-!;
-    my $trinotate_job = $class->Submit(
-        cpus => 6,
-        comment => $comment,
-        depends => $options->{depends},
-        jname => "trinotate_${job_basename}",
-        jprefix => "48",
-        jstring => $jstring,
-        mem => 80,
-        output => qq"trinotate.sbatchout",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        queue => "large",
-        walltime => "144:00:00",
-    );
-    return($trinotate_job);
-}
 
 =head2 C<Velvet>
 
@@ -790,10 +337,13 @@ sub Shovill {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        depth => 20,
+        arbitrary => '',
     );
     my $job_basename = $class->Get_Job_Name();
     my %shovill_jobs = ();
-    my $output_dir = qq"outputs/shovill_${job_basename}";
+    my $outname = basename(getcwd());
+    my $output_dir = qq"outputs/shovill_${outname}";
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
@@ -804,10 +354,11 @@ sub Shovill {
     my $comment = qq!## This is a shovill submission script
 !;
     my $jstring = qq!mkdir -p ${output_dir} && \\
-  shovill --force --outdir ${output_dir} \\
+  shovill $options->{arbitrary} --force --keepfiles --depth $options->{depth} \\
+     --outdir ${output_dir} \\
     $input_string \\
-    2>${output_dir}/shovill_${job_basename}.err \\
-    1>${output_dir}/shovill_${job_basename}.out
+    2>${output_dir}/shovill_${outname}.err \\
+    1>${output_dir}/shovill_${outname}.out
 !;
     my $shovill_job = $class->Submit(
         cpus => 6,
@@ -823,6 +374,54 @@ sub Shovill {
         walltime => "4:00:00",
     );
     return($shovill_job);
+}
+
+sub Unicycler {
+    my ($class, %args) = @_;
+    my $check = which('unicycler');
+    die("Could not find unicycler in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        depth => 20,
+        mode => 'normal',
+        arbitrary => '',
+    );
+    my $job_basename = $class->Get_Job_Name();
+    my %unicycler_jobs = ();
+    my $outname = basename(getcwd());
+    my $output_dir = qq"outputs/unicycler_${outname}";
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" -1 $in[0] -2 $in[1]";
+    } else {
+        $input_string = qq" -1 $options->{input}";
+    }
+    my $comment = qq!## This is a unicycler submission script
+!;
+    my $jstring = qq!mkdir -p ${output_dir}
+unicycler --mode $options->{mode} $options->{arbitrary} \\
+  ${input_string} \\
+  -o ${output_dir} \\
+  2>${output_dir}/unicycler_${outname}.err \\
+  1>${output_dir}/unicycler_${outname}.out
+!;
+    my $unicycler_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        jname => "unicycler_${job_basename}",
+        jprefix => "46",
+        jstring => $jstring,
+        mem => 30,
+        output => qq"outputs/unicycler.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+        walltime => "4:00:00",
+    );
+    return($unicycler_job);
+
 }
 
 =head1 AUTHOR - atb

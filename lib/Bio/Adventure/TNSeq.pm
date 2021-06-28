@@ -9,7 +9,7 @@ extends 'Bio::Adventure';
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
-use Cwd qw(abs_path getcwd);
+use Cwd qw"abs_path getcwd";
 use File::Basename;
 use FileHandle;
 use File::Path qw"make_path";
