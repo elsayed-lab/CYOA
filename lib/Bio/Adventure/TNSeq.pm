@@ -950,12 +950,12 @@ sub Transit_TPP {
         $tpp_input = qq" -reads1 $pair_listing[0] -reads2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
         $tpp_basename = basename($pair_listing[0], ('.gz', '.xz'));
-        $tpp_basename = basename($tpp_basename, ('.fastq'));
+        $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
         $tpp_input = qq" -reads1 ${tpp_input} ";
         $tpp_basename = basename($test_file, ('.gz', '.xz'));
-        $tpp_basename = basename($tpp_basename, ('.fastq'));
+        $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     }
 
     my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
