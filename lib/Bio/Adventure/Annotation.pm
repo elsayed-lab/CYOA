@@ -351,6 +351,97 @@ cd \${start}
 }
 
 
+sub Prodigal {
+    my ($class, %args) = @_;
+    my $check = which('prodigal');
+    die("Could not find prodigal in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        gcode => '11',
+        );
+    my $job_basename = $class->Get_Job_Name();
+    my %prodigal_jobs = ();
+    my $prodigal_depends_on;
+
+    my $library_file = qq"$options->{libdir}/hmm/$options->{species}_gc$options->{gcode}.training";
+    unless (-r $library_file) {
+        die("Need a training hmm for this species and genetic code: ${library_file}.");
+    }
+    my $output_dir = qq"outputs/prodigal_${input_name}";
+    my $comment = qq!## This is a script to run prodigal.
+!;
+    my $in_name = basename($options->{input}, ('.fasta'));
+    my $jstring = qq!mkdir -p ${output_dir}
+prodigal -i $options->{input} \\
+  -a ${output_dir}/${in_name}_translated.fasta \\
+  -d ${output_dir}/${in_name}_cds.fasta \\
+  -s ${output_dir}/${in_name}_scores.txt \\
+  -t ${library_file} \\
+  2>${output_dir}/prodigal.err \\
+  1>${output_dir}/prodigal.out
+!;
+    my $prodigal_job = $class->Submit(
+        cpus => 1,
+        comment => $comment,
+        depends => $prodigal_depends_on,
+        jname => "prodigal_${job_basename}",
+        jprefix => "63",
+        jstring => $jstring,
+        mem => 24,
+        output => qq"outputs/prodigal.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+    );
+    my $jobs = {
+        prodigal => $prodigal_job,
+    };
+    return($jobs);
+}
+
+
+sub Train_Prodigal {
+    my ($class, %args) = @_;
+    my $check = which('prodigal');
+    die("Could not find prodigal in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        gcode => '11',
+        );
+    my $job_basename = $class->Get_Job_Name();
+    my %prodigal_jobs = ();
+    my $prodigal_depends_on;
+    my $kingdom_string = '';
+    my $output = qq"$options->{libdir}/hmm/$options->{species}_gc$options->{gcode}.training";
+    my $comment = qq!## This is a script to train prodigal.
+!;
+    my $jstring = qq!mkdir -p ${output_dir}
+prodigal -i $options->{input} \\
+  -t ${output} \\
+  2>${output_dir}/prodigal_training.stderr \\
+  1>${output_dir}/prodigal_training.stdout
+!;
+    my $prodigal_job = $class->Submit(
+        cpus => 1,
+        comment => $comment,
+        depends => $prodigal_depends_on,
+        jname => "prodigal_training_${job_basename}",
+        jprefix => "63",
+        jstring => $jstring,
+        mem => 24,
+        output => qq"outputs/prodigal.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+    );
+    my $jobs = {
+        prodigal => $prodigal_job,
+    };
+    return($jobs);
+}
+
 sub Prokka {
     my ($class, %args) = @_;
     my $check = which('prokka');
