@@ -368,10 +368,10 @@ sub Prodigal {
     unless (-r $library_file) {
         die("Need a training hmm for this species and genetic code: ${library_file}.");
     }
-    my $output_dir = qq"outputs/prodigal_${input_name}";
+    my $in_name = basename($options->{input}, ('.fasta'));
+    my $output_dir = qq"outputs/prodigal_${in_name}";
     my $comment = qq!## This is a script to run prodigal.
 !;
-    my $in_name = basename($options->{input}, ('.fasta'));
     my $jstring = qq!mkdir -p ${output_dir}
 prodigal -i $options->{input} \\
   -a ${output_dir}/${in_name}_translated.fasta \\
@@ -414,7 +414,8 @@ sub Train_Prodigal {
     my %prodigal_jobs = ();
     my $prodigal_depends_on;
     my $kingdom_string = '';
-    my $output = qq"$options->{libdir}/hmm/$options->{species}_gc$options->{gcode}.training";
+    my $output_dir = qq"$options->{libdir}/hmm";
+    my $output = qq"${output_dir}/$options->{species}_gc$options->{gcode}.training";
     my $comment = qq!## This is a script to train prodigal.
 !;
     my $jstring = qq!mkdir -p ${output_dir}
@@ -494,6 +495,7 @@ prokka $options->{arbitrary} \\
     return($jobs);
 }
 
+
 sub Resfinder {
     my ($class, %args) = @_;
     my $check = which('run_resfinder.py');
@@ -537,6 +539,49 @@ sub Resfinder {
     );
     my $jobs = {
         resfinder => $resfinder_job,
+    };
+    return($jobs);
+}
+
+
+sub Rgi {
+    my ($class, %args) = @_;
+    my $check = which('rgi');
+    die("Could not find rgi in your PATH.") unless($check);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        arbitrary => '',
+        );
+    my $rgi_args = $options->{arbitrary};
+    my $job_basename = $class->Get_Job_Name();
+    my %rgi_jobs = ();
+    my $rgi_depends_on;
+    my $assembly_name = basename(dirname($options->{input}));
+    my $output_dir = qq"outputs/rgi_${assembly_name}";
+    my $species_string = qq"";
+    my $comment = qq!## This is a script to run rgi.
+!;
+    my $jstring = qq!mkdir -p ${output_dir}
+rgi main --input_sequence $options->{input} \
+  --output_file ${output_dir}/rgi_result.txt --input_type protein --local \
+  --include_loose --clean
+!;
+    my $rgi_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        depends => $rgi_depends_on,
+        jname => "rgi_${job_basename}",
+        jprefix => "63",
+        jstring => $jstring,
+        mem => 24,
+        output => qq"outputs/rgi.sbatchout",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        queue => "workstation",
+    );
+    my $jobs = {
+        rgi => $rgi_job,
     };
     return($jobs);
 }
