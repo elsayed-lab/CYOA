@@ -466,7 +466,7 @@ fi
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
   -phred33 \\
-  ${input} \\
+  <(less ${input}) \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\

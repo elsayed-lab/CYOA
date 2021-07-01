@@ -885,7 +885,7 @@ sub Get_TODOs {
         "salmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon'},
         "shovill+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Shovill'},
         "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
-        "snp+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
+        "alignsnpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
         "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
         "snpratio+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
         "snpgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
