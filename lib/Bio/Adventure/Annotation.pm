@@ -20,8 +20,12 @@ Bio::Adventure::Annotation - Do some searches to help annotate genes.
 
 =head1 SYNOPSIS
 
-=cut
+=head2 C<Aragorn>
 
+Use aragorn to search for tRNA genes in a sequence database.  By
+default this will explictly search for tmRNA as well.
+
+=cut
 sub Aragorn {
     my ($class, %args) = @_;
     my $check = which('aragorn');
@@ -66,6 +70,11 @@ sub Aragorn {
 }
 
 
+=head2 C<Extend_Kraken_DB>
+
+Add some more sequences to an existing kraken2 database.
+
+=cut
 sub Extend_Kraken_DB {
     my ($class, %args) = @_;
     my $check = which('kraken2');
@@ -115,6 +124,11 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
 }
 
 
+=head2 C<Glimmer>
+
+Use glimmer in two passes to search for ORFs in a sequence database.
+
+=cut
 sub Glimmer {
     my ($class, %args) = @_;
     my $check = which('glimmer3');
@@ -179,6 +193,12 @@ cyoa_invoke_glimmer.pl --input $options->{input}
 }
 
 
+=head2 C<Interproscan>
+
+Use interproscan to look for existing annotations which are similar to
+a set of provided ORFs.
+
+=cut
 sub Interproscan {
     my ($class, %args) = @_;
     my $check = which('interproscan.sh');
@@ -222,6 +242,12 @@ cd \${start}
     return($interproscan_job);
 }
 
+
+=head2 C<Kraken>
+
+Use kraken2 to taxonomically classify reads.
+
+=cut
 sub Kraken {
     my ($class, %args) = @_;
     my $check = which('kraken2');
@@ -274,6 +300,13 @@ sub Kraken {
 }
 
 
+=head2 C<Phageterm>
+
+Use phageterm on a viral assembly to look for terminal repeat
+regions.  If they are found, rearrange the assembly to move them to
+the ends.
+
+=cut
 sub Phageterm {
     my ($class, %args) = @_;
     my $check = which('PhageTerm.py');
@@ -351,6 +384,13 @@ cd \${start}
 }
 
 
+=head2 C<Prodigal>
+
+Invoke prodigal on an assembly to search for ORFs.  This will by
+default look for an existing training file provided by
+Train_Prodigal()'.
+
+=cut
 sub Prodigal {
     my ($class, %args) = @_;
     my $check = which('prodigal');
@@ -401,6 +441,14 @@ prodigal -i $options->{input} \\
 }
 
 
+=head2 C<Train_Prodigal>
+
+Some assemblies I have been performing are on sets of sequence which
+are too small for prodigal to train itself sufficiently; so this
+function was written to provide an opportunity for one to collate a
+larger sequence database for training.
+
+=cut
 sub Train_Prodigal {
     my ($class, %args) = @_;
     my $check = which('prodigal');
@@ -443,6 +491,13 @@ prodigal -i $options->{input} \\
     return($jobs);
 }
 
+
+=head2 C<Prokka>
+
+Prokka is an automagic annotation tool for bacterial assemblies.  It
+seems useful for other relatively small genomes.
+
+=cut
 sub Prokka {
     my ($class, %args) = @_;
     my $check = which('prokka');
@@ -496,6 +551,13 @@ prokka $options->{arbitrary} \\
 }
 
 
+=head2 C<Resfinder>
+
+Resfinder provides a database of resistance genes and search function
+so that one may relatively quickly check a sequence database/assembly
+for potentially problematic genes/point mutations.
+
+=cut
 sub Resfinder {
     my ($class, %args) = @_;
     my $check = which('run_resfinder.py');
@@ -544,6 +606,13 @@ sub Resfinder {
 }
 
 
+=head2 C<Rgi>
+
+RGI is an alternative to Resfinder, I have not really explored it yet,
+but it appears to provide a somewhat more in-depth database of
+interesting genes than resfinder.  Its database structure is a bit unwieldy.
+
+=cut
 sub Rgi {
     my ($class, %args) = @_;
     my $check = which('rgi');
@@ -587,6 +656,11 @@ rgi main --input_sequence $options->{input} \
 }
 
 
+=head2 C<tRNAScan>
+
+Alternative to aragorn.  Search for tRNAs!
+
+=cut
 sub tRNAScan {
     my ($class, %args) = @_;
     my $check = which('trnascan');

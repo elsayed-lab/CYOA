@@ -16,14 +16,20 @@ use Parse::CSV;
 
 =head1 NAME
 
-Bio::Adventure::Assembly - Perform some denovo assembly tasks.
+Bio::Adventure::Assembly - Perform some de-novo assembly tasks.
 
 =head1 SYNOPSIS
 
-The functions here pretty much all deal with trinity, as that is the primary assembler
-I have played with.  I keep meaning to add masurca, but I have not.
+Invocations for a few assemblers: Abyss, Shovill/Unicycler (spades), trinity.
 
 =head1 METHODS
+
+=head2 C<Abyss>
+
+This defaults to a k=41 abyss-pe or abyss-se assembly, depending on
+how many input files provided.  Ideally, it should at least do a
+little work to try to optimize k.  Abyss is the first program I have
+ever seen which uses make as an interpreter.
 
 =cut
 sub Abyss {
@@ -329,7 +335,12 @@ sub Velvet {
     return($velvet_job);
 }
 
+=head2 C<Shovill>
 
+Use shovill to perform/optimize a spades assembly.  Shovill has a lot
+of interesting options, this only includes a few at the moment.
+
+=cut
 sub Shovill {
     my ($class, %args) = @_;
     my $check = which('shovill');
@@ -376,6 +387,12 @@ sub Shovill {
     return($shovill_job);
 }
 
+
+=head2 C<Unicycler>
+
+Use unicycler to assemble bacterial/viral reads.
+
+=cut
 sub Unicycler {
     my ($class, %args) = @_;
     my $check = which('unicycler');
