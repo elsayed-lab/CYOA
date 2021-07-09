@@ -4,6 +4,7 @@ package Bio::Adventure::QA;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
+use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
@@ -110,6 +111,9 @@ Invoke fastqc on some sequence files.
 =cut
 sub Fastqc {
     my ($class, %args) = @_;
+    try {
+        use Env::Modulecmd { load  => 'fastqc' };
+    }
     my $check = which('fastqc');
     die("Could not find fastqc in your PATH.") unless($check);
     my $options = $class->Get_Vars(

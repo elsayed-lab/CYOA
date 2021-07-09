@@ -2,6 +2,7 @@ package Bio::Adventure::Convert;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
+use features 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
@@ -12,7 +13,6 @@ use Bio::Root::Exception;
 use File::Basename;
 use File::Which qw"which";
 use List::MoreUtils qw"uniq";
-use TryCatch;
 
 =head1 NAME
 
@@ -107,13 +107,15 @@ sub Gb2Gff {
 
               try {
                   $seq = $feat_object->spliced_seq->seq;
-              } catch {
+              }
+              catch {
                   print "Something went wrong getting the sequence.\n";
                   next FEAT;
               }
               try {
                   $pep = $feat_object->spliced_seq->translate->seq;
-              } catch {
+              }
+              catch {
                   print "Something went wrong getting the peptide sequence.\n";
                   next FEAT;
               }

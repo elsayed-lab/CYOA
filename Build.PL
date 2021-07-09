@@ -66,7 +66,6 @@ my %module_build_args = (
       'Test::Directory' => '0',
       'Test::More' => '0',
       'Text::CSV' => '0',
-      'TryCatch' => '0',
   },
   "script_files" => [
       "script/cyoa",
