@@ -7,7 +7,7 @@ use String::Diff qw" diff ";
 
 my $cyoa = Bio::Adventure->new();
 
-ok(Bio::Adventure::RNASeq_Trim::Trimomatic_Single($cyoa, input => qq"share/test_forward.fastq.gz"),
+ok(Bio::Adventure::Trim::Trimomatic_Single($cyoa, input => qq"share/test_forward.fastq.gz"),
    'Run Trimomatic');
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/trimomatic_stats.csv'),

@@ -10,7 +10,7 @@ ok(cp("share/test_forward.fastq.gz", "test_forward.fastq.gz"),
     'Copying data.');
 
 mkdir('share/genome/indexes'); ## Make a directory for the phix indexes.
-ok(Bio::Adventure::RNASeq_Map::Bowtie(
+ok(Bio::Adventure::Map::Bowtie(
        $cyoa,
        input => qq"test_forward.fastq.gz",
        htseq_id => 'ID',
