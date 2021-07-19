@@ -14,25 +14,6 @@ use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
 
-has basedir => (is => 'rw', default => getcwd());
-has cpus => (is => 'rw', default => '4');
-has depends_prefix => (is => 'rw', default => '--dependency=afterok');
-has jname => (is => 'rw', default => 'unnamed');
-has language => (is => 'rw', default => 'bash');
-has loghost => (is => 'rw', default => 'localhost');
-has mem => (is => 'rw', default => '12');
-has sbatch => (is => 'rw', default => Check_Sbatch());
-has sbatch_args => (is => 'rw', default => '--export=ALL --mail-type=NONE');
-has sbatch_logdir => (is => 'rw', default => getcwd());
-has options => (is => 'rw');
-has options_file => (is => 'rw');
-has partition => (is => 'rw', default => 'dpart');
-has queue => (is => 'rw', default => 'workstation');
-has queues => (is => 'rw', default => qq"throughput,workstation,long,large");
-##has shell => (is => 'rw', default => '/usr/bin/bash');
-has verbose => (is => 'rw', default => 0);
-has walltime => (is => 'rw', default => '10:00:00');
-
 sub Check_Sbatch {
     my ($class, %args) = @_;
     my $path = which('sbatch');
@@ -60,20 +41,23 @@ parameters for various jobs on our Slurm cluster.
 
 =cut
 sub Submit {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my ($class, $parent, %args) = @_;
+    my $options = $parent->Get_Vars(
+        args => \%args);
+    my $sbatch = $class->Check_Sbatch();
+    my $depends_prefix = '--dependency=afterok';
     ## For arguments to sbatch, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
-    my $sbatch_log = qq"$options->{sbatch_logdir}/outputs/$options->{jname}.sbatchout";
+    my $sbatch_log = qq"$options->{logdir}/$options->{jname}.sbatchout";
 
     my $depends_string = "";
-    if ($options->{depends}) {
-        $depends_string = qq"$options->{depends_prefix}:$options->{depends}";
+    if ($options->{jdepends}) {
+        $depends_string = qq"${depends_prefix}:$options->{jdepends}";
     }
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
-    my $sbatch_cmd_line = qq"$options->{sbatch} ${depends_string} ${script_file}";
+    my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
-    make_path("$options->{sbatch_logdir}", {verbose => 0}) unless (-r qq"$options->{sbatch_logdir}");
+    make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
 
@@ -90,58 +74,52 @@ print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
-        if ($class->{options_file}) {
+        if ($options->{option_file}) {
             $perl_start .= qq!
-use Storable qw "retrieve";
-local $Storable::Eval = 1;
+use Storable qw "lock_retrieve";
+local \$Storable::Eval = 1;
 use FileHandle;
-##use JSON;
-##my \$opened = FileHandle->new("<\$class->{option_file}");
-##my \$json_text = "";
-##while (my \$line = <\$opened>) {
-##  \$json_text .= \$line;
-##}
-##\$opened->close();
-##my \$options = decode_json(\$json_text);
-my \$options = retrieve(\$class->{option_file});
+## Pull options from the option file: $parent->{option_file}
+my \$options = lock_retrieve('$parent->{option_file}');
 \$h->{options} = \$options;
+my \$result;
 !;
         }
         my $perl_end = qq!## The following lines give status codes and some logging
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
 my \$end_d = qx'date';
-print \$out "## Finished \${jobid} ${script_base} at \${end_d}.
-";
+print \$out "## Finished \${jobid} ${script_base} at \${end_d}.\n";
 close(\$out);
 !;
-        $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
-        print "The job is:
-$args{jstring}" if ($options->{verbose});
-        my $total_perl_string = "";
-        $total_perl_string .= "$perl_start\n";
-        $total_perl_string .= "$args{comment}\n" if ($args{comment});
-        $total_perl_string .= "$args{prescript}\n" if ($args{prescript});
-        $total_perl_string .= "$args{jstring}\n" if ($args{jstring});
+##        $perl_end .= qq"unlink(\$h->{option_file}) if (defined(\$result));\n" if ($options->{option_file});
+        my $total_perl_string = "$perl_start\n";
+        $total_perl_string .= "$options->{comment}\n" if ($options->{comment});
+        $total_perl_string .= "$options->{prescript}\n" if ($options->{prescript});
+        $total_perl_string .= "$options->{jstring}\n" if ($options->{jstring});
         $total_perl_string .= "$perl_end\n";
 
         my $perl_script = FileHandle->new(">$perl_file");
         print $perl_script $total_perl_string;
         $perl_script->close();
         chmod(0775, $perl_file);
-        $args{jstring} = qq"${perl_file}\n";
+        ## If I get this working properly, change this to:
+        ## qq"${perl_file} && rm $options->{option_file}\n";
+        $options->{jstring} = qq"${perl_file}\n";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
+    my $jname = qq"$options->{jprefix}$options->{jname}";
+    
     my $script_start = qq?#!/usr/bin/env bash
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
 #SBATCH --chdir=$options->{basedir}
-#SBATCH --partition=$options->{partition}
-#SBATCH --qos=$options->{queue}
+#SBATCH --partition=$options->{jpartition}
+#SBATCH --qos=$options->{jqueue}
 #SBATCH --nodes=1
-#SBATCH --time=$options->{walltime}
-#SBATCH --job-name=$options->{jname}
-#SBATCH --mem=$options->{mem}G
+#SBATCH --time=$options->{jwalltime}
+#SBATCH --job-name=${jname}
+#SBATCH --mem=$options->{jmem}G
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}
 ?;
@@ -150,15 +128,14 @@ $args{jstring}" if ($options->{verbose});
 ";
     }
     $script_start .= qq?
-
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
 cd $options->{basedir} || exit
 ?;
 
-    my $script_end = qq!## The following lines give status codes and some logging
+    my $script_end = qq!
+## The following lines give status codes and some logging
 echo "## Job status: \$? " >> outputs/log.txt
 echo "## Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
-
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
@@ -177,20 +154,14 @@ avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch")
 echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> outputs/log.txt
 !;
 
-    if ($options->{verbose}) {
-        print qq"The job is:
-$args{jstring}
-";
-    }
-
     my $total_script_string = "";
     $total_script_string .= "${script_start}\n";
-    $total_script_string .= "$args{comment}\n" if ($args{comment});
-    $total_script_string .= "$args{prescript}\n" if ($args{prescript});
-    $total_script_string .= "$args{jstring}\n" if ($args{jstring});
-    if ($args{postscript}) {
+    $total_script_string .= "$options->{comment}\n" if ($options->{comment});
+    $total_script_string .= "$options->{prescript}\n" if ($options->{prescript});
+    $total_script_string .= "$options->{jstring}\n" if ($options->{jstring});
+    if ($options->{postscript}) {
         $total_script_string .= qq!if [ \$? == "0" ]; then
-   $args{postscript}
+   $options->{postscript}
 fi
 !;
     }
@@ -217,35 +188,36 @@ fi
         warn("The job id did not get defined.  sbatch likely failed.");
         return(undef);
     }
-    sleep(1);
+    sleep(0.5);
     my @jobid_list = split(/\./, $job_id);
     my $short_jobid = shift(@jobid_list);
 
     print "Starting a new job: ${short_jobid} $options->{jname}";
-    if ($options->{depends}) {
-        print ", depending on $options->{depends}.";
+    if ($options->{jdepends}) {
+        print ", depending on $options->{jdepends}.";
     }
     print "\n";
+    $job = {
+        job_id => $job_id,
+        log => $sbatch_log,
+        pid => $sbatch_pid,
+        script_file => $script_file,
+    };
+    foreach my $k (keys %args) {
+        next if ($k eq 'jstring');
+        next if ($k eq 'comment');
+        $job->{$k} = $args{$k};
+    }
+    my @wanted_vars = ('basedir', 'cpus', 'depends_string', 'input',
+                       'jname', 'jmem', 'jqueue', 'jwalltime', 'output');
+    foreach my $w (@wanted_vars) {
+        $job->{$w} = $options->{$w} if (!defined($job->{$w}));
+    }
 
-    $job = { basedir => $options->{basedir},
-             cpus => $options->{cpus},
-             depends_string => $depends_string,
-             job_args => \%args,
-             job_id => $short_jobid,
-             job_input => $options->{job_input},
-             jname => $options->{jname},
-             job_output => $options->{job_output},
-             log => $sbatch_log,
-             mem => $options->{mem},
-             queue => $options->{queue},
-             pbs_id => $job_id,
-             sbatch_args => $options->{sbatch_args},
-             script_body => $options->{jstring},
-             script_file => $script_file,
-             script_start => $script_start,
-             submitter => $sbatch_cmd_line,
-             walltime => $options->{walltime},
-         };
+    if ($options->{verbose}) {
+        use Data::Dumper;
+        print Dumper $job;
+    }
     return($job);
 }
 

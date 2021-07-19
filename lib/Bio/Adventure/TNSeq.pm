@@ -111,7 +111,7 @@ sub TA_Check {
         args => \%args,
         required => ['input'],
     );
-    my $job_basename = $class->Get_Job_Name();
+    my $job_name = $class->Get_Job_Name();
     my $jstring = qq"
 use Bio::Adventure;
 use Bio::Adventure::TNSeq;
@@ -125,18 +125,25 @@ my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
         }
     }
     $jstring .= qq");";
+
+    my $input_base = basename($options->{input}, ('.gz', '.xz', '.bz2'));
+    $input_base = basename($input_base, ('.fastq', '.fasta'));
+    
     my $sort_job = $class->Submit(
         comment => "# Check for tailing TAs!",
         cpus => 1,
-        depends => $options->{depends},
-        jname => qq"tacheck_${job_basename}",
+        jdepends => $options->{jdepends},
+        jmem => 8,
+        jname => qq"tacheck_${job_name}",
+        jqueue => "throughput",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        jwalltime => "10:00:00",
         language => 'perl',
-        mem => 8,
-        queue => "throughput",
-        walltime => "10:00:00",
-    );
+        output => qq"${input_base}_ta.fastq.gz",
+        output_nota => qq"${input_base}_nota.fastq.gz",);
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
     return($sort_job);
 }
 
@@ -212,13 +219,15 @@ my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
     my $sort_job = $class->Submit(
         comment => "# Sort those indexes!",
         cpus => 1,
-        language => 'perl',
-        jname => "sort_indexes",
+        jname => 'sort_indexes',
         jstring => $jstring,
-        mem => 8,
-        queue => "workstation",
-        walltime => "60:00:00",
-    );
+        jmem => 8,
+        jqueue => 'workstation',
+        jwalltime => '60:00:00',
+        language => 'perl',
+        output => qq"$options->{outdir}/tnseq_sorting_out.txt",);
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
     return($sort_job);
 }
 
@@ -609,12 +618,12 @@ process_segments.py -f ${output_dir}/${output_file} \\
   2>${output_dir}/segments_${error_file}
 !;
     ## tn-hmm requires a wig file and gff
-    my $tn_hmm = $class->Submit(jname => "tn_hmm",
-                                jstring => $jstring,
-                                jprefix => "15",
-                                comment => $comment,
-                                output => $output_file,
-                            );
+    my $tn_hmm = $class->Submit(
+        jprefix => $options->{jprefix},
+        jname => qq"$options->{jprefix}tn_hmm",
+        jstring => $jstring,
+        comment => $comment,
+        output => $output_file,);
 
     foreach my $param (@param_list) {
         ## The inputs for this are:
@@ -638,14 +647,13 @@ gumbelMH.py -f ${input} -m ${param} -s $options->{runs} \\
         my $comment = qq!# Run mh-ess using the min hit: $param!;
         my $mh_ess = $class->Submit(
             comment => $comment,
-            depends => $options->{depends},
+            jdepends => $options->{jdepends},
             jname => qq"mh_ess${param}_$options->{species}",
-            jprefix => '16',
+            jprefix => $options->{jprefix},
             jstring => $jstring,
             output => $output_file,
             prescript => $options->{prescript},
-            postscript => $options->{postscript},
-        );
+            postscript => $options->{postscript},);
     }
     ## This should return something interesting, but it doesn't
     return($tn_hmm);
@@ -829,10 +837,10 @@ sub Count_TAs {
         } else {
             die("This else statement should never happen.\n");
         }
-    }                           ## End reading each bam entry
+    } ## End reading each bam entry
     $out->close();
     return($data);
-}                               ## End Count_Tas
+} ## End Count_Tas
 
 =head2 C<Allocate_Genome>
 
@@ -842,10 +850,10 @@ When counting a genome, first make a data structure to hold the counts.
 sub Allocate_Genome {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
-    my $genome = {length => 0,
-                  data => [],
-                  sequences => 0,
-              };
+    my $genome = { length => 0,
+                   data => [],
+                   sequences => 0,
+    };
     my $data = [];
     my $infile = Bio::SeqIO->new(-file => $args{fasta}, -format => 'Fasta');
     while (my $in_seq = $infile->next_seq()) {
@@ -901,7 +909,6 @@ sub Transit_TPP {
         primer => 'GGGACTTATCATCCAACCTGT',
         do_htseq => 1,
         );
-    my %start_options = %{$options};
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -919,10 +926,7 @@ sub Transit_TPP {
         files => $options->{input},
     );
     my $sleep_time = 3;
-    my %tpp_jobs = ();
     my $libtype = 'genome';
-    my $tpp_depends_on = "";
-    $tpp_depends_on = $options->{depends} if ($options->{depends});
     my $tpp_args = '';
     $tpp_args = $options->{tpp_args} if ($options->{tpp_args});
 
@@ -934,7 +938,6 @@ sub Transit_TPP {
         $suffix_name .= qq"_$options->{jname}";
     }
 
-    my $job_basename = $options->{job_basename};
     my $tpp_dir = qq"outputs/transit_$options->{species}";
     if ($args{tpp_dir}) {
         $tpp_dir = $args{tpp_dir};
@@ -961,10 +964,10 @@ sub Transit_TPP {
     my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
     
-    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${job_basename}.err";
+    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_$options->{job_basename}.err";
     my $comment = qq!## This is a transit preprocessing alignment of ${tpp_input} against
 ## ${tpp_genome} using arguments: ${tpp_args}.
-## This jobs depended on: ${tpp_depends_on}
+## This jobs depended on: $options->{jdepends}
 !;
     my $jstring = qq!mkdir -p ${tpp_dir}
 sleep ${sleep_time}
@@ -978,25 +981,22 @@ tpp -ref ${tpp_genome} \\
         comment => $comment,
         input => $tpp_input,
         jname => $tpp_name,
-        depends => $tpp_depends_on,
+        jdepends => $options->{jdepends},
         jstring => $jstring,
-        jprefix => "60",
-        mem => 24,
-        walltime => '124:00:00',
+        jprefix => $options->{jprefix},
+        jmem => 24,
+        jwalltime => '124:00:00',
         output => $sam_filename,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
-    $tpp_jobs{tpp} = $tpp_job;
+        postscript => $options->{postscript},);
 
     my $sam_job = Bio::Adventure::Convert::Samtools(
         $class,
         input => $sam_filename,
-        depends => $tpp_job->{job_id},
+        jdepends => $tpp_job->{job_id},
         jname => "s2b_${tpp_name}",
-        jprefix => "61",
-    );
-    $tpp_jobs{samtools} = $sam_job;
+        jprefix => "61",);
+    $tpp_job->{samtools} = $sam_job;
     my $htseq_input = $sam_job->{job_output};
     my $htmulti;
     if ($options->{do_htseq}) {
@@ -1004,27 +1004,24 @@ tpp -ref ${tpp_genome} \\
             $htmulti = Bio::Adventure::Count::HTSeq(
                 $class,
                 htseq_input => $sam_job->{job_output},
-                depends => $sam_job->{job_id},
+                jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => '62',
                 libtype => $libtype,
-                mapper => 'hisat2',
-            );
+                mapper => 'hisat2',);
         } else {
             $htmulti = Bio::Adventure::Count::HT_Multi(
                 $class,
                 htseq_input => $sam_job->{job_output},
-                depends => $sam_job->{job_id},
+                jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => '62',
                 libtype => $libtype,
-                mapper => 'bwa',
-            );
-            $tpp_jobs{htseq} = $htmulti;
+                mapper => 'bwa',);
+            $tpp_job->{htseq} = $htmulti;
         }
     }
-    $class->{options} = \%start_options;
-    return(\%tpp_jobs);
+    return($tpp_job);
 }
 
 =head1 AUTHOR - atb

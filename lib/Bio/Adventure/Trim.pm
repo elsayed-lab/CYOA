@@ -9,6 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use File::Basename;
+use File::Path qw"make_path";
 use File::ShareDir ':ALL';
 use File::Temp qw":POSIX";
 use File::Which qw"which";
@@ -45,8 +46,7 @@ sub Cutadapt {
 	right => undef,
 	either => undef,
     );
-    my %start_options = %{$options};
-    my $job_basename = $class->Get_Job_Name();
+    my $job_name = $class->Get_Job_Name();
 
     if ($options->{task}) {
         $options->{type} = $options->{task};
@@ -112,92 +112,90 @@ mkdir -p ${out_dir} && \\
     my $cutadapt = $class->Submit(
         comment => $comment,
         input => $input,
-        jname => qq"ca_${job_basename}",
-        jprefix => "07",
+        jname => qq"ca_${job_name}",
+        jprefix => '07',
+        jqueue => 'workstation',
         jstring => $jstring,
-        prescript => $args{prescript},
-        postscript => $args{postscript},
-        queue => "workstation",
-        output => $output,
-        walltime => "8:00:00",
-    );
+        jwalltime => '8:00:00',
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        output => $output,);
     if ($type eq 'tnseq') {
         my $ta_check = Bio::Adventure::TNSeq::TA_Check(
             $class,
             comment => qq"## Check that TAs exist.",
             input => qq"${output}",
-            jname => qq"tach_${job_basename}",
-            depends => $cutadapt->{job_id},
-            jprefix => "08",
-        );
+            jdepends => $cutadapt->{job_id},
+            jname => qq"tach_${job_name}",
+            jprefix => "08",);
     }
     my $comp_short = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the tooshort sequences.",
         xz_input => qq"${out_dir}/${basename}_tooshort.fastq",
-        depends => $cutadapt->{job_id},
-        jname => "xzcutshort_${job_basename}",
-        jprefix => "08",
-        queue => "workstation",
-        walltime => "04:00:00",
-    );
+        jdepends => $cutadapt->{job_id},
+        jname => "xzcutshort_${job_name}",
+        jprefix => '08',
+        jqueue => 'workstation',
+        jwalltime => '04:00:00',);
     my $comp_long = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
         xz_input => qq"${out_dir}/${basename}_toolong.fastq",
-        depends => $cutadapt->{job_id},
-        jname => "xzcutlong_${job_basename}",
-        jprefix => "08",
-        queue => "workstation",
-        walltime => "04:00:00",
-    );
+        jdepends => $cutadapt->{job_id},
+        jname => "xzcutlong_${job_name}",
+        jprefix => '08',
+        jqueue => 'workstation',
+        jwalltime => '04:00:00',);
     my $comp_un = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the toolong sequences.",
         xz_input => qq"${out_dir}/${basename}_untrimmed.fastq",
-        depends => $cutadapt->{job_id},
-        jname => "xzuncut_${job_basename}",
-        jprefix => "08",
-        queue => "workstation",
-        walltime => "04:00:00",
-    );
+        jdepends => $cutadapt->{job_id},
+        jname => "xzuncut_${job_name}",
+        jprefix => '08',
+        jqueue => 'workstation',
+        jwalltime => '04:00:00',);
     my $comp_original = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the original sequence.",
         xz_input => $input,
-        depends => $cutadapt->{job_id},
-        jname => "xzorig_${job_basename}",
-        jprefix => "08",
-        queue => "workstation",
-        walltime => "04:00:00",
-    );
+        jdepends => $cutadapt->{job_id},
+        jname => "xzorig_${job_name}",
+        jprefix => '08',
+        jqueue => 'workstation',
+        jwalltime => '04:00:00',);
     my $comp_output = Bio::Adventure::Compress::Recompress(
         $class,
         comment => qq"## Compressing the output sequence.",
         xz_input => $output,
-        depends => $cutadapt->{job_id},
-        jname => "xzout_${job_basename}",
-        jprefix => "08",
-        queue => "workstation",
-        walltime => "04:00:00",
-    );
-
-    $class->{options} = \%start_options;
+        jdepends => $cutadapt->{job_id},
+        jname => "xzout_${job_name}",
+        jprefix => '08',
+        jqueue => 'workstation',
+        jwalltime => '04:00:00',);
     return($cutadapt);
 }
 
+
+=head2 C<Racer>
+
+Use the RACER command from hitec to correct sequencer-based errors.
+
+=cut
 sub Racer {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         length => 1000000,
-        required => ['input',],
-    );
-    my %start_options = %{$options};
-    my $job_basename = $class->Get_Job_Name();
+        required => ['input', ],
+        jprefix => '10',
+        modules => 'hitec',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
-    my @suffixes = (".fastq",".gz",".xz");
+    my @suffixes = (".fastq", ".gz", ".xz");
     my @base_list = ();
     for my $in (@input_list) {
         my $shorted = basename($in, @suffixes);
@@ -208,34 +206,45 @@ sub Racer {
 !;
     my $jstring = qq"";
 
+    my $output_dir = qq"outputs/$options->{jprefix}racer";
+    my @created = make_path($output_dir);
+    my @output_files;
     foreach my $c (0 .. $#input_list) {
-        my $name = File::Temp::tempnam('.', 'racer');
-        my $output = qq"$base_list[$c]-corrected.fastq";
+        my $name = File::Temp::tempnam($output_dir, 'racer');
+        my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
+        push(@output_files, "${output}.gz");
         $jstring .= "zcat $input_list[$c] > ${name}.fastq &&
   RACER \\
   ${name}.fastq \\
   ${output} \\
   $options->{length} \\
-  2>outputs/racer.out 1>&2 &&
+  2>${output_dir}/racer.out 1>&2 &&
   rm ${name}.fastq
 gzip -9 ${output}
 ";
     }
-
+    my $output = '';
+    for my $o (@output_files) {
+        $output .= qq"${o}:";
+    }
+    $output =~ s/\:$//g;
+    
     my $racer = $class->Submit(
         comment => $comment,
-        input => $input,
-        jname => "racer_${job_basename}",
-        jprefix => "07",
-        jstring => $jstring,
-        queue => "workstation",
         cpus => 4,
-        mem => 30,
-        prescript => $args{prescript},
-        postscript => $args{postscript},
-        walltime => "12:00:00",
-    );
-    ## Set the input   for future tools to the output from trimming.
+        input => $input,
+        jdepends => $options->{jdepends},
+        jmem => 30,
+        jname => "racer_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        jwalltime => '12:00:00',
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        output => $output,);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($racer);
 }
 
@@ -251,15 +260,14 @@ sub Trimomatic {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-    );
-    my %start_options = %{$options};
+        jprefix => '01',
+        );
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
     } else {
         $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
     }
-    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -274,9 +282,11 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
         quality => '20',
-    );
-    my %start_options = %{$options};
-    my $job_basename = $class->Get_Job_Name();
+        modules => 'trimomatic',
+        );
+
+    my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
+    my $job_name = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
@@ -331,23 +341,12 @@ sub Trimomatic_Pairwise {
         $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
     }
 
-    $options = $class->Set_Vars(basename => $basename);
     my $output = qq"${r1o}:${r2o}";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
-    my $jstring = qq!
-## Trimomatic_Pairwise: In case a trimming needs to be redone...
-if [[ \! -r "${r1}" ]]; then
-  if [[ -r "sequences/${r1b}.fastq.xz" ]]; then
-    mv sequences/${r1b}.fastq.xz . && pxz -d ${r1b}.fastq.xz && pigz ${r1b}.fastq &&\\
-       mv sequences/${r2b}.fastq.xz . && pxz -d ${r2b}.fastq.xz && pigz ${r2b}.fastq
-  else
-    echo "Missing files. Did not find ${r1} nor sequences/${r1b}.fastq.xz"
-    exit 1
-  fi
-fi
+    my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
   -threads 1 \\
@@ -357,7 +356,7 @@ ${exe} \\
   ${r2op} ${r2ou} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
-  1>outputs/${basename}-trimomatic.out 2>&1
+  1>${output_dir}/${basename}-trimomatic.out 2>&1
 excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
@@ -368,42 +367,45 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
-    1>outputs/${basename}-trimomatic.out 2>&1
+    1>${output_dir}/${basename}-trimomatic.out 2>&1
 fi
 sleep 10
 mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
 ln -s ${r1o} r1_trimmed.fastq.gz
 ln -s ${r2o} r2_trimmed.fastq.gz
 !;
+
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
+        args => \%args,
         comment => $comment,
-        input => $input,
-        jname => "trim_${job_basename}",
-        jprefix => "05",
-        jstring => $jstring,
-        output => $output,
-        queue => "workstation",
         cpus => 3,
-        mem => 40,
-        prescript => $args{prescript},
-        postscript => $args{postscript},
-        walltime => "12:00:00",
-    );
-    ## Set the input   for future tools to the output from trimming.
-    $options = $class->Set_Vars(input => $output);
+        input => $input,
+        jmem => 40,
+        jname => qq"trim_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        jwalltime => '12:00:00',
+        output => $output,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    my $new_prefix = qq"$options->{jprefix}_1";
     my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
         $class,
         basename => $basename,
-        jprefix => "06",
-        jname => "trst_${job_basename}",
-        depends => $trim->{job_id},
+        jdepends => $trim->{job_id},
+        jprefix => $new_prefix,
+        jname => "trst_${job_name}",
         pairwise => 1,
+        output_dir => $output_dir,
     );
     $trim->{stats} = $trim_stats;
-    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -417,8 +419,9 @@ sub Trimomatic_Single {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
+        modules => 'trimomatic',
+        jprefix => '05',
     );
-    my %start_options = %{$options};
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
@@ -429,12 +432,13 @@ sub Trimomatic_Single {
             $exe = $test_exe;
         }
     }
+    my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
     my $adapter_file = module_file('Bio::Adventure', 'genome/adapters.fa');
 
-    if ($args{interactive}) {
+    if ($options->{interactive}) {
         print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
     }
 
@@ -447,22 +451,13 @@ sub Trimomatic_Single {
     my $basename = $input;
     $basename = basename($basename, (".gz"));
     $basename = basename($basename, (".fastq"));
-    my $job_basename = $class->Get_Job_Name();
+    my $job_name = $class->Get_Job_Name();
     my $output = qq"${basename}-trimmed.fastq.gz";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
-    my $jstring = qq!
-## Trimomatic_Single: In case a trimming needs to be redone...
-if [[ \! -r "${input}" ]]; then
-  if [[ -r "sequences/${input}.xz" ]]; then
-    mv sequences/${input}.xz . && pxz -d ${input}.xz
-  else
-    echo "Missing files. Did not find ${input} nor sequences/${input}.xz"
-    exit 1
-  fi
-fi
+    my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
   -phred33 \\
@@ -470,28 +465,30 @@ ${exe} \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
-  1>outputs/${basename}-trimomatic.out 2>&1
+  1>${output_dir}/${basename}-trimomatic.out 2>&1
 !;
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,
-        jname => "trim_${job_basename}",
-        jprefix => "05",
+        jname => "trim_${job_name}",
+        jprefix => $options->{jprefix},
         jstring => $jstring,
+        jwalltime => '4:00:00',
         output => $output,
-        prescript => $args{prescript},
-        postscript => $args{postscript},
-        walltime => "4:00:00",
-    );
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
         $class,
         basename => $basename,
-        depends => $trim->{job_id},
-        jname => "trst_${job_basename}",
+        jdepends => $trim->{job_id},
+        jname => "trst_${job_name}",
         jprefix => "06",
+        output_dir => $output_dir,
     );
     $trim->{stats} = $trim_stats;
-    $class->{options} = \%start_options;
     return($trim);
 }
 
@@ -505,16 +502,15 @@ sub Trimomatic_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        output_dir => 'outputs',
     );
     ## Dereferencing the options to keep a safe copy.
-    my %start_options = %{$options};
     my $basename = $options->{basename};
-    my $input_file = "outputs/${basename}-trimomatic.out";
-    my $depends = $options->{depends};
+    my $input_file = "$options->{output_dir}/${basename}-trimomatic.out";
     my $jname = 'trimst';
-    $jname = $args{jname} if ($args{jname});
+    $jname = $options->{jname} if ($options->{jname});
     my $comment = qq!## This is a stupidly simple job to collect trimomatic statistics!;
-    my $stat_output = qq"outputs/trimomatic_stats.csv";
+    my $stat_output = qq"$options->{output_dir}/trimomatic_stats.csv";
     my $jstring = qq!
 if [ \! -r ${stat_output} ]; then
   echo "total_reads,surviving_reads,dropped_reads" > ${stat_output}
@@ -529,7 +525,7 @@ dropped_reads=\${dropped_reads_tmp:-0}
 stat_string=\$(printf "${basename},%s,%s,%s" "\${total_reads}" "\${surviving_reads}" "\${dropped_reads}")
 echo "\$stat_string" >> ${stat_output}
 !;
-    if ($args{pairwise}) {
+    if ($options->{pairwise}) {
         ## The output looks a bit different for pairwise input:
         ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
         $jstring = qq!
@@ -555,15 +551,14 @@ echo "\$stat_string" >> ${stat_output}
         comment => $comment,
         cpus => 1,
         input => $input_file,
-        depends => $depends,
+        jdepends => $options->{jdepends},
         jname => $jname,
-        jprefix => $args{jprefix},
+        jprefix => $options->{jprefix},
         jstring => $jstring,
-        mem => 1,
-        queue => "throughput",
-        walltime => "00:10:00",
-    );
-    $class->{options} = \%start_options;
+        jmem => 1,
+        jqueue => 'throughput',
+        jwalltime => '00:10:00',
+        output => $stat_output,);
     return($stats);
 }
 

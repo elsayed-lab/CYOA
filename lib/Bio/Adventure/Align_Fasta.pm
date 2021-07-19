@@ -46,11 +46,11 @@ sub Make_Fasta_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        depends => '',
+        jdepends => '',
         split => 0,
         output_type => undef,
         );
-    my $dep = $options->{depends};
+    my $dep = $options->{jdepends};
     my $split = $options->{split};
     my $output_type = $options->{output_type};
     my $library;
@@ -84,13 +84,13 @@ cd $options->{basedir}
     my $fasta_jobs = $class->Submit(
         comment => $comment,
         depends_type => 'array',
-        depends => $dep,
+        jdepends => $dep,
         jname => 'fasta_multi',
         jstring => $jstring,
         jprefix => "91",
         qsub_args => " $options->{qsub_args} -t ${array_string} ",
-        queue => 'long',
-        walltime => '96:00:00',
+        jqueue => 'long',
+        jwalltime => '96:00:00',
         );
     return($fasta_jobs);
 }
@@ -375,7 +375,7 @@ sub Split_Align_Fasta {
                                                                     split => 1);
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
-            depends => $alignment->{pbs_id},
+            jdepends => $alignment->{job_id},
             output => $output,
             workdir => $outdir,
             jprefix => "92",
@@ -408,7 +408,7 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        depends => $concat_job->{pbs_id},
+        jdepends => $concat_job->{job_id},
         jname => "parse_search",
         jstring => $jstring,
         jprefix => "93",

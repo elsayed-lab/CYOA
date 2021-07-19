@@ -37,8 +37,6 @@ sub Run_Gubbins {
     my $bname = basename($options->{input});
     my $gub_dir = qq"outputs/gubbins_${bname}";
     $gub_dir = $options->{gub_dir} if ($options->{gub_dir});
-
-
     my $jstring = qq!mkdir -p ${gub_dir} && run_gubbins.py \\
   $options->{input} \\
   --threads ${cpus} !;
@@ -52,15 +50,15 @@ sub Run_Gubbins {
     my $gubbins = $class->Submit(
         basename => 'gubbins',
         comment => 'This should remove recombination events from bacterial genomes.',
-        depends => '',
+        jdepends => $options->{jdepends},
         job_output => 'filtered_polymorphic_sites.fasta',
-        queue => 'large',
+        jqueue => 'large',
         jprefix => '30',
-        mem => 50,
+        jmem => 50,
         cpus => $options->{cpus},
         jstring => $jstring,
         jname => 'gub',
-    );
+        );
     return($gubbins);
 }
 

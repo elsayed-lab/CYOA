@@ -34,12 +34,11 @@ sub Biopieces_Graph {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jprefix => '02',
     );
     my $input = $options->{input};
-    my $bp_depends_on;
-    my $job_basename = $class->Get_Job_Name();
-    my $jname = qq"biop_${job_basename}";
-    $bp_depends_on = $options->{depends};
+    my $jname = $class->Get_Job_Name();
+    $jname = qq"biop_${jname}";
     my @inputs = split(/\,|\:|\;/, $input);
     my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
     my $bp;
@@ -64,16 +63,16 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
             $bp = $class->Submit(
                 comment => $comment,
                 input => $in,
-                depends => $bp_depends_on,
+                jdepends => $options->{jdepends},
                 jname => qq"${jname}_${in}",
-                jprefix => "02",
+                jprefix => $options->{jprefix},
+                jqueue => 'long',
                 jstring => $jstring,
                 prescript => $args{prescript},
                 postscript => $args{postscript},
-                queue => "long",
             );
         }
-    } else {                    ## A single input was provided
+    } else { ## A single input was provided
         my $jstring = qq!
 ## Do not forget that _only_ the last command in a biopieces string is allowed to have the -x.
 mkdir -p outputs/biopieces
@@ -91,13 +90,12 @@ less ${input} | read_fastq -i - -e base_33 |\\
         $bp = $class->Submit(
             comment => $comment,
             input => $input,
-            depends => $bp_depends_on,
-            jname => "biop",
-            jprefix => "02",
+            jdepends => $options->{jdepends},
+            jname => 'biop',
+            jprefix => $options->{jprefix},
             jstring => $jstring,
             prescript => $options->{prescript},
             postscript => $options->{postscript},
-            queue => "workstation",
         );
     }
     return($bp);
@@ -115,7 +113,7 @@ sub Fastqc {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-    );
+        );
     my $fastqc_job;
     if ($options->{input} =~ /:|\,/) {
         $fastqc_job = Bio::Adventure::QA::Fastqc_Pairwise($class, %args);
@@ -136,7 +134,8 @@ sub Fastqc_Pairwise {
     my $options = $class->Get_Vars(
         args => \%args,
         type => 'unfiltered',
-    );
+        );
+    my $test = ref($class->{start_options});
     my $type = $options->{type};
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
@@ -146,38 +145,39 @@ sub Fastqc_Pairwise {
     }
     my $r1 = $input_list[0];
     my $r2 = $input_list[1];
-    my $basename = basename($r1, (".fastq", ".gz", ".xz"));
-    $basename = basename($basename, (".fastq", ".gz", ".xz"));
-    $basename = basename($basename, (".fastq", ".gz", ".xz"));
-    my $output_suffix = "forward";
+    my $basename = basename($r1, ('.fastq', '.gz', '.xz'));
+    $basename = basename($basename, ('.fastq', '.gz', '.xz'));
+    $basename = basename($basename, ('.fastq', '.gz', '.xz'));
+    my $output_suffix = 'forward';
     if ($basename =~ /_R1/ or $basename =~ /forward/) {
-        $output_suffix = "forward";
+        $output_suffix = 'forward';
     } elsif ($basename =~ /_R2/ or $basename =~ /reverse/) {
-        $output_suffix = "reverse";
+        $output_suffix = 'reverse';
     } else {
-        $output_suffix = "all";
+        $output_suffix = 'all';
     }
     $basename =~ s/\_R1$//g;
     $basename =~ s/_forward//g;
-    my $outdir = qq"outputs/fastqc";
+    my $outdir = qq"outputs/$options->{jprefix}fastqc";
     my $jstring = qq!mkdir -p ${outdir} && \\
-  fastqc --extract -o ${outdir} ${r1} ${r2} \\
+  fastqc --extract -o ${outdir} <(less ${r1}) <(less ${r2}) \\
   2>${outdir}.out 1>&2
 !;
     my $comment = qq!## This FastQC run is against ${type} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $job_basename = $class->Get_Job_Name();
-    my $jname = qq"fqc_${job_basename}";
+    my $job_name = $class->Get_Job_Name();
+    my $jname = qq"fqc_${job_name}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
         jname => $jname,
-        jprefix => "00",
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
         jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "throughput",
-    );
+        output => qq"${outdir}",);
+
     my $forward_indir = qq"${outdir}/${r1}_fastqc";
     $forward_indir =~ s/\.fastq//g;
     my $reverse_indir = qq"${outdir}/${r2}_fastqc";
@@ -186,22 +186,13 @@ sub Fastqc_Pairwise {
         $class,
         direction => 'forward',
         indir => $forward_indir,
-        depends => $fqc->{pbs_id},
+        jdepends => $fqc->{job_id},
         jname => $basename,
-        jprefix => "01",
+        jprefix => $options->{jprefix},
         paired => 1,
-    );
-    my $fsr = Bio::Adventure::QA::Fastqc_Stats(
-        $class,
-        direction => 'reverse',
-        indir => $reverse_indir,
-        depends => $fqc->{pbs_id},
-        jname => $basename,
-        jprefix => "01",
-        paired => 1,
-    );
+        );
+
     $fqc->{stats_forward} = $fsf;
-    $fqc->{stats_reverse} = $fsr;
     return($fqc);
 }
 
@@ -218,31 +209,30 @@ sub Fastqc_Single {
     );
     my $outdir = qq"outputs/fastqc";
     my $jstring = qq!mkdir -p ${outdir} &&\\
-  fastqc -q --extract -o ${outdir} $options->{input} \\
+  fastqc -q --extract -o ${outdir} <(less $options->{input}) \\
   2>outputs/$options->{jname}-$options->{filtered}_fastqc.out 1>&2
 !;
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $job_basename = $class->Get_Job_Name();
-    my $jname = qq"fqc_${job_basename}";
+    my $job_name = $class->Get_Job_Name();
+    my $jname = qq"fqc_${job_name}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
         jname => $jname,
-        jprefix => "00",
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
         jstring => $jstring,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "throughput",
-    );
+        output => qq"$options->{jprefix}fastqc.html",);
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $fqc_stats = Bio::Adventure::QA::Fastqc_Stats(
         $class,
         indir => $outdir,
-        depends => $fqc->{pbs_id},
+        jdepends => $fqc->{job_id},
         jname => $options->{jname},
-        jprefix => "01",
-    );
+        jprefix => $options->{jprefix},);
     $fqc->{stats} = $fqc_stats;
     return($fqc);
 }
@@ -255,28 +245,26 @@ simple-to-read csv file.
 =cut
 sub Fastqc_Stats {
     my ($class, %args) = @_;
-    my $opt = $class->Get_Vars(
+    my $options = $class->Get_Vars(
         args => \%args,
         jname => 'fqcst',
-        depends => '',
         paired => 1,
-    );
+        );
+
     ## Dereferencing the options to keep a safe copy.
-    my %start_options = %{$opt};
-    my $jname = $opt->{jname};
-    my $input_file = qq"$opt->{indir}/fastqc_data.txt";
-    if ($opt->{paired}) {
-        $input_file = qq"$opt->{indir}/fastqc_data.txt";
+    my $jname = $options->{jname};
+    my $input_file = qq"$options->{indir}/fastqc_data.txt";
+    if ($options->{paired}) {
+        $input_file = qq"$options->{indir}/fastqc_data.txt";
     }
-    my $depends = $opt->{depends};
     my $stat_output = qq"outputs/fastqc_stats.csv";
-    if ($opt->{direction}) {
-        $stat_output = qq"outputs/fastqc_$opt->{direction}_stats.csv";
-        $jname = qq"${jname}_$opt->{direction}";
+    if ($options->{direction}) {
+        $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
+        $jname = qq"${jname}_$options->{direction}";
     }
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $jstring = qq!
-if [ \! -r $stat_output ]; then
+if [ \! -r "${stat_output}" ]; then
   echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
 fi
 total_reads_tmp=\$(grep "^Total Sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
@@ -307,17 +295,16 @@ echo "\$stat_string" >> ${stat_output}
         comment => $comment,
         cpus => 1,
         input => $input_file,
-        depends => $depends,
+        jdepends => $options->{jdepends},
+        jmem => 1,
         jname => $jname,
-        jprefix => $opt->{jprefix},
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
         jstring => $jstring,
-        mem => 1,
-        queue => "throughput",
-        walltime => "00:10:00",
-    );
+        jwalltime => '00:1:00',
+        output => qq"${stat_output}",);
     ## Added to return the state of the system to what it was
     ## before we messed with the options.
-    $class->{options} = \%start_options;
     return($stats);
 }
 

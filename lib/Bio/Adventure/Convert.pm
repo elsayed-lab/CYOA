@@ -2,6 +2,7 @@ package Bio::Adventure::Convert;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
+use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
@@ -12,7 +13,9 @@ use Bio::Root::Exception;
 use File::Basename;
 use File::Which qw"which";
 use List::MoreUtils qw"uniq";
-use TryCatch;
+use Text::CSV_XS::TSV;
+
+no warnings "experimental::try";
 
 =head1 NAME
 
@@ -105,15 +108,18 @@ sub Gb2Gff {
               my $seq = qq'';
               my $pep = qq'';
 
+              my $e;
               try {
                   $seq = $feat_object->spliced_seq->seq;
-              } catch {
+              }
+              catch ($e) {
                   print "Something went wrong getting the sequence.\n";
                   next FEAT;
               }
               try {
                   $pep = $feat_object->spliced_seq->translate->seq;
-              } catch {
+              }
+              catch ($e) {
                   print "Something went wrong getting the peptide sequence.\n";
                   next FEAT;
               }
@@ -187,15 +193,16 @@ sub Gb2Gff {
           }
 
           my $new_feature = $c_size->{feat};
-          my $inter_location = Bio::Location::Atomic->new(-start => $interstart, -end => $interend, -strand => 1);
+          my $inter_location = Bio::Location::Atomic->new(-start => $interstart,
+                                                          -end => $interend,
+                                                          -strand => 1);
           $new_feature->{_location} = $inter_location;
           $inter_gffout->write_feature($new_feature);
       }
     }                           ## End while every sequence
-    my $ret_stats = {num_sequences => $seq_count,
-                     total_nt => $total_nt,
-                     num_features => $feature_count,
-    };
+    my $ret_stats = { num_sequences => $seq_count,
+                      total_nt => $total_nt,
+                      num_features => $feature_count, };
     close($in);
     return($ret_stats);
 }
@@ -232,7 +239,6 @@ sub Gff2Fasta {
     my $gff = $options->{gff};
     my $tag = $options->{htseq_id};
     my $ftype = $options->{htseq_type};
-    print "TESTME Gff2Fasta: $ftype\n";
     my $genome_basename = basename($genome, ('.fasta'));
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
     my $gff_handle = FileHandle->new("less ${gff} |");
@@ -248,7 +254,6 @@ sub Gff2Fasta {
 
   LOOP: while(my $feature = $annotation_in->next_feature()) {
       $features_read++;
-      ## print "TESTME: $feature->{_primary_tag} vs $feature_type\n";
       next LOOP unless ($feature->{_primary_tag} eq $feature_type);
       my $location = $feature->{_location};
       my $start = $location->start();
@@ -256,13 +261,14 @@ sub Gff2Fasta {
       my $strand = $location->strand();
       my @something = $feature->each_tag_value();
       my @ids;
+      my $e;
       try {
           @ids = $feature->each_tag_value($tag);
-      } catch {
+      }
+      catch ($e) {
           print "Did not find the tag: ${tag}, perhaps check the gff file.\n";
           next LOOP;
       }
-      print "Passed the try/catch\n";
       my $gff_chr = $feature->{_gsf_seq_id};
       my $gff_string = $annotation_in->{$gff_chr};
       if (!defined($chromosomes->{$gff_chr})) {
@@ -298,6 +304,7 @@ ${cds}
     $out_fasta_nt->close();
     return($features_written);
 }
+
 
 =head2 C<Gff2Gtf>
 
@@ -379,9 +386,8 @@ sub Gff2Gtf {
       $seq_string =~ s/\s+$//g;
       print $out_gtf $seq_string;
       $features_written++;
-  }                           ## End iterating over every FEATURES
+  } ## End iterating over every FEATURES
     $out_gtf->close();
-    ##close(OUT_GTF);
     return($features_written);
 }
 
@@ -430,7 +436,7 @@ sub Read_GFF {
           chromosome => $gff_chr,
       };
       $gff_out->{$gff_chr}->{$id} = $annot;
-  }                           ## End looking at every gene in the gff file
+  } ## End looking at every gene in the gff file
     $gff->close();
     return($gff_out);
 }
@@ -465,11 +471,12 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $check = which('samtools');
     die("Could not find samtools in your PATH.") unless($check);
-    my $options = $class->Get_Vars(args => \%args,
-                                   required => ["species", "input"]);
-    my $basename = $options->{basename};
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ["species", "input"],
+        modules => 'samtools',
+        );
     my @input_list = ();
-    my $depends = "";
     if ($options->{input}) {
         push(@input_list, $options->{input});
     } elsif (-r $options->{input} and $options->{input} =~ /\.sam$/) {
@@ -480,18 +487,20 @@ sub Sam2Bam {
 
         } else {
             foreach my $k (%{$options->{bt_args}}) {
-                my $output_string = "bowtie_out/${basename}-${k}.sam";
+                my $output_string = "bowtie_out/$options->{jbasename}-${k}.sam";
                 push(@input_list, $output_string);
             }
             my $bt = Bio::Adventure::Map::Bowtie($class, %args);
-            $depends = $bt->{pbs_id};
         }
     } else {
         die("I don't know what to do without a .fastq file nor a .sam file.\n");
     }
-    my $sam = Bio::Adventure::Convert::Samtools($class, %args,
-                                                depends => $depends,
-                                                sam => \@input_list);
+    my $loaded = $class->Module_Load(modules => $options->{modules});
+    my $sam = Bio::Adventure::Convert::Samtools(
+        $class, %args,
+        jdepends => $options->{jdepends},
+        sam => \@input_list);
+    $loaded = $class->Module_Unload(modules => $options->{modules});
     return($sam);
 }
 
@@ -522,9 +531,9 @@ sub Samtools {
         required => ['input', 'species'],
         jname => 'sam',
         jprefix => '',
+        modules => 'samtools',
         );
-
-    my $job_basename = $options->{job_basename};
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 
     my $output = $input;
@@ -570,21 +579,24 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
 !;
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
-## This job depended on: $options->{depends}!;
+## This job depended on: $options->{jdepends}!;
     my $jobname = qq"$options->{jname}_$options->{species}";
-    my $samtools = $class->Submit(comment => $comment,
-                                  depends => $options->{depends},
-                                  input => $input,
-                                  jname => $jobname,
-                                  job_output => qq"${output}",
-                                  job_paired => qq"${paired}.bam",
-                                  jprefix => $options->{jprefix},
-                                  jstring => $jstring,
-                                  postscript => $options->{postscript},
-                                  prescript => $options->{prescript},
-                                  queue => 'throughput',
-                                  mem => '28',
+    my $samtools = $class->Submit(
+        comment => $comment,
+        depends => $options->{jdepends},
+        input => $input,
+        jmem => '28',
+        jname => $jobname,
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
+        jstring => $jstring,
+        output => qq"${output}",
+        paired_output => qq"${paired}.bam",
+        postscript => $options->{postscript},
+        prescript => $options->{prescript},
         );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload',);
     return($samtools);
 }
 

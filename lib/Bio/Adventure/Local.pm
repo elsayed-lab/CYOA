@@ -97,7 +97,7 @@ my \$end_d = qx'date';
 print \$out "####Finished \${jobid} ${script_base} at \${end_d}.";
 close(\$out);
 !;
-        $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
+        ## $perl_end .= qq"unlink($class->{option_file});\n" if ($options->{options_file});
         print "The job is:
 $args{jstring}" if ($options->{verbose});
         my $total_perl_string = "";

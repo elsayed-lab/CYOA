@@ -32,8 +32,6 @@ Invoke htseq multiple times with options for counting different transcript types
 =cut
 sub HT_Multi {
     my ($class, %args) = @_;
-    my $check = which('htseq-count');
-    die('Could not find htseq in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'htseq_input', 'htseq_stranded'],
@@ -41,7 +39,12 @@ sub HT_Multi {
         htseq_type => 'gene',
         htseq_id => 'ID',
         libtype => 'genome',
-    );
+        modules => 'htseq',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('htseq-count');
+    die('Could not find htseq in your PATH.') unless($check);
+
     my %ro_opts = %{$options};
     my $species = $options->{species};
     my $htseq_input = $options->{htseq_input};
@@ -91,13 +94,13 @@ sub HT_Multi {
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type}->[0],
                 htseq_id => $gff_types{$type}->[1],
-                depends => $options->{depends},
+                jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
-                job_output => $output,
                 jprefix => $jprefix,
+                jqueue => 'throughput',
+                output => $output,
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                queue => 'throughput',
                 suffix => $options->{suffix},
             );
             push(@jobs, $ht);
@@ -110,13 +113,13 @@ sub HT_Multi {
                 htseq_input => $htseq_input,
                 htseq_type => $gff_types{$type}->[0],
                 htseq_id => $gff_types{$type}->[1],
-                depends => $options->{depends},
+                jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
-                job_output => $output,
                 jprefix => $options->{jprefix},
+                jqueue => 'throughput',
+                output => $output,
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                queue => 'throughput',
                 suffix => $options->{suffix},
             );
             push(@jobs, $ht);
@@ -138,13 +141,13 @@ sub HT_Multi {
             htseq_id => $ro_opts{htseq_id},
             htseq_input => $htseq_input,
             htseq_type => $ro_opts{htseq_type},
-            depends => $options->{depends},
+            jdepends => $options->{jdepends},
             jname => $htall_jobname,
-            job_output => $output,
             jprefix => $jprefix,
+            jqueue => 'throughput',
+            output => $output,
             postscript => $options->{postscript},
             prescript => $options->{prescript},
-            queue => 'throughput',
             suffix => $options->{suffix},
         );
         push(@jobs, $ht);
@@ -155,19 +158,22 @@ sub HT_Multi {
             htseq_gff => $gff,
             htseq_input => $htseq_input,
             htseq_type => "none",
-            depends => $options->{depends},
+            jdepends => $options->{jdepends},
             jname => $htall_jobname,
-            job_output => $output,
             jprefix => $jprefix,
+            jqueue => 'throughput',
+            output => $output,
             postscript => $args{postscript},
             prescript => $args{prescript},
-            queue => 'throughput',
             suffix => $args{suffix},
         );
         push(@jobs, $ht);
     } else {
         print "Did not find ${gff} nor ${gtf}, not running htseq_all.\n";
     }
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    my $current = $class->Reset_State();
     return(\@jobs);
 }
 
@@ -286,7 +292,9 @@ sub HTSeq {
         jprefix => '',
         mapper => 'hisat2',
         libtype => 'genome',
-    );
+        modules => 'htseq',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $basename = $options->{basename};
     my $stranded = $options->{htseq_stranded};
     my $htseq_type = $options->{htseq_type};
@@ -367,16 +375,20 @@ ${htseq_invocation}
     my $htseq = $class->Submit(
         comment => $comment,
         input => $htseq_input,
-        depends => $options->{depends},
+        jdepends => $options->{jdepends},
+        jmem => 6,
         jname => $htseq_jobname,
-        job_output => $output,
         jprefix => $options->{jprefix},
+        jqueue => 'throughput',
         jstring => $jstring,
-        mem => 6,
+        output => $output,
         postscript => $args{postscript},
         prescript => $args{prescript},
-        queue => "throughput",
-    );
+
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    my $current = $class->Reset_State();
     return($htseq);
 }
 
@@ -387,7 +399,6 @@ Given a set of alignments, map reads to mature/immature miRNA species.
 =cut
 sub Mi_Map {
     my ($class, %args) = @_;
-
     eval "use Bio::DB::Sam; 1;";
     my $options = $class->Get_Vars(
         args => \%args,
@@ -430,7 +441,10 @@ sub Mi_Map {
         output => $final_map,
     );
 
-}                               ## End of Mi_Map
+    my $job = $printed;
+    $job->{final_hits} = $final_hits;
+    return($job);    
+} ## End of Mi_Map
 
 =head2 C<Read_Mi>
 
@@ -599,7 +613,8 @@ sub Read_Bam_Mi {
             ##    print "No map for $read_seq\n";
             ##}
         }
-    }                           ## Finish iterating through every read
+    } ## Finish iterating through every read
+    my $current = $class->Reset_State();
     return($mappings);
 }
 
@@ -658,10 +673,7 @@ sub Count_Alignments {
         host => 0,
     );
 
-    print "TESTME: $options->{input} and $options->{genome}\n";
-
     my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-
     my $sam = Bio::DB::Sam->new(-bam => $options->{input},
                                 -fasta => $fasta,);
     my @targets = $sam->seq_ids;
@@ -721,7 +733,6 @@ sub Count_Alignments {
                     $type = 'para';
                 }
             }
-            ##print "TESTME: $type ";
             if ($readid ne $last_readid) {
                 ## Count up what is currently in the group, then reset it.
                 my $reads_in_group = $group{host} + $group{para};
@@ -732,7 +743,6 @@ sub Count_Alignments {
                 } else {
                     $result->{unmapped_count}++;
                 }
-                ##print "TESTME $group{host} $group{para}\n";
                 if ($group{host} == 0) {
                     if ($group{para} == 0) {
                         $result->{zero_both}++;
@@ -775,7 +785,7 @@ sub Count_Alignments {
             }
         }
         $last_readid = $readid;
-    }                           ## End reading each bam entry
+    } ## End reading each bam entry
     print $out "Mapped: $result->{mapped}
 Unmapped: $result->{unmapped}
 Multi-mapped: $result->{multi}
@@ -788,6 +798,7 @@ DANGER Single-parasite, multi-host: $result->{single_para_multi_host}
 DANGER Single-host, multi-parasite: $result->{single_host_multi_para}
 Multi-both: $result->{both_multi}\n";
     $out->close();
+    return($result);
 }
 
 =head1 AUTHOR - atb

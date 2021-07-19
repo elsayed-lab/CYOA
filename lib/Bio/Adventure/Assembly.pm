@@ -4,15 +4,21 @@ package Bio::Adventure::Assembly;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
+use feature 'try';
 use warnings qw"all";
+no warnings 'experimental::try';
 use Moo;
 extends 'Bio::Adventure';
 
-use Cwd qw"abs_path getcwd";
+use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Spec;
 use File::Which qw"which";
 use Parse::CSV;
+
+use Bio::Tools::Run::Alignment::StandAloneFasta;
+
+no warnings 'experimental::try';
 
 =head1 NAME
 
@@ -35,16 +41,19 @@ ever seen which uses make as an interpreter.
 sub Abyss {
     my ($class, %args) = @_;
     ## abyss-pe k=41 name=EAb01 in="r1_trimmed-corrected.fastq.gz r2_trimmed-corrected.fastq.gz"
-    my $check = which('abyss-pe');
-    die("Could not find abyss in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         k => 41,
-    );
-    my $job_basename = $class->Get_Job_Name();
+        modules => 'abyss',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('abyss-pe');
+    die("Could not find abyss in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
     my %abyss_jobs = ();
-    my $outname = basename(getcwd());
+    my $outname = basename(cwd());
     my $output_dir = qq"outputs/abyss_${outname}";
     my $k_string = qq"k=$options->{k} ";
     my $name_string = qq"name=${outname} ";
@@ -73,21 +82,155 @@ ${executable} -C \$(pwd) \\
     1>abyss_${outname}.out
 cd \${start}
 !;
-    my $abyss_job = $class->Submit(
+    my $abyss = $class->Submit(
         cpus => 6,
         comment => $comment,
-        jname => "abyss_${job_basename}",
-        jprefix => "46",
+        jdepends => $options->{jdepends},
+        jname => "abyss_${job_name}",
+        jprefix => $options->{jprefix},
         jstring => $jstring,
-        mem => 30,
-        output => qq"outputs/abyss.sbatchout",
+        jmem => 30,
+        output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
-        walltime => "4:00:00",
-    );
-    return($abyss_job);
+        jqueue => "workstation",
+        jwalltime => "4:00:00",
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($abyss);
 }
+
+
+
+sub Assembly_Coverage {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        ## input is the corrected/filtered reads, library is the assembly
+        jprefix => 14,
+        required => ['input', 'library'],
+        modules => ['hisat', 'bbmap'],
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+
+    my $job_name = $class->Get_Job_Name();
+
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}assembly_coverage_${outname}";
+    my $input_string = '';
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        my $r1 = abs_path($in[0]);
+        my $r2 = abs_path($in[1]);
+        $input_string = qq"-1 ${r1} -2 ${r2} ";
+    } else {
+        my $r1 = abs_path($options->{input});
+        $input_string = qq"-1 ${r1} ";
+    }
+    my $comment = qq!## This is a script to remap the reads against an assembly
+and calculate the coverage by contig.
+!;
+    my $jstring = qq!start=\$(pwd)
+mkdir -p ${output_dir}
+hisat2-build $options->{library} ${output_dir}/coverage_test
+hisat2 -x ${output_dir}/coverage_test -q \\
+  ${input_string} -S ${output_dir}/coverage.sam \\
+  2>coverage_hisat.err 1>coverage_hisat.out
+pileup.sh in=${output_dir}/coverage.sam out=${output_dir}/coverage.txt overwrite=true
+samtools view -u -t $options->{library} \\
+  -S ${output_dir}/coverage.sam -o ${output_dir}/coverage.bam \\
+  2>coverage_samtools.err 1>coverage_samtools.out
+rm ${output_dir}/coverage.sam
+samtools sort -l 9 ${output_dir}/coverage.bam -o ${output_dir}/coverage_sorted.bam
+mv ${output_dir}/coverage_sorted.bam ${output_dir}/coverage.bam
+samtools index ${output_dir}/coverage.bam
+!;
+    my $coverage = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => qq"coverage_${job_name}",
+        jprefix => '46',
+        jstring => $jstring,
+        jmem => $options->{jprefix},
+        jqueue => 'workstation',
+        jwalltime => '4:00:00',
+        output => qq"${output_dir}/coverage.txt",
+        output_bam => qq"${output_dir}/coverage.bam",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($coverage);
+}
+
+
+=head2 C<Shovill>
+
+Use shovill to perform/optimize a spades assembly.  Shovill has a lot
+of interesting options, this only includes a few at the moment.
+
+=cut
+sub Shovill {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        depth => 40,
+        jprefix => '13',
+        arbitrary => '',
+        modules => 'shovill',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('shovill');
+    die("Could not find shovill in your PATH.") unless($check);    
+    my $job_name = $class->Get_Job_Name();
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}shovill";
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" -R1 $in[0] -R2 $in[1]";
+    } else {
+        $input_string = qq" -R1 $options->{input}";
+    }
+    my $comment = qq!## This is a shovill submission script
+!;
+    my $jstring = qq!mkdir -p ${output_dir}
+shovill $options->{arbitrary} --force --keepfiles --depth $options->{depth} \\
+   --outdir ${output_dir} \\
+  $input_string \\
+  2>${output_dir}/shovill_${outname}.err \\
+  1>${output_dir}/shovill_${outname}.out
+if [[ -f ${output_dir}/contigs.fa ]]; then
+  mv ${output_dir}/contigs.fa ${output_dir}/final_assembly.fasta
+elif [[ -f ${output_dir}/spades.fasta.uncorrected ]]; then
+  cp ${output_dir}/spades.fasta.uncorrected ${output_dir}/final_assembly.fasta
+else
+  mv ${output_dir}/spades.fasta ${output_dir}/final_assembly.fasta
+fi
+!;
+    my $shovill_job = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => qq"shovill_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 30,
+        jqueue => 'workstation',
+        jwalltime => '4:00:00',
+        output => qq"${output_dir}/final_assembly.fasta",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($shovill_job);
+}
+
 
 =head2 C<Trinity>
 
@@ -109,17 +252,18 @@ post-processing tools.
 =cut
 sub Trinity {
     my ($class, %args) = @_;
-    my $check = which('Trinity');
-    die("Could not find trinity in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         contig_length => 600,
+        modules => 'trinity',
         required => ['input'],
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my %trin_jobs = ();
-    my $trin_depends_on;
-    my $output_dir = qq"outputs/trinity_${job_basename}";
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('Trinity');
+    die("Could not find trinity in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $output_dir = qq"outputs/trinity_${job_name}";
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
@@ -134,43 +278,40 @@ sub Trinity {
     --trimmomatic --max_memory 90G --CPU 6 \\
     --output ${output_dir} \\
     ${input_string} \\
-    2>${output_dir}/trinity_${job_basename}.err \\
-    1>${output_dir}/trinity_${job_basename}.out
+    2>${output_dir}/trinity_${job_name}.err \\
+    1>${output_dir}/trinity_${job_name}.out
 !;
-    my $trin_job = $class->Submit(
+    my $trinity = $class->Submit(
         cpus => 6,
         comment => $comment,
-        depends => $trin_depends_on,
-        jname => "trin_${job_basename}",
-        jprefix => "45",
+        jdepends => $options->{jdepends},
+        jname => "$options->{jprefix}trin_${job_name}",
+        jprefix => $options->{jprefix},
         jstring => $jstring,
-        mem => 96,
-        output => qq"outputs/trinity.sbatchout",
+        jmem => 96,
+        jqueue => 'large',
+        jwalltime => '144:00:00',
+        output => qq"${output_dir}/Trinity.xls",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "large",
-        walltime => "144:00:00",
-    );
-    my $rsem_job = Bio::Adventure::Assembly::Trinity_Post(
-        $class,
-        %args,
-        depends => $trin_job->{pbs_id},
-        jname => "trin_rsem",
+        );
+    my $rsem = Bio::Adventure::Assembly::Trinity_Post(
+        $class, %args,
+        jdepends => $trinity->{job_id},
+        jname => "$options->{jprefix}_1trin_rsem",
         input => $options->{input},
-    );
-    my $trinotate_job = Bio::Adventure::Annotation::Trinotate(
-        $class,
-        %args,
-        depends => $trin_job->{pbs_id},
-        jname => "trinotate",
+        );
+    my $trinotate = Bio::Adventure::Annotation::Trinotate(
+        $class, %args,
+        jdepends => $trinity->{job_id},
+        jname => "$options->{jprefix}_2trinotate",
         input => qq"${output_dir}/Trinity.fasta",
-    );
-    my $jobs = {
-        trinity => $trin_job,
-        trinity_post => $rsem_job,
-        trinotate => $trinotate_job,
-    };
-    return($jobs);
+        );
+    $trinity->{rsem_job} = $rsem;
+    $trinity->{trinotate_job} = $trinotate;
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($trinity);
 }
 
 =head2 C<Trinity_Post>
@@ -194,9 +335,11 @@ sub Trinity_Post {
         args => \%args,
         required => ['input'],
         jname => "trin_rsem",
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my $trinity_out_dir = qq"outputs/trinity_${job_basename}";
+        modules => 'rsem',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $job_name = $class->Get_Job_Name();
+    my $trinity_out_dir = qq"outputs/trinity_${job_name}";
 
     my $rsem_input = qq"${trinity_out_dir}/Trinity.fasta";
     my $trinity_path = which('Trinity');
@@ -243,25 +386,97 @@ ${trinity_exe_dir}/util/SAM_nameSorted_to_uniq_count_stats.pl \\
 
 cd \${start}
 !;
-    my $trinpost_job = $class->Submit(
+    my $trinpost = $class->Submit(
         comment => $comment,
         input => $options->{input},
-        depends => $options->{depends},
-        jname => "trinpost_$job_basename",
-        jprefix => "46",
+        jdepends => $options->{jdepends},
+        jmem => 90,
+        jname => "$options->{jprefix}trinpost_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'large',
         jstring => $jstring,
-        mem => 90,
-        output => qq"outputs/trinitypost.sbatchout",
+        jwalltime => '144:00:00',
+        output => qq"${trinity_out_dir}/RSEM.isoform.results",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "large",
-        walltime => "144:00:00",
-##        queue => "long",
-##        walltime => "144:00:00",
-    );
-    return($trinpost_job);
+        ##        queue => "long",
+        ##        walltime => "144:00:00",
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($trinpost);
 }
 
+
+=head2 C<Unicycler>
+
+Use unicycler to assemble bacterial/viral reads.
+
+=cut
+sub Unicycler {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        depth => 20,
+        jprefix => '13',
+        mode => 'bold',
+        min_length => 1000,
+        arbitrary => '',
+        modules => ['trimomatic', 'spades', 'unicycler'],
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('unicycler');
+    die("Could not find unicycler in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}unicycler";
+    my $input_string = '';;
+    my $ln_string = '';
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" -1 ${output_dir}/r1.fastq.gz -2 ${output_dir}/r2.fastq.gz";
+        $ln_string = qq"cp $in[0] ${output_dir}/r1.fastq.gz
+cp $in[1] ${output_dir}/r2.fastq.gz
+";
+    } else {
+        $input_string = qq" -1 ${output_dir}/r1.fastq.gz";
+        $ln_string = qq"cp $options->{input} ${output_dir}/r1.fastq.gz
+";
+    }
+    my $comment = qq!## This is a unicycler submission script
+!;
+    my $jstring = qq!mkdir -p ${output_dir}
+${ln_string}
+unicycler $options->{arbitrary} \\
+  --mode $options->{mode} \\
+  --min_fasta_length $options->{min_length} \\
+  ${input_string} \\
+  -o ${output_dir} \\
+  2>${output_dir}/unicycler_${outname}.err \\
+  1>${output_dir}/unicycler_${outname}.out
+mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
+!;
+    my $unicycler = $class->Submit(
+        jdepends => $options->{jdepends},
+        cpus => 6,
+        comment => $comment,
+        jmem => 30,
+        jname => qq"unicycler_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        jwalltime => '4:00:00',
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        output => qq"${output_dir}/${outname}_final_assembly.fasta",
+        output_gfa => qq"${output_dir}/assembly.gfa",
+        output_log => qq"${output_dir}/unicycler.log",);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($unicycler);
+}
 
 =head2 C<Velvet>
 
@@ -282,16 +497,17 @@ Submit sequences for a generic assembly by velvet and pass it to ragoo.
 =cut
 sub Velvet {
     my ($class, %args) = @_;
-    my $check = which('velveth');
-    die("Could not find velvet in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         kmer => 31,
         required => ['input', 'species'],
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my %velvet_jobs = ();
-    my $output_dir = qq"outputs/velvet_${job_basename}";
+        modules => 'velvet',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('velveth');
+    die("Could not find velvet in your PATH.") unless($check);
+    my $job_name = $class->Get_Job_Name();
+    my $output_dir = qq"outputs/velvet_${job_name}";
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
@@ -304,12 +520,12 @@ sub Velvet {
     my $jstring = qq!mkdir -p ${output_dir} && \\
   velveth ${output_dir} $options->{kmer} \\
     $input_string \\
-    2>${output_dir}/velveth_${job_basename}.err \\
-    1>${output_dir}/velveth_${job_basename}.out
+    2>${output_dir}/velveth_${job_name}.err \\
+    1>${output_dir}/velveth_${job_name}.out
   velvetg ${output_dir} \\
     -exp_cov auto -cov_cutoff auto \\
-    2>${output_dir}/velvetg_${job_basename}.err \\
-    1>${output_dir}/velvetg_${job_basename}.out
+    2>${output_dir}/velvetg_${job_name}.err \\
+    1>${output_dir}/velvetg_${job_name}.out
   new_params=\$(velvet-estimate-exp_cov.pl ${output_dir}/stats.txt \|
     grep velvetg parameters \|
     sed 's/velvetg parameters: //g')
@@ -319,127 +535,25 @@ sub Velvet {
     ${output_dir}/configs.fa \\
     $options->{libdir}/$options->{libtype}/$options->{species}.fasta
 !;
-    my $velvet_job = $class->Submit(
+    my $velvet = $class->Submit(
         cpus => 6,
         comment => $comment,
-        jname => "velveth_${job_basename}",
-        jprefix => "46",
+        jdepends => $options->{jdepends},
+        jname => qq"velveth_${job_name}",
+        jprefix => $options->{jprefix},
         jstring => $jstring,
-        mem => 30,
-        output => qq"outputs/velvet.sbatchout",
+        jmem => '30',
+        output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => "workstation",
-        walltime => "4:00:00",
-    );
-    return($velvet_job);
+        jqueue => 'workstation',
+        jwalltime => '4:00:00',
+        );
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($velvet);
 }
 
-=head2 C<Shovill>
-
-Use shovill to perform/optimize a spades assembly.  Shovill has a lot
-of interesting options, this only includes a few at the moment.
-
-=cut
-sub Shovill {
-    my ($class, %args) = @_;
-    my $check = which('shovill');
-    die("Could not find shovill in your PATH.") unless($check);
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        depth => 20,
-        arbitrary => '',
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my %shovill_jobs = ();
-    my $outname = basename(getcwd());
-    my $output_dir = qq"outputs/shovill_${outname}";
-    my $input_string = "";
-    if ($options->{input} =~ /\:|\;|\,|\s+/) {
-        my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq" -R1 $in[0] -R2 $in[1]";
-    } else {
-        $input_string = qq" -R1 $options->{input}";
-    }
-    my $comment = qq!## This is a shovill submission script
-!;
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  shovill $options->{arbitrary} --force --keepfiles --depth $options->{depth} \\
-     --outdir ${output_dir} \\
-    $input_string \\
-    2>${output_dir}/shovill_${outname}.err \\
-    1>${output_dir}/shovill_${outname}.out
-!;
-    my $shovill_job = $class->Submit(
-        cpus => 6,
-        comment => $comment,
-        jname => "shovill_${job_basename}",
-        jprefix => "46",
-        jstring => $jstring,
-        mem => 30,
-        output => qq"outputs/shovill.sbatchout",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        queue => "workstation",
-        walltime => "4:00:00",
-    );
-    return($shovill_job);
-}
-
-
-=head2 C<Unicycler>
-
-Use unicycler to assemble bacterial/viral reads.
-
-=cut
-sub Unicycler {
-    my ($class, %args) = @_;
-    my $check = which('unicycler');
-    die("Could not find unicycler in your PATH.") unless($check);
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        depth => 20,
-        mode => 'normal',
-        arbitrary => '',
-    );
-    my $job_basename = $class->Get_Job_Name();
-    my %unicycler_jobs = ();
-    my $outname = basename(getcwd());
-    my $output_dir = qq"outputs/unicycler_${outname}";
-    my $input_string = "";
-    if ($options->{input} =~ /\:|\;|\,|\s+/) {
-        my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq" -1 $in[0] -2 $in[1]";
-    } else {
-        $input_string = qq" -1 $options->{input}";
-    }
-    my $comment = qq!## This is a unicycler submission script
-!;
-    my $jstring = qq!mkdir -p ${output_dir}
-unicycler --mode $options->{mode} $options->{arbitrary} \\
-  ${input_string} \\
-  -o ${output_dir} \\
-  2>${output_dir}/unicycler_${outname}.err \\
-  1>${output_dir}/unicycler_${outname}.out
-!;
-    my $unicycler_job = $class->Submit(
-        cpus => 6,
-        comment => $comment,
-        jname => "unicycler_${job_basename}",
-        jprefix => "46",
-        jstring => $jstring,
-        mem => 30,
-        output => qq"outputs/unicycler.sbatchout",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        queue => "workstation",
-        walltime => "4:00:00",
-    );
-    return($unicycler_job);
-
-}
 
 =head1 AUTHOR - atb
 

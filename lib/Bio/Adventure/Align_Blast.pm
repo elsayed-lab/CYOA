@@ -107,10 +107,10 @@ sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        depends => '',
+        jdepends => '',
         blast_format => 5,
     );
-    my $dep = $options->{depends};
+    my $dep = $options->{jdepends};
     my $library = $options->{library};
     my $array_end = 1000 + $options->{align_jobs};
     my $array_string = qq"1000-${array_end}";
@@ -157,11 +157,11 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
     my $blast_jobs = $class->Submit(
         comment => $comment,
         jname => 'blast_multi',
-        depends => $dep,
+        jdepends => $dep,
         jstring => $jstring,
-        mem => 32,
+        jmem => 32,
         array_string => $array_string,
-    );
+        );
     return($blast_jobs);
 }
 
@@ -195,11 +195,11 @@ my \$h = Bio::Adventure->new(input => \$input);
 my \$final = Bio::Adventure::Align_Blast->Parse_Search(\$h, search_type => 'blastxml',);
 ?;
     my $parse = $class->Submit(
-        depends => $concat->{job_id},
+        jdepends => $concat->{job_id},
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',
-    );
+        );
     return($parse);
 }
 
@@ -368,8 +368,8 @@ sub Run_Parse_Blast {
     the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
     followed by 'Parse_Blast()' which does these steps separately.";
     my $blast_program = 'blastp';
-    my @search_libraries = ('nr',);
-    my $blast_output = Bio::SearchIO->new(-format => 'blast',);
+    my @search_libraries = ('nr', );
+    my $blast_output = Bio::SearchIO->new(-format => 'blast', );
     my $query = $options->{query};
     my $number_hits = 0;
     for my $library (@search_libraries) {
@@ -396,7 +396,7 @@ sub Run_Parse_Blast {
             ## And many more
             -database => $library,
             -outfile => qq"blast_out",
-        );
+            );
 
         while (my $query_seq = $query_library->next_seq()) {
             ## I think this while loop may not be needed.
@@ -518,8 +518,8 @@ blastp is normal protein/protein.
     sleep(1);
     ## Also set the default blastdb if it didn't get set.
     if ($options->{blast_tool} eq 'blastn' or
-            $options->{blast_tool} eq 'tblastn' or
-            $options->{blast_tool} eq 'tblastx') {
+        $options->{blast_tool} eq 'tblastn' or
+        $options->{blast_tool} eq 'tblastx') {
         $options->{peptide} = 'F';
         $options->{library} = 'nt' if (!defined($options->{library}));
     } else {
@@ -547,7 +547,7 @@ blastp is normal protein/protein.
         );
         $concat_job = Bio::Adventure::Align::Concatenate_Searches(
             $class,
-            depends => $alignment->{pbs_id},
+            jdepends => $alignment->{job_id},
             output => ${output},
         );
     } else {
@@ -580,12 +580,11 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        depends => $concat_job->{pbs_id},
+        jdepends => $concat_job->{job_id},
         jname => "parse_search",
         jstring => $jstring,
         language => 'perl',
-
-    );
+        );
     return($concat_job);
 }
 

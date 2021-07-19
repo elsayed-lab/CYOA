@@ -46,18 +46,16 @@ sub Align_SNP_Search {
         $class,
         htseq_type => "exon",
         input => $query,
-        species => $options->{species},
-    );
+        species => $options->{species},);
     my $bamfile = $bt2_job->{samtools}->{job_output};
     print "About to start SNP search of $bamfile against $options->{species}\n";
     my $search = Bio::Adventure::SNP::SNP_Search(
         $class,
-        input => $bamfile,
-        depends => $bt2_job->{samtools}->{job_id},
-        species => $options->{species},
         gff_tag => $options->{htseq_id},
         gff_type => $options->{htseq_type},
-    );
+        input => $bamfile,
+        jdepends => $bt2_job->{samtools}->{job_id},
+        species => $options->{species},);
     return($search);
 }
 
@@ -73,8 +71,7 @@ sub SNP_Search {
         required => ['input', 'species', 'gff_tag', 'gff_type'],
         varfilter => 0,
         vcf_cutoff => 5,
-        vcf_minpct => 0.8,
-    );
+        vcf_minpct => 0.8,);
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
@@ -134,29 +131,32 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
     my $comment_string = qq!## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.!;
     my $pileup = $class->Submit(
         comment => $comment_string,
-        depends => $options->{depends},
+        jdepends => $options->{jdepends},
+        jmem => 48,
         jname => "bcf_${query_base}_$options->{species}",
         jprefix => '80',
         job_type => 'snpsearch',
+        jqueue => 'workstation',
         jstring => $jstring,
-        queue => 'workstation',
-        walltime => '10:00:00',
-        mem => 48,
-    );
+        jwalltime => '10:00:00',
+        input_pileup => $pileup_input,
+        output_call => $call_output,
+        output_filter => $filter_output,
+        output_final => $final_output,
+        output_pileup => $pileup_output,);
     $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
 !;
     my $parse = Bio::Adventure::SNP::SNP_Ratio(
         $class,
-        input => ${final_output},
-        vcf_cutoff => $vcf_cutoff,
-        vcf_minpct => $vcf_minpct,
-        species => $options->{species},
-        depends => $pileup->{job_id},
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
-    );
+        input => ${final_output},
+        jdepends => $pileup->{job_id},
+        species => $options->{species},
+        vcf_cutoff => $vcf_cutoff,
+        vcf_minpct => $vcf_minpct,);
     return([$pileup, $parse]);
 }
 
@@ -207,15 +207,20 @@ Bio::Adventure::SNP::Make_SNP_Ratio(
 
     my $parse_job = $class->Submit(
         comment => $comment_string,
-        depends => $options->{depends},
+        jdepends => $options->{jdepends},
+        jmem => 48,
         jname => "${jname}_$options->{species}",
         jprefix => "81",
+        jqueue => 'workstation',
         jstring => $jstring,
+        jwalltime => '10:00:00',
         language => 'perl',
-        queue => 'workstation',
-        walltime => '10:00:00',
-        mem => 48,
-    );
+        output => qq"${print_output}_all.txt",
+        output_count => qq"${print_output}_count.txt",
+        output_genome => qq"${print_output}_modified.fasta",
+        output_pct => qq"${print_output}_pct.txt",);
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
     return($parse_job);
 }
 
@@ -438,15 +443,15 @@ snippy --force \\
     my $comment_string = qq!## Invoke snippy on some reads.!;
     my $snippy = $class->Submit(
         comment => $comment_string,
-        depends => $options->{depends},
+        jdepends => $options->{jdepends},
         jname => $snippy_name,
-        jprefix => '70',
+        jprefix => $options->{jprefix},
         job_type => 'snippy',
         jstring => $jstring,
-        queue => 'workstation',
-        walltime => '10:00:00',
-        mem => 48,
-    );
+        jqueue => 'workstation',
+        jwalltime => '10:00:00',
+        jmem => 48,
+        output => qq"${snippy_dir}",);
     return($snippy);
 }
 

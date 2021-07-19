@@ -34,9 +34,9 @@ sub Recompress {
         required => ['xz_input'],
         basename => 'recomp',
         comment => '',
-        depends => '',
+        jdepends => '',
         jname => 'xz',
-        queue => 'long'
+        jqueue => 'long'
     );
     my $input = $options->{xz_input};
     my ($input1, $input2) = "";
@@ -47,7 +47,6 @@ sub Recompress {
         $input2 = "";
     }
     my $jname = $options->{jname};
-    my $depends = $options->{depends};
     my $comment = $options->{comment};
     my $jstring = "";
     my $indir = dirname($input1);
@@ -78,17 +77,19 @@ sub Recompress {
     my $compression = $class->Submit(
         comment => $comment,
         cpus => 1,
+        jdepends => $options->{jdepends},
         input => $input,
-        depends => $depends,
         jname => $jname,
         jprefix => $args{jprefix},
         jstring => $jstring,
-        mem => 4,
+        jmem => 4,
         prescript => $args{prescript},
         postscript => $args{postscript},
-        queue => 'long',
-        walltime => '18:00:00',
-    );
+        jqueue => 'long',
+        jwalltime => '18:00:00',
+        output => $args{output},
+        output2 => $args{output2},
+        );
     return($compression);
 }
 
@@ -104,9 +105,9 @@ sub Uncompress {
         required => ['xz_input'],
         basename => 'uncomp',
         comment => '',
-        depends => '',
+        jdepends => '',
         jname => 'unzip',
-        queue => 'long',
+        jqueue => 'long',
     );
     my $input = $options->{xz_input};
     my ($input1, $input2) = "";
@@ -142,16 +143,18 @@ sub Uncompress {
         comment => $options->{comment},
         cpus => 1,
         input => $input,
-        depends => $options->{depends},
+        jdepends => $options->{depends},
+        jmem => 4,
         jname => $options->{jname},
         jprefix => $options->{jprefix},
+        jqueue => 'long',
         jstring => $jstring,
-        mem => 4,
+        jwalltime => '18:00:00',
+        output => $in1,
+        output2 => $in2,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        queue => 'long',
-        walltime => '18:00:00',
-    );
+        );
     return($compression);
 }
 

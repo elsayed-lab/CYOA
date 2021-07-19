@@ -41,15 +41,21 @@ our $cyoa = new Bio::Adventure;
 ## Something like TNSeq, RNASeq, etc
 ## Then a second-level method to perform therein,
 ## which will provide a match to the appropriate function
-if (!defined($cyoa->{options}->{task})) {
+my $overrides = $cyoa->{variable_getopt_overrides};
+if (!defined($overrides->{task})) {
     ## If task is not defined, then we need to run Main()
     $cyoa = Main($cyoa);
-} elsif (!defined($cyoa->{options}->{method})) {
+} elsif (!defined($overrides->{method})) {
     ## If task is defined, but method is not, use the menu system to get that information
-    $cyoa = Iterate($cyoa, task => $cyoa->{options}->{task});
+    $cyoa = Iterate(
+        $cyoa,
+        task => $overrides->{task});
 } else {
     ## If both task and method are defined, run whatever is requested.
-    $cyoa = Run_Method($cyoa, task => $cyoa->{options}->{task}, method => $cyoa->{options}->{method});
+    $cyoa = Run_Method(
+        $cyoa,
+        task => $overrides->{task},
+        method => $overrides->{method});
 }
 
 =head2 C<Main>
@@ -59,11 +65,11 @@ The Main() function's job is to actually perform the various processes.
 =cut
 sub Main {
     my ($class, %args) = @_;
-    my $term = $class->{options}->{term};
+    my $term = $class->{term};
     if (!defined($term)) {
         $term = Bio::Adventure::Get_Term();
     }
-    my $menus = $class->{options}->{menus};
+    my $menus = $class->{menus};
 
     my $finished = 0;
     while ($finished != 1) {
@@ -147,11 +153,10 @@ The Run_Method() runs an individual method, kind of like it says on the tin.
 =cut
 sub Run_Method {
     my ($class, %args) = @_;
-    my $options = $class->{options};
     my $type = $args{task};
     my $method = $args{method};
 
-    my @choices = @{$options->{methods_to_run}};
+    my @choices = @{$class->{methods_to_run}};
     my $job_count = 0;
     my $process;
     for my $job (@choices) {
@@ -159,8 +164,8 @@ sub Run_Method {
         my $cyoa_result;
         my $start_dir = cwd();
         my @dirs = ($start_dir);
-        if (defined($options->{directories})) {
-            @dirs = split(/:|\s+|\,/, $options->{directories});
+        if (defined($class->{directories})) {
+            @dirs = split(/:|\s+|\,/, $class->{directories});
         }
         my $class_copy = $class;
         foreach my $d (@dirs) {

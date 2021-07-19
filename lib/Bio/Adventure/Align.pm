@@ -56,12 +56,12 @@ rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${
     my $concatenate = $class->Submit(
         comment => $comment_string,
         depends_type => 'array',
-        depends => $options->{depends},
+        jdepends => $options->{jdepends},
         jname => "concat",
         jstring => $jstring,
         jprefix => $options->{jprefix},
         output => qq"${output}",
-    );
+        );
     return($concatenate);
 }
 
@@ -192,7 +192,7 @@ $sequences{$seq}
     my $duplicates = Bio::Tools::Adventure::Align::Duplicate_Remove(
         $class,
         input => $id_output_file,
-    );
+        );
     return($concat);
 }
 

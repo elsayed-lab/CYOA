@@ -63,7 +63,10 @@ glimmer3 -o50 -g110 -t30 -b outputs/glimmer/second_run_motif.txt -P ${startuse} 
 ## little.
 
 our $cyoa = new Bio::Adventure;
+my $loaded = $cyoa->Module_Loader(modules => 'glimmer');
 my $done = Run_Glimmer($cyoa);
+$loaded = $cyoa->Module_Loader(modules => 'glimmer',
+                               action => 'unload');
 
 sub Run_Glimmer {
     my ($class, %args) = @_;
@@ -76,9 +79,10 @@ sub Run_Glimmer {
         glimmer_t => '30',
         upstream_args => '25 0',
         elph_len => '6',
+        jprefix => '16',
         );
     my $input_base = basename(dirname($options->{input}));
-    my $outdir = qq"$options->{basedir}/outputs/glimmer_${input_base}";
+    my $outdir = qq"$options->{basedir}/outputs/$options->{jprefix}glimmer_${input_base}";
     make_path($outdir) unless(-d $outdir);
     my $first_run = First_Run(
         outdir => $outdir,
@@ -422,8 +426,8 @@ sub Make_Predict_Useful {
     my $in = FileHandle->new("<$args{glimmer_output}");
     my $in_fasta = Bio::DB::Fasta->new($args{input});
     my @ids = $in_fasta->get_all_primary_ids;
-    my $out_fasta = Bio::SeqIO->new(-file => qq">${outdir}/parsed_orfs.fasta", -format => 'fasta');
-    my $out_gff = Bio::Tools::GFF->new(-file => qq">${outdir}/parsed_orfs.gff", -gff_version => 3);
+    my $out_fasta = Bio::SeqIO->new(-file => qq">${outdir}/predicted_cds.fasta", -format => 'fasta');
+    my $out_gff = Bio::Tools::GFF->new(-file => qq">${outdir}/predicted_cds.gff", -gff_version => 3);
 
     my $current_contig = '';
     my $contig_id = '';
@@ -434,6 +438,9 @@ sub Make_Predict_Useful {
           $current_contig = $line;
           $contig_id = $line;
           $contig_id =~ s/^>(\w+)?\s+(.*)$/$1/g;
+          if ($contig_id =~ /^>/) {
+              $contig_id =~ s/^>//g;
+          }
           next ENTRIES;
       }
       ## Example prediction
