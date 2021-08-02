@@ -109,21 +109,19 @@ Invoke fastqc on some sequence files.
 =cut
 sub Fastqc {
     my ($class, %args) = @_;
-    try {
-        use Env::Modulecmd { load  => 'fastqc' };
-    }
-    my $check = which('fastqc');
-    die("Could not find fastqc in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        );
+        modules => 'fastqc',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $fastqc_job;
     if ($options->{input} =~ /:|\,/) {
         $fastqc_job = Bio::Adventure::QA::Fastqc_Pairwise($class, %args);
     } else {
         $fastqc_job = Bio::Adventure::QA::Fastqc_Single($class, %args);
     }
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($fastqc_job);
 }
 

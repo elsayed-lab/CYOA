@@ -54,6 +54,9 @@ sub Submit {
     if ($options->{jdepends}) {
         $depends_string = qq"${depends_prefix}:$options->{jdepends}";
     }
+    if (!defined($options->{jname})) {
+        $options->{jname} = $class->Get_Job_Name();
+    }
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
@@ -89,10 +92,9 @@ my \$result;
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
 my \$end_d = qx'date';
-print \$out "## Finished \${jobid} ${script_base} at \${end_d}.\n";
+print \$out "## \$(hostname) Finished \${jobid} ${script_base} at \${end_d}.\n";
 close(\$out);
 !;
-##        $perl_end .= qq"unlink(\$h->{option_file}) if (defined(\$result));\n" if ($options->{option_file});
         my $total_perl_string = "$perl_start\n";
         $total_perl_string .= "$options->{comment}\n" if ($options->{comment});
         $total_perl_string .= "$options->{prescript}\n" if ($options->{prescript});
@@ -105,18 +107,29 @@ close(\$out);
         chmod(0775, $perl_file);
         ## If I get this working properly, change this to:
         ## qq"${perl_file} && rm $options->{option_file}\n";
-        $options->{jstring} = qq"${perl_file}\n";
+        $options->{jstring} = qq"set -o errexit
+set -o pipefail
+
+${perl_file}
+
+## At least in theory, this rm should not happen if the script run successfully.
+## For the moment, however, I will not run it so that I can continue testing my scripts.
+## rm $parent->{option_file}
+";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
     my $jname = qq"$options->{jprefix}$options->{jname}";
+
+    my $nice_string = '';
+    $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
     
     my $script_start = qq?#!/usr/bin/env bash
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --partition=$options->{jpartition}
-#SBATCH --qos=$options->{jqueue}
-#SBATCH --nodes=1
+#SBATCH --qos=$options->{jqueue} ${nice_string}
+#SBATCH --nodes=1 --requeue
 #SBATCH --time=$options->{jwalltime}
 #SBATCH --job-name=${jname}
 #SBATCH --mem=$options->{jmem}G
@@ -135,7 +148,7 @@ cd $options->{basedir} || exit
     my $script_end = qq!
 ## The following lines give status codes and some logging
 echo "## Job status: \$? " >> outputs/log.txt
-echo "## Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...

@@ -1,26 +1,22 @@
 package Bio::Adventure;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 use vars qw"$VERSION";
-use feature 'try';
-no warnings 'experimental::try';
+use feature qw"try";
+no warnings qw"experimental::try";
 
 use AppConfig qw":argcount :expand";
-use Archive::Extract;
-##use Bio::DB::Sam;
 use Bio::SeqIO;
 use Bio::DB::Universal;
 use Bio::Root::RootI;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
+use Capture::Tiny qw":all";
 use Carp qw"croak carp confess cluck longmess";
 use Cwd qw"abs_path getcwd cwd";
-use Digest::MD5 qw"md5 md5_hex md5_base64";
 use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS HOME";
 use Env::Modulecmd;
 use File::Basename;
@@ -32,14 +28,18 @@ use File::Temp;
 use FileHandle;
 use Getopt::Long qw"GetOptionsFromArray";
 use IO::String;
-use JSON -convert_blessed_universally;
 use Log::Log4perl;
-##use Log::Log4perl::Level;
 use PerlIO;
 use Pod::Usage;
 use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
+
+## Some things which are not currently in use:
+## use Archive::Extract; ## When I was opening tarballs
+## use Bio::DB::Sam;  ## For reading bamfiles
+## use JSON -convert_blessed_universally;  ## Intended for use instead of Storable
+## use Data::Dumper;  ## Often used for testing data structures
 
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
@@ -65,6 +65,7 @@ use Bio::Adventure::SNP;
 use Bio::Adventure::TNSeq;
 use Bio::Adventure::Torque;
 use Bio::Adventure::Trim;
+use Bio::Adventure::Visualization;
 
 =item C<General Options>
 
@@ -245,8 +246,9 @@ has jobs => (is => 'rw', default => undef); ## List of currently active jobs, po
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
 has jbasename => (is => 'rw', default => undef); ## Job basename
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
-has jmem => (is => 'rw', default => 24); ## Number of gigs of ram to request
+has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
+has jnice => (is => 'rw', default => 10); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
 has jpartition => (is => 'rw', default => 'dpart');
 has jprefix => (is => 'rw', default => undef); ## Prefix number for the job
 has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs default to?
@@ -779,6 +781,13 @@ sub Get_Menus {
                 '(tpp): Run the transit preprocessing script.' => \&Bio::Adventure::TNSeq::Transit_TPP,
             },
         },
+        Visualize => {
+            name => 'visualize',
+            message => 'When Red wins, she stands alone.  Go to page: 96485.332',
+            choices =>  {
+                '(cgview): Invoke cgview to visualize a genome.' => \&Bio::Adventure::Visualization::CGView,
+            },
+        },
         Test => {
             name => 'test',
             message => 'All happy families are happy in the same way. Go to page 5670367.',
@@ -824,6 +833,7 @@ sub Get_TODOs {
         "btmulti+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT_Multi'},
         "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
+        "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},    
         "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
         "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
@@ -1250,7 +1260,7 @@ sub Module_Loader {
         if ($args{verbose}) {
             print "(Un)loading $mod\n";
         }
-        ##my ($stdout, $stderr, @returns)  = capture {
+        my ($stdout, $stderr, @result) = capture {
             try {
                 my $test;
                 if ($action eq 'load') {
@@ -1261,7 +1271,7 @@ sub Module_Loader {
             } catch ($e) {
                 print "There was an error loading ${mod}, ${e}\n";
             };
-        ##};
+        };
         $count++;
     }
     return($count);
@@ -1432,13 +1442,24 @@ sub Submit {
     ## in order to get them passed to the eventual interpreter
     my $option_file = "";
     if ($options->{language} eq 'perl') {
+        my $option_directory;
+        if (defined($options->{output_dir})) {
+            $option_directory = $options->{output_dir}
+        } elsif (defined($options->{input})) {
+            $option_directory = dirname($options->{input});
+        } else {
+            $option_directory = $options->{basedir}
+        }
+        if (!-d $option_directory) {
+            my $created = make_path($option_directory);
+        }
         ## I think this might be required as per:
         ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
         $Storable::Deparse = 1;
         $Storable::Eval = 1;
         $option_file = File::Temp->new(
             TEMPLATE => 'optionsXXXX',
-            DIR => $options->{basedir},
+            DIR => $option_directory,
             UNLINK => 0,
             SUFFIX => '.pdata',);
         my $option_filename = $option_file->filename;

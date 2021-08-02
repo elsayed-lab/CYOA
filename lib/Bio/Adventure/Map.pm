@@ -1197,7 +1197,8 @@ sub HT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"]);
+        required => ["species"],
+        jprefix => '21',);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
     my $jstring = qq!

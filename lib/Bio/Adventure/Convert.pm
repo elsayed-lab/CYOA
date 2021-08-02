@@ -469,13 +469,10 @@ directory and which start with $basename, include something like
 =cut
 sub Sam2Bam {
     my ($class, %args) = @_;
-    my $check = which('samtools');
-    die("Could not find samtools in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "input"],
-        modules => 'samtools',
-        );
+        modules => 'samtools',);
     my @input_list = ();
     if ($options->{input}) {
         push(@input_list, $options->{input});
@@ -531,8 +528,7 @@ sub Samtools {
         required => ['input', 'species'],
         jname => 'sam',
         jprefix => '',
-        modules => 'samtools',
-        );
+        modules => 'samtools',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 

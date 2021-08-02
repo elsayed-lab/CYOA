@@ -211,12 +211,11 @@ sub Interproscan {
     my $interproscan_exe_dir = dirname($check);
     ## Hey, don't forget abs_path requires a file which already exists.
     my $input_filename = basename($options->{input});
+    my $output_filename = qq"${input_filename}.tsv";
     my $input_dir = dirname($options->{input});
     my $input_dirname = basename($input_dir);
     my $input_path = abs_path($input_dir);
-    $input_path .= "/${input_filename}";
-    my $input_basename = basename($input_filename, ('.faa'));
-    
+    $input_path = qq"${input_path}/${input_filename}";
     my $output_dir = qq"outputs/$options->{jprefix}interproscan_${input_dirname}";
     my $comment = qq!## This is a interproscan submission script
 !;
@@ -225,7 +224,7 @@ start=\$(pwd)
 cd ${output_dir}
 interproscan.sh -i ${input_path} 2>interproscan.err \\
   1>interproscan.out
-ln -s ${input_path} interproscan.tsv
+ln -s ${output_filename} interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
@@ -236,13 +235,13 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 80,
-        output => qq"${output_dir}/${input_dirname}.faa.tsv",
+        output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_dirname}.faa.gff3",
+        output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => "large",
-        walltime => "144:00:00",
-        );
+        walltime => "144:00:00",);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -310,16 +309,18 @@ sub Merge_Annotations {
    my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input_abricate', 'input_fsa', 'input_genbank',
-                     'input_interpro', 'input_phageterm',
-                     'input_prokka_tsv', 'input_trinotate'],
+        required => ['input_fsa', 'input_genbank', 'input_prokka_tsv'],
+        input_abricate => '',
+        input_interpro => '',
+        input_phageterm => '',
+        input_prodigal => '',
+        input_trinotate => '',
         jprefix => '15',
         evalue => '1e-10',
         primary_key => 'locus_tag',
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
-        product_signalp => 'trinity_SignalP',
-        );
+        product_signalp => 'trinity_SignalP',);
 
    my $output_name = basename($options->{input_fsa}, ('.fsa'));
    my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
@@ -331,7 +332,6 @@ sub Merge_Annotations {
    $output_gbk = qq"${output_dir}/${output_gbk}";
    
    my $jstring = qq?
-use Bio::Adventure;
 use Bio::Adventure::Annotation;
 Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
   input_abricate => '$options->{input_abricate}',
@@ -340,6 +340,7 @@ Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
   input_phageterm => '$options->{input_phageterm}',
   input_interpro => '$options->{input_interpro}',
   input_prokka_tsv => '$options->{input_prokka_tsv}',
+  input_prodigal => '$options->{input_prodigal}',
   input_trinotate => '$options->{input_trinotate}',
   jdepends => '$options->{jdepends}',
   jprefix => '$options->{jprefix}',
@@ -352,6 +353,7 @@ Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
        input_genbank => $options->{input_genbank},
        input_interpro => $options->{input_interpro},
        input_phageterm => $options->{input_phageterm},
+       input_prodigal => $options->{input_prodigal},
        input_prokka_tsv => $options->{input_prokka_tsv},
        input_trinotate => $options->{input_trinotate},
        jdepends => $options->{jdepends},
@@ -377,9 +379,12 @@ sub Merge_Annotations_Make_Gbk {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input_abricate', 'input_fsa', 'input_genbank',
-                     'input_interpro', 'input_prokka_tsv', 'input_trinotate',
-                     'input_phageterm',],
+        required => ['input_fsa', 'input_genbank', 'input_prokka_tsv'],
+        input_abricate => '',
+        input_interpro => '',
+        input_phageterm => '',
+        input_prodigal => '',
+        input_trinotate => '',
         evalue => '1e-10',
         jprefix => '15',
         primary_key => 'locus_tag',
@@ -388,6 +393,14 @@ sub Merge_Annotations_Make_Gbk {
         product_signalp => 'inter_signal',
         template_sbt => '/bio/reference/tbl2asn_template.sbt',
         );
+    my $high_confidence = undef;
+    my $likely_maximum = undef;
+    my $possible_maximum = undef;
+    if (defined($options->{evalue})) {
+        $high_confidence = 1e-90;
+        $likely_maximum = $options->{evalue} * $options->{evalue};
+        $possible_maximum = $options->{evalue} * 100;
+    }
     my $primary_key = $options->{primary_key};
     my $output_dir = qq"outputs/$options->{jprefix}mergeannot";
     make_path($output_dir);
@@ -417,24 +430,24 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         'trinity_eggnog' => 'eggnog',
         'trinity_SignalP' => 'signalp',
         'trinity_RNAMMER' => 'rnammer',
-        'trinity_terminase_BLASTX' => 'terminase',
+        'trinity_terminase_BLASTX' => 'terminase_blast',
         'trinity_TmHMM' => 'tmhmm',
         ## The following hit types are from interpro
-        'inter_MobiDBLite' => 'mobidb',
-        'inter_SUPERFAMILY' => 'superfamily',
-        'inter_Pfam' => 'interpfam',
-        'inter_Gene3D' => 'gene3d',
-        'inter_SMART' => 'smart',
-        'inter_PANTHER' => 'panther',
-        'inter_CDD' => 'cdd',
-        'inter_ProSitePatterns' => 'prositepatterns',
-        'inter_Phobius' => 'phobius',
-        'inter_PRINTS' => 'prints',
-        'inter_signalp' => 'intersignalp',
-        'inter_Coils' => 'coils',
-        'inter_ProSiteProfiles' => 'prositeprofiles',
-        'inter_TMHMM' => 'intertmhmm',
-        'inter_TIGERFAM' => 'tigrfam',
+        'inter_MobiDBLite' => 'interpro_mobidb',
+        'inter_SUPERFAMILY' => 'interpro_superfamily',
+        'inter_Pfam' => 'interpro_pfam',
+        'inter_Gene3D' => 'interpro_gene3d',
+        'inter_SMART' => 'interpro_smart',
+        'inter_PANTHER' => 'interpro_panther',
+        'inter_CDD' => 'interpro_cdd',
+        'inter_ProSitePatterns' => 'interpro_prositepatterns',
+        'inter_Phobius' => 'interpro_phobius',
+        'inter_PRINTS' => 'interpro_prints',
+        'inter_signalp' => 'interpro_signalp',
+        'inter_Coils' => 'interpro_coils',
+        'inter_ProSiteProfiles' => 'interpro_prositeprofiles',
+        'inter_TMHMM' => 'interpro_tmhmm',
+        'inter_TIGRFAM' => 'interpro_tigrfam',
         ## And the abricate databases
         'abricate_argannot' => 'argannot',
         'abricate_card' => 'card',
@@ -471,37 +484,68 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
     print $log_fh "Reading prokka tsv data from $options->{input_prokka_tsv} to start.\n";
     ## 1a above, the starter set of annotations.
+    unless (-r $options->{input_prokka_tsv}) {
+        die("Unable to find the prokka tsv output, this is required.\n");
+    }
+    unless (-r $options->{input_genbank}) {
+        die("Unable to find the prokka genbank output, this is required.\n");
+    }
+    
     $merged_data = Merge_Prokka(
         primary_key => $options->{primary_key},
         output => $merged_data,
         input => $options->{input_prokka_tsv});
 
-    print $log_fh "Adding trinotate annotations from $options->{input_trinotate}.\n";
-    ## 1b above, trinotate annotations.
-    $merged_data = Merge_Trinotate(
-        primary_key => $options->{primary_key},
-        output => $merged_data,
-        input => $options->{input_trinotate});
+    if ($options->{input_trinotate} && -r $options->{input_trinotate}) {
+        print $log_fh "Adding trinotate annotations from $options->{input_trinotate}.\n";
+        ## 1b above, trinotate annotations.
+        $merged_data = Merge_Trinotate(
+            primary_key => $options->{primary_key},
+            output => $merged_data,
+            input => $options->{input_trinotate});
+    } else {
+        print $log_fh "Not including trinotate annotations.\n";
+    }
 
+    if ($options->{input_interpro} && -r $options->{input_interpro}) {
+        print $log_fh "Adding interproscan annotations from $options->{input_interpro}.\n";
+        ## 1c above, information from interproscan.
+        ## The interpro output file is TSV, but it is super-annoying and not amendable to
+        ## reading with Text::CSV
+        $merged_data = Merge_Interpro(
+            primary_key => $options->{primary_key},
+            output => $merged_data,
+            input => $options->{input_interpro});
+    } else {
+        print $log_fh "Not including interpro annotations.\n";
+    }
 
-    print $log_fh "Adding interproscan annotations from $options->{input_interpro}.\n";
-    ## 1c above, information from interproscan.
-    ## The interpro output file is TSV, but it is super-annoying and not amendable to
-    ## reading with Text::CSV
-    $merged_data = Merge_Interpro(
-        primary_key => $options->{primary_key},
-        output => $merged_data,
-        input => $options->{input_interpro});
-    
-    print $log_fh "Adding abricate annotations from $options->{input_abricate}.\n";
-    ## 1d above, resistance gene info provided by abricate.
-    $merged_data = Merge_Abricate(
-        primary_key => $options->{primary_key},
-        output => $merged_data,
-        input => $options->{input_abricate});
+    if ($options->{input_abricate} && -r $options->{input_abricate}) {
+        print $log_fh "Adding abricate annotations from $options->{input_abricate}.\n";
+        ## 1d above, resistance gene info provided by abricate.
+        $merged_data = Merge_Abricate(
+            primary_key => $options->{primary_key},
+            output => $merged_data,
+            input => $options->{input_abricate});
+    } else {
+        print $log_fh "Not including abricate annotations.\n";
+    }
 
+    ## print $log_fh "Reading prodigal genbank file from $options->{input_prodigal} to get RBS scores.\n";
+    ## $merged_data = Merge_Prodigal(
+    ##     primary_key => $options->{primary_key},
+    ##     output => $merged_data,
+    ##     input => $options->{input_prodigal});
+
+    my %dtr_features = ();
+    if ($options->{input_phageterm} && -r $options->{input_phageterm}) {
     ## Pull the direct-terminal-repeats from phageterm if they exist.
-    my $dtr_feature = Bio::Adventure::Phage::Get_DTR($class, input => $options->{input_phageterm});
+        %dtr_features = Bio::Adventure::Phage::Get_DTR(
+            $class,
+            input => $options->{input_phageterm});
+    } else {
+        print $log_fh "Not adding phageterm DTRs.\n";
+    }
 
     ## This section uses the genbank input file to aid writing an output tbl file.
     
@@ -531,8 +575,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         $seq_count++;
         my @feature_list = $seq->get_SeqFeatures();
         ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
-        if (defined($dtr_feature)) {
-            unshift(@feature_list, $dtr_feature);
+        foreach my $d (keys %dtr_features) {
+            unshift(@feature_list, $dtr_features{$d});
         }
         
         for my $feat (@feature_list) {
@@ -560,13 +604,23 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 ## the annotation information, we could switch the add_tag_value() to inference,
                 ## etc...
                 my $note_string = '';
+                ## my $match_number = 1;
                 ROWDATA: foreach my $k (keys %{$new_info}) {
                     next ROWDATA if (!defined($new_info->{$k}));
                     next ROWDATA if ($new_info->{$k} eq '.');
                     if (exists($note_keys{$k})) {
-                        my $note_string = qq"$note_keys{$k} hit: $new_info->{$k}.";
+                        my ($first_note, $stuff) = split(/\`/, $new_info->{$k});
+                        my $note_string = qq"$note_keys{$k} hit: ${first_note}.";
                         $feat->add_tag_value('note', $note_string);
-                    }
+
+                        ## Make a simplified version of the note string as a match:
+                        ## my @tag_arr = split(/\^/, $new_info->{$k});
+                        ## my $tag_name = qq"match${match_number}";
+                        ## my $tag_string = qq"$tag_arr[0] $tag_arr[3]";
+                        ## print "ADDING TAG: $tag_name $tag_string\n";
+                        ## $feat->add_tag_value($tag_name, $tag_string);
+                        ## $match_number++;
+                    } 
                 }
 
                 ## Let us look through the array of product_columns
@@ -574,36 +628,73 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 ## Followed by the TmHMM and signalp colums
                 ## product_transmembrane 'inter_TMHMM',
                 ## product_signalp => 'inter_signal',
+                my $tm_string = qq"Putative transmembrane domain containing protein";
+                my $signal_string = "Putative signal peptide";
                 my $product_string = undef;
+                my $chosen_column = 0;
                 my $tmhmm_column = $options->{product_transmembrane};
                 if ($new_info->{$tmhmm_column}) {
                     my @tmhmm_data = split(/\^/, $new_info->{$tmhmm_column});
-                    $product_string = $tmhmm_data[1];
+                    my $tm_region = $tmhmm_data[2];
+                    $tm_region =~ s/^Q://g;
+                    $product_string = $tm_string;
                 }
                 my $signalp_column = $options->{product_signalp};
                 if ($new_info->{$signalp_column}) {
-                    my @signal_data = split(/\^/, $new_info->{signalp_column});
+                    my @signal_data = split(/\^/, $new_info->{$signalp_column});
                     my $likelihood = $signal_data[2];
                     if ($likelihood > 0.9) {
-                        $product_string = "Putative signal peptide"
+                        $product_string = $signal_string;
                     }
                 }
                 my @product_columns = @{$options->{product_columns}};
+                my $best_hit = 0;
+                my $current_hit = 0;
                 for my $col (@product_columns) {
                     ## Accession^Accession^Query,Hit^Identity^Evalue^RecName^Taxonomy
                     next unless(defined($new_info->{$col}));
                     my ($accession, $id, $query_hit, $identity, $evalue, $db_name, $taxonomy) = split(/\^/, $new_info->{$col});
                     next unless(defined($evalue));
                     $evalue =~ s/^(E|e)://g;
-                    if ($evalue <= $options->{evalue}) {
-                        $product_string = $db_name;
+                    my $this_string;
+                    if (defined($high_confidence)) {
+                        if ($evalue <= $high_confidence) {
+                            $this_string = qq"_High confidence ${db_name}";
+                            $current_hit = 3;
+                        } elsif ($evalue <= $likely_maximum) {
+                            $this_string = qq"_Likely ${db_name}";
+                            $current_hit = 2;
+                        } elsif ($evalue <= $possible_maximum) {
+                            $this_string = qq"_Potential ${db_name}";
+                            $current_hit = 1;
+                        }
+                        ## If we are not attempting to discriminate among potential hits.
+                    } else {
+                        $this_string = qq"${db_name}";
                     }
-                }
+                    if ($current_hit > $best_hit) {
+                        $product_string = $this_string;
+                        $chosen_column = $col;
+                    }
+                } ## Iterating over product columns looking for the most fun hit.
 
                 ## See if $product_string has been filled
                 if (defined($product_string)) {
+                    $product_string =~ s/RecName: Full=//g;
                     my @current_values = $feat->remove_tag('product');
+                    $product_string = qq"${product_string}";
                     my $new = $feat->add_tag_value('product', $product_string);
+                    my $inf;
+                    if ($product_string eq $signal_string) {
+                        $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
+                    } elsif ($product_string eq $tm_string) {
+                        $inf = $feat->add_tag_value('inference', 'ab initio prediction:TmHMM');
+                    } else {
+                        ## The %note_keys has more-readable versions of the column names, use one.
+                        my $inference_string = $note_keys{$chosen_column};
+                        $inference_string = qq"ab initio prediction:${inference_string}\n";
+                        $inf = $feat->add_tag_value('inference', $inference_string);
+                    }
                 }
                 
             } ## End looking for CDS entries
@@ -630,11 +721,11 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my $URL = 'https://github.com/tseemann/prokka';
     print $log_fh "tbl2asn uses the full assembly: $options->{input_fsa}, the tbl file ${output_tbl},
 and template sbt file: $options->{template_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
-    my $tbl_command = qq"tbl2asn -V b -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y 'Annotated using $EXE $VERSION from $URL'".
+    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y 'Annotated using $EXE $VERSION from $URL'".
         " -Z ${output_dir}/${output_name}.err -t $options->{template_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
-    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf >${output_dir}/${output_name}.gbk";
+    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
     my $sed_result = qx"${sed_command}";
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
@@ -710,7 +801,27 @@ sub Merge_Abricate {
     $abricate_fh->close();
     return($merged_data);
 }
-        
+
+sub Merge_Prodigal {
+    my (%args) = @_;
+    my $primary_key = $args{primary_key};
+    my $merged_data = $args{output};
+    my $in = FileHandle->new("less $args{input} |");
+    use Data::Dumper;
+    print Dumper $merged_data;
+    while (my $line = <$in>) {
+        chomp $line;
+        my ($contig, $prod, $cds, $start, $end, $score, $strand, $phase, $tags) = split(/\t/, $line);
+        my %tag_hash = ();
+        my @tag_pieces = split(/;/, $tags);
+        for my $t (@tag_pieces) {
+            my ($name, $value) = split(/=/, $t);
+            $tag_hash{$name} = $value;
+        }
+    }  ## End iterating over the gff file.
+    $in->close();
+    return($merged_data);
+}
 
 sub Merge_Interpro {
     my (%args) = @_;
@@ -893,7 +1004,12 @@ sub Tbl_Writer {
                 # remove GFF specific tags (start with uppercase letter)
                 next if $tag =~ m/^[A-Z]/ and $tag !~ m/EC_number/i;
                 for my $value ($f->get_tag_values($tag)) {
-                    print {$tbl_fh} "\t\t\t$tag\t$value\n";
+                    if (!defined($value)) {
+                        print "TESTME: UNDEFINED VALUE FOR $tag\n";
+                        print $tbl_fh "\t\t\t${tag}\t\n";
+                    } else {
+                        print $tbl_fh "\t\t\t${tag}\t${value}\n";
+                    }
                 }
             }
         }
@@ -934,6 +1050,7 @@ sub Prodigal {
     die("Could not find prodigal in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
+    $job_name = basename($job_name, ('.fsa'));
     my $train_string = '';
     my $library_file;
     if ($options->{species}) {
@@ -949,8 +1066,10 @@ sub Prodigal {
 
     my $in_name = basename($options->{input}, ('.fasta'));
     my $output_dir;
-    if ($options->{output_dir}) {
-        $output_dir = $options->{output_dir};
+    if (defined($options->{output_dir})) {
+        if ($options->{output_dir}) {
+            $output_dir = $options->{output_dir};
+        }
     } else {
         $output_dir = qq"outputs/$options->{jprefix}prodigal_${in_name}";
     }
@@ -1596,7 +1715,8 @@ sub Trinotate {
     ## Once again, abs_path only works on stuff which already exists.
     ## So create the output directory, and use that.
     my $input_paths = $class->Get_Paths($options->{input});
-    my $output_name = basename($input_paths, ('.fasta', '.fa', '.fna', '.fsa'));
+    my $input_full = $input_paths->{fullpath};
+    my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa'));
     $output_name = qq"${output_name}.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate_$input_paths->{dirname}";
     my $comment = qq!## This is a trinotate submission script
@@ -1623,7 +1743,7 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --CPU 6 \\
   2>trinotate_${job_name}.err \\
   1>trinotate_${job_name}.out
-mv Trinotate.xls ${output_name}
+mv Trinotate.tsv ${output_name}
 cd \${start}
 !;
     my $trinotate = $class->Submit(
