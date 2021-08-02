@@ -31,9 +31,8 @@ sub Angsd_Filter {
         args => \%args,
         modules => ['angsd'],
         required => ['input'],
-        pval => 0.01,
-    );
-
+        pval => 0.01,);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input_paths = $class->Get_Paths($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}angsd_$input_paths->{dirname}";
     my $jstring = qq?

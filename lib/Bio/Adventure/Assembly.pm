@@ -45,8 +45,7 @@ sub Abyss {
         args => \%args,
         required => ['input'],
         k => 41,
-        modules => 'abyss',
-        );
+        modules => 'abyss',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abyss-pe');
     die("Could not find abyss in your PATH.") unless($check);

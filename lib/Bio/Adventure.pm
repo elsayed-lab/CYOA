@@ -727,6 +727,7 @@ sub Get_Menus {
             choices => {
                 '(angsd): Get the set of filtered variants given a list of bam files.' => \&Bio::Adventure::PopGen::Angsd_Filter,
             },
+        },
         Prepare => {
             name => 'preparation',
             message => 'Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.',
