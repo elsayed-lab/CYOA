@@ -55,6 +55,7 @@ use Bio::Adventure::Map;
 use Bio::Adventure::Phage;
 use Bio::Adventure::Phylogeny;
 use Bio::Adventure::Pipeline;
+use Bio::Adventure::PopGen;
 use Bio::Adventure::Prepare;
 use Bio::Adventure::Resistance;
 use Bio::Adventure::Riboseq;
@@ -287,6 +288,7 @@ has product_columns => (is => 'rw', default => 'trinity_sprot_Top_BLASTX_hit,int
 has product_transmembrane => (is => 'rw', default => 'inter_TMHMM'); ## Column containing transmembrane domain data when upgrading annotations to 'product'
 has product_signal => (is => 'rw', default => 'inter_signalp'); ## Column containing signal peptide domain data when upgrading annotations to 'product'
 has prokka_tsv_input => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
+has pval => (is => 'rw', default => undef); ## Pvalue cutoffs.
 has qsub_args => (is => 'rw', default => '-j oe -V -m n'); ## What arguments will be passed to qsub by default?
 has qsub_depends => (is => 'rw', default => 'depend=afterok:'); ## String to pass for dependencies
 has qsub_dependsarray => (is => 'rw', default => 'depend=afterokarray:'); ## String to pass for an array of jobs
@@ -719,6 +721,12 @@ sub Get_Menus {
                 '(annotateassembly): Do some searches on an assembly.' => \&Bio::Adventure::Pipline::Annotation_Assembly,    
             },
         },
+        PopulationGenetics => {
+            name => 'popgen',
+            message => 'The front pattern DOES move - and no wonder! The woman behind shakes it!',
+            choices => {
+                '(angsd): Get the set of filtered variants given a list of bam files.' => \&Bio::Adventure::PopGen::Angsd_Filter,
+            },
         Prepare => {
             name => 'preparation',
             message => 'Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.',
@@ -821,6 +829,7 @@ sub Get_TODOs {
     my $possible_todos = {
         "abricate+" => \$todo_list->{todo}{'Bio::Adventure::Resistance::Abricate'},
         "abyss+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Abyss'},
+        "angsdfilter+" => \$todo_list->{todo}{'Bio::Adventure::PopGen::Angsd_Filter'},
         "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Aragorn'},
         "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
         "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
