@@ -623,6 +623,7 @@ sub Get_Menus {
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,    
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
+                '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,    
                 '(terminasereorder): Reorder an assembly based on the results of a blast search.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
                 '(prodigal): Run prodigal on an assembly.' => \&Bio::Adventure::Annotation::Prodigal,    
                 '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,    
@@ -883,6 +884,7 @@ sub Get_TODOs {
         "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annot_Prodigal'},    
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
+        "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},    
         "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prodigal'},    
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
@@ -920,7 +922,7 @@ sub Get_TODOs {
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
         "watsonplus+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Watson_Plus'},
-            ## A set of pipelines combining the above.
+        ## A set of pipelines combining the above.
         "pannotate+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Assembly'},
         "passemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Assemble'},
         "pbt1+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie'},

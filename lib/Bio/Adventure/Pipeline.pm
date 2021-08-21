@@ -180,7 +180,16 @@ sub Assemble {
         jname => 'watsonplus',
         output_dir => qq"outputs/${prefix}watsonplus",);
     sleep(1);
-   
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        jdepends => $assemble->{job_id},
+        input => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'phastaf',);
+    sleep(1);
+    
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
@@ -261,6 +270,7 @@ sub Assemble {
         jdepends => $merge->{job_id},
         jprefix => $prefix);
     sleep(1);
+
 }
 
 =head2 C<PhageAssemble>
@@ -362,6 +372,15 @@ sub Phage_Assemble {
         modules => ['trimomatic', 'spades', 'unicycler'],);
     sleep(1);
 
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        jdepends => $assemble->{job_id},
+        input => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'phastaf',);
+    sleep(1);
+    
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Watson strand to the one with the most ORFs.\n";
     my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
@@ -498,7 +517,7 @@ sub Phage_Assemble {
         output_dir => qq"outputs/${prefix}mergeannot2",
         jdepends => $interpro->{job_id},);
     sleep(1);
-    
+
 }
 
 sub Annotate_Assembly {

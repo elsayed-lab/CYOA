@@ -1007,7 +1007,7 @@ sub Hisat2 {
         htseq_id => 'ID',
         do_htseq => 1,
         jprefix => '40',
-        modules => 'hisat2',
+        modules => ['hisat2', 'samtools', 'htseq'],
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');

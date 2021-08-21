@@ -807,8 +807,6 @@ sub Merge_Prodigal {
     my $primary_key = $args{primary_key};
     my $merged_data = $args{output};
     my $in = FileHandle->new("less $args{input} |");
-    use Data::Dumper;
-    print Dumper $merged_data;
     while (my $line = <$in>) {
         chomp $line;
         my ($contig, $prod, $cds, $start, $end, $score, $strand, $phase, $tags) = split(/\t/, $line);
@@ -1724,7 +1722,7 @@ sub Trinotate {
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-ln -s $input_paths->{fullpath} .
+ln -sf $input_paths->{fullpath} .
 if [ -f $input_paths->{filename}.gene_trans_map ]; then
   ln -s $input_paths->{filename}.gene_trans_map .
 else

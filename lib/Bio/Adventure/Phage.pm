@@ -15,7 +15,7 @@ use Capture::Tiny qw":all";
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Spec;
-use File::Path qw"make_path";
+use File::Path qw"make_path rmtree";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
 
@@ -86,6 +86,9 @@ sub Phageterm {
     my $assembly_full = abs_path($options->{library});
     my $assembly_name = basename(dirname($options->{library}));
     my $output_dir = qq"outputs/$options->{jprefix}phageterm_${assembly_name}";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
 
     my $uncompress_string = qq"";
     my $input_string = qq"";
@@ -127,17 +130,18 @@ less ${r1} > r1.fastq
 mkdir -p ${output_dir}
 cd ${output_dir}
 if [[ -f ${cwd_name}_sequence.fasta ]]; then
-  rm ${cwd_name}_sequence.fasta
+  rm -f ${cwd_name}_sequence.fasta
 fi
 if [[ -f ${cwd_name}_original_sequence.fasta ]]; then
-  rm ${cwd_name}_original_sequence.fasta
+  rm -f ${cwd_name}_original_sequence.fasta
 fi
 ${uncompress_string}
 
 PhageTerm.py ${input_string} \\
   -r ${assembly_full} \\
   -c $options->{cpus} \\
-  --report_title ${cwd_name}
+  --report_title ${cwd_name} \\
+  2>phageterm.err 1>phageterm.out
 sleep 5
 
 ${delete_string}
@@ -151,6 +155,16 @@ else
   rm ${cwd_name}_sequence.fasta
   ln -s ${assembly_full} ${cwd_name}_sequence.fasta
 fi
+
+## I found another bug in phageterm, sometimes it finds a DTR, but leaves the genome blank.
+## In this case, I can either use my reordering code to fix it, or just say eff it and 
+## remove the 'reordered' sequence.
+reordered_lines=\$(wc -l ${cwd_name}_sequence.fasta | awk '{print \$1}')
+if [[ \${reordered_lines} -eq '2' ]]; then
+  rm ${cwd_name}_sequence.fasta
+  ln -s ${assembly_full} ${cwd_name}_sequence.fasta
+fi
+
 cd \${start}
 ?;
 
@@ -170,6 +184,54 @@ cd \${start}
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($phageterm);
+}
+
+sub Phastaf {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        cpus => '8',
+        modules => 'phastaf',
+        jprefix => '14',
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('phastaf');
+    die("Could not find phastaf in your PATH.") unless($check);
+    
+    my $job_name = $class->Get_Job_Name();
+    my $input_paths = $class->Get_Paths($options->{input});
+    my $input_full = $input_paths->{fullpath};
+    my $output_dir = qq"outputs/$options->{jprefix}phastaf_$input_paths->{dirname}";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+
+    my $comment = qq!## This is a script to run phastaf.
+!;
+    my $jstring = qq?
+mkdir -p ${output_dir}
+phastaf --force --outdir ${output_dir} \\
+  --cpus $options->{cpus} \\
+  $options->{input} \\
+  2>${output_dir}/phastaf.err \\
+  1>${output_dir}/phastaf.out
+?;
+    my $output_file = qq"${output_dir}/something.txt";
+    my $phastaf = $class->Submit(
+        cpus => $options->{cpus},
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => "phastaf_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 12,
+        output => $output_file,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($phastaf);
 }
 
 =head2 C<Search_Reorder>
@@ -192,6 +254,7 @@ sub Search_Reorder {
         );
 
     my $output_dir = dirname($options->{output});
+    print "TESTME: $output_dir\n";
     my $log = FileHandle->new(">${output_dir}/reorder.log");
     ## First check for the test file, if it exists, then this should
     ## just symlink the input to the output until I think of a smarter
@@ -201,6 +264,7 @@ sub Search_Reorder {
         ## Just in case a path is provided
         my $outfile = basename($options->{output_file});
         $new_filename = qq"${output_dir}/${outfile}";
+        print "options->output_file exists: $new_filename\n";
     } else {
         $new_filename = basename($options->{input}, ('.fasta'));
         $new_filename = qq"${output_dir}/${new_filename}_reordered.fasta";
@@ -208,9 +272,14 @@ sub Search_Reorder {
     print $log "Testing for $options->{test_file}\n";
     if (-r $options->{test_file}) {
         my $full_input = abs_path($options->{input});
-        my $full_new = abs_path($new_filename);
+        my $pwd = getcwd();
+        my $full_new = qq"${pwd}/${new_filename}";
         print $log "The test file exists, do not reorder the genome.
 Symlinking ${full_input} to ${full_new} and stopping.\n";
+        if (-f $full_new or -l $full_new) {
+            my $unlink_lst = ($full_new);
+            my $removed = unlink($unlink_lst);
+        }
         my $linked = symlink($full_input, $full_new);
         if (-f $full_new) {
             print $log "The symlink succeeded, the file ${full_new} should exist.\n";
@@ -303,7 +372,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
           $result_data->{$query_name}->{hit_data} = \@hit_data;
           $hit_count++;
       } ## End the hitloop.
-        print $log "This sequence has ${hit_count} terminase hits.\n";
     } ## End of the individual fasta search  (maybe not needed?)
     
     ## At this point we should have a data structure
@@ -343,7 +411,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
       }
   } ## Finished iterating over every potential result.
     print $log "Out of ${total_hits} hits, ${best_query} was chosen with an e-value of: ${best_score}.\n";
-
+    print $log "Best terminase description: ${best_description}\n";
     ## Now things get a bit confusing: Keep in mind that prodigal's ORFs are printed as:
     ## ${contig}_${orf} # start # end # strand # stuff, so the first thing to do is pull out the best contig.
     my $best_contig = 'failed';
@@ -466,9 +534,15 @@ sub Terminase_ORF_Reorder {
 
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
+    my $final_output = qq"${output_dir}/final_assembly.fasta";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+    my $paths = $class->Get_Paths($final_output);
+    
     my $prodigal_outname = 'prodigal';
     my $prodigal_cds = qq"${output_dir}/${prodigal_outname}_cds.fasta";
-    my $final_output = qq"${output_dir}/final_assembly.fasta";
+
     my $term_prodigal = Bio::Adventure::Annotation::Prodigal(
         $class,
         gcode => $options->{gcode},
