@@ -232,12 +232,14 @@ has genome => (is => 'rw', default => undef); ## Choose a genome to work on.
 has genus => (is => 'rw', default => undef); ## Choose a genus when using prokka and potentially others like kraken
 has gff => (is => 'rw', default => undef); ## Feature file to read/write
 has gff_tag => (is => 'rw', default => 'gene_id'); ## Likely redundant with htseq_id
-has gff_type => (is => 'rw', default => 'gene'); ## Likely redunant with htseq_type
+## Ahh I remember, htseq_type was added to facilitate performing multiple htseq counts on multiple gff files.
+## Notably the interCDS for bacterial genomes.
+has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole gff file, otherwise use that suffix.
 has help => (is => 'rw', default => undef); ## Ask for help?
 has htseq_args => (is => 'rw', default => ' --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union '); ## Most likely htseq options
 has htseq_id => (is => 'rw', default => 'ID'); ## Default htseq ID tag
 has htseq_stranded => (is => 'rw', default => 'no'); ## Use htseq stranded options?
-has htseq_type => (is => 'rw', default => 'exon'); ## The identifier flag passed to htseq (probably should be moved to feature_type)
+has htseq_type => (is => 'rw', default => 'gene'); ## What type of gff file should be read by htseq?
 has identity => (is => 'rw', default => 70); ## Alignment specific identity cutoff
 has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing indexes:sampleIDs when demultiplexing samples - likely tnseq
 has input => (is => 'rw', default => undef); ## Generic input argument
@@ -280,7 +282,7 @@ has orientation => (is => 'rw', default => 'start'); ## Default orientation when
 has outgroup => (is => 'rw', default => undef); ## Outgroup for phylogenetic tools
 has output => (is => 'rw', default => undef); ## Generic output argument
 has outdir => (is => 'rw', default => undef);
-has paired => (is => 'rw', default => 0); ## Paired sequence when doing QC operations?
+has paired => (is => 'rw', default => 0); ## Is the input paired?
 has peptide => (is => 'rw', default => 'F'); ## Make peptide blast databases by default?
 has phageterm_input => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming

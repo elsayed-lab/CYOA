@@ -274,9 +274,9 @@ sub Kraken {
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq" --paired $in[0] $in[1] ";
+        $input_string = qq" --paired <(less $in[0]) <(less $in[1]) ";
     } else {
-        $input_string = qq"$options->{input} ";
+        $input_string = qq"<(less $options->{input}) ";
     }
     my $comment = qq!## This is a kraken2 submission script
 !;
@@ -1088,7 +1088,6 @@ sub Tbl_Writer {
                 next if $tag =~ m/^[A-Z]/ and $tag !~ m/EC_number/i;
                 for my $value ($f->get_tag_values($tag)) {
                     if (!defined($value)) {
-                        print "TESTME: UNDEFINED VALUE FOR $tag\n";
                         print $tbl_fh "\t\t\t${tag}\t\n";
                     } else {
                         print $tbl_fh "\t\t\t${tag}\t${value}\n";

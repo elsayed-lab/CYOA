@@ -43,16 +43,16 @@ sub Bowtie2 {
     return($rnaseq_jobs);
 }
 
-sub Tophat {
+sub BWA {
     my ($class, %args) = @_;
-    $args{aligner} = 'tophat';
+    $args{aligner} = 'bwa';
     my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
     return($rnaseq_jobs);
 }
 
-sub BWA {
+sub Hisat {
     my ($class, %args) = @_;
-    $args{aligner} = 'bwa';
+    $args{aligner} = 'hisat';
     my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
     return($rnaseq_jobs);
 }
@@ -66,37 +66,84 @@ sub Kallisto {
 
 sub RNAseq {
     my ($class, %args) = @_;
-    my $fastq_job = Bio::Adventure::QA::Fastqc($class, %args);
-    my $trim_job = Bio::Adventure::Trim::Trimomatic($class, %args);
-    $args{jdepends} = $trim_job->{job_id};
-    my $biopieces_job = Bio::Adventure::QA::Biopieces_Graph($class, %args);
-    my $rrna_job = Bio::Adventure::Map::Bowtie_RRNA($class, %args);
-    $args{jdepends} = $rrna_job->{job_id};
-    my $align_jobs;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        htseq_type => 'gene',
+        htseq_id => 'ID',);
+    my $prefix = sprintf("%02d", 1);
+    my $final_locustag = basename(cwd());
+
+    print "Starting fastqc.\n";
+    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
+        jprefix => $prefix,);
+    sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nStarting trimmer.\n";
+    my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+        input => $fastqc->{input},
+        jprefix => $prefix,
+        jname => 'trimomatic',
+        modules => 'trimomatic',);
+    sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nStarting mapper.\n";
+    my $mapper;
     if ($args{aligner} eq 'bowtie') {
-        $align_jobs = Bio::Adventure::Map::Bowtie($class, %args);
+        $mapper = $class->Bio::Adventure::Map::Bowtie(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            htseq_type => $options->{htseq_type},
+            htseq_id => $options->{htseq_id},
+            modules => ['samtools', 'bowtie'],);
     } elsif ($args{aligner} eq 'bowtie2') {
-        $align_jobs = Bio::Adventure::Map::Bowtie2($class, %args);
-    } elsif ($args{aligner} eq 'tophat') {
-        $align_jobs = Bio::Adventure::Map::Tophat($class, %args);
+        $mapper = $class->Bio::Adventure::Map::Bowtie2(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            htseq_type => $options->{htseq_type},
+            htseq_id => $options->{htseq_id},
+            modules => ['samtools', 'bowtie2'],);
     } elsif ($args{aligner} eq 'bwa') {
-        $align_jobs = Bio::Adventure::Map::BWA($class, %args);
+        $mapper = $class->Bio::Adventure::Map::BWA(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            htseq_type => $options->{htseq_type},
+            htseq_id => $options->{htseq_id},
+            modules => ['samtools', 'bwa'],);
     } elsif ($args{aligner} eq 'kallisto') {
-        $align_jobs = Bio::Adventure::Map::Kallisto($class, %args);
+        $mapper = $class->Bio::Adventure::Map::Kallisto(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            modules => ['kallisto'],);
     } elsif ($args{aligner} eq 'salmon') {
-        $align_jobs = Bio::Adventure::Map::Salmon($class, %args);
+        $mapper = $class->Bio::Adventure::Map::Salmon(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            modules => ['salmon'],);
     } else {
-        $align_jobs = Bio::Adventure::Map::Hisat($class, %args);
+        $mapper = $class->Bio::Adventure::Map::Hisat(
+            jdepends => $trim->{job_id},
+            input => $trim->{output},
+            jprefix => $prefix,
+            species => $options->{species},
+            htseq_type => $options->{htseq_type},
+            htseq_id => $options->{htseq_id},
+            modules => ['samtools', 'hisat2'],);
     }
 
-    my $ret = {
-        fastqc => $fastq_job,
-        trim => $trim_job,
-        bioieces => $biopieces_job,
-        rrna => $rrna_job,
-        mapping => $align_jobs,
-    };
-    return($ret);
+    return($mapper);
 }
 
 sub TNseq {

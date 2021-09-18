@@ -528,31 +528,32 @@ sub Samtools {
         required => ['input', 'species'],
         jname => 'sam',
         jprefix => '',
+        paired => 1,
         modules => 'samtools',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
-    my $sorted = $input;
-    $sorted =~ s/\.sam$//g;
-    $sorted = qq"${sorted}-sorted";
-    my $paired = $sorted;
-    $paired =~ s/\-sorted/\-paired/g;
+    my $sorted_name = $input;
+    $sorted_name =~ s/\.sam$//g;
+    $sorted_name = qq"${sorted_name}-sorted";
+    my $paired_name = $sorted_name;
+    $paired_name =~ s/\-sorted/\-paired/g;
     ## Add a samtools version check because *sigh*
     my $samtools_version = qx"samtools 2>&1 | grep Version";
     ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output} \\
   2>${output}.err 1>${output}.out && \\";
-    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted}.bam \\
-  2>${sorted}.err 1>${sorted}.out && \\";
+    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam \\
+  2>${sorted_name}.err 1>${sorted_name}.out && \\";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
-        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted} \\
-  2>${sorted}.err 1>${sorted}.out && \\";
+        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted_name} \\
+  2>${sorted_name}.err 1>${sorted_name}.out && \\";
     }
     my $jstring = qq!
 if \$(test \! -r ${input}); then
@@ -563,16 +564,20 @@ ${samtools_first}
 ${samtools_second}
   rm ${output} && \\
   rm ${input} && \\
-  mv ${sorted}.bam ${output} && \\
+  mv ${sorted_name}.bam ${output} && \\
   samtools index ${output}
-## The following will fail if this is single-ended.
-samtools view -b -f 2 -o ${paired}.bam ${output} && \\
-  samtools index ${paired}.bam
-bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
-  bamtools stats -in ${paired}.bam 2>${paired}.stats 1>&2
-##bamtools filter -tag XM:0 -in ${output} -out ${sorted}_nomismatch.bam &&
-##  samtools index ${sorted}_nomismatch.bam
+bamtools stats -in ${output} 2>${output}.stats 1>&2
 !;
+    if ($options->{paired}) {
+        $jstring .= qq!
+## The following will fail if this is single-ended.
+samtools view -b -f 2 -o ${paired_name}.bam ${output} && \\
+  samtools index ${paired_name}.bam
+bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
+##bamtools filter -tag XM:0 -in ${output} -out ${sorted_name}_nomismatch.bam &&
+##  samtools index ${sorted_name}_nomismatch.bam
+!;
+    }
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
 ## This job depended on: $options->{jdepends}!;
@@ -587,10 +592,10 @@ bamtools stats -in ${output} 2>${output}.stats 1>&2 && \\
         jqueue => 'throughput',
         jstring => $jstring,
         output => qq"${output}",
-        paired_output => qq"${paired}.bam",
+        paired => $options->{paired},
+        paired_output => qq"${paired_name}.bam",
         postscript => $options->{postscript},
-        prescript => $options->{prescript},
-        );
+        prescript => $options->{prescript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload',);
     return($samtools);

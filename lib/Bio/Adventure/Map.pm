@@ -139,7 +139,7 @@ sub Bowtie {
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        job_output => $sam_filename,
+        output => $sam_filename,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',
@@ -186,7 +186,7 @@ sub Bowtie {
             $htmulti = Bio::Adventure::Count::HTSeq(
                 $class,
                 htseq_id => $options->{htseq_id},
-                htseq_input => $sam_job->{job_output},
+                htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
                 jname => "ht_${jname}",
@@ -201,7 +201,7 @@ sub Bowtie {
             $htmulti = Bio::Adventure::Count::HT_Multi(
                 $class,
                 htseq_id => $options->{htseq_id},
-                htseq_input => $sam_job->{job_output},
+                htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
                 jname => "ht_${jname}",
@@ -402,13 +402,13 @@ sub Bowtie2 {
         jprefix => $options->{jprefix} + 4,
     );
     $bt2_job->{samtools} = $sam_job;
-    my $htseq_input = $sam_job->{job_output};
+    my $htseq_input = $sam_job->{output};
     my $htmulti;
     if ($options->{do_htseq}) {
         if ($libtype eq 'rRNA') {
             $htmulti = Bio::Adventure::Count::HTSeq(
                 $class,
-                htseq_input => $sam_job->{job_output},
+                htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 htseq_id => $options->{htseq_id},
                 jdepends => $sam_job->{job_id},
@@ -420,7 +420,7 @@ sub Bowtie2 {
         } else {
             $htmulti = Bio::Adventure::Count::HT_Multi(
                 $class,
-                htseq_input => $sam_job->{job_output},
+                htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 htseq_id => $options->{htseq_id},
                 jdepends => $sam_job->{job_id},
@@ -813,7 +813,7 @@ bwa aln ${aln_args} \\
         input => $bwa_input,
         jdepends => $options->{jdepends},
         jname => "bwamem_$options->{species}",
-        job_output => $mem_sam,
+        output => $mem_sam,
         jprefix => $options->{jprefix},
         jstring => $mem_string,
         jmem => '36',
@@ -837,7 +837,7 @@ bwa aln ${aln_args} \\
         input => $bwa_input,
         jdepends => $mem_sam_job,
         jname => "bwaaln_$options->{species}",
-        job_output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
+        output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
         jprefix => $options->{jprefix} + 2,
         jstring => $aln_string,
         jmem => '36',
@@ -848,10 +848,10 @@ bwa aln ${aln_args} \\
     $bwa_job->{aln} = $aln_job;
     my $rep_job = $class->Submit(
         comment => $report_comment,
-        input => $aln_job->{job_output},
+        input => $aln_job->{output},
         jdepends => $aln_job->{job_id},
         jname => "bwarep_$options->{species}",
-        job_output => $aln_sam,
+        output => $aln_sam,
         jprefix => $options->{jprefix} + 3,
         jstring => $reporter_string,
         jmem => '36',
@@ -873,7 +873,7 @@ bwa aln ${aln_args} \\
     my $mem_htmulti = Bio::Adventure::Count::HT_Multi(
         $class,
         htseq_id => $options->{htseq_id},
-        htseq_input => $mem_sam_job->{job_output},
+        htseq_input => $mem_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $mem_sam_job->{job_id},
         jname => "htmem_${jname}",
@@ -885,7 +885,7 @@ bwa aln ${aln_args} \\
     my $aln_htmulti = Bio::Adventure::Count::HT_Multi(
         $class,
         htseq_id => $options->{htseq_id},
-        htseq_input => $aln_sam_job->{job_output},
+        htseq_input => $aln_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $aln_sam_job->{job_id},
         jname => "htaln_${jname}",
@@ -899,8 +899,8 @@ bwa aln ${aln_args} \\
         jdepends => $mem_sam_job->{job_id},
         jname => 'bwastats',
         jprefix => $options->{jprefix} + 7,
-        aln_output => $aln_sam_job->{job_output},
-        mem_output => $mem_sam_job->{job_output},
+        aln_output => $aln_sam_job->{output},
+        mem_output => $mem_sam_job->{output},
     );
     $bwa_job->{stats} = $bwa_stats;
 
@@ -1034,45 +1034,45 @@ sub Hisat2 {
     }
     my $sleep_time = 3;
     my $libtype = 'genome';
-    my $ht2_args = '';
-    $ht2_args = $options->{ht2_args} if ($options->{ht2_args});
+    my $hisat_args = '';
+    $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
 
     my $prefix_name = qq"hisat2";
-    my $ht2_name = qq"${prefix_name}_$options->{species}";
+    my $hisat_name = qq"${prefix_name}_$options->{species}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
-        $ht2_name .= qq"_$options->{jname}";
+        $hisat_name .= qq"_$options->{jname}";
         $suffix_name .= qq"_$options->{jname}";
     }
 
-    my $ht_dir = qq"outputs/$options->{jprefix}hisat2_$options->{species}";
-    my $ht_input = $options->{input};
-
+    my $hisat_dir = qq"outputs/$options->{jprefix}hisat2_$options->{species}";
+    my $hisat_input = $options->{input};
     my $test_file = "";
-    my $number_inputs = 1;
-    if ($ht_input =~ /\:|\;|\,|\s+/) {
-        my @pair_listing = split(/\:|\;|\,|\s+/, $ht_input);
-        $number_inputs = 2;
+    my $paired = 0;
+    if ($hisat_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $hisat_input);
+        $paired = 1;
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
         ## After years of working without problem, suddenly my lesspipe
         ## process substitution pre-filter for arbitrarily compressed files
         ## stopped working and might well give me an aneurysm trying to figure out.
-        ## $ht_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
-        $ht_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
+        $hisat_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        ##$hisat_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
     } else {
-        $test_file = File::Spec->rel2abs($ht_input);
-        $ht_input = qq" ${ht_input} ";
+        $test_file = File::Spec->rel2abs($hisat_input);
+        ## $hisat_input = qq" ${hisat_input} ";
+        $hisat_input = qq" <(less ${test_file}) ";
     }
 
     ## Check that the indexes exist
-    my $ht_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
-    my $ht_reftest = qq"${ht_reflib}.1.ht2";
-    my $ht_reftestl = qq"${ht_reflib}.1.ht2l";
+    my $hisat_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
+    my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
+    my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
 
-    if (!-r $ht_reftest && !-r $ht_reftestl) {
-        print "Hey! The Indexes do not appear to exist, check this out: ${ht_reftest}\n";
+    if (!-r $hisat_reftest && !-r $hisat_reftestl) {
+        print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(20);
         my $index_job = Bio::Adventure::Map::HT2_Index(
             $class,
@@ -1083,24 +1083,23 @@ sub Hisat2 {
         $options->{jdepends} = $index_job->{job_id};
     }
     my $hisat_input_flag = "-q "; ## fastq by default
-    $hisat_input_flag = "-f " if (${ht_input} =~ /\.fasta$/);
+    $hisat_input_flag = "-f " if (${hisat_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
-    my $error_file = qq"${ht_dir}/hisat2_$options->{species}_$options->{jbasename}.err";
-    my $comment = qq!## This is a hisat2 alignment of ${ht_input} against
-## ${ht_reflib} using arguments: ${ht2_args}.
-## This jobs depended on: $options->{jdepends}
+    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{jbasename}.err";
+    my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
-    my $aligned_discordant_filename = qq"${ht_dir}/$options->{jbasename}_aligned_discordant_$options->{species}.fastq.gz";
-    my $unaligned_discordant_filename = qq"${ht_dir}/$options->{jbasename}_unaligned_discordant_$options->{species}.fastq.gz";
-    my $aligned_concordant_filename = qq"${ht_dir}/$options->{jbasename}_aligned_concordant_$options->{species}.fastq.gz";
-    my $unaligned_concordant_filename = qq"${ht_dir}/$options->{jbasename}_unaligned_concordant_$options->{species}.fastq.gz";
-    my $sam_filename = qq"${ht_dir}/$options->{jbasename}.sam";
-    my $jstring = qq!mkdir -p ${ht_dir}
+    $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
+    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aligned_discordant_$options->{species}.fastq.gz";
+    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaligned_discordant_$options->{species}.fastq.gz";
+    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_aligned_concordant_$options->{species}.fastq.gz";
+    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaligned_concordant_$options->{species}.fastq.gz";
+    my $sam_filename = qq"${hisat_dir}/$options->{jbasename}.sam";
+    my $jstring = qq!mkdir -p ${hisat_dir}
 sleep ${sleep_time}
-hisat2 -x ${ht_reflib} ${ht2_args} \\
+hisat2 -x ${hisat_reflib} ${hisat_args} \\
   -p ${cpus} \\
-  ${hisat_input_flag} ${ht_input} \\
+  ${hisat_input_flag} ${hisat_input} \\
   --phred$options->{phred} \\
   --un-gz ${unaligned_discordant_filename} \\
   --al-gz ${aligned_discordant_filename} \\
@@ -1108,83 +1107,95 @@ hisat2 -x ${ht_reflib} ${ht2_args} \\
   --al-conc-gz ${aligned_concordant_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>${ht_dir}/hisat2_$options->{species}_$options->{jbasename}.out
+  1>${hisat_dir}/hisat2_$options->{species}_$options->{jbasename}.out
 !;
     ## Example: r1_trimmed_unaligned_concordant_lpanamensis_v36.fastq.1.gz
 
     my $unaligned_filenames = $unaligned_concordant_filename;
-    if ($number_inputs == 2) {
+    if ($paired) {
         my $tmp = basename($unaligned_filenames, ('.gz'));
         my $dir = dirname($unaligned_filenames);
         $unaligned_filenames = qq"${dir}/${tmp}.1.gz:${dir}/${tmp}.2.gz";
     }
-    my $ht2_job = $class->Submit(
+    my $hisat_job = $class->Submit(
         aligned => $aligned_concordant_filename,
         comment => $comment,
         jdepends => $options->{jdepends},
-        input => $ht_input,
-        jname => $ht2_name,
+        input => $hisat_input,
+        jname => $hisat_name,
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => 48,
+        paired => $paired,
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         unaligned => $unaligned_filenames,
-        walltime => '124:00:00',
-        );
-    $options->{jdepends} = $ht2_job->{job_id};
+        walltime => '124:00:00',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
 
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $new_jprefix = qq"$options->{jprefix}_1";
-    my $stats = Bio::Adventure::Map::HT2_Stats(
-        $class,
+    my $stats = $class->Bio::Adventure::Map::HT2_Stats(
         ht_input => $error_file,
         count_table => qq"$options->{jbasename}.count.xz",
-        jdepends => $options->{jdepends},
-        jname => qq"ht2st_${suffix_name}",
+        jdepends => $hisat_job->{job_id},
+        jname => qq"hisat2st_${suffix_name}",
         jprefix => $new_jprefix,
-        output_dir => $ht_dir,
+        output_dir => $hisat_dir,
         ## trim_input => ${trim_output_file},
         );
 
-    $options->{jprefix} = qq"$options->{jprefix}_2";
-    $options->{jname} = qq"s2b_${suffix_name}";
-    $options->{input} = $sam_filename;
-    my $sam_job = Bio::Adventure::Convert::Samtools(
-        $class, %{$options});
-    $ht2_job->{samtools_job} = $sam_job;
+    my $sam_jprefix = qq"$options->{jprefix}_2";
+    my $sam_jname = qq"s2b_${suffix_name}";
+    my $sam_job = $class->Bio::Adventure::Convert::Samtools(
+        input => $sam_filename,
+        jdepends => $hisat_job->{job_id},
+        jprefix => $sam_jprefix,
+        jname => $sam_jname,
+        paired => $paired,
+        species => $options->{species},
+        );
+
     $new_jprefix = qq"$options->{jprefix}_3";
-    my $htseq_input = $sam_job->{job_output};
+    my $htseq_input;
+    if ($paired == 1) {
+        $htseq_input = $sam_job->{paired_output};
+    } else {
+        $htseq_input = $sam_job->{output};
+    }
     my $htmulti;
     if ($options->{do_htseq}) {
         if ($libtype eq 'rRNA') {
-            $htmulti = Bio::Adventure::Count::HTSeq(
-                $class,
-                htseq_input => $sam_job->{job_output},
+            $htmulti = $class->Bio::Adventure::Count::HTSeq(
+                htseq_id => $options->{htseq_id},
+                htseq_type => $options->{htseq_type},
+                input => $htseq_input,
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $new_jprefix,
                 libtype => $libtype,
                 mapper => 'hisat2',
-            );
+                paired => $paired,
+                );
         } else {
-            $htmulti = Bio::Adventure::Count::HT_Multi(
-                $class,
-                htseq_input => $sam_job->{job_output},
-                jdepends => $sam_job->{job_id},
+            $htmulti = $class->Bio::Adventure::Count::HT_Multi(
+                htseq_id => $options->{htseq_id},
+                htseq_type => $options->{htseq_type},
+                input => $htseq_input,
+                jdepends => $sam_job->{job_id},                
                 jname => $suffix_name,
                 jprefix => $new_jprefix,
                 libtype => $libtype,
                 mapper => 'hisat2',
+                paired => $paired,
             );
-            $ht2_job->{htseq_job} = $htmulti;
+            $hisat_job->{htseq_job} = $htmulti;
         }
     }  ## End checking if we should do htseq
-    return($ht2_job);
+    return($hisat_job);
 }
 
 =head2 C<HT2_Index>
@@ -1904,9 +1915,10 @@ sub Tophat {
     my $inputs = $options->{input};
     my @in = split(/:/, $inputs);
     $inputs =~ s/:/ /g;
-    my $number_inputs = scalar(@in);
-    if ($number_inputs > 1) {
+    my $paired = 0;
+    if (scalar(@in) > 1) {
         $inputs = qq" <(less $in[0]) <(less $in[1]) ";
+        $paired = 1;
     } else {
         $inputs = qq" <(less $in[0]) ";
     }
@@ -1973,7 +1985,7 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
  samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam && \\
  samtools index ${tophat_dir}/unmapped.bam
 !;
-    if ($number_inputs > 1) {
+    if ($paired) {
         $jstring .= qq!
 if [ -r "${tophat_dir}/accepted_hits.bam" ]; then
   samtools view -b -f 2 ${tophat_dir}/accepted_hits.bam > ${tophat_dir}/accepted_paired.bam && \\
@@ -2021,7 +2033,7 @@ fi
     );
     $tophat->{htseq} = $htmulti;
     ## Perform a separate htseq run using only the successfully paired hits
-    if ($number_inputs > 1) {
+    if ($paired) {
         my $ht_paired = Bio::Adventure::Count::HT_Multi(
             $class,
             htseq_input => qq"${tophat_dir}/accepted_paired.bam",
