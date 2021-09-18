@@ -11,6 +11,8 @@ use feature 'try';
 no warnings 'experimental::try';
 
 use Bio::SeqFeature::Generic;
+use Bio::Tools::Run::Alignment::StandAloneFasta;
+use Bio::Tools::Run::StandAloneBlastPlus;
 use Capture::Tiny qw":all";
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
@@ -18,6 +20,7 @@ use File::Spec;
 use File::Path qw"make_path rmtree";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
+use Text::CSV qw"csv";
 
 =head2 C<Get_DTR>
 
@@ -60,6 +63,225 @@ sub Get_DTR {
     return(%dtr_features);
 }
 
+sub Classify_Phage {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        evalue => 0.01,
+        blast_tool => 'tblastx',        
+        jprefix => '18',
+        library => 'ictv',
+        topn => 5,);
+
+    my $input_dir = basename(dirname($options->{input}));
+    my $output_dir = qq"outputs/$options->{jprefix}classify_${input_dir}";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+    my $paths = $class->Get_Paths($final_output);
+
+    my $output_tsv = qq"${output_dir}/$options->{library}_filtered.tsv";
+    my $output_blast = qq"${output_dir}/$options->{library}_hits.txt";
+    my $output_file = qq"${output_dir}/classify.log";
+    my $comment = qq"## This will perform a tblastx search against a manually curated set of
+## ICTV taxonomies and attempt to provide the most likely classification for this assembly.\n";
+    my $jstring = qq?
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+Bio::Adventure::Phage::Blast_Classify(\$h,
+  comment => '${comment}',
+  blast_tool => '$options->{blast_tool}',
+  evalue => '$options->{evalue}',
+  input => '$options->{input}',
+  library => '$options->{library}',
+  output => '${output_file}',
+  output_blast => '${output_blast}',
+  output_dir => '${output_dir}',
+  output_tsv => '${output_tsv}',
+  topn => '$options->{topn}',
+);
+?;
+
+    my $cjob = $class->Submit(
+        jdepends => $options->{jdepends},
+        blast_tool => $options->{blast_tool},
+        evalue => $options->{evalue},
+        input => $options->{input},
+        jname => 'classify_ictv',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        library => $options->{library},
+        output => $output,
+        output_blast => $output_blast,
+        output_dir => $output_dir,
+        output_tsv => $output_tsv,
+        topn => $options->{topn},
+        shell => '/usr/bin/env perl',);
+    return($cjob);
+}
+
+sub Blast_Classify {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input',],
+        evalue => 0.01,
+        blast_tool => 'tblastx',
+        jprefix => '18',
+        jcpus => 6,
+        library => 'ictv',
+        modules => ['blast', 'blastdb'],
+        output => 'classify.log',
+        output_blast => 'ictv_hits.txt',
+        output_dir => '.',
+        output_tsv => 'ictv_filtered.tsv',
+        score => 1000,
+        topn => 5,);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which($options->{blast_tool});
+    die("Could not find $options-{blast_tool} in your PATH.") unless($check);
+
+    ## Read the xref file, located in the blast database directory as ${library}.csv
+    my $xref_file = qq"$ENV{BLASTDB}/$args{library}.csv";
+    ## Use Text::CSV to create an array of hashes with keynames:
+    ## 'taxon', 'virusnames', 'virusgenbankaccession', 'virusrefseqaccession'
+    my $xref_aoh = csv(in => $xref_file, headers => 'auto');
+    my $log = FileHandle->new(">$options->{output_file}");
+    ## First check for the test file, if it exists, then this should
+    ## just symlink the input to the output until I think of a smarter
+    ## way of thinking about this.
+    my $comment = qq!## This invokes blast and pulls the top entries in an attempt to classify a viral genome.
+!;
+    my $blast_output = Bio::SearchIO->new(-format => 'blast', );
+    my $number_hits = 0;
+    my $blast_outfile = qq"$options->{output_blast}";
+    my $final_fh = FileHandle->new(">$options->{output_tsv}");
+    my @params = (
+        -e => $options->{evalue},
+        -db_name => $options->{library},
+        -outfile => $blast_outfile,
+        -num_threads => $options->{jcpus},
+        -program => $options->{blast_tool},);
+    my $seq_count = 0;
+    my $e = '';
+    my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
+    my @parameters = $search->get_parameters;
+
+    print $log "Starting blast search of $options->{input} 
+against $options->{library} using tool: $options->{blast_tool} with $options->{jcpus} cpus.
+Writing blast results to $options->{output_blast}.
+Writing filtered results to $options->{output_tsv}.
+Blast parameters: @parameters.
+";
+
+    my $blast_report = $search->tblastx(
+        -query => $options->{input},
+        -outfile => $blast_outfile,
+        -method_args => [ '-num_alignments' => $options->{topn},
+                          '-num_threads' => $options->{jcpus}, ]);
+    
+    ##my ($stdout, $stderr, @returns)  = capture {
+    ##    try {
+    ##        @blast_output = $search->run($query);
+    ##    } catch ($e) {
+    ##        warn "An error occurred: $e";
+    ##    }
+    ##};
+
+    my $result_data = {};
+    my $search_output = Bio::SearchIO->new(-file => $blast_outfile, -format => 'blast');
+    ## Set some filters for the output.
+    $search_output->min_score($options->{score});
+    $search_output->max_significance($options->{evalue});
+    my $element_count = 0;
+    my $result_count = 0;
+
+    my @hit_lst = ();
+  RESULTLOOP: while (my $result = $search_output->next_result) {
+        $result_count++;
+        my $query_name = $result->query_name();
+        my $query_length = $result->query_length();
+        my $query_descr = $result->query_description();
+        my $stats = $result->available_statistics();
+        my $hits = $result->num_hits();
+        print $log "The query being considered is: ${query_name}.\n";
+        my $datum_ref = {
+            description => $query_descr,
+            name => $query_name,
+            stats => $stats,
+            num_hits => $hits,
+            length => $query_length,
+            hit_data => {},
+        };
+        $result_data->{$query_name} = $datum_ref;
+        my $hit_count = 0;
+      HITLOOP: while (my $hits = $result->next_hit()) {
+          $number_hits = $number_hits++;
+          my $hit_name = $hits->name();
+          print $log "This result has a hit on ${hit_name}\n";
+          ## The hit_name should cross reference to one of the two accession columns in xref_aoh
+          ## from the beginning of this function.
+          my $longname = '';
+          my $taxon;
+          my $xref_found = 0;
+          XREFLOOP: for my $hashref (@{$xref_aoh}) {
+              my $first_name = $hashref->{virusgenbankaccession};
+              my $second_name = $hashref->{virusrefseqaccession};
+              my $hash_taxon = $hashref->{taxon};
+              my $hash_longname = $hashref->{virusnames};
+              if ($hit_name eq $first_name or $hit_name eq $second_name) {
+                  $xref_found++;
+                  print $log "A cross reference was found to the ICTV taxon: ${hash_taxon}.\n";
+                  $longname = $hash_longname;
+                  $taxon = $hash_taxon;
+                  last XREFLOOP;
+              }
+          }
+          my $hit_length = 0;
+          if (defined($hits->length())) {
+              $hit_length = $hits->length();
+          }
+          my $hit_acc = $hits->accession();
+          my $hit_descr = $hits->description();
+          my $hit_score = $hits->score();
+          my $hit_sig = $hits->significance();
+          my $hit_bits = $hits->bits();
+          my %hit_datum = (
+              query_name => $query_name,
+              query_length => $query_length,
+              query_descr => $query_descr,
+              stats => $stats,
+              length => $hit_length,
+              acc => $hit_acc,
+              description => $hit_descr,
+              score => $hit_score,
+              sig => $hit_sig,
+              bit => $hit_bits,
+              longname => $longname,
+              taxon => $taxon,
+              );
+          push (@hit_lst, \%hit_datum);
+          $result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
+          $hit_count++;
+      } ## End the hitloop.
+  } ## End of the blast search
+
+    print $log "The number of results recorded: ${result_count}.\n";
+    ## Sort largest to smallest score.
+    my @sorted = sort { $b->{score} <=> $a->{score} } @hit_lst;
+    my $header = qq"query_name\tquery_description\ttaxon\tname\tlength\tquery_length\thit_acc\thit_description\thit_bit\thit_sig\thit_score\n";
+    for my $d (@sorted) {
+        my $hit_string = qq"$d->{query_name}\t$d->{query_descr}\t$d->{taxon}\t$d->{longname}\t$d->{length}\t$d->{query_length}\t$d->{acc}\t$d->{description}\t$d->{bit}\t$d->{sig}\t$d->{score}\n";
+        print $final_fh $hit_string;
+    }
+    $final_fh->close();
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    $log->close();
+    return($result_data);
+}
 
 =head2 C<Phageterm>
 
@@ -83,6 +305,7 @@ sub Phageterm {
     
     my $job_name = $class->Get_Job_Name();
     my $cwd_name = basename(cwd());
+    my $assembly_relative = $options->{library};
     my $assembly_full = abs_path($options->{library});
     my $assembly_name = basename(dirname($options->{library}));
     my $output_dir = qq"outputs/$options->{jprefix}phageterm_${assembly_name}";
@@ -100,20 +323,22 @@ sub Phageterm {
         my $in_dir = dirname($in[0]);
         make_path($in_dir);
         my $prefix = abs_path($in_dir);
+        my $r1_dirname = basename($in[0]);
+        my $r2_dirname = basename($in[1]);
         my $r1_filename = basename($in[0]);
         my $r2_filename = basename($in[1]);
-        my $r1 = qq"${prefix}/${r1_filename}";
-        my $r2 = qq"${prefix}/${r2_filename}";
         $uncompress_string = qq!
-less ${r1} > r1.fastq && \\
-  less ${r2} > r2.fastq
+less \$(pwd)/${r1_dirname}/${r1_filename} > r1.fastq && \\
+  less \$(pwd)/${r2_dirname}/${r2_filename} > r2.fastq
 !;
         $input_string = qq! -f r1.fastq -p r2.fastq !;
         $delete_string = qq!rm r1.fastq && rm r2.fastq!;
     } else {
+        my $r1_filename = basename($options->{input});
+        my $r1_dirname = dirname($options->{input});
         my $r1 = abs_path($options->{input});
         $uncompress_string = qq!
-less ${r1} > r1.fastq
+less \$(pwd)/${r1_dirname}/${r1_filename} > r1.fastq
 !;
         $input_string = qq! -f r1.fastq !;
         $delete_string = qq!rm r1.fastq!;
@@ -138,14 +363,14 @@ fi
 ${uncompress_string}
 
 PhageTerm.py ${input_string} \\
-  -r ${assembly_full} \\
+  -r \$(pwd)/${assembly_relative} \\
   -c $options->{cpus} \\
   --report_title ${cwd_name} \\
   2>phageterm.err 1>phageterm.out
 sleep 5
 
 ${delete_string}
-ln -s ${assembly_full} ${cwd_name}_original_sequence.fasta
+ln -s \$(pwd)/${assembly_relative} ${cwd_name}_original_sequence.fasta
 ## This is a little hack to make terminase reordering easier.
 if [[ -f ${cwd_test_file} ]]; then
   ln -s ${cwd_test_file} direct-terminal-repeats.fasta
@@ -153,7 +378,7 @@ else
   ## If phageterm fails, it still writes the output file, but it is useless
   ## so just copy the assembly.
   rm ${cwd_name}_sequence.fasta
-  ln -s ${assembly_full} ${cwd_name}_sequence.fasta
+  ln -s \$(pwd)/${assembly_relative} ${cwd_name}_sequence.fasta
 fi
 
 ## I found another bug in phageterm, sometimes it finds a DTR, but leaves the genome blank.
@@ -162,7 +387,7 @@ fi
 reordered_lines=\$(wc -l ${cwd_name}_sequence.fasta | awk '{print \$1}')
 if [[ \${reordered_lines} -eq '2' ]]; then
   rm ${cwd_name}_sequence.fasta
-  ln -s ${assembly_full} ${cwd_name}_sequence.fasta
+  ln -s \$(pwd)/${assembly_relative} ${cwd_name}_sequence.fasta
 fi
 
 cd \${start}
@@ -254,7 +479,6 @@ sub Search_Reorder {
         );
 
     my $output_dir = dirname($options->{output});
-    print "TESTME: $output_dir\n";
     my $log = FileHandle->new(">${output_dir}/reorder.log");
     ## First check for the test file, if it exists, then this should
     ## just symlink the input to the output until I think of a smarter
@@ -579,7 +803,7 @@ Bio::Adventure::Phage::Search_Reorder(\$h,
 ?;
     my $tjob = $class->Submit(
         jdepends => $options->{jdepends},
-        evalue => 0.01,
+        evalue => $options->{evalue},
         fasta_tool => 'fastx36',
         input => $options->{input},
         jname => 'terminase_reorder',

@@ -198,7 +198,6 @@ use Bio::Adventure::Visualization;
 
 
 ## Lets move all the default values here.
-has abricate_input => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
 has align_blast_format => (is => 'rw', default => 5); ## Which alignment type should we use? (5 is blastxml)
 has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment jobs should we make when splitting alignments across nodes?
 has align_parse => (is => 'rw', default => 1); ## Parse blast searches into a table?
@@ -215,6 +214,7 @@ has bt_marg => (is => 'rw', default => '-M 0');
 has bt_larg => (is => 'rw', default => '-y -l 15');
 has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favorite bowtie2 arguments
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
+has classifier_input => (is => 'rw', default => 'outputs/18classifier/ictv_filtered.tsv'); ## Similar taxa detected by tblastx
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
 has config => (is => 'rw', default => undef); ## Not sure
@@ -241,6 +241,8 @@ has htseq_type => (is => 'rw', default => 'exon'); ## The identifier flag passed
 has identity => (is => 'rw', default => 70); ## Alignment specific identity cutoff
 has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing indexes:sampleIDs when demultiplexing samples - likely tnseq
 has input => (is => 'rw', default => undef); ## Generic input argument
+has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
+
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has interpro_input => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
@@ -254,6 +256,7 @@ has jpartition => (is => 'rw', default => 'dpart');
 has jprefix => (is => 'rw', default => undef); ## Prefix number for the job
 has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs default to?
 has jqueues => (is => 'rw', default => 'throughput,workstation,long,large'); ## Other possible queues
+has jsleep => (is => 'rw', default => '0.5'); ## Set a sleep between jobs
 has jstring => (is => 'rw', default => undef); ## String of the job
 has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
@@ -618,6 +621,7 @@ sub Get_Menus {
             choices =>  {
                 '(abricate): Search for Resistance genes across databases.' => \&Bio::Adventure::Resistance::Abricate,
                 '(aragorn): Search for tRNAs with aragorn.' => \&Bio::Adventure::Annotation::Aragorn,
+                '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,    
@@ -845,6 +849,7 @@ sub Get_TODOs {
         "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},    
+        "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
         "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
         "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},

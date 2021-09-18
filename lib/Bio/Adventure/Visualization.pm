@@ -68,6 +68,7 @@ sub CGView {
     }
     
     my $jstring = qq?
+mkdir -p ${output_directory}
 cgview_xml_builder.pl -sequence ${xml_input} \\
   -output ${xml_output} \\
   ${option_string} \\

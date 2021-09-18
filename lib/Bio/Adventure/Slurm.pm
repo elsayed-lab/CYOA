@@ -142,7 +142,7 @@ ${perl_file}
     }
     $script_start .= qq?
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
-cd $options->{basedir} || exit
+
 ?;
 
     my $script_end = qq!
@@ -201,7 +201,7 @@ fi
         warn("The job id did not get defined.  sbatch likely failed.");
         return(undef);
     }
-    sleep(0.5);
+    sleep($options->{jsleep});
     my @jobid_list = split(/\./, $job_id);
     my $short_jobid = shift(@jobid_list);
 

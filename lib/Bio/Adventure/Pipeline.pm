@@ -380,6 +380,15 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'phastaf',);
     sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning virus ICTV classifier.\n";
+    my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
+        jdepends => $assemble->{job_id},
+        input => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'ictv',);
+    sleep(1);
     
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Watson strand to the one with the most ORFs.\n";
@@ -524,10 +533,27 @@ sub Annotate_Assembly {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],);
+        required => ['input',],);
     my $prefix = sprintf("%02d", 10);
     my $final_locustag = basename(cwd());
+    my $filtered_dir = dirname($options->{input});
 
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        input => $options->{input},
+        jprefix => $prefix,
+        jname => 'phastaf',);
+    sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning virus ICTV classifier.\n";
+    my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
+        input => $options->{input},
+        jprefix => $prefix,
+        jname => 'ictv',);
+    sleep(1);
+    
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
@@ -599,6 +625,34 @@ sub Annotate_Assembly {
         jdepends => $interpro->{job_id},);
     sleep(1);
 
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning cgview.\n";
+    my $cgview = $class->Bio::Adventure::Visualization::CGView(
+        input => $merge->{output_gbk},
+        jdepends => $merge->{job_id},
+        jprefix => $prefix);
+    sleep(1);
+
+    ## An extra invocation of merge_annotations which will not modify the final gbk file.
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nMerging annotation files a second time.\n";
+    my $merge2 = $class->Bio::Adventure::Annotation::Merge_Annotations(
+        input_abricate => $abricate->{output},
+        input_fsa => $prokka->{output_fsa},
+        input_genbank => $prokka->{output_genbank},
+        input_interpro => $interpro->{output_tsv},
+        input_prodigal => $prodigal->{output},
+        input_prokka_tsv => $prokka->{output_tsv},
+        input_trinotate => $trinotate->{output},
+        jprefix => $prefix,
+        jnice => '1000',
+        jname => 'mergeannot2',
+        evalue => undef,
+        modules => '',
+        output_dir => qq"outputs/${prefix}mergeannot2",
+        jdepends => $interpro->{job_id},);
+    sleep(1);
+   
 }
 
 1;

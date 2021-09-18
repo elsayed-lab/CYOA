@@ -22,6 +22,7 @@ use File::Path qw"make_path";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
 use List::MoreUtils qw"any";
+use Template;
 use Text::CSV_XS::TSV;
 
 =head2 C<Aragorn>
@@ -312,6 +313,7 @@ sub Merge_Annotations {
         required => ['input_fsa', 'input_genbank', 'input_prokka_tsv'],
         input_abricate => '',
         input_interpro => '',
+        input_classifier => '',
         input_phageterm => '',
         input_prodigal => '',
         input_trinotate => '',
@@ -335,6 +337,7 @@ sub Merge_Annotations {
 use Bio::Adventure::Annotation;
 Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
   input_abricate => '$options->{input_abricate}',
+  input_classifier => '$options->{input_classifier}',
   input_fsa => '$options->{input_fsa}',
   input_genbank => '$options->{input_genbank}',
   input_phageterm => '$options->{input_phageterm}',
@@ -349,6 +352,7 @@ Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
 ?;
    my $merge_job = $class->Submit(
        input_abricate => $options->{input_abricate},
+       input_classifier => $options->{input_classifier},
        input_fsa => $options->{input_fsa},
        input_genbank => $options->{input_genbank},
        input_interpro => $options->{input_interpro},
@@ -381,6 +385,7 @@ sub Merge_Annotations_Make_Gbk {
         args => \%args,
         required => ['input_fsa', 'input_genbank', 'input_prokka_tsv'],
         input_abricate => '',
+        input_classifier => '',
         input_interpro => '',
         input_phageterm => '',
         input_prodigal => '',
@@ -490,6 +495,18 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     unless (-r $options->{input_genbank}) {
         die("Unable to find the prokka genbank output, this is required.\n");
     }
+
+    ## The template sbt file was written with template toolkit variables which will need
+    ## to be filled in, ideally with some information from the classifier.
+    my $final_sbt = qq"${output_dir}/${output_name}.sbt";
+    print $log_fh "Checking for ICTV classification data from $options->{input_classifier}.\n";
+    $merged_data = Merge_Classifier(
+        input => $options->{input_classifier},
+        output => $merged_data,
+        primary_key => $options->{primary_key},
+        template => $options->{template_sbt},
+        template_out => $final_sbt,);
+    print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
     
     $merged_data = Merge_Prokka(
         primary_key => $options->{primary_key},
@@ -722,7 +739,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     print $log_fh "tbl2asn uses the full assembly: $options->{input_fsa}, the tbl file ${output_tbl},
 and template sbt file: $options->{template_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
     my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y 'Annotated using $EXE $VERSION from $URL'".
-        " -Z ${output_dir}/${output_name}.err -t $options->{template_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
+        " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
@@ -799,6 +816,74 @@ sub Merge_Abricate {
         }
     }
     $abricate_fh->close();
+    return($merged_data);
+}
+
+sub Merge_Classifier {
+    my (%args) = @_;
+    my $primary_key = $args{primary_key};
+    my $template => $args{template_sbt};
+    my $output => $args{template_out};
+    my $default_values = {
+        last_name => 'Margulieux',
+        first_name => 'Katie',
+        affiliation => 'Walter Reed Army Institute of Research',
+        division => 'Bacterial Disease Branch/Wound Infections Department',
+        city => 'Silver Spring',
+        state => 'Maryland',
+        country => 'United States of America',
+        street => '503 Robert Grant Avenue',
+        email => 'katie.r.margulieux.ctr@mail.mil',
+        zip => '20910',
+        bioproject => 'undefined bioproject',
+        biosample => 'undefined biosample',
+        second_email => 'abelew@umd.edu',
+        ## The following entries will be changed by reading the input tsv file.
+        taxon => 'Unknown taxonomy.',
+        length => 0,
+        hit_acc => 'No matching accession.',
+        hit_description => 'Unclassified phage genome.',
+        hit_bit => 'No tblastx bit score found.',
+        hit_sig => 'No significance score found.',
+        hit_score => 'No tblastx score found.',
+        user_comment => 'Phage genome with no detected similar taxonomy.',
+    };
+    
+    my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
+    open(my $classifier_fh, "<:encoding(utf8)", $args{input});
+    my $input_header = $input_tsv->getline($classifier_fh);
+    $input_tsv->column_names($input_header);
+    my $rows_read = 0;
+  ROWS: while (my $row = $input_tsv->getline_hr($classifier_fh)) {
+      ## Just read the first row.
+      if ($rows_read > 0) {
+          last ROWS;
+      }
+      $rows_read++;
+      my $key = $row->{$primary_key};
+      $merged_data->{$key}->{$primary_key} = $key;
+      my @wanted_columns = ('taxon', 'length', 'hit_acc', 'hit_description', 'hit_bit', 'hit_sig', 'hit_score')
+      foreach my $colname (@wanted_column) {
+          ## Check that we already filled this data point
+          if ($merged_data->{$key}->{$colname}) {
+              ## There is something here.
+          } else {
+              if ($row->{$colname}) {
+                  $defaults->{$colname} = $row->{$colname};
+                  $merged_data->{$key}->{$colname} = $row->{$colname};
+              }
+          }
+      }  ## Run over the columns
+  }
+    close $classifier_fh;
+
+    if ($defaults->{taxon} ne 'Unknown taxonomy.') {
+        $defaults->{user_comment} = qq"tblastx derived taxonomy: $defaults->{taxon}, description: $defaults->{description}, accession: $defaults->{hit_acc}, significance: $defaults->{hit_sig}, hit length: $defaults->{length}, hit score: $defaults->{hit_score}";
+    }
+    my $template = Template->new();
+    $template->process($template, $defaults, $output);
+
+    ## Now write out template sbt file to the output directory with the various values filled in.
     return($merged_data);
 }
 
@@ -1879,7 +1964,7 @@ sub Watson_Rewrite {
     $annotation_in->close();
     ## Now we should have some idea of which strand has the most ORFs for each contig.
 
-    while (my $seq = $read_fasta->next_seq) {
+    TESTLOOP: while (my $seq = $read_fasta->next_seq) {
         my $id = $seq->id;
         my $test = $orf_count->{$id};
         if ($test->{plus} >= $test->{minus}) {
