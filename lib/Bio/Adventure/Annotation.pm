@@ -820,10 +820,11 @@ sub Merge_Abricate {
 }
 
 sub Merge_Classifier {
-    my (%args) = @_;
+    my %args = @_;
     my $primary_key = $args{primary_key};
-    my $template => $args{template_sbt};
-    my $output => $args{template_out};
+    my $template = $args{template_sbt};
+    my $output = $args{template_out};
+    my $merged_data = $args{output};
     my $default_values = {
         last_name => 'Margulieux',
         first_name => 'Katie',
@@ -862,14 +863,14 @@ sub Merge_Classifier {
       $rows_read++;
       my $key = $row->{$primary_key};
       $merged_data->{$key}->{$primary_key} = $key;
-      my @wanted_columns = ('taxon', 'length', 'hit_acc', 'hit_description', 'hit_bit', 'hit_sig', 'hit_score')
-      foreach my $colname (@wanted_column) {
+      my @wanted_columns = ('taxon', 'length', 'hit_acc', 'hit_description', 'hit_bit', 'hit_sig', 'hit_score');
+      foreach my $colname (@wanted_columns) {
           ## Check that we already filled this data point
           if ($merged_data->{$key}->{$colname}) {
               ## There is something here.
           } else {
               if ($row->{$colname}) {
-                  $defaults->{$colname} = $row->{$colname};
+                  $default_values->{$colname} = $row->{$colname};
                   $merged_data->{$key}->{$colname} = $row->{$colname};
               }
           }
@@ -877,11 +878,11 @@ sub Merge_Classifier {
   }
     close $classifier_fh;
 
-    if ($defaults->{taxon} ne 'Unknown taxonomy.') {
-        $defaults->{user_comment} = qq"tblastx derived taxonomy: $defaults->{taxon}, description: $defaults->{description}, accession: $defaults->{hit_acc}, significance: $defaults->{hit_sig}, hit length: $defaults->{length}, hit score: $defaults->{hit_score}";
+    if ($default_values->{taxon} ne 'Unknown taxonomy.') {
+        $default_values->{user_comment} = qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{description}, accession: $default_values->{hit_acc}, significance: $default_values->{hit_sig}, hit length: $default_values->{length}, hit score: $default_values->{hit_score}";
     }
-    my $template = Template->new();
-    $template->process($template, $defaults, $output);
+    my $tt = Template->new();
+    $tt->process($template, $default_values, $output);
 
     ## Now write out template sbt file to the output directory with the various values filled in.
     return($merged_data);

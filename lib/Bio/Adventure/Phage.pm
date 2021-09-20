@@ -79,7 +79,7 @@ sub Classify_Phage {
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
-    my $paths = $class->Get_Paths($final_output);
+
 
     my $output_tsv = qq"${output_dir}/$options->{library}_filtered.tsv";
     my $output_blast = qq"${output_dir}/$options->{library}_hits.txt";
@@ -113,10 +113,11 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        output => $output,
+        output_log => $output_file,
         output_blast => $output_blast,
         output_dir => $output_dir,
         output_tsv => $output_tsv,
+        output => $output_tsv,
         topn => $options->{topn},
         shell => '/usr/bin/env perl',);
     return($cjob);
