@@ -224,8 +224,7 @@ sub Assemble {
         jdepends => $assemble->{job_id},
         input => $assemble->{output},
         jprefix => $prefix,
-        jname => 'watsonplus',
-        output_dir => qq"outputs/${prefix}watsonplus",);
+        jname => 'watsonplus',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -245,7 +244,6 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'prokka',
         modules => 'prokka',
-        output_dir => qq"outputs/${prefix}prokka",
         locus_tag => $final_locustag,);
     sleep(1);
 
@@ -258,7 +256,6 @@ sub Assemble {
         jname => 'trinotate',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
                     'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
-        output_dir => qq"outputs/${prefix}trinotate",
         config => 'phage.txt',);
     sleep(1);
 
@@ -268,7 +265,6 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'abricate',
         modules => ['any2fasta', 'abricate'],
-        output_dir => qq"outputs/${prefix}abricate",
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -279,7 +275,6 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'interproscan',
         modules => 'interproscan',
-        output_dir => qq"outputs/${prefix}interproscan",
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -306,7 +301,6 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'mergeannot',
         modules => '',
-        output_dir => qq"outputs/${prefix}mergeannot",
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -434,7 +428,8 @@ sub Phage_Assemble {
         jdepends => $assemble->{job_id},
         input => $assemble->{output},
         jprefix => $prefix,
-        jname => 'ictv',);
+        jname => 'ictv',
+        modules => ['blast', 'blastdb',],);
     sleep(1);
     
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -443,8 +438,7 @@ sub Phage_Assemble {
         jdepends => $assemble->{job_id},
         input => $assemble->{output},
         jprefix => $prefix,
-        jname => 'watsonplus',
-        output_dir => qq"outputs/${prefix}watsonplus",);
+        jname => 'watsonplus',);
     sleep(1);
    
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -480,7 +474,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'prokka',
         modules => 'prokka',
-        output_dir => qq"outputs/${prefix}prokka",
         locus_tag => $final_locustag,);
     sleep(1);
 
@@ -493,7 +486,6 @@ sub Phage_Assemble {
         jname => 'trinotate',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
                     'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
-        output_dir => qq"outputs/${prefix}trinotate",
         config => 'phage.txt',);
     sleep(1);
 
@@ -503,7 +495,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'abricate',
         modules => ['any2fasta', 'abricate'],
-        output_dir => qq"outputs/${prefix}abricate",
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -514,7 +505,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'interproscan',
         modules => 'interproscan',
-        output_dir => qq"outputs/${prefix}interproscan",
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -541,7 +531,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'mergeannot',
         modules => '',
-        output_dir => qq"outputs/${prefix}mergeannot",
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -570,7 +559,6 @@ sub Phage_Assemble {
         jname => 'mergeannot2',
         evalue => undef,
         modules => '',
-        output_dir => qq"outputs/${prefix}mergeannot2",
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -598,7 +586,8 @@ sub Annotate_Assembly {
     my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
         input => $options->{input},
         jprefix => $prefix,
-        jname => 'ictv',);
+        jname => 'ictv',
+        modules => ['blast', 'blastdb',],);
     sleep(1);
     
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -608,7 +597,6 @@ sub Annotate_Assembly {
         jprefix => $prefix,
         jname => 'prokka',
         modules => 'prokka',
-        output_dir => qq"outputs/${prefix}prokka",
         locus_tag => $final_locustag,);
     sleep(1);
 
@@ -621,7 +609,6 @@ sub Annotate_Assembly {
         jname => 'trinotate',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
                     'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
-        output_dir => qq"outputs/${prefix}trinotate",
         config => 'phage.txt',);
     sleep(1);
 
@@ -631,7 +618,6 @@ sub Annotate_Assembly {
         jprefix => $prefix,
         jname => 'abricate',
         modules => ['any2fasta', 'abricate'],
-        output_dir => qq"outputs/${prefix}abricate",
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -642,7 +628,6 @@ sub Annotate_Assembly {
         jprefix => $prefix,
         jname => 'interproscan',
         modules => 'interproscan',
-        output_dir => qq"outputs/${prefix}interproscan",
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -668,7 +653,6 @@ sub Annotate_Assembly {
         jprefix => $prefix,
         jname => 'mergeannot',
         modules => '',
-        output_dir => qq"outputs/${prefix}mergeannot",
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -696,7 +680,6 @@ sub Annotate_Assembly {
         jname => 'mergeannot2',
         evalue => undef,
         modules => '',
-        output_dir => qq"outputs/${prefix}mergeannot2",
         jdepends => $interpro->{job_id},);
     sleep(1);
    
