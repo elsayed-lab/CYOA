@@ -544,15 +544,15 @@ sub Samtools {
     my $samtools_version = qx"samtools 2>&1 | grep Version";
     ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
-  -S ${input} -o ${output} \\
+  -S ${input} -o ${output} --write-index \\
   2>${output}.err 1>${output}.out && \\";
-    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam \\
+    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam --write-index \\
   2>${sorted_name}.err 1>${sorted_name}.out && \\";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
-        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted_name} \\
+        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted_name} --write-index \\
   2>${sorted_name}.err 1>${sorted_name}.out && \\";
     }
     my $jstring = qq!
@@ -564,15 +564,13 @@ ${samtools_first}
 ${samtools_second}
   rm ${output} && \\
   rm ${input} && \\
-  mv ${sorted_name}.bam ${output} && \\
-  samtools index ${output}
+  mv ${sorted_name}.bam ${output} ## &&  samtools index ${output}
 bamtools stats -in ${output} 2>${output}.stats 1>&2
 !;
     if ($options->{paired}) {
         $jstring .= qq!
 ## The following will fail if this is single-ended.
-samtools view -b -f 2 -o ${paired_name}.bam ${output} && \\
-  samtools index ${paired_name}.bam
+samtools view -b -f 2 -o ${paired_name}.bam ${output} ## && samtools index ${paired_name}.bam
 bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
 ##bamtools filter -tag XM:0 -in ${output} -out ${sorted_name}_nomismatch.bam &&
 ##  samtools index ${sorted_name}_nomismatch.bam
