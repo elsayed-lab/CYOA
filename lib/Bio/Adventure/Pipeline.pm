@@ -336,8 +336,9 @@ sub Phage_Assemble {
         jname => 'trimomatic',
         jprefix => $prefix,
         modules => 'trimomatic',);
+    sleep(1);
     
-    print "Starting fastqc.\n";
+    print "\nStarting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{input},
         jmem => 3,
@@ -424,7 +425,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning virus ICTV classifier.\n";
-    my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
+    my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
         jdepends => $assemble->{job_id},
         input => $assemble->{output},
         jprefix => $prefix,
@@ -521,6 +522,7 @@ sub Phage_Assemble {
     print "\nMerging annotation files.\n";
     my $merge = $class->Bio::Adventure::Annotation::Merge_Annotations(
         input_abricate => $abricate->{output},
+        input_classifier => $ictv->{output},
         input_fsa => $prokka->{output_fsa},
         input_genbank => $prokka->{output_genbank},
         input_interpro => $interpro->{output_tsv},
@@ -547,6 +549,7 @@ sub Phage_Assemble {
     print "\nMerging annotation files a second time.\n";
     my $merge2 = $class->Bio::Adventure::Annotation::Merge_Annotations(
         input_abricate => $abricate->{output},
+        input_classifier => $ictv->{output},
         input_fsa => $prokka->{output_fsa},
         input_genbank => $prokka->{output_genbank},
         input_interpro => $interpro->{output_tsv},

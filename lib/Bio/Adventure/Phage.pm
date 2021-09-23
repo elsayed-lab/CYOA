@@ -80,10 +80,9 @@ sub Classify_Phage {
         my $removed = rmtree($output_dir);
     }
 
-
     my $output_tsv = qq"${output_dir}/$options->{library}_filtered.tsv";
     my $output_blast = qq"${output_dir}/$options->{library}_hits.txt";
-    my $output_file = qq"${output_dir}/classify.log";
+    my $output_log = qq"${output_dir}/classify.log";
     my $comment = qq"## This will perform a tblastx search against a manually curated set of
 ## ICTV taxonomies and attempt to provide the most likely classification for this assembly.\n";
     my $jstring = qq?
@@ -95,10 +94,10 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
   evalue => '$options->{evalue}',
   input => '$options->{input}',
   library => '$options->{library}',
-  output => '${output_file}',
+  output => '${output_tsv}',
   output_blast => '${output_blast}',
   output_dir => '${output_dir}',
-  output_tsv => '${output_tsv}',
+  output_log => '${output_log}',
   topn => '$options->{topn}',
 );
 ?;
@@ -113,11 +112,10 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        output_log => $output_file,
+        output => $output_tsv,
         output_blast => $output_blast,
         output_dir => $output_dir,
-        output_tsv => $output_tsv,
-        output => $output_tsv,
+        output_log => $output_log,
         topn => $options->{topn},
         shell => '/usr/bin/env perl',);
     return($cjob);
@@ -134,10 +132,10 @@ sub Blast_Classify {
         jcpus => 6,
         library => 'ictv',
         modules => ['blast', 'blastdb'],
-        output => 'classify.log',
+        output_log => 'classify.log',
         output_blast => 'ictv_hits.txt',
         output_dir => '.',
-        output_tsv => 'ictv_filtered.tsv',
+        output => 'ictv_filtered.tsv',
         score => 1000,
         topn => 5,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -145,11 +143,11 @@ sub Blast_Classify {
     die("Could not find $options-{blast_tool} in your PATH.") unless($check);
 
     ## Read the xref file, located in the blast database directory as ${library}.csv
-    my $xref_file = qq"$ENV{BLASTDB}/$args{library}.csv";
+    my $xref_file = qq"$ENV{BLASTDB}/$options->{library}.csv";
     ## Use Text::CSV to create an array of hashes with keynames:
     ## 'taxon', 'virusnames', 'virusgenbankaccession', 'virusrefseqaccession'
     my $xref_aoh = csv(in => $xref_file, headers => 'auto');
-    my $log = FileHandle->new(">$options->{output_file}");
+    my $log = FileHandle->new(">$options->{output_log}");
     ## First check for the test file, if it exists, then this should
     ## just symlink the input to the output until I think of a smarter
     ## way of thinking about this.
@@ -158,7 +156,9 @@ sub Blast_Classify {
     my $blast_output = Bio::SearchIO->new(-format => 'blast', );
     my $number_hits = 0;
     my $blast_outfile = qq"$options->{output_blast}";
-    my $final_fh = FileHandle->new(">$options->{output_tsv}");
+    my $final_fh = FileHandle->new(">$options->{output}");
+    ## Print the tsv header: contig, description, taxon,length
+    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\n";
     my @params = (
         -e => $options->{evalue},
         -db_name => $options->{library},
@@ -167,15 +167,17 @@ sub Blast_Classify {
         -program => $options->{blast_tool},);
     my $seq_count = 0;
     my $e = '';
-    my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
-    my @parameters = $search->get_parameters;
 
-    print $log "Starting blast search of $options->{input} 
+        my $log_message = qq"Starting blast search of $options->{input} 
 against $options->{library} using tool: $options->{blast_tool} with $options->{jcpus} cpus.
 Writing blast results to $options->{output_blast}.
-Writing filtered results to $options->{output_tsv}.
-Blast parameters: @parameters.
+Writing filtered results to $options->{output}.
 ";
+    print $log $log_message;
+    print $log_message;
+    my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
+    my @parameters = $search->get_parameters;
+    print $log qq"Blast parameters: @parameters.\n";
 
     my $blast_report = $search->tblastx(
         -query => $options->{input},
@@ -329,8 +331,8 @@ sub Phageterm {
         my $r1_filename = basename($in[0]);
         my $r2_filename = basename($in[1]);
         $uncompress_string = qq!
-less \$(pwd)/${r1_dirname}/${r1_filename} > r1.fastq && \\
-  less \$(pwd)/${r2_dirname}/${r2_filename} > r2.fastq
+less \${start}/${r1_dirname}/${r1_filename} > r1.fastq && \\
+  less \${start}/${r2_dirname}/${r2_filename} > r2.fastq
 !;
         $input_string = qq! -f r1.fastq -p r2.fastq !;
         $delete_string = qq!rm r1.fastq && rm r2.fastq!;
@@ -339,7 +341,7 @@ less \$(pwd)/${r1_dirname}/${r1_filename} > r1.fastq && \\
         my $r1_dirname = dirname($options->{input});
         my $r1 = abs_path($options->{input});
         $uncompress_string = qq!
-less \$(pwd)/${r1_dirname}/${r1_filename} > r1.fastq
+less \${start}/${r1_dirname}/${r1_filename} > r1.fastq
 !;
         $input_string = qq! -f r1.fastq !;
         $delete_string = qq!rm r1.fastq!;
@@ -364,14 +366,14 @@ fi
 ${uncompress_string}
 
 PhageTerm.py ${input_string} \\
-  -r \$(pwd)/${assembly_relative} \\
+  -r \${start}/${assembly_relative} \\
   -c $options->{cpus} \\
   --report_title ${cwd_name} \\
   2>phageterm.err 1>phageterm.out
 sleep 5
 
 ${delete_string}
-ln -s \$(pwd)/${assembly_relative} ${cwd_name}_original_sequence.fasta
+ln -s \${start}/${assembly_relative} ${cwd_name}_original_sequence.fasta
 ## This is a little hack to make terminase reordering easier.
 if [[ -f ${cwd_test_file} ]]; then
   ln -s ${cwd_test_file} direct-terminal-repeats.fasta
@@ -379,7 +381,7 @@ else
   ## If phageterm fails, it still writes the output file, but it is useless
   ## so just copy the assembly.
   rm ${cwd_name}_sequence.fasta
-  ln -s \$(pwd)/${assembly_relative} ${cwd_name}_sequence.fasta
+  ln -s \${start}/${assembly_relative} ${cwd_name}_sequence.fasta
 fi
 
 ## I found another bug in phageterm, sometimes it finds a DTR, but leaves the genome blank.
@@ -388,7 +390,7 @@ fi
 reordered_lines=\$(wc -l ${cwd_name}_sequence.fasta | awk '{print \$1}')
 if [[ \${reordered_lines} -eq '2' ]]; then
   rm ${cwd_name}_sequence.fasta
-  ln -s \$(pwd)/${assembly_relative} ${cwd_name}_sequence.fasta
+  ln -s \${start}/${assembly_relative} ${cwd_name}_sequence.fasta
 fi
 
 cd \${start}

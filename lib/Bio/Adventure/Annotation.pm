@@ -416,9 +416,6 @@ sub Merge_Annotations_Make_Gbk {
     my $output_tbl = qq"${output_dir}/${output_name}.tbl";
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
-    ## Remember that tbl2asn assumes the input files are all in the same directory.
-    cp($options->{input_fsa}, $output_fsa);
-
     my $log_fh = FileHandle->new(">$log");
     print $log_fh "Merging annotations and writing new output files:
 gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
@@ -500,11 +497,12 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## to be filled in, ideally with some information from the classifier.
     my $final_sbt = qq"${output_dir}/${output_name}.sbt";
     print $log_fh "Checking for ICTV classification data from $options->{input_classifier}.\n";
-    $merged_data = Merge_Classifier(
+    my $taxonomy_information = {};
+    ($merged_data, $taxonomy_information) = Merge_Classifier(
         input => $options->{input_classifier},
         output => $merged_data,
         primary_key => $options->{primary_key},
-        template => $options->{template_sbt},
+        template_sbt => $options->{template_sbt},
         template_out => $final_sbt,);
     print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
     
@@ -721,11 +719,36 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         ## In theory, we now have a set of features with some new notes.
         ## So now let us steal the tbl writer from prokka and dump this new stuff...
         print $log_fh "Writing new tbl file to ${output_tbl}.\n";
+        use Data::Dumper;
+        print Dumper $taxonomy_information;
         my $tbl_written = Tbl_Writer(tbl_file => $output_tbl,
+                                     taxonomy_information => $taxonomy_information,
                                      sequences => \@new_seq,
                                      features => \@new_features);
     } ## End Iterating over every sequence
 
+
+    ## Remember that tbl2asn assumes the input files are all in the same directory.
+    ## Before running tbl2asn, write a fresh copy of the fsa file containing the detected phage taxonomy.
+    my $fsa_in = FileHandle->new("<$options->{input_fsa}");
+    my $fsa_out = FileHandle->new(">$output_fsa");
+    use Data::Dumper;
+    print Dumper $taxonomy_information;
+    while (my $line = <$fsa_in>) {
+        ## chomp $line;  ## probably not needed for this.
+        if ($line =~ /^\>/) {
+            ## Replace the  [organism=Phage species] [strain=strain]
+            ## in the prokka-derived fasta header, which looks like:
+            ## >gnl|Prokka|test_1 [gcode=11] [organism=Phage species] [strain=strain]
+            $line =~ s/(\[organism=.*\])/\[organism=Phage similar to $taxonomy_information->{taxon}\] \[strain=Similar to $taxonomy_information->{hit_accession}\]/g;
+            ## $line =~ s/(\[organism=.*\])/\[organism=Phage similar to $taxonomy_information->{hit_description}\]/g;
+            $line =~ s/\[strain=strain\]//g;
+        }
+        print $fsa_out $line;            
+    }
+    $fsa_in->close();
+    $fsa_out->close();
+    
     ## This little section is stolen pretty much verbatim from prokka.
     my $tbl2asn_m_option = '-M n';
     if (scalar(@new_seq) > 10_000) {
@@ -737,9 +760,11 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my $VERSION = '1.14.6';
     my $URL = 'https://github.com/tseemann/prokka';
     print $log_fh "tbl2asn uses the full assembly: $options->{input_fsa}, the tbl file ${output_tbl},
-and template sbt file: $options->{template_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
-    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y 'Annotated using $EXE $VERSION from $URL'".
+and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
+    my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL; Most similar taxon to this strain: $taxonomy_information->{taxon}";
+    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y '${tbl2asn_comment}'" .
         " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
+    print "TESTME: $tbl_command\n";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
@@ -841,8 +866,8 @@ sub Merge_Classifier {
         second_email => 'abelew@umd.edu',
         ## The following entries will be changed by reading the input tsv file.
         taxon => 'Unknown taxonomy.',
-        length => 0,
-        hit_acc => 'No matching accession.',
+        hit_length => 0,
+        hit_accession => 'No matching accession.',
         hit_description => 'Unclassified phage genome.',
         hit_bit => 'No tblastx bit score found.',
         hit_sig => 'No significance score found.',
@@ -851,6 +876,7 @@ sub Merge_Classifier {
     };
     
     my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
+    print "TESTME: input file: $args{input}\n";
     open(my $classifier_fh, "<:encoding(utf8)", $args{input});
     my $input_header = $input_tsv->getline($classifier_fh);
     $input_tsv->column_names($input_header);
@@ -861,31 +887,24 @@ sub Merge_Classifier {
           last ROWS;
       }
       $rows_read++;
-      my $key = $row->{$primary_key};
-      $merged_data->{$key}->{$primary_key} = $key;
-      my @wanted_columns = ('taxon', 'length', 'hit_acc', 'hit_description', 'hit_bit', 'hit_sig', 'hit_score');
+
+      my @wanted_columns = ('taxon', 'hit_length', 'hit_accession', 'hit_description',
+                            'hit_bit', 'hit_sig', 'hit_score');
       foreach my $colname (@wanted_columns) {
           ## Check that we already filled this data point
-          if ($merged_data->{$key}->{$colname}) {
-              ## There is something here.
-          } else {
-              if ($row->{$colname}) {
-                  $default_values->{$colname} = $row->{$colname};
-                  $merged_data->{$key}->{$colname} = $row->{$colname};
-              }
-          }
-      }  ## Run over the columns
+          $default_values->{$colname} = $row->{$colname};
+      }
   }
     close $classifier_fh;
-
     if ($default_values->{taxon} ne 'Unknown taxonomy.') {
-        $default_values->{user_comment} = qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{description}, accession: $default_values->{hit_acc}, significance: $default_values->{hit_sig}, hit length: $default_values->{length}, hit score: $default_values->{hit_score}";
+        my $comment_string =  qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{hit_description}, accession: $default_values->{hit_accession}, significance: $default_values->{hit_bit}, hit length: $default_values->{hit_length}, hit score: $default_values->{hit_score}";
+        $default_values->{user_comment} = $comment_string;
     }
-    my $tt = Template->new();
-    $tt->process($template, $default_values, $output);
-
+    my $tt = Template->new({
+        ABSOLUTE => 1,});
+    my $written = $tt->process($template, $default_values, $output) or print $tt->error(), "\n";
     ## Now write out template sbt file to the output directory with the various values filled in.
-    return($merged_data);
+    return($merged_data, $default_values);
 }
 
 sub Merge_Prodigal {
@@ -1058,6 +1077,7 @@ sub Write_XLSX {
 sub Tbl_Writer {
     my %args = @_;
     my $file = $args{tbl_file};
+    my $taxonomy_information = $args{taxonomy_information};
     my @seq = @{$args{sequences}};
     my @features = @{$args{features}};
     my $tbl_fh = FileHandle->new(">${file}");
@@ -1074,6 +1094,13 @@ sub Tbl_Writer {
     for my $sid (@seq) {
         print $tbl_fh ">Feature gnl|Prokka|${sid}\n";
         for my $f (@features) {
+            if ($f->primary_tag eq 'source') {
+                $f->add_tag_value('organism', "Phage similar to $taxonomy_information->{taxon}.");
+                $f->add_tag_value('strain', "Similar accession: $taxonomy_information->{hit_accession}.");
+                $f->seq_id("Phage species similar to $taxonomy_information->{taxon}.");
+                use Data::Dumper;
+                print Dumper $f;
+            }
             if ($f->primary_tag eq 'CDS' and not $f->has_tag('product')) {
                 $f->add_tag_value('product', $hypothetical_string);
             }

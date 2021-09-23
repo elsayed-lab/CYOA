@@ -422,7 +422,7 @@ sub Unicycler {
         mode => 'bold',
         min_length => 1000,
         arbitrary => '',
-        modules => ['trimomatic', 'spades', 'unicycler'],
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
