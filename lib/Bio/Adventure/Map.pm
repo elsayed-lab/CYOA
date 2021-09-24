@@ -628,7 +628,6 @@ echo "\$stat_string" >> ${stat_output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:10:00',
     );
     return($stats);
 }
@@ -676,7 +675,6 @@ echo "\$stat_string" >> ${output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:10:00',
     );
     return($stats);
 }
@@ -988,7 +986,6 @@ echo "\${stat_string}" >> ${stat_output}!;
         cpus => 1,
         jmem => 1,
         jqueue => "throughput",
-        jwalltime => "00:10:00",
     );
     return($stats);
 }
@@ -1281,7 +1278,6 @@ echo "\$stat_string" >> ${output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:10:00',
     );
     return($stats);
 }
@@ -1728,7 +1724,6 @@ echo "\$stat_string" >> "${output}"!;
         jstring => $jstring,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:10:00',
     );
     return($stats);
 }
@@ -2119,7 +2114,6 @@ echo "\$stat_string" >> "${output}"!;
         jstring => $jstring,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:10:00',
     );
     return($stats);
 }

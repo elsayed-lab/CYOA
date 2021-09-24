@@ -261,13 +261,17 @@ sub Trimomatic {
         args => \%args,
         required => ['input',],
         jprefix => '01',
+        modules => ['trimomatic'],
         );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
     } else {
         $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
     }
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($trim);
 }
 

@@ -42,8 +42,7 @@ parameters for various jobs on our Slurm cluster.
 =cut
 sub Submit {
     my ($class, $parent, %args) = @_;
-    my $options = $parent->Get_Vars(
-        args => \%args);
+    my $options = $parent->Get_Vars(args => \%args);
     my $sbatch = $class->Check_Sbatch();
     my $depends_prefix = '--dependency=afterok';
     ## For arguments to sbatch, start with the defaults in the constructor in $class
