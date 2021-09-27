@@ -264,12 +264,15 @@ sub Trimomatic {
         args => \%args,
         required => ['input',],
         jprefix => '01',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
     } else {
         $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
     }
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($trim);
 }
 
@@ -328,13 +331,13 @@ sub Trimomatic_Pairwise {
     if ($r1 =~ /\.xz$/) {
         $reader = qq"<(less ${r1}) <(less ${r2})";
     }
-    my $r1o = qq"${r1b}-trimmed.fastq.gz";
-    my $r1op = qq"${r1b}-trimmed_paired.fastq.gz";
-    my $r1ou = qq"${r1b}-trimmed_unpaired.fastq.gz";
+    my $r1o = qq"${r1b}-trimmed.fastq";
+    my $r1op = qq"${r1b}-trimmed_paired.fastq";
+    my $r1ou = qq"${r1b}-trimmed_unpaired.fastq";
 
-    my $r2o = qq"${r2b}-trimmed.fastq.gz";
-    my $r2op = qq"${r2b}-trimmed_paired.fastq.gz";
-    my $r2ou = qq"${r2b}-trimmed_unpaired.fastq.gz";
+    my $r2o = qq"${r2b}-trimmed.fastq";
+    my $r2op = qq"${r2b}-trimmed_paired.fastq";
+    my $r2ou = qq"${r2b}-trimmed_unpaired.fastq";
 
     my $leader_trim = "";
     if ($options->{task} eq 'dnaseq') {
@@ -371,8 +374,15 @@ if [[ "\${excepted}" \!= "" ]]; then
 fi
 sleep 10
 mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
-ln -s ${r1o} r1_trimmed.fastq.gz
-ln -s ${r2o} r2_trimmed.fastq.gz
+
+## Recompress the unpaired reads, this should not take long.
+xz -9e ${r1ou}
+xz -9e ${r2ou}
+## Recompress the paired reads.
+xz -9e ${r1o}
+xz -9e ${r2o}
+ln -s ${r1o}.xz r1_trimmed.fastq.xz
+ln -s ${r2o}.xz r2_trimmed.fastq.xz
 !;
 
     ## Example output from trimomatic:

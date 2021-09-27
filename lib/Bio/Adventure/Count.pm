@@ -50,6 +50,11 @@ sub HT_Multi {
     my $species = $options->{species};
     my $htseq_input = $options->{input};
     my $stranded = $options->{htseq_stranded};
+    if ($stranded eq '1') {
+        $stranded = 'yes';
+    } elsif ($stranded eq '0') {
+        $stranded = 'no';
+    }
     my $htseq_type = $options->{htseq_type};
     my $htseq_id = $options->{htseq_id};
     my @jobs = ();

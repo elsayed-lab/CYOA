@@ -225,6 +225,7 @@ has directories => (is => 'rw', default => undef); ## Apply a command to multipl
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
 has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 program to run?
+has filtered => (is => 'rw', default => 'unfiltered');  ## Whether or not Fastqc is running on filtered data.
 has fsa_input => (is => 'rw'); ## fsa genome output file for creating a genbank file
 has gcode => (is => 'rw', default => '11'); ## Choose a genetic code
 has genbank_input => (is => 'rw', default => undef); ## Existing genbank file for merging annotations.
@@ -244,7 +245,6 @@ has identity => (is => 'rw', default => 70); ## Alignment specific identity cuto
 has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing indexes:sampleIDs when demultiplexing samples - likely tnseq
 has input => (is => 'rw', default => undef); ## Generic input argument
 has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
-
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has interpro_input => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
@@ -419,14 +419,24 @@ sub BUILD {
     ## There are a few default variables which we cannot fill in with MOO defaults.
     ## Make a hash of the defaults in order to make pulling command line arguments easier
     my %defaults;
+    my @ignored;
+    if (defined($class->{slots_ignored})) {
+        @ignored = split(/\,/, $class->{slots_ignored});
+    }
     foreach my $k (keys %{$class}) {
-        my @ignored = split(/\,/, $class->{slots_ignored});
         for my $ignore (@ignored) {
             next if ($k eq $ignore);
         }
         $defaults{$k} = $class->{$k};
     }
 
+    if (defined($class->{cluster})) {
+        if (!$class->{cluster}) {
+            $class->{sbatch_path} = 0;
+            $class->{qsub_path} = 0;
+            $class->{cluster} = 'bash';
+        }
+    }
     ## Figure out what kind of cluster we are using, if any.
     my $queue_test = My_Which('sbatch');
     if ($queue_test) {
@@ -1509,7 +1519,7 @@ sub Submit {
     }
     my $runner;
     if ($class->{sbatch_path}) {
-        $runner = Bio::Adventure::Slurm->new();
+        $runner = Bio::Advaenture::Slurm->new();
     } elsif ($class->{qsub_path}) {
         $runner = Bio::Adventure::Torque->new();
     } elsif ($class->{bash_path}) {

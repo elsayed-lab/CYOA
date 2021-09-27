@@ -205,17 +205,40 @@ sub Fastqc_Single {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         filtered => 'unfiltered',
-        modules => ['fastqc'],);
-    my $outdir = qq"outputs/fastqc";
-    my $jstring = qq!mkdir -p ${outdir} &&\\
+        jprefix => '01',
+        modules => ['fastqc'],
+        );
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $job_name = $class->Get_Job_Name();
+    my $input_paths = $class->Get_Paths($options->{input});
+    my $jname = qq"fqc_${job_name}_$input_paths->{dirname}";
+    my $outdir = qq"outputs/$options->{jprefix}fastqc";
+
+    ## This is where fastqc should put its various output files
+    ## with one important exception: It tries to be smart and take its own basename of the input
+    ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
+    ## outputs/${jprefix}fastqc/xxx_fastqc...
+    my $modified_inputname = basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
+    my $final_output = qq"${outdir}/${modified_inputname}";
+
+    my $jstring = qq!mkdir -p ${outdir} && \\
   fastqc -q --extract -o ${outdir} <(less $options->{input}) \\
-  2>outputs/$options->{jname}-$options->{filtered}_fastqc.out 1>&2
+  2>outputs/${jname}-$options->{filtered}_fastqc.out 1>&2
+## Note that because I am using a subshell, fastqc will assume that the inputs
+## are /dev/fd/xx (usually 63 or 64).
+## We can likely cheat and get the subshell fd with this:
+badname=\$(basename <(env))
+echo \${badname}
+## with the caveat that this is subject to race conditions if a bunch of other things are
+## creating subshells on this host.
+mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_inputname}.html
+mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_inputname}.zip
+mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
 !;
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $job_name = $class->Get_Job_Name();
-    my $jname = qq"fqc_${job_name}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
@@ -230,11 +253,17 @@ sub Fastqc_Single {
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
         indir => $outdir,
+    my $newname = qq"fqcstats_${job_name}_$input_paths->{dirname}";
+    my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
+        input => $final_output,
         jdepends => $fqc->{job_id},
-        jname => $options->{jname},
-        jprefix => $options->{jprefix},);
+        jname => $jname,
+        jprefix => $options->{jprefix} + 1,);
     $fqc->{stats} = $fqc_stats;
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($fqc);
+
 }
 
 =head2 C<Fastqc_Stats>
@@ -247,18 +276,20 @@ sub Fastqc_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         jname => 'fqcst',
         paired => 1,);
     ## Dereferencing the options to keep a safe copy.
     my $jname = $options->{jname};
-    my $input_file = qq"$options->{indir}/fastqc_data.txt";
+    ## Dereferencing the options to keep a safe copy.
+    my $input_file = qq"$options->{input}/fastqc_data.txt";
     if ($options->{paired}) {
-        $input_file = qq"$options->{indir}/fastqc_data.txt";
+        $input_file = qq"$options->{input}/fastqc_data.txt";
     }
     my $stat_output = qq"outputs/fastqc_stats.csv";
     if ($options->{direction}) {
         $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
-        $jname = qq"${jname}_$options->{direction}";
+        $jname = qq"$options->{jname}_$options->{direction}";
     }
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $jstring = qq!
@@ -286,7 +317,7 @@ adapter_content=\${adapter_content_tmp:-0}
 kmer_content_tmp=\$(grep "Kmer Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
 kmer_content=\${kmer_content_tmp:-0}
 
-stat_string=\$(printf "${jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
+stat_string=\$(printf "$options->{jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
 echo "\$stat_string" >> ${stat_output}
 !;
     my $stats = $class->Submit(

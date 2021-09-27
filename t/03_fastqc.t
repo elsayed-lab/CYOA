@@ -4,28 +4,21 @@ use Bio::Adventure;
 use File::Path qw"remove_tree";
 use String::Diff qw" diff_fully diff diff_merge diff_regexp ";
 
-my $cyoa = Bio::Adventure->new(pbs => 0);
+my $cyoa = Bio::Adventure->new(cluster => 0);
 
-ok(Bio::Adventure::QA::Fastqc_Single($cyoa, input => qq"share/test_forward.fastq.gz"),
+ok($cyoa->Bio::Adventure::QA::Fastqc_Single(input => qq"share/test_forward.fastq.gz"),
    'Run Fastqc');
 
-ok(-r 'scripts/00fqc_test_forward.sh',
+ok(-r 'scripts/01fqc_test_forward_share.sh',
    'Fastqc script exists?');
 
 ok(qx"fastqc --help",
    'Can run fastqc?');
 
-##my $fqc_dir = qx"find outputs/";
-##diag($fqc_dir);
-
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
 
-my $expected = 'fqc_test_forward,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
-my $travis_expected = 'fqc_test_forward,10000,0,pass,warn,pass,pass,pass,warn,0,fail';
-if ($ENV{TRAVIS}) {
-    $expected = $travis_expected;
-}
+my $expected = 'fqc_test_forward_share,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
 unless(ok($expected eq $actual,
           'Are the fastqc results the expected value?')) {
     my($old, $new) = diff($expected, $actual);
