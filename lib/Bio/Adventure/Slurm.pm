@@ -152,6 +152,7 @@ ${perl_file}
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
 
 ${module_string}
+
 ?;
 
 

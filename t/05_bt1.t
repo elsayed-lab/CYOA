@@ -4,21 +4,26 @@ use Bio::Adventure;
 use File::Path qw"remove_tree";
 use File::Copy qw"cp";
 use String::Diff qw"diff";
+use File::ShareDir qw":ALL";
+use Cwd;
 
-my $cyoa = Bio::Adventure->new();
-ok(cp("share/test_forward.fastq.gz", "test_forward.fastq.gz"),
+my $start = getcwd();
+my $new = 'test_output';
+mkdir($new);
+chdir($new);
+
+my $input_file = dist_file('Bio-Adventure', 'test_forward.fastq.gz');
+my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+ok(cp($input_file, "test_forward.fastq.gz"),
     'Copying data.');
 
 mkdir('share/genome/indexes'); ## Make a directory for the phix indexes.
-ok(Bio::Adventure::Map::Bowtie(
-       $cyoa,
+ok($cyoa->Bio::Adventure::Map::Bowtie(
        input => qq"test_forward.fastq.gz",
        htseq_id => 'ID',
        htseq_type => 'CDS',
        libdir => 'share',
-       pbs => 0,
-       species => 'phix',
-   ),
+       species => 'phix',),
    'Run Bowtie1');
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
@@ -53,3 +58,5 @@ unless(ok($expected eq $actual,
     my($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");
 }
+
+chdir($start);

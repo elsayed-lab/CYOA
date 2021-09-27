@@ -203,7 +203,7 @@ has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment
 has align_parse => (is => 'rw', default => 1); ## Parse blast searches into a table?
 has arbitrary => (is => 'rw', default => undef); ## Extra arbitrary arguments to pass
 has bamfile => (is => 'rw', default => undef); ## Default bam file for converting/reading/etc.
-has basedir => (is => 'rw', default => cwd());
+has basedir => (is => 'rw', default => '');  ## This was cwd() but I think that may cause problems.
 has bash_path => (is => 'rw', default => My_Which('bash'));
 has best_only => (is => 'rw', default => 0); ## keep only the best search result when performing alignments?
 has blast_params => (is => 'rw', default => ' -e 10 '); ## Default blast parameters
@@ -404,7 +404,7 @@ $ENV{LESS} = '--buffers 0';
 
 =cut
 sub Help {
-    my $class = shift @_;
+    my ($class, $args) = @_;
     my $fh = \*STDOUT;
     ##    my $usage = pod2usage(-output => $fh, -verbose => 99, -sections => "SYNOPSIS");
     use Pod::Find qw(pod_where);
@@ -1240,23 +1240,11 @@ sub My_Which {
     }
 }
 
-=item C<Last_Stat>
-
-    Last_Stat() reads the final line of an input file and returns it
-    as a string.
-
-    This is useful because many of these tools append to .csv files
-    with summary information (alignment statistics, sequence sizes,
-    etc) and the tests keep a set of expected outputs for the most
-    recent run.
-
-=cut
 sub Last_Stat {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(args => \%args, required => ['input']);
     my $input_filename = $options->{input};
     my $input = FileHandle->new("<${input_filename}");
-    ##$input->open("<$input_filename");
     my ($line, $last);
     while ($line = <$input>) {
         chomp $line;

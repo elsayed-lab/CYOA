@@ -51,8 +51,8 @@ sub Bowtie {
         htseq_type => 'gene',
         htseq_id => 'ID',
         jprefix => '10',
-        modules => ['bowtie1', 'samtools', 'htseq'],
-    );
+        modules => ['bowtie1', 'samtools', 'htseq'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $start_species = $options->{species};
     my $species = $start_species;
     if ($species =~ /\:/) {
@@ -215,6 +215,9 @@ sub Bowtie {
         trim_input => ${trim_output_file},);
     $bt_job->{stats} = $stats;
 
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    
     return($bt_job);
 }
 
