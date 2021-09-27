@@ -57,6 +57,8 @@ sub Gb2Gff {
     my $inter_gffout = Bio::Tools::GFF->new(-file => ">${base}_interCDS.gff", -gff_version => 3);
     my $cds_fasta = Bio::SeqIO->new(-file => qq">${base}_cds.fasta", -format => 'Fasta');
     my $pep_fasta = Bio::SeqIO->new(-file => qq">${base}_pep.fasta", -format => 'Fasta');
+    my $rrna_gffout = Bio::Tools::GFF->new(-file => ">${base}_rrna.gff", -gff_version => 3);
+    my $rrna_fasta = Bio::SeqIO->new(-file => qq">${base}_rrna.fasta", -format => 'Fasta');
     while (my $seq = $seqio->next_seq) {
         $seq_count++;
         $total_nt = $total_nt + $seq->length();
@@ -76,7 +78,50 @@ sub Gb2Gff {
       FEAT: for my $feat_object ($seq->get_SeqFeatures) {
           $feature_count++;
           my $feat_count = 0;
-          if ($feat_object->primary_tag eq "CDS") {
+          if ($feat_object->primary_tag eq 'rRNA') {
+              $rrna_gffout->write_feature($feat_object);
+              my $id_string = "";
+              my $desc = "";
+              my $id_hash = {};
+              foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
+                  my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
+                  $id_hash->{$thing} = $arr[0];
+              }
+              my $id = qq"";
+              if (defined($id_hash->{protein_id})) {
+                  $id = qq"$id_hash->{protein_id}";
+              }
+              if (defined($id_hash->{gene})) {
+                  $desc .= "$id_hash->{gene} ; ";
+              }
+              if (defined($id_hash->{db_xref})) {
+                  $desc .= "$id_hash->{db_xref} ; ";
+              }
+              if (defined($id_hash->{product})) {
+                  $desc .= "$id_hash->{product}";
+              }
+              my $start = $feat_object->start;
+              my $end = $feat_object->end;
+              my $len = $feat_object->length;
+              my $seq;
+              try {
+                  $seq = $feat_object->spliced_seq->seq;
+              }
+              catch ($e) {
+                  print "Something went wrong getting the sequence.\n";
+                  next FEAT;
+              }
+              my $size = {
+                  id => $id_string,
+                  start => $start,
+                  end => $end,
+                  len => $len,
+                  feat => $feat_object,
+              };
+              my $rrna_object = Bio::PrimarySeq->new(-id => $id_string, -seq => $seq,
+                                                     description => $desc);
+              $rrna_fasta->write_seq($rrna_object);
+          } elsif ($feat_object->primary_tag eq 'CDS') {
               $cds_gff->write_feature($feat_object);
               $feat_count++;
               my $id_string = "";
@@ -204,6 +249,15 @@ sub Gb2Gff {
                       total_nt => $total_nt,
                       num_features => $feature_count, };
     close($in);
+    $fasta->close();
+    $gffout->close();
+    $gene_gff->close();
+    $cds_gff->close();
+    $inter_gffout->close();
+    $cds_fasta->close();
+    $pep_fasta->close();
+    $rrna_gffout->close();
+    $rrna_fasta->close();
     return($ret_stats);
 }
 

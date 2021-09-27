@@ -960,6 +960,7 @@ sub Hisat2 {
         htseq_id => 'ID',
         do_htseq => 1,
         jprefix => '40',
+        libtype => 'genome',
         modules => ['hisat2', 'samtools', 'htseq'],
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -986,12 +987,11 @@ sub Hisat2 {
             files => $options->{input},);
     }
     my $sleep_time = 3;
-    my $libtype = 'genome';
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
 
     my $prefix_name = qq"hisat2";
-    my $hisat_name = qq"${prefix_name}_$options->{species}";
+    my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
         $hisat_name .= qq"_$options->{jname}";
@@ -1031,22 +1031,22 @@ sub Hisat2 {
             $class,
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
-            libtype => $libtype,);
+            libtype => $options->{libtype},);
         $options->{jdepends} = $index_job->{job_id};
     }
     my $hisat_input_flag = "-q "; ## fastq by default
     $hisat_input_flag = "-f " if (${hisat_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
-    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{jbasename}.err";
+    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.err";
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
-    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aligned_discordant_$options->{species}.fastq.gz";
-    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaligned_discordant_$options->{species}.fastq.gz";
-    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_aligned_concordant_$options->{species}.fastq.gz";
-    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaligned_concordant_$options->{species}.fastq.gz";
-    my $sam_filename = qq"${hisat_dir}/$options->{jbasename}.sam";
+    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aldis_$options->{species}_$options->{libtype}.fastq.gz";
+    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaldis_$options->{species}_$options->{libtype}.fastq.gz";
+    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_alcon_$options->{species}_$options->{libtype}.fastq.gz";
+    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unalcon_$options->{species}_$options->{libtype}.fastq.gz";
+    my $sam_filename = qq"${hisat_dir}/$options->{jbasename}_$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
 sleep ${sleep_time}
 hisat2 -x ${hisat_reflib} ${hisat_args} \\
@@ -1059,7 +1059,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
   --al-conc-gz ${aligned_concordant_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>${hisat_dir}/hisat2_$options->{species}_$options->{jbasename}.out
+  1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.out
 !;
     ## Example: r1_trimmed_unaligned_concordant_lpanamensis_v36.fastq.1.gz
 
@@ -1083,8 +1083,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        unaligned => $unaligned_filenames,
-        walltime => '124:00:00',);
+        unaligned => $unaligned_filenames,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
 
@@ -1120,7 +1119,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     }
     my $htmulti;
     if ($options->{do_htseq}) {
-        if ($libtype eq 'rRNA') {
+        if ($options->{libtype} eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_id => $options->{htseq_id},
                 htseq_type => $options->{htseq_type},
@@ -1128,7 +1127,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $new_jprefix,
-                libtype => $libtype,
+                libtype => $options->{libtype},
                 mapper => 'hisat2',
                 paired => $paired,);
         } else {
@@ -1139,7 +1138,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $new_jprefix,
-                libtype => $libtype,
+                libtype => $options->{libtype},
                 mapper => 'hisat2',
                 paired => $paired,);
             $hisat_job->{htseq_job} = $htmulti;

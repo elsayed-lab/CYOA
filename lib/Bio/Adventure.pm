@@ -351,6 +351,7 @@ $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $ENV{LESSOPEN} = '| lesspipe %s';
+$ENV{LESS} = '--buffers 0';
 
 =head1 NAME
 
@@ -1519,7 +1520,7 @@ sub Submit {
     }
     my $runner;
     if ($class->{sbatch_path}) {
-        $runner = Bio::Advaenture::Slurm->new();
+        $runner = Bio::Adventure::Slurm->new();
     } elsif ($class->{qsub_path}) {
         $runner = Bio::Adventure::Torque->new();
     } elsif ($class->{bash_path}) {

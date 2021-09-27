@@ -373,7 +373,8 @@ if [[ "\${excepted}" \!= "" ]]; then
     1>${output_dir}/${basename}-trimomatic.out 2>&1
 fi
 sleep 10
-mv ${r1op} ${r1o} && mv ${r2op} ${r2o}
+mv ${r1op} ${r1o}
+mv ${r2op} ${r2o}
 
 ## Recompress the unpaired reads, this should not take long.
 xz -9e ${r1ou}
@@ -399,7 +400,6 @@ ln -s ${r2o}.xz r2_trimmed.fastq.xz
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
-        jwalltime => '12:00:00',
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
@@ -463,7 +463,7 @@ sub Trimomatic_Single {
     $basename = basename($basename, (".gz"));
     $basename = basename($basename, (".fastq"));
     my $job_name = $class->Get_Job_Name();
-    my $output = qq"${basename}-trimmed.fastq.gz";
+    my $output = qq"${basename}-trimmed.fastq";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
@@ -477,6 +477,8 @@ ${exe} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
   1>${output_dir}/${basename}-trimomatic.out 2>&1
+xz -9e ${output}
+ln -s ${output} r1_trimmed.fastq.xz
 !;
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
@@ -485,7 +487,6 @@ ${exe} \\
         jname => "trim_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jwalltime => '4:00:00',
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
