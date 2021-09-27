@@ -10,7 +10,7 @@ extends 'Bio::Adventure';
 
 use File::Basename;
 use File::Path qw"make_path";
-use File::ShareDir ':ALL';
+use File::ShareDir qw":ALL";
 use File::Temp qw":POSIX";
 use File::Which qw"which";
 
@@ -293,6 +293,7 @@ sub Trimomatic_Pairwise {
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
+
     my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
     for my $test_exe (@exe_list) {
         my @executable_list = split(/\s+/, $test_exe);
@@ -305,7 +306,7 @@ sub Trimomatic_Pairwise {
         die('Unable to find the trimomatic executable.');
     }
 
-    my $adapter_file = module_file('Bio::Adventure', 'genome/adapters.fa');
+    my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
@@ -377,13 +378,13 @@ mv ${r1op} ${r1o}
 mv ${r2op} ${r2o}
 
 ## Recompress the unpaired reads, this should not take long.
-xz -9e ${r1ou}
-xz -9e ${r2ou}
+xz -9e -f ${r1ou}
+xz -9e -f ${r2ou}
 ## Recompress the paired reads.
-xz -9e ${r1o}
-xz -9e ${r2o}
-ln -s ${r1o}.xz r1_trimmed.fastq.xz
-ln -s ${r2o}.xz r2_trimmed.fastq.xz
+xz -9e -f ${r1o}
+xz -9e -f ${r2o}
+ln -sf ${r1o}.xz r1_trimmed.fastq.xz
+ln -sf ${r2o}.xz r2_trimmed.fastq.xz
 !;
 
     ## Example output from trimomatic:
@@ -431,8 +432,8 @@ sub Trimomatic_Single {
         args => \%args,
         required => ['input',],
         modules => ['trimomatic',],
-        jprefix => '05',
-    );
+        jprefix => '05',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
@@ -447,14 +448,9 @@ sub Trimomatic_Single {
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
-    my $adapter_file = module_file('Bio::Adventure', 'genome/adapters.fa');
-
-    if ($options->{interactive}) {
-        print "Run with: cyoa --task rnaseq --method trim --input $options->{input}\n";
-    }
-
+    my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $leader_trim = "";
-    if ($options->{task} eq 'dnaseq') {
+    if (defined($options->{task}) && $options->{task} eq 'dnaseq') {
         $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
     }
 
@@ -477,10 +473,9 @@ ${exe} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
   1>${output_dir}/${basename}-trimomatic.out 2>&1
-xz -9e ${output}
-ln -s ${output} r1_trimmed.fastq.xz
+xz -9e -f ${output}
+ln -sf ${output}.xz r1_trimmed.fastq.xz
 !;
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,

@@ -96,10 +96,20 @@ $args{jstring}" if ($options->{verbose});
         $args{jstring} = qq"${perl_file}\n";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
+    my $module_string = '';
+    if (scalar(@{$options->{modules}} > 0)) {
+        $module_string = qq"module add";
+        for my $m (@{$options->{modules}}) {
+            $module_string .= qq" $m";
+        }
+    }
+    
     my $script_start = qq?#!/usr/bin/env bash
 
 echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
-cd $options->{basedir} || exit
+
+${module_string}
+
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
 echo "###Job status:\$?" >> outputs/log.txt
