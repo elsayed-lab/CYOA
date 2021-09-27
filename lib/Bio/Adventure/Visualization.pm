@@ -28,7 +28,7 @@ sub CGView {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => 'cgview',
+        modules => ['cgview'],
         jprefix => '16',
         linear => 1,
         reading_frame => 0,
@@ -48,7 +48,7 @@ sub CGView {
     my $xml_output = qq"${output_directory}/${output_base}.xml";
     my $output_file = qq"${output_directory}/${output_base}";
     my $out_paths = $class->Get_Paths($output_file);
-    
+
     ## Some potential options when making the input xml file:
     ## -linear add a glyph for linear genomes
     ## -reading_frames Separate ORFs by frame
@@ -66,7 +66,7 @@ sub CGView {
     if ($options->{gene_labels}) {
         $option_string .= "-gene_labels T ";
     }
-    
+
     my $jstring = qq?
 mkdir -p ${output_directory}
 cgview_xml_builder.pl -sequence ${xml_input} \\
@@ -95,12 +95,13 @@ cgview -i ${xml_output} \\
         jname => "cgview_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         output => $output_file,
         xml_output => $xml_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');   
+                                    action => 'unload');
     return($cgview);
 }
 

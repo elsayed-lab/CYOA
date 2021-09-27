@@ -92,7 +92,8 @@ my \$result;
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
 my \$end_d = qx'date';
-print \$out "## \$(hostname) Finished \${jobid} ${script_base} at \${end_d}.\n";
+my \$host = qx'hostname';
+print \$out "## \${host} finished \${jobid} ${script_base} at \${end_d}.\n";
 close(\$out);
 !;
         my $total_perl_string = "$perl_start\n";
@@ -122,7 +123,7 @@ ${perl_file}
 
     my $nice_string = '';
     $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
-    
+
     my $script_start = qq?#!/usr/bin/env bash
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
@@ -140,10 +141,20 @@ ${perl_file}
         $script_start .= qq"#SBATCH --array=$options->{array_string}
 ";
     }
+
+    my $module_string = '';
+    if (scalar(@{$options->{modules}} > 0)) {
+        $module_string = qq"module add";
+        for my $m (@{$options->{modules}}) {
+            $module_string .= qq" $m";
+        }
+    }
     $script_start .= qq?
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
 
+${module_string}
 ?;
+
 
     my $script_end = qq!
 ## The following lines give status codes and some logging

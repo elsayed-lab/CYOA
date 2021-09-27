@@ -30,9 +30,8 @@ sub Run_Gubbins {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'outgroup', 'starting_tree'],
-        cpus => 32,
-    );
-
+        modules => ['gubbins'],
+        cpus => 32,);
     my $cpus = $options->{cpus};
     my $bname = basename($options->{input});
     my $gub_dir = qq"outputs/gubbins_${bname}";
@@ -55,10 +54,10 @@ sub Run_Gubbins {
         jqueue => 'large',
         jprefix => '30',
         jmem => 50,
+        modules => $options->{modules},
         cpus => $options->{cpus},
         jstring => $jstring,
-        jname => 'gub',
-        );
+        jname => 'gub',);
     return($gubbins);
 }
 

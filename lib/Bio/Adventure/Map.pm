@@ -51,6 +51,7 @@ sub Bowtie {
         htseq_type => 'gene',
         htseq_id => 'ID',
         jprefix => '10',
+        modules => ['bowtie1', 'samtools', 'htseq'],
     );
     my $start_species = $options->{species};
     my $species = $start_species;
@@ -99,12 +100,10 @@ sub Bowtie {
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $options = $class->Set_Vars(bt1_indexjobs => 1);
-        $index_job = Bio::Adventure::Map::BT1_Index(
-            $class,
+        $index_job = $class->Bio::Adventure::Map::BT1_Index(
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
-            libtype => $libtype,
-            );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{jobid};
     }
 
@@ -140,51 +139,44 @@ sub Bowtie {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         output => $sam_filename,
+        modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',
-        unaligned => $unaligned_filename,
-        );
+        unaligned => $unaligned_filename,);
     if (defined($index_job)) {
         $bt_job->{index} = $index_job;
     }
 
-    my $un_comp = Bio::Adventure::Compress::Recompress(
-        $class,
+    my $un_comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.\n",
         jdepends => $bt_job->{job_id},
         jname => "xzun",
         jprefix => $options->{jprefix} + 1,
-        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq",
-        );
+        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq",);
     $bt_job->{unaligned_compression} = $un_comp;
 
-    my $al_comp = Bio::Adventure::Compress::Recompress(
-        $class,
+    my $al_comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt_args}.",
         jdepends => $bt_job->{job_id},
         jname => "xzal",
         jprefix => $options->{jprefix} + 2,
-        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq",
-    );
+        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq",);
     $bt_job->{aligned_compression} = $al_comp;
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
 
-    my $sam_job = Bio::Adventure::Convert::Samtools(
-        $class,
+    my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $bt_job->{job_id},
         jname => "s2b_${jname}",
-        jprefix => $options->{jprefix} + 3,
-    );
+        jprefix => $options->{jprefix} + 3,);
     $bt_job->{samtools} = $sam_job;
     my $htmulti;
     if ($count) {
         if ($libtype eq 'rRNA') {
-            $htmulti = Bio::Adventure::Count::HTSeq(
-                $class,
+            $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_id => $options->{htseq_id},
                 htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
@@ -194,12 +186,10 @@ sub Bowtie {
                 libtype => $libtype,
                 jqueue => 'workstation',
                 suffix => $bt_type,
-                mapper => 'bowtie1',
-                );
+                mapper => 'bowtie1',);
             $bt_job->{rRNA_count} = $htmulti;
         } else {
-            $htmulti = Bio::Adventure::Count::HT_Multi(
-                $class,
+            $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 htseq_id => $options->{htseq_id},
                 htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
@@ -209,22 +199,20 @@ sub Bowtie {
                 libtype => $libtype,
                 jqueue => 'workstation',
                 suffix => $bt_type,
-                mapper => 'bowtie1',
-                );
+                mapper => 'bowtie1',);
             $bt_job->{htseq} = $htmulti;
         }
     }  ## End if ($count)
 
-    my $stats = Bio::Adventure::Map::BT1_Stats(
-        $class, %args,
+    my $stats = $class->Bio::Adventure::Map::BT1_Stats(
+        %args,
         bt_input => $error_file,
         bt_type => $bt_type,
         count_table => qq"$options->{jbasename}-${bt_type}.count.xz",
         jdepends => $bt_job->{job_id},
         jname => "${jname}_stats",
         jprefix => $options->{jprefix} + 5,
-        trim_input => ${trim_output_file},
-    );
+        trim_input => ${trim_output_file},);
     $bt_job->{stats} = $stats;
 
     return($bt_job);
@@ -257,7 +245,7 @@ sub Bowtie2 {
         htseq_id => 'ID',
         jmem => 28,
         jprefix => 20,
-        );
+        modules => ['bowtie']);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -319,8 +307,7 @@ sub Bowtie2 {
             $class,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
-            libtype => $libtype,
-            );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{jobid};
     }
     my $bowtie_input_flag = "-q "; ## fastq by default
@@ -356,36 +343,31 @@ sub Bowtie2 {
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
+        modules => $options->{modules},
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        unaligned => $unaligned_filename,
-    );
+        unaligned => $unaligned_filename,);
 
-    my $un_comp = Bio::Adventure::Compress::Recompress(
-        $class,
+    my $un_comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
         xz_input => "${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq",
         jdepends => $bt2_job->{job_id},
         jname => "xzun_${suffix_name}",
-        jprefix => $options->{jprefix} + 1,
-        );
+        jprefix => $options->{jprefix} + 1,);
     $bt2_job->{unaligned_compression} = $un_comp;
 
-    my $al_comp = Bio::Adventure::Compress::Recompress(
-        $class,
+    my $al_comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt2_args}",
         xz_input => "${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq",
         jname => "xzal_${suffix_name}",
         jprefix => $options->{jprefix} + 2,
-        depends => $bt2_job->{job_id},
-    );
+        depends => $bt2_job->{job_id},);
     $bt2_job->{aligned_compression} = $al_comp;
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
-    my $stats = Bio::Adventure::Map::BT2_Stats(
-        $class,
+    my $stats = $class->Bio::Adventure::Map::BT2_Stats(
         bt_input => $error_file,
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
@@ -394,20 +376,17 @@ sub Bowtie2 {
         ## trim_input => ${trim_output_file},
         );
     $bt2_job->{stats} = $stats;
-    my $sam_job = Bio::Adventure::Convert::Samtools(
-        $class,
+    my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $bt2_job->{job_id},
         jname => "s2b_${suffix_name}",
-        jprefix => $options->{jprefix} + 4,
-    );
+        jprefix => $options->{jprefix} + 4,);
     $bt2_job->{samtools} = $sam_job;
     my $htseq_input = $sam_job->{output};
     my $htmulti;
     if ($options->{do_htseq}) {
         if ($libtype eq 'rRNA') {
-            $htmulti = Bio::Adventure::Count::HTSeq(
-                $class,
+            $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 htseq_id => $options->{htseq_id},
@@ -415,11 +394,9 @@ sub Bowtie2 {
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 5,
                 libtype => $libtype,
-                mapper => 'bowtie2',
-            );
+                mapper => 'bowtie2',);
         } else {
-            $htmulti = Bio::Adventure::Count::HT_Multi(
-                $class,
+            $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 htseq_input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 htseq_id => $options->{htseq_id},
@@ -427,8 +404,7 @@ sub Bowtie2 {
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 6,
                 libtype => $libtype,
-                mapper => 'bowtie2',
-            );
+                mapper => 'bowtie2',);
             $bt2_job->{htseq} = $htmulti;
         }
     }
@@ -451,22 +427,18 @@ sub Bowtie_RRNA {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"],
-    );
-    
+        required => ["species"],);
     my $job_name = qq"rRNA_$options->{jbasename}";
     my $exclude = 0;
     $exclude = $options->{exclude} if ($options->{exclude});
     my $species = $options->{species};
     my ${bt_dir} = qq"outputs/bowtie_$options->{species}";
-    my $job = Bio::Adventure::Map::Bowtie(
-        $class,
+    my $job = $class->Bio::Adventure::Map::Bowtie(
         jdepends => $options->{jdepends},
         jname => $job_name,
         libtype => 'rRNA',
         prescript => $args{prescript},
-        postscript => $args{postscript},
-    );
+        postscript => $args{postscript},);
     ## Return the basename back to normal so that future tasks don't
     ## get confuseled.
     return($job);
@@ -484,8 +456,7 @@ sub BT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "input", "htseq_type"],
-    );
+        required => ["species", "input", "htseq_type"],);
     my $bt_input = $options->{input};
     my $species = $options->{species};
     my %bt_types = %{$options->{bt_args}};
@@ -493,15 +464,13 @@ sub BT_Multi {
     my $job;
     foreach my $type (keys %bt_types) {
         my $jname = qq"bt${type}_${species}";
-        my $bt_job = Bio::Adventure::Map::Bowtie(
-            $class,
+        my $bt_job = $class->Bio::Adventure::Map::Bowtie(
             input => $bt_input,
             bt_type => $type,
             jdepends => $options->{jdepends},
             jname => $jname,
             prescript => $args{prescript},
-            postscript => $args{postscript},
-            );
+            postscript => $args{postscript},);
         if ($count == 0) {
             $job = $bt_job;
         } else {
@@ -522,8 +491,7 @@ sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"],
-        );
+        required => ["species"],);
 
     my $jstring = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
   $options->{libdir}/$options->{libtype}/indexes/$options->{species}
@@ -536,8 +504,7 @@ sub BT1_Index {
         jstring => $jstring,
         jprefix => "10",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($bt1_index);
 }
 
@@ -551,7 +518,8 @@ sub BT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"]);
+        required => ["species"],
+        modules => ['bowtie'],);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
     my $jstring = qq!
@@ -572,9 +540,9 @@ bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
         jname => "bt2idx_$options->{species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($indexer);
 }
 
@@ -627,9 +595,7 @@ echo "\$stat_string" >> ${stat_output}!;
         jstring => $jstring,
         cpus => 1,
         jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-    );
+        jqueue => 'throughput',);
     return($stats);
 }
 
@@ -675,9 +641,7 @@ echo "\$stat_string" >> ${output}!;
         jstring => $jstring,
         cpus => 1,
         jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-    );
+        jqueue => 'throughput',);
     return($stats);
 }
 
@@ -696,10 +660,9 @@ sub BWA {
         species => 'lmajor',
         libtype => 'genome',
         jprefix => 30,
-    );
+        modules => ['bwa'],);
     my $check = which('bwa');
     die("Could not find bwa in your PATH.") unless($check);
-
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -749,12 +712,10 @@ sub BWA {
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     my $index_job;
     if (!-r $bwa_reftest) {
-        $index_job = Bio::Adventure::Map::BWA_Index(
-            $class,
+        $index_job = $class->Bio::Adventure::Map::BWA_Index(
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
-            libtype => $libtype,
-            );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
     }
 
@@ -817,18 +778,17 @@ bwa aln ${aln_args} \\
         jprefix => $options->{jprefix},
         jstring => $mem_string,
         jmem => '36',
+        modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',
     );
-    my $mem_sam_job = Bio::Adventure::Convert::Samtools(
-        $class,
+    my $mem_sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $mem_sam,
         jdepends => $bwa_job->{job_id},
         jname => "s2b_mem",
         jmem => '20',
-        jprefix => $options->{jprefix} + 1,
-    );
+        jprefix => $options->{jprefix} + 1,);
     $bwa_job->{samtools_mem} = $mem_sam_job;
 
     ## ALN Runs
@@ -841,6 +801,7 @@ bwa aln ${aln_args} \\
         jprefix => $options->{jprefix} + 2,
         jstring => $aln_string,
         jmem => '36',
+        modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',
@@ -851,57 +812,49 @@ bwa aln ${aln_args} \\
         input => $aln_job->{output},
         jdepends => $aln_job->{job_id},
         jname => "bwarep_$options->{species}",
+        modules => $options->{modules},
         output => $aln_sam,
         jprefix => $options->{jprefix} + 3,
         jstring => $reporter_string,
         jmem => '36',
         postscript => $options->{postscript},
         prescript => $options->{prescript},
-        jqueue => 'workstation',
-    );
+        jqueue => 'workstation',);
     $bwa_job->{reporter} = $rep_job;
-    my $aln_sam_job = Bio::Adventure::Convert::Samtools(
-        $class,
+    my $aln_sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $aln_sam,
         jdepends => $rep_job->{job_id},
         jname => "s2b_aln",
         jmem => '20',
-        jprefix => $options->{jprefix} + 4,
-    );
+        jprefix => $options->{jprefix} + 4,);
     $bwa_job->{samtools_aln} = $aln_sam_job;
 
-    my $mem_htmulti = Bio::Adventure::Count::HT_Multi(
-        $class,
+    my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_id => $options->{htseq_id},
         htseq_input => $mem_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $mem_sam_job->{job_id},
         jname => "htmem_${jname}",
         jprefix => $options->{jprefix} + 5,
-        mapper => 'bwa',
-    );
+        mapper => 'bwa',);
     $bwa_job->{htseq_mem} = $mem_htmulti;
 
-    my $aln_htmulti = Bio::Adventure::Count::HT_Multi(
-        $class,
+    my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_id => $options->{htseq_id},
         htseq_input => $aln_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $aln_sam_job->{job_id},
         jname => "htaln_${jname}",
         jprefix => $options->{jprefix} + 6,
-        mapper => 'bwa',
-    );
+        mapper => 'bwa',);
     $bwa_job->{htseq_aln} = $aln_htmulti;
 
-    my $bwa_stats = Bio::Adventure::Map::BWA_Stats(
-        $class,
+    my $bwa_stats = $class->Bio::Adventure::Map::BWA_Stats(
         jdepends => $mem_sam_job->{job_id},
         jname => 'bwastats',
         jprefix => $options->{jprefix} + 7,
         aln_output => $aln_sam_job->{output},
-        mem_output => $mem_sam_job->{output},
-    );
+        mem_output => $mem_sam_job->{output},);
     $bwa_job->{stats} = $bwa_stats;
 
     return($bwa_job);
@@ -914,7 +867,9 @@ Create bwa indexes.
 =cut
 sub BWA_Index {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        modules => ['bwa'],);
     my $jstring = qq!
 if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
   ln -sf $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
@@ -933,9 +888,9 @@ cd \$start
         jname => "bwaidx",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($bwa_index);
 }
 
@@ -987,9 +942,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         jstring => $jstring,
         cpus => 1,
         jmem => 1,
-        jqueue => "throughput",
-        jwalltime => "00:10:00",
-    );
+        jqueue => "throughput",);
     return($stats);
 }
 
@@ -1020,7 +973,7 @@ sub Hisat2 {
         foreach my $sp (@species_lst) {
             print "Invoking hisat2 on ${sp}\n";
             $options->{species} = $sp;
-            my $result = Bio::Adventure::Map::Hisat2($class, %{$options});
+            my $result = $class->Bio::Adventure::Map::Hisat2(%{$options});
             push (@result_lst, $result);
         }
         $options->{species} = $start_species;
@@ -1078,8 +1031,7 @@ sub Hisat2 {
             $class,
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
-            libtype => $libtype,
-            );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
     }
     my $hisat_input_flag = "-q "; ## fastq by default
@@ -1126,6 +1078,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => 48,
+        modules => $options->{modules},
         paired => $paired,
         output => $sam_filename,
         prescript => $options->{prescript},
@@ -1156,8 +1109,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jprefix => $sam_jprefix,
         jname => $sam_jname,
         paired => $paired,
-        species => $options->{species},
-        );
+        species => $options->{species},);
 
     $new_jprefix = qq"$options->{jprefix}_3";
     my $htseq_input;
@@ -1178,20 +1130,18 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 jprefix => $new_jprefix,
                 libtype => $libtype,
                 mapper => 'hisat2',
-                paired => $paired,
-                );
+                paired => $paired,);
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 htseq_id => $options->{htseq_id},
                 htseq_type => $options->{htseq_type},
                 input => $htseq_input,
-                jdepends => $sam_job->{job_id},                
+                jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $new_jprefix,
                 libtype => $libtype,
                 mapper => 'hisat2',
-                paired => $paired,
-            );
+                paired => $paired,);
             $hisat_job->{htseq_job} = $htmulti;
         }
     }  ## End checking if we should do htseq
@@ -1231,9 +1181,7 @@ hisat2-build $options->{libdir}/genome/$options->{species}.fasta \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        walltime => "08:00:00",
-    );
+        postscript => $options->{postscript},);
     return($indexer);
 }
 
@@ -1280,9 +1228,7 @@ echo "\$stat_string" >> ${output}!;
         jstring => $jstring,
         cpus => 1,
         jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-    );
+        jqueue => 'throughput',);
     return($stats);
 }
 
@@ -1342,11 +1288,9 @@ sub Kallisto {
     ## Check that the indexes exist
     my $ka_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
     if (!-r $ka_reflib) {
-        my $index_job = Bio::Adventure::Map::Kallisto_Index(
-            $class,
+        my $index_job = $class->Bio::Adventure::Map::Kallisto_Index(
             jdepends => $options->{jdepends},
-            libtype => $libtype,
-        );
+            libtype => $libtype,);
         $ka_jobs{index} = $index_job;
         $options->{jdepends} = $index_job->{job_id};
     }
@@ -1401,8 +1345,7 @@ kallisto quant ${ka_args} \\
         jstring => $jstring,
         jmem => 30,
         prescript => $args{prescript},
-        postscript => $args{postscript},
-    );
+        postscript => $args{postscript},);
     return($kallisto);
 }
 
@@ -1415,6 +1358,7 @@ sub Kallisto_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        modules => ['kallisto'],
         required => ["species", "genome"],
     );
 
@@ -1433,9 +1377,9 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/$options->{species}.idx 
         jstring => $jstring,
         jname => "kalidx",
         jprefix => $options->{jprefix},
+        modules => $options->{modules},
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($ka_index);
 }
 
@@ -1451,7 +1395,7 @@ sub RSEM {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-    );
+        modules => ['rsem'],);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1477,14 +1421,13 @@ sub RSEM {
         unless (-r $cds) {
             die("RSEM_Index requires a cds fasta file at: ${cds}, create it with a cyoa2 conversion.");
         }
-        $index_job = Bio::Adventure::Map::RSEM_Index(
-            $class,
+        $index_job = $class->Bio::Adventure::Map::RSEM_Index(
             cds_fasta => $cds,
             index => $idx,
             jdepends => $options->{jdepends},
             jname => qq"rsidx_${jbasename}",
             libtype => $options->{libtype},
-        );
+            modules => $options->{modules},);
         $options->{jdepends} = $index_job->{job_id};
     }
 
@@ -1518,11 +1461,10 @@ sub RSEM {
         jstring => $jstring,
         jprefix => "28",
         mem => 24,
+        modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        walltime => '36:00:00',
-        );
+        postscript => $options->{postscript},);
     $rsem->{index_job} = $index_job;
     return($rsem);
 }
@@ -1537,7 +1479,7 @@ sub RSEM_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species",],
-    );
+        modules => ['rsem']);
     my $comment = qq"## RSEM Index creation.";
     my $jstring = qq!
 rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
@@ -1548,9 +1490,9 @@ rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
         jstring => $jstring,
         jname => "rsemidx",
         jprefix => $options->{jprefix},
+        modules => $options->{modules},
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($jobid);
 }
 
@@ -1566,7 +1508,7 @@ sub Salmon {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species","input"],
-    );
+        modules => ['salmon'],);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1582,10 +1524,7 @@ sub Salmon {
         return(@result_lst);
     }
 
-    my $ready = $class->Check_Input(
-        files => $options->{input},
-    );
-
+    my $ready = $class->Check_Input(files => $options->{input});
     my $sleep_time = 3;
     my %sa_jobs = ();
     my $libtype = 'genome';
@@ -1609,11 +1548,9 @@ sub Salmon {
     my $sa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index";
     my $index_job;
     if (!-r $sa_reflib) {
-        $index_job = Bio::Adventure::Map::Salmon_Index(
-            $class,
+        $index_job = $class->Bio::Adventure::Map::Salmon_Index(
             depends => $options->{jdepends},
-            libtype => $libtype,
-        );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
     }
 
@@ -1639,18 +1576,16 @@ salmon quant -i ${sa_reflib} \\
         jprefix => '30',
         jstring => $jstring,
         jmem => 48,
+        modules => $options->{modules},
         prescript => $args{prescript},
-        postscript => $args{postscript},
-        );
+        postscript => $args{postscript},);
     $salmon->{index_job} = $index_job;
 
-    my $stats = Bio::Adventure::Map::Salmon_Stats(
-        $class,
+    my $stats = $class->Bio::Adventure::Map::Salmon_Stats(
         input => qq"${outdir}/lib_format_counts.json",
         jdepends => $salmon->{job_id},
         jname => "sastats_$options->{species}",
-        jprefix => "33",
-        );
+        jprefix => "33",);
     $salmon->{stats_job} = $stats;
     return($salmon);
 }
@@ -1666,7 +1601,7 @@ sub Salmon_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "genome"],
-    );
+        modules => ['salmon'],);
     my $libtype = $options->{libtype};
     my $genome = File::Spec->rel2abs($options->{genome});
     unless (-r $genome) {
@@ -1683,9 +1618,9 @@ salmon index -t ${genome} -i $options->{libdir}/${libtype}/indexes/$options->{sp
         jname => "salidx_$options->{species}",
         jmem => 24,
         jprefix => "15",
+        modules => $options->{modules},
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-    );
+        postscript => $options->{postscript},);
     return($jobid);
 }
 
@@ -1727,9 +1662,7 @@ echo "\$stat_string" >> "${output}"!;
         jprefix => $args{jprefix},
         jstring => $jstring,
         jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-    );
+        jqueue => 'throughput',);
     return($stats);
 }
 
@@ -1744,8 +1677,8 @@ sub STAR {
     die("Could not find STAR in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species","input"],
-    );
+        required => ['species','input'],
+        modules => ['star'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1753,15 +1686,14 @@ sub STAR {
         foreach my $sp (@species_lst) {
             print "Invoking STAR on ${sp}\n";
             $options->{species} = $sp;
-            my $result = Bio::Adventure::Map::STAR($class, %{$options});
+            my $result = $class->Bio::Adventure::Map::STAR(%{$options});
             push (@result_lst, $result);
         }
         return(@result_lst);
     }
 
     my $ready = $class->Check_Input(
-        files => $options->{input},
-    );
+        files => $options->{input},);
 
     my $sleep_time = 3;
     my $libtype = 'genome';
@@ -1786,11 +1718,9 @@ sub STAR {
     my $star_reflib = qq"${star_refdir}/SAindex";
     my $index_job;
     if (!-r $star_reflib) {
-        $index_job = Bio::Adventure::Map::STAR_Index(
-            $class,
+        $index_job = $class->Bio::Adventure::Map::STAR_Index(
             jdepends => $options->{jdepends},
-            libtype => $libtype,
-        );
+            libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
     }
 
@@ -1836,10 +1766,10 @@ STAR \\
         jprefix => '33',
         jstring => $jstring,
         jmem => 96,
+        modules => $options->{modules},
         prescript => $args{prescript},
         postscript => $args{postscript},
-        jqueue => 'large',
-        );
+        jqueue => 'large',);
     $star_job->{index_job} = $index_job;
     return($star_job);
 }
@@ -1854,7 +1784,7 @@ sub STAR_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species",],
-    );
+        modules => ['star'],);
     my $comment = qq"## STAR Index creation.";
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
@@ -1875,11 +1805,10 @@ STAR \\
         jname => "staridx",
         jprefix => $options->{jprefix},
         jmem => 180,
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'xlarge',
-        jwalltime => '20-00:00:00',
-    );
+        jqueue => 'xlarge',);
     return($jobid);
 }
 
@@ -1896,7 +1825,7 @@ sub Tophat {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "input", "htseq_type"],
-    );
+        modules => ['tophat'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1950,8 +1879,7 @@ sub Tophat {
         print "Did not find the index for $options->{species} at: ${bt_reflib}, indexing now.\n";
         $index_job = Bio::Adventure::Map::BT2_Index(
             $class,
-            jdepends => $options->{jdepends},
-            );
+            jdepends => $options->{jdepends},);
         $options->{jdepends} = $index_job->{job_id};
     }
     my $gtf_file = qq"$options->{libdir}/genome/$options->{species}.gtf";
@@ -2010,56 +1938,50 @@ fi
         jprefix => "31",
         jstring => $jstring,
         jmem => $tophat_mem,
+        modules => $options->{mdules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => $tophat_queue,
-        jwalltime => $tophat_walltime,
-    );
+        jwalltime => $tophat_walltime,);
 
     ## Set the input for htseq
     my $accepted = "${tophat_dir}/accepted_hits.bam";
     $accepted = $options->{accepted_hits} if ($options->{accepted_hits});
     my $count_table = "accepted_hits.count";
     $count_table = $options->{count_table} if ($options->{count_table});
-    my $htmulti = Bio::Adventure::Count::HT_Multi(
-        $class,
+    my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_input => $accepted,
         htseq_id => $options->{htseq_id},
         htseq_type => $options->{htseq_type},
         jdepends => $tophat->{job_id},
         jname => qq"hts_$options->{species}",
         jprefix => '32',
-        mapper => 'tophat',
-    );
+        mapper => 'tophat',);
     $tophat->{htseq} = $htmulti;
     ## Perform a separate htseq run using only the successfully paired hits
     if ($paired) {
-        my $ht_paired = Bio::Adventure::Count::HT_Multi(
-            $class,
+        my $ht_paired = $class->Bio::Adventure::Count::HT_Multi(
             htseq_input => qq"${tophat_dir}/accepted_paired.bam",
             htseq_id => $options->{htseq_id},
             htseq_type => $options->{htseq_type},
             jdepends => $tophat->{job_id},
             jname => qq"htsp_$options->{species}",
             jprefix => '32',
-            mapper => 'tophat',
-        );
+            mapper => 'tophat',);
     }
     ## Tophat_Stats also reads the trimomatic output, which perhaps it should not.
     my $unaccepted = $accepted;
     $unaccepted =~ s/accepted_hits/unmapped/g;
     my $input_read_info = $accepted;
     $input_read_info =~ s/accepted_hits\.bam/prep_reads\.info/g;
-    my $stats = Bio::Adventure::Map::Tophat_Stats(
-        $class,
+    my $stats = $class->Bio::Adventure::Map::Tophat_Stats(
         accepted_input => $accepted,
         count_table => qq"${count_table}.xz",
         jdepends => $tophat->{job_id},
         jname => "tpstats_$options->{species}",
         jprefix => "33",
         prep_input => $input_read_info,
-        unaccepted_input => $unaccepted,
-    );
+        unaccepted_input => $unaccepted,);
     $tophat->{stats} = $stats;
     return($tophat);
 }
@@ -2118,9 +2040,7 @@ echo "\$stat_string" >> "${output}"!;
         jprefix => $args{jprefix},
         jstring => $jstring,
         jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-    );
+        jqueue => 'throughput',);
     return($stats);
 }
 

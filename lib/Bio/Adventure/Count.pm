@@ -327,7 +327,7 @@ sub HTSeq {
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     }
-    
+
     if ($options->{suffix}) {
         $output = qq"${output}_$options->{suffix}.count";
     } else {
@@ -373,6 +373,7 @@ ${htseq_invocation}
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
+        modules => $options->{modules},
         output => $output,
         postscript => $args{postscript},
         prescript => $args{prescript},
@@ -433,7 +434,7 @@ sub Mi_Map {
 
     my $job = $printed;
     $job->{final_hits} = $final_hits;
-    return($job);    
+    return($job);
 } ## End of Mi_Map
 
 =head2 C<Read_Mi>

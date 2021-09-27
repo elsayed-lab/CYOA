@@ -84,8 +84,7 @@ sub RNAseq {
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         input => $fastqc->{input},
         jprefix => $prefix,
-        jname => 'trimomatic',
-        modules => 'trimomatic',);
+        jname => 'trimomatic',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -98,8 +97,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},
-            modules => ['samtools', 'bowtie'],);
+            htseq_id => $options->{htseq_id},);
     } elsif ($args{aligner} eq 'bowtie2') {
         $mapper = $class->Bio::Adventure::Map::Bowtie2(
             jdepends => $trim->{job_id},
@@ -107,8 +105,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},
-            modules => ['samtools', 'bowtie2'],);
+            htseq_id => $options->{htseq_id},);
     } elsif ($args{aligner} eq 'bwa') {
         $mapper = $class->Bio::Adventure::Map::BWA(
             jdepends => $trim->{job_id},
@@ -116,22 +113,19 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},
-            modules => ['samtools', 'bwa'],);
+            htseq_id => $options->{htseq_id},);
     } elsif ($args{aligner} eq 'kallisto') {
         $mapper = $class->Bio::Adventure::Map::Kallisto(
             jdepends => $trim->{job_id},
             input => $trim->{output},
             jprefix => $prefix,
-            species => $options->{species},
-            modules => ['kallisto'],);
+            species => $options->{species},);
     } elsif ($args{aligner} eq 'salmon') {
         $mapper = $class->Bio::Adventure::Map::Salmon(
             jdepends => $trim->{job_id},
             input => $trim->{output},
             jprefix => $prefix,
-            species => $options->{species},
-            modules => ['salmon'],);
+            species => $options->{species},);
     } else {
         $mapper = $class->Bio::Adventure::Map::Hisat(
             jdepends => $trim->{job_id},
@@ -139,8 +133,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},
-            modules => ['samtools', 'hisat2'],);
+            htseq_id => $options->{htseq_id},);
     }
 
     return($mapper);
@@ -183,8 +176,7 @@ sub Assemble {
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         input => $fastqc->{input},
         jprefix => $prefix,
-        jname => 'trimomatic',
-        modules => 'trimomatic',);
+        jname => 'trimomatic',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -193,8 +185,7 @@ sub Assemble {
         jdepends => $trim->{job_id},
         input => $trim->{output},
         jprefix => $prefix,
-        jname => 'racer',
-        modules => 'hitec',);
+        jname => 'racer',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -204,8 +195,7 @@ sub Assemble {
         input => $correct->{output},
         jprefix => $prefix,
         jname => 'kraken',
-        library => 'viral',
-        modules => 'kraken',);
+        library => 'viral',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -214,8 +204,7 @@ sub Assemble {
         jdepends => $correct->{job_id},
         input => $correct->{output},
         jprefix => $prefix,
-        jname => 'unicycler',
-        modules => ['trimomatic', 'spades', 'unicycler'],);
+        jname => 'unicycler',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -235,7 +224,7 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'phastaf',);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
@@ -243,7 +232,6 @@ sub Assemble {
         input => $watsonplus->{output},
         jprefix => $prefix,
         jname => 'prokka',
-        modules => 'prokka',
         locus_tag => $final_locustag,);
     sleep(1);
 
@@ -254,8 +242,6 @@ sub Assemble {
         input => $prokka->{output},
         jprefix => $prefix,
         jname => 'trinotate',
-        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
-                    'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
         config => 'phage.txt',);
     sleep(1);
 
@@ -264,7 +250,6 @@ sub Assemble {
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
         jprefix => $prefix,
         jname => 'abricate',
-        modules => ['any2fasta', 'abricate'],
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -274,7 +259,6 @@ sub Assemble {
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
         jprefix => $prefix,
         jname => 'interproscan',
-        modules => 'interproscan',
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -300,7 +284,6 @@ sub Assemble {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',
-        modules => '',
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -326,7 +309,7 @@ sub Phage_Assemble {
         args => \%args,
         required => ['input'],
         host_species => '');
-    my $prefix = sprintf("%02d", 1);
+    my $prefix = sprintf("%02d", 0);
     my $final_locustag = basename(cwd());
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -334,10 +317,9 @@ sub Phage_Assemble {
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         jmem => 4,
         jname => 'trimomatic',
-        jprefix => $prefix,
-        modules => 'trimomatic',);
+        jprefix => $prefix,);
     sleep(1);
-    
+
     print "\nStarting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{input},
@@ -352,9 +334,7 @@ sub Phage_Assemble {
         jdepends => $trim->{job_id},
         input => $trim->{output},
         jmem => 3,
-        jname => 'racer',
-        jprefix => $prefix,
-        modules => 'hitec',);
+        jprefix => $prefix,);
     sleep(1);
 
     ## Take a moment and get the host species for sequence filtering
@@ -367,7 +347,6 @@ sub Phage_Assemble {
         }
         $host_file->close();
     }
-
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting filter with hisat2.\n";
     my $filter = $class->Bio::Adventure::Map::Hisat2(
@@ -376,12 +355,12 @@ sub Phage_Assemble {
         jprefix => $prefix,
         do_htseq => 0,
         jname => 'hisatfilter',
-        modules => ['samtools', 'hisat2'],
         species => $host_species,);
     my $filtered_reads = $filter->{unaligned};
     my $filter_id = $filter->{job_id};
     sleep(1);
 
+    ## 05
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nClassifying sequences with Kraken2 using the viral database.\n";
     my $kraken = $class->Bio::Adventure::Annotation::Kraken(
@@ -389,8 +368,7 @@ sub Phage_Assemble {
         input => $filtered_reads,
         jprefix => $prefix,
         jname => 'kraken',
-        library => 'viral',
-        modules => 'kraken',);
+        library => 'viral',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -400,25 +378,33 @@ sub Phage_Assemble {
         input => $filtered_reads,
         jprefix => $prefix,
         jname => 'krakenstd',
-        library => 'standard',
-        modules => 'kraken',);
+        library => 'standard',);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nCreating initial assembly with Unicycler.\n";
     my $assemble = $class->Bio::Adventure::Assembly::Unicycler(
         jdepends => $filter->{job_id},
         input => $filtered_reads,
         jprefix => $prefix,
-        jname => 'unicycler',
-        modules => ['trimomatic', 'spades', 'unicycler'],);
+        jname => 'unicycler',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning phastaf.\n";
-    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+    print "\nDepth filtering initial assembly.\n";
+    my $depth_filtered = $class->Bio::Adventure::Assembly::Filter_Depth(
         jdepends => $assemble->{job_id},
         input => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'depth_filter',);
+    sleep(1);
+
+    ## 08
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        jdepends => $depth_filtered->{job_id},
+        input => $depth_filtered->{output},
         jprefix => $prefix,
         jname => 'phastaf',);
     sleep(1);
@@ -426,22 +412,22 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
-        jdepends => $assemble->{job_id},
-        input => $assemble->{output},
+        jdepends => $depth_filtered->{job_id},
+        input => $depth_filtered->{output},
         jprefix => $prefix,
-        jname => 'ictv',
-        modules => ['blast', 'blastdb',],);
+        jname => 'ictv',);
     sleep(1);
-    
+
+    ## 10
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Watson strand to the one with the most ORFs.\n";
     my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
-        jdepends => $assemble->{job_id},
-        input => $assemble->{output},
+        jdepends => $depth_filtered->{job_id},
+        input => $depth_filtered->{output},
         jprefix => $prefix,
         jname => 'watsonplus',);
     sleep(1);
-   
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nUsing Phageterm to reorient the assembly to the terminii.\n";
     my $phageterm = $class->Bio::Adventure::Phage::Phageterm(
@@ -449,10 +435,9 @@ sub Phage_Assemble {
         input => $filtered_reads,
         jprefix => $prefix,
         jname => 'phageterm',
-        library => $watsonplus->{output},
-        modules => 'phageterm',);
+        library => $watsonplus->{output},);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming reordering by putative terminase.\n";
     my $termreorder = $class->Bio::Adventure::Phage::Terminase_ORF_Reorder(
@@ -463,10 +448,9 @@ sub Phage_Assemble {
         jname => 'reorder',
         library => 'terminase',
         species => 'phages',
-        test_file => $phageterm->{test_file},
-        modules => ['fasta', 'blast', 'blastdb'],);
+        test_file => $phageterm->{test_file},);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
@@ -474,10 +458,10 @@ sub Phage_Assemble {
         input => $termreorder->{output},
         jprefix => $prefix,
         jname => 'prokka',
-        modules => 'prokka',
         locus_tag => $final_locustag,);
     sleep(1);
 
+    ## 14
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
@@ -485,27 +469,25 @@ sub Phage_Assemble {
         input => $prokka->{output},
         jprefix => $prefix,
         jname => 'trinotate',
-        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
-                    'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
         config => 'phage.txt',);
     sleep(1);
 
+    ## 15
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSearching for resistance genes with abricate.\n";
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
         jprefix => $prefix,
         jname => 'abricate',
-        modules => ['any2fasta', 'abricate'],
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
 
+    ## 16
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
         jprefix => $prefix,
         jname => 'interproscan',
-        modules => 'interproscan',
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -532,7 +514,6 @@ sub Phage_Assemble {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',
-        modules => '',
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -544,6 +525,7 @@ sub Phage_Assemble {
         jprefix => $prefix);
     sleep(1);
 
+    ## 20
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files a second time.\n";
@@ -561,7 +543,6 @@ sub Phage_Assemble {
         jnice => '1000',
         jname => 'mergeannot2',
         evalue => undef,
-        modules => '',
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -589,17 +570,15 @@ sub Annotate_Assembly {
     my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
         input => $options->{input},
         jprefix => $prefix,
-        jname => 'ictv',
-        modules => ['blast', 'blastdb',],);
+        jname => 'ictv',);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
         input => $options->{input},
         jprefix => $prefix,
         jname => 'prokka',
-        modules => 'prokka',
         locus_tag => $final_locustag,);
     sleep(1);
 
@@ -610,8 +589,6 @@ sub Annotate_Assembly {
         input => $prokka->{output},
         jprefix => $prefix,
         jname => 'trinotate',
-        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1',
-                    'hmmer/2.3', 'tmhmm/2.0', 'rnammer/1.2', 'trinotate'],
         config => 'phage.txt',);
     sleep(1);
 
@@ -620,7 +597,6 @@ sub Annotate_Assembly {
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
         jprefix => $prefix,
         jname => 'abricate',
-        modules => ['any2fasta', 'abricate'],
         input => $prokka->{output},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -630,7 +606,6 @@ sub Annotate_Assembly {
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
         jprefix => $prefix,
         jname => 'interproscan',
-        modules => 'interproscan',
         input => $prokka->{output_peptide},
         jdepends => $prokka->{job_id},);
     sleep(1);
@@ -655,7 +630,6 @@ sub Annotate_Assembly {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',
-        modules => '',
         jdepends => $interpro->{job_id},);
     sleep(1);
 
@@ -682,10 +656,9 @@ sub Annotate_Assembly {
         jnice => '1000',
         jname => 'mergeannot2',
         evalue => undef,
-        modules => '',
         jdepends => $interpro->{job_id},);
     sleep(1);
-   
+
 }
 
 1;

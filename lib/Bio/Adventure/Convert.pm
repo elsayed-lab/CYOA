@@ -472,7 +472,7 @@ sub Sam2Bam {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "input"],
-        modules => 'samtools',);
+        modules => ['samtools'],);
     my @input_list = ();
     if ($options->{input}) {
         push(@input_list, $options->{input});
@@ -487,14 +487,13 @@ sub Sam2Bam {
                 my $output_string = "bowtie_out/$options->{jbasename}-${k}.sam";
                 push(@input_list, $output_string);
             }
-            my $bt = Bio::Adventure::Map::Bowtie($class, %args);
+            my $bt = $class->Bio::Adventure::Map::Bowtie(%args);
         }
     } else {
         die("I don't know what to do without a .fastq file nor a .sam file.\n");
     }
     my $loaded = $class->Module_Load(modules => $options->{modules});
-    my $sam = Bio::Adventure::Convert::Samtools(
-        $class, %args,
+    my $sam = $class->Bio::Adventure::Convert::Samtools(%args,
         jdepends => $options->{jdepends},
         sam => \@input_list);
     $loaded = $class->Module_Unload(modules => $options->{modules});
@@ -529,7 +528,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        modules => 'samtools',);
+        modules => ['samtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 
@@ -589,6 +588,7 @@ bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
+        modules => $options->{modules},
         output => qq"${output}",
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",

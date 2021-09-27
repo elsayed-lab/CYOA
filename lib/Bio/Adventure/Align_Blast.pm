@@ -38,8 +38,7 @@ sub Check_Blastdb {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['library'],
-    );
+        required => ['library'],);
     my $formatdb_ret = "not run.";
     my $libname = $options->{library};
     ## First check for the relevant library in $ENV{BLASTDB}
@@ -109,7 +108,7 @@ sub Make_Blast_Job {
         args => \%args,
         jdepends => '',
         blast_format => 5,
-    );
+        modules => ['blastdb', 'blast']);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
     my $array_end = 1000 + $options->{align_jobs};
@@ -160,6 +159,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jdepends => $dep,
         jstring => $jstring,
         jmem => 32,
+        modules => $options->{modules},
         array_string => $array_string,
         );
     return($blast_jobs);

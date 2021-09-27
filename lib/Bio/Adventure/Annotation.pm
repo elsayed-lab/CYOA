@@ -38,6 +38,7 @@ sub Aragorn {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        modules => ['aragorn'],
         species => undef,
         arbitrary => ' -rp -fasta -w -m -t -mt ',
         );
@@ -61,11 +62,11 @@ sub Aragorn {
         jprefix => "64",
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => qq"${output_dir}/aragorn.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',
-        );
+        jqueue => 'workstation',);
     return($aragorn);
 }
 
@@ -82,7 +83,7 @@ sub Extend_Kraken_DB {
         args => \%args,
         required => ['input'],
         library => 'viral',
-        );
+        modules => ['kraken'],);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/extend_kraken";
@@ -108,12 +109,11 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
         jprefix => "99",
         jstring => $jstring,
         jmem => 96,
+        modules => $options->{modules},
         output => qq"${output_dir}/kraken2-build.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "large",
-        jwalltime => "144:00:00",
-        );
+        jqueue => "large",);
     return($kraken);
 }
 
@@ -127,9 +127,8 @@ sub Glimmer {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => 'glimmer',
-        jprefix => '16',
-        );
+        modules => ['glimmer'],
+        jprefix => '16',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('glimmer3');
     die("Could not find glimmer in your PATH.") unless($check);
@@ -168,7 +167,7 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
 !;
 
     ## FIXME: There are a bunch of potentially useful glimmer outputs which should be put here.
-    
+
     my $glimmer = $class->Submit(
         cpus => $options->{cpus},
         comment => $comment,
@@ -177,11 +176,11 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => qq"${output_dir}/${job_name}_glimmer.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        );
+        jqueue => "workstation",);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($glimmer);
@@ -199,14 +198,13 @@ sub Interproscan {
         args => \%args,
         required => ['input'],
         jprefix => '21',
-        modules => 'interproscan',
-        );
-
+        modules => ['interproscan'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('interproscan.sh');
     die("Could not find interproscan in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
 
     my $interproscan_exe_dir = dirname($check);
@@ -236,6 +234,7 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 80,
+        modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_dirname}.faa.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
@@ -261,8 +260,7 @@ sub Kraken {
         required => ['input'],
         library => 'viral',
         jprefix => '11',
-        modules => 'kraken',
-        );
+        modules => ['kraken'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kraken2');
     die("Could not find kraken2 in your PATH.") unless($check);
@@ -298,9 +296,8 @@ sub Kraken {
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'large',
-        jwalltime => '02:00:00',
-        output => qq"${output_dir}/kraken_report.txt",
-        );
+        modules => $options->{modules},
+        output => qq"${output_dir}/kraken_report.txt",);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($kraken);
@@ -332,7 +329,7 @@ sub Merge_Annotations {
    my $output_tbl = qq"${output_dir}/${output_name}.tbl";
    my $output_gbk = basename($output_gbf, ('.gbf'));
    $output_gbk = qq"${output_dir}/${output_gbk}";
-   
+
    my $jstring = qq?
 use Bio::Adventure::Annotation;
 Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
@@ -376,7 +373,7 @@ Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
        shell => '/usr/bin/env perl',);
    $class->{language} = 'bash';
    $class->{shell} = '/usr/bin/env bash';
-   return($merge_job);   
+   return($merge_job);
 }
 
 sub Merge_Annotations_Make_Gbk {
@@ -425,7 +422,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my %note_keys = (
         ## Data types acquired from trinotate
         'trinity_gene_ontology_Pfam' => 'pfam_go',
-        'trinity_Pfam' => 'pfam_hit', 
+        'trinity_Pfam' => 'pfam_hit',
         'trinity_phage_pep_BLASTX' => 'phage_blastx',
         'trinity_sprot_Top_BLASTX_hit' => 'swissprot_blastp',
         'trinity_gene_ontology_BLASTX' => 'blastx_go',
@@ -505,7 +502,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         template_sbt => $options->{template_sbt},
         template_out => $final_sbt,);
     print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
-    
+
     $merged_data = Merge_Prokka(
         primary_key => $options->{primary_key},
         output => $merged_data,
@@ -563,12 +560,12 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     }
 
     ## This section uses the genbank input file to aid writing an output tbl file.
-    
+
     ## The primary thing I need to recall when writing this is that tbl2asn, run with the arguments:
     ## tbl2asn -V -b -a r10k -l paired-ends -M n -N 1 -y 'modified from prokka' -Z testing.err -i EAb01.fsa -f EAb01.tbl
     ## Reads the following files: EAb01.fsa (the nucleotide assembly with a modified id for each contig),
     ## Eab01.tbl (the feature table, which prokka creates from the array of SeqIO objects).
-    
+
     ## So, I need to create my own array of SeqIOs, presumably with the prokka genbank file.
     ## Then merge in the trinotate/etc annotations as notes and/or further inference tags.
     ## Finally, steal the tbl creator from prokka and invoke tbl2asn and prokka's gbf fixer.
@@ -593,7 +590,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         foreach my $d (keys %dtr_features) {
             unshift(@feature_list, $dtr_features{$d});
         }
-        
+
         for my $feat (@feature_list) {
             my $contig = $feat->seq_id(); ## The contig ID
             my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
@@ -635,7 +632,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                         ## print "ADDING TAG: $tag_name $tag_string\n";
                         ## $feat->add_tag_value($tag_name, $tag_string);
                         ## $match_number++;
-                    } 
+                    }
                 }
 
                 ## Let us look through the array of product_columns
@@ -711,11 +708,11 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                         $inf = $feat->add_tag_value('inference', $inference_string);
                     }
                 }
-                
+
             } ## End looking for CDS entries
             push(@new_features, $feat);
         } ## End iterating over the feature list
-        
+
         ## In theory, we now have a set of features with some new notes.
         ## So now let us steal the tbl writer from prokka and dump this new stuff...
         print $log_fh "Writing new tbl file to ${output_tbl}.\n";
@@ -744,11 +741,11 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             ## $line =~ s/(\[organism=.*\])/\[organism=Phage similar to $taxonomy_information->{hit_description}\]/g;
             $line =~ s/\[strain=strain\]//g;
         }
-        print $fsa_out $line;            
+        print $fsa_out $line;
     }
     $fsa_in->close();
     $fsa_out->close();
-    
+
     ## This little section is stolen pretty much verbatim from prokka.
     my $tbl2asn_m_option = '-M n';
     if (scalar(@new_seq) > 10_000) {
@@ -874,7 +871,7 @@ sub Merge_Classifier {
         hit_score => 'No tblastx score found.',
         user_comment => 'Phage genome with no detected similar taxonomy.',
     };
-    
+
     my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
     print "TESTME: input file: $args{input}\n";
     open(my $classifier_fh, "<:encoding(utf8)", $args{input});
@@ -993,7 +990,7 @@ sub Write_XLSX {
     my $tsv_data = $options->{input};
     my $output = $options->{output};
     my $primary_key = $options->{primary_key};
-    
+
     ## Write the combined annotations to an xlsx output file.
     ## Write a quick xlsx file of what we have merged together.
     my @table;
@@ -1060,7 +1057,7 @@ sub Write_XLSX {
         }
         push(@table, \@row);
     }
-    
+
     my $xlsx_data = Data::Table->new(\@table, \@column_ids, 0);
     ## tables2xlsx ($fileName, $tables, $names, $colors, $portrait, $columnHeaders)
     my $written = tables2xlsx($output, [$xlsx_data], ["Features"],
@@ -1090,7 +1087,7 @@ sub Tbl_Writer {
     ## $seq is a series of Bio::SeqIO objects
     ## While I definitely like the idea of filling a hash with the various feature information,
     ## naming it %seq when you already have @seq and $seq is a bit insane and confusing.
-    
+
     for my $sid (@seq) {
         print $tbl_fh ">Feature gnl|Prokka|${sid}\n";
         for my $f (@features) {
@@ -1130,12 +1127,12 @@ sub Tbl_Writer {
 sub TAG {
   my($f, $tag) = @_;
   # very important to "return undef" here and not just "return"
-  # otherwise it becomes non-existent/collapsed in a list 
+  # otherwise it becomes non-existent/collapsed in a list
   return undef unless $f->has_tag($tag);
   return ($f->get_tag_values($tag))[0];
 }
 
-    
+
 
 =head2 C<Prodigal>
 
@@ -1153,12 +1150,13 @@ sub Prodigal {
         gcode => '11',
         output_dir => undef,
         jprefix => '17',
-        modules => 'prodigal',
+        modules => ['prodigal'],
         prodigal_outname => undef,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prodigal');
     die("Could not find prodigal in your PATH.") unless($check);
 
+    my $inputs = $class->Get_Paths($options->{input});
     my $job_name = $class->Get_Job_Name();
     $job_name = basename($job_name, ('.fsa'));
     my $train_string = '';
@@ -1225,6 +1223,7 @@ prodigal ${train_string} \\
         jprefix => $options->{jprefix},
         jqueue => "workstation",
         jstring => $jstring,
+        modules => $options->{modules},
         output => $gbk_file,
         output_cds => $cds_file,
         output_gff => $gff_file,
@@ -1254,7 +1253,7 @@ sub Train_Prodigal {
         args => \%args,
         required => ['input', 'species'],
         gcode => '11',
-        );
+        modules => ['prodigal'],);
     my $job_name = $class->Get_Job_Name();
     my $kingdom_string = '';
     my $output_dir = qq"$options->{libdir}/hmm";
@@ -1275,14 +1274,13 @@ prodigal -i $options->{input} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        );
+        jqueue => "workstation",);
     return($prodigal);
 }
-
 
 =head2 C<Prokka>
 
@@ -1303,7 +1301,7 @@ sub Prokka {
         jprefix => '19',
         kingdom => 'bacteria',
         locus_tag => 'unknownphage',
-        modules => 'prokka',
+        modules => ['prokka'],
         species => 'virus',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prokka');
@@ -1329,7 +1327,7 @@ sub Prokka {
 !;
 
 ##    prokka --addgenes -rfam --force --locustag EAb03 --genus Phage --species virus --cdsrnaolap --usegenus --kingdom Bacteria --gcode 11 --prodigaltf /home/trey/libraries/hmm/abaumannii_phage_samples_gc11.training --outdir outputs/19prokka_15termreorder_13unicycler --prefix EAb03 outputs/15termreorder_13unicycler/final_assembly_reordered.fasta --evalue '1e-05' --coverage 30 2>&1 | less
-      
+
     my $jstring = qq!mkdir -p ${output_dir}
 prokka --addgenes --rfam --force ${kingdom_string} \\
   --locustag ${locus_tag} --genus $options->{genus} \\
@@ -1352,7 +1350,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
     my $sqn_file = qq"${output_dir}/${cwd_name}.sqn";
     my $tbl_file = qq"${output_dir}/${cwd_name}.tbl";
     my $tsv_file = qq"${output_dir}/${cwd_name}.tsv";
-    
+
     my $prokka = $class->Submit(
         cpus => 6,
         comment => $comment,
@@ -1361,6 +1359,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => $cds_file,
         output_error => $error_file,
         output_peptide => $peptide_file,
@@ -1375,8 +1374,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         output_tsv => $tsv_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        );
+        jqueue => "workstation",);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($prokka);
@@ -1395,9 +1393,9 @@ sub tRNAScan {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        modules => ['trnascan'],
         species => undef,
-        arbitrary => ' -G ',
-        );
+        arbitrary => ' -G ',);
     my $trnascan_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/trnascan";
@@ -1418,11 +1416,11 @@ sub tRNAScan {
         jprefix => "64",
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => qq"${output_dir}/trnascan.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        );
+        jqueue => "workstation",);
     return($trnascan);
 }
 
@@ -1754,7 +1752,7 @@ sub Transdecoder {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-    );
+        modules => ['transdecoder'],);
     my $transdecoder_input = File::Spec->rel2abs($options->{input});
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/trinity_${job_name}";
@@ -1779,11 +1777,11 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
         jname => "transdecoder_${job_name}",
         jprefix => "47",
         jstring => $jstring,
+        modules => $options->{modules},
         output => qq"${output_dir}/transcripts.fasta.transdecoder.genome.gff3",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        );
+        jqueue => "workstation",);
     return($transdecoder);
 }
 
@@ -1864,7 +1862,7 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 80,
-        modules => ['trinotate'],
+        modules => $options->{modules},
         output => qq"${output_dir}/${output_name}",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -1897,14 +1895,13 @@ sub Watson_Plus {
     my $job_name = 'watsonplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
     make_path($output_dir);
-    my $watson_prodigal = Bio::Adventure::Annotation::Prodigal(
-        $class,
+    my $watson_prodigal = $class->Bio::Adventure::Annotation::Prodigal(
         gcode => '11',
         input => $options->{input},
         jdepends => $options->{jdepends},
         jname => $job_name,
         jprefix => $options->{jprefix},
-        modules => 'prodigal',
+        modules => ['prodigal'],
         output_dir => $output_dir,
         species => 'phages',);
     $options->{jdepends} = $watson_prodigal->{job_id};
@@ -1958,10 +1955,13 @@ sub Watson_Rewrite {
     $write_file = qq"${output_dir}/${write_file}";
     my $log_file = basename($write_file, ('.fasta'));
     $log_file = qq"${output_dir}/${log_file}.log";
+    print "TESTME: $log_file\n";
     my $read_fasta = Bio::SeqIO->new(-file => qq"<$options->{input}", -format => 'Fasta');
     my $write_fasta = Bio::SeqIO->new(-file => qq">${write_file}", -format => 'Fasta');
     my $write_log = FileHandle->new(">${log_file}");
-
+    print $write_log "Counting ORFs on the current watson and crick strand.
+If the crick strand is larger, flipping them.
+";
     ## A prodigal line looks like:
     ## EAb06   Prodigal_v2.6.3 CDS     3205    3414    8.7     -       0       ID=1_10;partial=00;start_type=ATG;rbs_motif=GGAG/GAGG;rbs_spacer=5-10bp;gc_cont=0.248;conf=88.17;score=8.74;cscore=-0.38;sscore=9.12;rscore=8.34;uscore=-0.93;tscore=2.86;
     while (my $line = <$annotation_in>) {
@@ -1991,19 +1991,19 @@ sub Watson_Rewrite {
     $annotation_in->close();
     ## Now we should have some idea of which strand has the most ORFs for each contig.
 
-    TESTLOOP: while (my $seq = $read_fasta->next_seq) {
-        my $id = $seq->id;
-        my $test = $orf_count->{$id};
-        if ($test->{plus} >= $test->{minus}) {
-            ## Then leave this contig alone.
-            $write_fasta->write_seq($seq);
-            print $write_log "$id was unchanged and has $test->{plus} plus and $test->{minus} minus ORFs.\n";
-        } else {
-            my $tmp = $seq->revcom();
-            $write_fasta->write_seq($tmp);
-            print $write_log "$id was reverse-complemented and now has $test->{minus} plus and $test->{plus} minus ORFs.\n";
-        }
-    } ## Done flipping sequence files.
+  TESTLOOP: while (my $seq = $read_fasta->next_seq) {
+      my $id = $seq->id;
+      my $test = $orf_count->{$id};
+      if ($test->{plus} >= $test->{minus}) {
+          ## Then leave this contig alone.
+          $write_fasta->write_seq($seq);
+          print $write_log "$id was unchanged and has $test->{plus} plus and $test->{minus} minus ORFs.\n";
+      } else {
+          my $tmp = $seq->revcom();
+          $write_fasta->write_seq($tmp);
+          print $write_log "$id was reverse-complemented and now has $test->{minus} plus and $test->{plus} minus ORFs.\n";
+      }
+  } ## Done flipping sequence files.
     $write_log->close();
     return($orf_count);
 }

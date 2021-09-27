@@ -33,14 +33,13 @@ sub Abricate {
         args => \%args,
         required => ['input'],
         jprefix => '18',
-        modules => ['any2fasta', 'abricate'],
-        );
-
+        modules => ['any2fasta', 'abricate'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abricate');
     die("Could not find abricate in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_dir}";
     my $species_string = qq"";
@@ -68,6 +67,7 @@ abricate --summary ${output_dir}/*.tsv \\
         jname => "abricate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/abricate_combined.tsv",
@@ -99,12 +99,11 @@ sub Resfinder {
         species => undef,
         jprefix => '18',
         arbitrary => ' -l 0.6 -t 0.8 --acquired ',
-        modules => 'resfinder',
-        );
+        modules => ['resfinder'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('run_resfinder.py');
     die("Could not find resfinder in your PATH.") unless($check);
-    
+
     my $resfinder_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -129,10 +128,10 @@ run_resfinder.py -ifa $options->{input} \\
         jname => "resfinder_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         output => qq"${output_dir}/resfinder.txt",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        );
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($resfinder);
@@ -155,8 +154,7 @@ sub Rgi {
         required => ['input'],
         arbitrary => '',
         jprefix => '15',
-        modules => ['kma', 'jellyfish', 'bowtie', 'bwa', 'diamond', 'rgi'],
-        );
+        modules => ['kma', 'jellyfish', 'bowtie', 'bwa', 'diamond', 'rgi'],);
     my $rgi_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -178,10 +176,10 @@ rgi main --input_sequence $options->{input} \\
         jname => "rgi_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         output => qq"${output_dir}/rgi_result.txt",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        );
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($rgi);

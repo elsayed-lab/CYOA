@@ -24,7 +24,7 @@ sub RhoTermPredict {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => 'rhotermpredict',
+        modules => ['rhotermpredict'],
         jprefix => '51',
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -46,6 +46,7 @@ echo $input_paths->{filename} | RhoTermPredict_algorithm.py
         jname => 'rhotermpredict',
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $options->{modules},
         output_file => $output_file,
         output_info => $info_file,);
     return($rhoterm);

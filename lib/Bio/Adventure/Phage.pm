@@ -32,7 +32,7 @@ sub Get_DTR {
     unless (-r $args{input}) {
         return(undef);
     }
-            
+
     my $input_genome = Bio::SeqIO->new(-file => $args{input}, -format => 'Fasta');
     my $sequence = '';
     my $length = 0;
@@ -69,9 +69,10 @@ sub Classify_Phage {
         args => \%args,
         required => ['input'],
         evalue => 0.01,
-        blast_tool => 'tblastx',        
+        blast_tool => 'tblastx',
         jprefix => '18',
         library => 'ictv',
+        modules => ['blastdb', 'blast'],
         topn => 5,);
 
     my $input_dir = basename(dirname($options->{input}));
@@ -112,6 +113,7 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
+        modules => $options->{modules},
         output => $output_tsv,
         output_blast => $output_blast,
         output_dir => $output_dir,
@@ -168,7 +170,7 @@ sub Blast_Classify {
     my $seq_count = 0;
     my $e = '';
 
-        my $log_message = qq"Starting blast search of $options->{input} 
+        my $log_message = qq"Starting blast search of $options->{input}
 against $options->{library} using tool: $options->{blast_tool} with $options->{jcpus} cpus.
 Writing blast results to $options->{output_blast}.
 Writing filtered results to $options->{output}.
@@ -184,7 +186,7 @@ Writing filtered results to $options->{output}.
         -outfile => $blast_outfile,
         -method_args => [ '-num_alignments' => $options->{topn},
                           '-num_threads' => $options->{jcpus}, ]);
-    
+
     ##my ($stdout, $stderr, @returns)  = capture {
     ##    try {
     ##        @blast_output = $search->run($query);
@@ -263,8 +265,7 @@ Writing filtered results to $options->{output}.
               sig => $hit_sig,
               bit => $hit_bits,
               longname => $longname,
-              taxon => $taxon,
-              );
+              taxon => $taxon,);
           push (@hit_lst, \%hit_datum);
           $result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
           $hit_count++;
@@ -299,14 +300,14 @@ sub Phageterm {
         args => \%args,
         required => ['input', 'library'],
         cpus => '8',
-        modules => 'phageterm',
-        jprefix => '14',
-        );
+        modules => ['phageterm'],
+        jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
     die("Could not find phageterm in your PATH.") unless($check);
-    
+
     my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
     my $assembly_relative = $options->{library};
     my $assembly_full = abs_path($options->{library});
@@ -346,7 +347,7 @@ less \${start}/${r1_dirname}/${r1_filename} > r1.fastq
         $input_string = qq! -f r1.fastq !;
         $delete_string = qq!rm r1.fastq!;
     }
-    
+
     my $comment = qq!## This is a script to run phageterm.
 ## Phageterm has some peculiarities which require one to be
 ## extra careful when running it.
@@ -385,7 +386,7 @@ else
 fi
 
 ## I found another bug in phageterm, sometimes it finds a DTR, but leaves the genome blank.
-## In this case, I can either use my reordering code to fix it, or just say eff it and 
+## In this case, I can either use my reordering code to fix it, or just say eff it and
 ## remove the 'reordered' sequence.
 reordered_lines=\$(wc -l ${cwd_name}_sequence.fasta | awk '{print \$1}')
 if [[ \${reordered_lines} -eq '2' ]]; then
@@ -405,6 +406,7 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 24,
+        modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -420,13 +422,13 @@ sub Phastaf {
         args => \%args,
         required => ['input'],
         cpus => '8',
-        modules => 'phastaf',
+        modules => ['phastaf'],
         jprefix => '14',
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phastaf');
     die("Could not find phastaf in your PATH.") unless($check);
-    
+
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
@@ -454,6 +456,7 @@ phastaf --force --outdir ${output_dir} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 12,
+        modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -529,7 +532,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     my $library_file = qq"$ENV{BLASTDB}/$options->{library}.fasta";
     my $fasta_output = Bio::SearchIO->new(-format => 'fasta', );
     my $number_hits = 0;
-    print $log "Starting fasta search of $options->{input} 
+    print $log "Starting fasta search of $options->{input}
   against ${library_file} using tool: $options->{fasta_tool}.\n";
     my $query = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
     my $fasta_outfile = qq"${output_dir}/$options->{library}_hits.txt";
@@ -562,7 +565,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
         my $query_descr = $result->query_description();
         my $stats = $result->available_statistics();
         my $hits = $result->num_hits();
-        
+
         $result_data->{$query_name} = {
             description => $query_descr,
             name => $query_name,
@@ -600,7 +603,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
           $hit_count++;
       } ## End the hitloop.
     } ## End of the individual fasta search  (maybe not needed?)
-    
+
     ## At this point we should have a data structure
     ## $result_data, with primary keys as the ORF IDs
     ## a few key-value pairs for the individual putative ORFs, then
@@ -678,7 +681,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
             push(@other_objects, $seqobj);
         }
     }
-    
+
     ## The last thing to remember is that prodigal encodes its position information
     ## as a set of # thing # thing # things, so lets grab out the information of interest.
     my @start_end_array = split(/# /, $best_description);
@@ -689,7 +692,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     my $best_seq_strand = $start_end_array[3];
     $best_seq_strand =~ s/ //g;
 
-    ## No matter what, we will need the sequence length:  
+    ## No matter what, we will need the sequence length:
     my $sequence_end = $first_object->length;
     ## Set the coordinates for the two pieces
     my ($first_start, $first_end, $second_start, $second_end);
@@ -717,7 +720,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
         $second_seq =~ tr/ATGCU/TACGA/;
     }
     my $final_sequence = $first_seq . $second_seq;
-    
+
     ## Now write out the sequence, starting with 'first_seq', then iterate through everyone else
     my $input_id = $first_object->id();
 
@@ -752,10 +755,11 @@ sub Terminase_ORF_Reorder {
         args => \%args,
         required => ['input'],
         evalue => 0.01,
-        fasta_tool => 'fastx36',        
+        fasta_tool => 'fastx36',
         gcode => '11',
         jprefix => '15',
         library => 'terminase',
+        modules => ['fasta', 'blast', 'blastdb'],
         species => 'phages',
         test_file => 'direct-term-repeats.fasta',);
 
@@ -766,17 +770,15 @@ sub Terminase_ORF_Reorder {
         my $removed = rmtree($output_dir);
     }
     my $paths = $class->Get_Paths($final_output);
-    
+
     my $prodigal_outname = 'prodigal';
     my $prodigal_cds = qq"${output_dir}/${prodigal_outname}_cds.fasta";
 
-    my $term_prodigal = Bio::Adventure::Annotation::Prodigal(
-        $class,
+    my $term_prodigal = $class->Bio::Adventure::Annotation::Prodigal(
         gcode => $options->{gcode},
         input => $options->{input},
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
-        modules => 'prodigal',
         output_dir => $output_dir,
         prodigal_outname => $prodigal_outname,
         species => $options->{species},);
@@ -814,6 +816,7 @@ Bio::Adventure::Phage::Search_Reorder(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
+        modules => $options->{modules},
         query => $prodigal_cds,
         output => $final_output,
         output_dir => $output_dir,

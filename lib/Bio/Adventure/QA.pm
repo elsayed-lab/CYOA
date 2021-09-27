@@ -36,7 +36,7 @@ sub Biopieces_Graph {
         args => \%args,
         required => ['input'],
         jprefix => '02',
-    );
+        modules => ['biopieces'],);
     my $input = $options->{input};
     my $jname = $class->Get_Job_Name();
     $jname = qq"biop_${jname}";
@@ -69,9 +69,9 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
                 jprefix => $options->{jprefix},
                 jqueue => 'long',
                 jstring => $jstring,
+                modules => $options->{modules},
                 prescript => $args{prescript},
-                postscript => $args{postscript},
-            );
+                postscript => $args{postscript},);
         }
     } else { ## A single input was provided
         my $jstring = qq!
@@ -95,9 +95,9 @@ less ${input} | read_fastq -i - -e base_33 |\\
             jname => 'biop',
             jprefix => $options->{jprefix},
             jstring => $jstring,
+            modules => $options->{modules},
             prescript => $options->{prescript},
-            postscript => $options->{postscript},
-        );
+            postscript => $options->{postscript},);
     }
     return($bp);
 }
@@ -111,8 +111,7 @@ sub Fastqc {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
-        modules => 'fastqc',);
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $fastqc_job;
     if ($options->{input} =~ /:|\,/) {
@@ -135,8 +134,8 @@ sub Fastqc_Pairwise {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        type => 'unfiltered',
-        );
+        modules => ['fastqc'],
+        type => 'unfiltered',);
     my $test = ref($class->{start_options});
     my $type = $options->{type};
     my $input = $options->{input};
@@ -176,6 +175,7 @@ sub Fastqc_Pairwise {
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${outdir}",);
@@ -191,9 +191,7 @@ sub Fastqc_Pairwise {
         jdepends => $fqc->{job_id},
         jname => $basename,
         jprefix => $options->{jprefix},
-        paired => 1,
-        );
-
+        paired => 1,);
     $fqc->{stats_forward} = $fsf;
     return($fqc);
 }
@@ -208,7 +206,7 @@ sub Fastqc_Single {
     my $options = $class->Get_Vars(
         args => \%args,
         filtered => 'unfiltered',
-    );
+        modules => ['fastqc'],);
     my $outdir = qq"outputs/fastqc";
     my $jstring = qq!mkdir -p ${outdir} &&\\
   fastqc -q --extract -o ${outdir} <(less $options->{input}) \\
@@ -225,12 +223,12 @@ sub Fastqc_Single {
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",);
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
-    my $fqc_stats = Bio::Adventure::QA::Fastqc_Stats(
-        $class,
+    my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
         indir => $outdir,
         jdepends => $fqc->{job_id},
         jname => $options->{jname},
@@ -250,9 +248,7 @@ sub Fastqc_Stats {
     my $options = $class->Get_Vars(
         args => \%args,
         jname => 'fqcst',
-        paired => 1,
-        );
-
+        paired => 1,);
     ## Dereferencing the options to keep a safe copy.
     my $jname = $options->{jname};
     my $input_file = qq"$options->{indir}/fastqc_data.txt";

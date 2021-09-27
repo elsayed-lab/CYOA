@@ -128,7 +128,7 @@ my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
 
     my $input_base = basename($options->{input}, ('.gz', '.xz', '.bz2'));
     $input_base = basename($input_base, ('.fastq', '.fasta'));
-    
+
     my $sort_job = $class->Submit(
         comment => "# Check for tailing TAs!",
         cpus => 1,
@@ -963,7 +963,7 @@ sub Transit_TPP {
 
     my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
-    
+
     my $error_file = qq"${tpp_dir}/tpp_$options->{species}_$options->{job_basename}.err";
     my $comment = qq!## This is a transit preprocessing alignment of ${tpp_input} against
 ## ${tpp_genome} using arguments: ${tpp_args}.

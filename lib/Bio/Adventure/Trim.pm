@@ -41,6 +41,7 @@ sub Cutadapt {
         maxlength => 42,
         maxerr => 0.1,
         maxremoved => 3,
+        modules => ['cutadapt'],
 	arbitrary => undef,
 	left => undef,
 	right => undef,
@@ -117,6 +118,7 @@ mkdir -p ${out_dir} && \\
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '8:00:00',
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => $output,);
@@ -190,7 +192,7 @@ sub Racer {
         length => 1000000,
         required => ['input', ],
         jprefix => '10',
-        modules => 'hitec',);
+        modules => ['hitec'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
@@ -228,7 +230,7 @@ gzip -9 ${output}
         $output .= qq"${o}:";
     }
     $output =~ s/\:$//g;
-    
+
     my $racer = $class->Submit(
         comment => $comment,
         cpus => 4,
@@ -240,6 +242,7 @@ gzip -9 ${output}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '12:00:00',
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => $output,);
@@ -260,8 +263,7 @@ sub Trimomatic {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        jprefix => '01',
-        );
+        jprefix => '01',);
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
@@ -282,8 +284,7 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
         quality => '20',
-        modules => 'trimomatic',
-        );
+        modules => ['trimomatic'],);
 
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
@@ -307,8 +308,7 @@ sub Trimomatic_Pairwise {
     if (scalar(@input_list) <= 1) {
         my $ret = Bio::Adventure::Trim::Trimomatic_Single(
             $class,
-            input => $input,
-        );
+            input => $input,);
         return($ret);
     }
     my $r1 = $input_list[0];
@@ -390,6 +390,7 @@ ln -s ${r2o} r2_trimmed.fastq.gz
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '12:00:00',
+        modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -419,7 +420,7 @@ sub Trimomatic_Single {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => 'trimomatic',
+        modules => ['trimomatic',],
         jprefix => '05',
     );
     my $exe = undef;
@@ -475,6 +476,7 @@ ${exe} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '4:00:00',
+        modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);

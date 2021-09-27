@@ -45,7 +45,7 @@ sub Abyss {
         args => \%args,
         required => ['input'],
         k => 41,
-        modules => 'abyss',);
+        modules => ['abyss'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abyss-pe');
     die("Could not find abyss in your PATH.") unless($check);
@@ -89,18 +89,15 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 30,
+        modules => $options->{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",
-        jwalltime => "4:00:00",
-        );
+        jqueue => "workstation",);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($abyss);
 }
-
-
 
 sub Assembly_Coverage {
     my ($class, %args) = @_;
@@ -155,16 +152,142 @@ samtools index ${output_dir}/coverage.bam
         jmem => $options->{jprefix},
         jqueue => 'workstation',
         jwalltime => '4:00:00',
+        modules => $options->{modules},
         output => qq"${output_dir}/coverage.txt",
         output_bam => qq"${output_dir}/coverage.bam",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        );
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($coverage);
 }
 
+=head2 C<Filter_Depth>
+
+Filter (for the moment only) a unicycler assembly by the ratio of the
+highest depth observed vs. the depth of each contig.  If that ratio
+falls below options->{coverage} then that contig should be dropped.
+The remaining contigs should be depth normalized to <=1. If there is
+only 1 contig, just return it with depth set to 1.  This should be
+trivially improved to handle other assembly methods by using the
+coverage calculation script above.
+
+=cut
+sub Do_Filter_Depth {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input',],
+        coverage => 0.2,
+        output_log => '',
+        output => '',);
+    my $paths = $class->Get_Paths($options->{output});
+    my $log = FileHandle->new(">$options->{output_log}");
+    my $input_contigs = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+    my $output_contigs = Bio::SeqIO->new(-file => ">$options->{output}", -format => 'Fasta');
+    my $log_string = qq"Starting depth coverage filter of $options->{input}.
+Any contigs with a coverage ratio vs. the highest coverage of < $options->{coverage} will be dropped.
+Writing filtered contigs to $options->{output}
+";
+    print $log $log_string;
+    my $number_contigs = 0;
+    ## The highest and lowest coverage values should begin at improbable values.
+    my $highest_coverage = 0;
+    my $lowest_coverage = 1000000;
+    my $initial_coverage_data = {};
+    my $final_coverage_data = {};
+  INITIAL: while (my $contig_seq = $input_contigs->next_seq()) {
+      my $number_contigs++;
+      my $current_id = $contig_seq->id();
+      my $current_desc = $contig_seq->desc();
+      my ($contig_length_string, $contig_coverage_string, $circular) = split(/\s+/, $current_desc);
+      my ($contig_length, $contig_coverage) = $current_desc =~ /^length=(.*)? depth=(.*)?x/;
+      if ($contig_coverage > $highest_coverage) {
+          $highest_coverage = $contig_coverage;
+      }
+      if ($contig_coverage < $lowest_coverage) {
+          $lowest_coverage = $contig_coverage;
+      }
+      $initial_coverage_data->{$current_id} = {
+          desc => $current_desc,
+          coverage => $contig_coverage,
+          length => $contig_length,
+          circular => $circular,
+          sequence => $contig_seq->seq(),
+      };
+  } ## Finished iterating over the input contigs, collected coverage and sequences.
+    $log_string = qq"The range of observed coverages is ${lowest_coverage} <= x <= ${highest_coverage}\n";
+    print $log $log_string;
+    $input_contigs->close();
+
+    ## Now write out the new data.
+  WRITELOOP: foreach my $input_id (sort keys %{$initial_coverage_data}) {
+      my $input_datum = $initial_coverage_data->{$input_id};
+      my $normalized_coverage = $input_datum->{coverage} / $highest_coverage;
+      if ($normalized_coverage < $options->{coverage}) {
+          print $log "Skipping ${input_id}, its normalized coverage is: ${normalized_coverage}\n";
+          next WRITELOOP;
+      }
+      $final_coverage_data->{$input_id} = $normalized_coverage;
+      my $new_desc = qq"length=$input_datum->{length} coverage=${normalized_coverage}x";
+      if (defined($input_datum->{circular})) {
+          $new_desc .= qq" $input_datum->{circular}";
+      }
+      $log_string = qq"Writing ${input_id} with normalized coverage: ${normalized_coverage}\n";
+      print $log $log_string;
+      my $output_seq = Bio::Seq->new(-seq => $input_datum->{sequence},
+                                     -desc => $new_desc,
+                                     -id => $input_id);
+      $output_contigs->write_seq($output_seq);
+  }
+
+    $log->close();
+    $output_contigs->close();
+    return($final_coverage_data);
+}
+
+sub Filter_Depth {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        coverage => 0.2,  ## The ratio of each sequence's coverage / the maximum coverage observed.
+        jprefix => '13',
+        output => 'final_assembly.fasta',
+        );
+    my $job_name = $class->Get_Job_Name();
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
+    my $output_log = qq"${output_dir}/filter_depth.log";
+    my $output = qq"${output_dir}/$options->{output}";
+    my $comment = qq!## This is a submission script for a depth filter.
+!;
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Assembly;
+Bio::Adventure::Assembly::Do_Filter_Depth(\$h,
+  comment => '${comment}',
+  coverage => '$options->{coverage}',
+  input => '$options->{input}',
+  output => '${output}',
+  output_log => '${output_log}',
+);
+!;
+    my $depth_filtered = $class->Submit(
+        jdepends => $options->{jdepends},
+        comment => $comment,
+        jname => qq"filter_depth_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        language => 'perl',
+        output => $output,
+        output_log => $output_log,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        shell => '/usr/bin/env perl',);
+    return($depth_filtered);
+}
 
 =head2 C<Shovill>
 
@@ -180,11 +303,10 @@ sub Shovill {
         depth => 40,
         jprefix => '13',
         arbitrary => '',
-        modules => 'shovill',
-        );
+        modules => ['shovill',]);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('shovill');
-    die("Could not find shovill in your PATH.") unless($check);    
+    die("Could not find shovill in your PATH.") unless($check);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}shovill";
@@ -220,11 +342,10 @@ fi
         jstring => $jstring,
         jmem => 30,
         jqueue => 'workstation',
-        jwalltime => '4:00:00',
+        modules => $options->{modules},
         output => qq"${output_dir}/final_assembly.fasta",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        );
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($shovill_job);
@@ -254,9 +375,8 @@ sub Trinity {
     my $options = $class->Get_Vars(
         args => \%args,
         contig_length => 600,
-        modules => 'trinity',
-        required => ['input'],
-        );
+        modules => ['trinity'],
+        required => ['input'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('Trinity');
     die("Could not find trinity in your PATH.") unless($check);
@@ -289,23 +409,20 @@ sub Trinity {
         jstring => $jstring,
         jmem => 96,
         jqueue => 'large',
-        jwalltime => '144:00:00',
+        modules => $options->{modules},
         output => qq"${output_dir}/Trinity.xls",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        );
-    my $rsem = Bio::Adventure::Assembly::Trinity_Post(
-        $class, %args,
+        postscript => $options->{postscript},);
+    my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
+        %args,
         jdepends => $trinity->{job_id},
         jname => "$options->{jprefix}_1trin_rsem",
-        input => $options->{input},
-        );
-    my $trinotate = Bio::Adventure::Annotation::Trinotate(
-        $class, %args,
+        input => $options->{input},);
+    my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
+        %args,
         jdepends => $trinity->{job_id},
         jname => "$options->{jprefix}_2trinotate",
-        input => qq"${output_dir}/Trinity.fasta",
-        );
+        input => qq"${output_dir}/Trinity.fasta",);
     $trinity->{rsem_job} = $rsem;
     $trinity->{trinotate_job} = $trinotate;
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -334,8 +451,7 @@ sub Trinity_Post {
         args => \%args,
         required => ['input'],
         jname => "trin_rsem",
-        modules => 'rsem',
-        );
+        modules => ['rsem'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $trinity_out_dir = qq"outputs/trinity_${job_name}";
@@ -394,13 +510,10 @@ cd \${start}
         jprefix => $options->{jprefix},
         jqueue => 'large',
         jstring => $jstring,
-        jwalltime => '144:00:00',
+        modules => $options->{modules},
         output => qq"${trinity_out_dir}/RSEM.isoform.results",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        ##        queue => "long",
-        ##        walltime => "144:00:00",
-        );
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($trinpost);
@@ -422,8 +535,7 @@ sub Unicycler {
         mode => 'bold',
         min_length => 1000,
         arbitrary => '',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],
-        );
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
     die("Could not find unicycler in your PATH.") unless($check);
@@ -431,7 +543,7 @@ sub Unicycler {
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
-    my $input_string = '';;
+    my $input_string = '';
     my $ln_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
@@ -467,7 +579,7 @@ rm -f r1.fastq.gz r2.fastq.gz
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
-        jwalltime => '4:00:00',
+        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/${outname}_final_assembly.fasta",
@@ -501,8 +613,7 @@ sub Velvet {
         args => \%args,
         kmer => 31,
         required => ['input', 'species'],
-        modules => 'velvet',
-        );
+        modules => ['velvet'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('velveth');
     die("Could not find velvet in your PATH.") unless($check);
@@ -543,12 +654,11 @@ sub Velvet {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => '30',
+        modules => $options->{modules},
         output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',
-        jwalltime => '4:00:00',
-        );
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($velvet);

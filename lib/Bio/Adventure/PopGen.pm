@@ -41,7 +41,8 @@ angsd -b $options->{input} -doHWE 1 -GL 1 -doMajorMinor 1 -doMaf 2 -snp_pval 1e-
     my $angsd_filter = $class->Submit(
         jname => qq"angsdfilter_$input_paths->{filename}",
         jprefix => $options->{jprefix},
-        jstring => $jstring,);
+        jstring => $jstring,
+        modules => $options->{modules},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($angsd_filter);

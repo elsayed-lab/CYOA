@@ -48,8 +48,8 @@ sub Make_Fasta_Job {
         args => \%args,
         jdepends => '',
         split => 0,
-        output_type => undef,
-        );
+        modules => ['fasta'],
+        output_type => undef,);
     my $dep = $options->{jdepends};
     my $split = $options->{split};
     my $output_type = $options->{output_type};
@@ -88,10 +88,10 @@ cd $options->{basedir}
         jname => 'fasta_multi',
         jstring => $jstring,
         jprefix => "91",
+        modules => $options->{modules},
         qsub_args => " $options->{qsub_args} -t ${array_string} ",
         jqueue => 'long',
-        jwalltime => '96:00:00',
-        );
+        jwalltime => '96:00:00',);
     return($fasta_jobs);
 }
 
@@ -126,8 +126,7 @@ sub Parse_Fasta {
         args => \%args,
         required => ['input'],
         best_only => 0,
-        evalue => 0.0001,
-        );
+        evalue => 0.0001,);
     my $best_only = $options->{best_only};
     my $evalue = $options->{evalue};
     my $input = $options->{input};
@@ -238,8 +237,7 @@ sub Parse_Fasta_Global {
         many_cutoff => 10,
         min_score => undef,
         check_all_hits => 0,
-        min_percent => undef,
-        );
+        min_percent => undef,);
     my $output = $options->{input};
     my $outdir = dirname($output);
     $output = basename($output, ('.gz', '.xz'));
@@ -352,8 +350,7 @@ sub Split_Align_Fasta {
         align_jobs => 40,
         align_parse => 0,
         num_dirs => 0,
-        best_only => 0,
-        );
+        best_only => 0,);
 
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
@@ -378,24 +375,23 @@ sub Split_Align_Fasta {
             jdepends => $alignment->{job_id},
             output => $output,
             workdir => $outdir,
-            jprefix => "92",
-            );
+            jprefix => "92",);
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         $options->{align_jobs} = 1;
         my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         $options = $class->Set_Vars(workdir => $outdir);
-        my $actual = Bio::Adventure::Align::Make_Directories($class,
-                                                             workdir => $outdir,
-                                                             %args);
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class,
-                                                                    workdir => $outdir,
-                                                                    align_jobs => $actual);
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches($class,
-                                                                  workdir => $outdir,
-                                                                  output => $output,
-                                                                  jprefix => "92");
+        my $actual = $class->Bio::Adventure::Align::Make_Directories(
+            workdir => $outdir,
+            %args);
+        my $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
+            workdir => $outdir,
+            align_jobs => $actual);
+        $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
+            workdir => $outdir,
+            output => $output,
+            jprefix => "92");
     }
 
     my $parse_input = $output;
@@ -413,8 +409,7 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
         jstring => $jstring,
         jprefix => "93",
         language => 'perl',
-        shell => '/usr/bin/env perl',
-        );
+        shell => '/usr/bin/env perl',);
     return($concat_job);
 }
 

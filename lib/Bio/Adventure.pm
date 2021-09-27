@@ -515,6 +515,9 @@ sub BUILD {
 sub Get_Paths {
     my ($class, @inputs) = @_;
     my %ret = ();
+    if ($inputs[0] =~ /:|\,|\s+/) {
+        @inputs = split(/:|\,|\s+/, $inputs[0]);
+    }
     my $num_inputs = scalar(@inputs);
     if ($num_inputs == 0) {
         die("This requires an input filename.");
@@ -626,18 +629,18 @@ sub Get_Menus {
                 '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
-                '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,    
+                '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
-                '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,    
+                '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,
                 '(terminasereorder): Reorder an assembly based on the results of a blast search.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(prodigal): Run prodigal on an assembly.' => \&Bio::Adventure::Annotation::Prodigal,    
-                '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,    
+                '(prodigal): Run prodigal on an assembly.' => \&Bio::Adventure::Annotation::Prodigal,
+                '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,
                 '(resfinder): Search for antimicrobial resistance genes.' => \&Bio::Adventure::Resistance::Resfinder,
-                '(rgi): Search for resistance genes with genecards and peptide fasta input.' => \&Bio::Adventure::Resistance::Rgi,    
+                '(rgi): Search for resistance genes with genecards and peptide fasta input.' => \&Bio::Adventure::Resistance::Rgi,
                 '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Annotation::tRNAScan,
                 '(trainprodigal): Train prodgial using sequences from a species/strain.' => \&Bio::Adventure::Annotation::Train_Prodigal,
-                '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk,    
+                '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk,
             },
         },
         Assembly => {
@@ -647,6 +650,7 @@ sub Get_Menus {
                 '(abyss): Run abyss to create a new assembly.' => \&Bio::Adventure::Assembly::Abyss,
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
+                '(filterdepth): Filter contigs based on sequencing depth.' => \&Bio::Adventure::Assembly::Filter_Depth,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
                 '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Annotation::Trinotate,
@@ -658,7 +662,7 @@ sub Get_Menus {
                 '(terminasereorder): Reorder an existing assembly to the most likely terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
                 '(prodigal): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Annotation::Prodigal,
                 '(glimmer): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Annotation::Glimmer,
-                '(watson_plus): Make sure the Watson strand has the most pluses.' => \&Bio::Adventure::Annotation::Watson_Plus,    
+                '(watson_plus): Make sure the Watson strand has the most pluses.' => \&Bio::Adventure::Annotation::Watson_Plus,
             },
         },
         Conversion => {
@@ -725,7 +729,7 @@ sub Get_Menus {
                 '(psalmon): Try preset salmon tasks.' => \&Bio::Adventure::Pipeline::Salmon,
                 '(passemble): Preset assembly.' => \&Bio::Adventure::Pipeline::Assemble,
                 '(phageassemble): Preset phage assembly.' => \&Bio::Adventure::Pipeline::Phage_Assemble,
-                '(annotateassembly): Do some searches on an assembly.' => \&Bio::Adventure::Pipline::Annotation_Assembly,    
+                '(annotateassembly): Do some searches on an assembly.' => \&Bio::Adventure::Pipline::Annotation_Assembly,
             },
         },
         PopulationGenetics => {
@@ -850,7 +854,7 @@ sub Get_TODOs {
         "btmulti+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT_Multi'},
         "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
-        "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},    
+        "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
         "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
         "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
@@ -866,6 +870,7 @@ sub Get_TODOs {
         "fastaparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta'},
         "fastqct+" => \$todo_list->{todo}{'Bio::Adventure::QA::Fastqc'},
         "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
+        "filterdepth+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Filter_Depth'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},
@@ -883,28 +888,28 @@ sub Get_TODOs {
         "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto_Index'},
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM_Index'},
         "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon_Index'},
-        "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},    
+        "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
         "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
-        "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annotations'},    
+        "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annotations'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
-        "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annot_Prodigal'},    
+        "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annot_Prodigal'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
-        "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},    
-        "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prodigal'},    
+        "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
+        "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prodigal'},
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
-        "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},    
+        "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},
         "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
         "readsample+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
         "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},
-        "rgi+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rgi'},    
+        "rgi+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rgi'},
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
         "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
         "salmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon'},
-        "terminasereorder+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Terminase_ORF_Reorder'},    
+        "terminasereorder+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Terminase_ORF_Reorder'},
         "shovill+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Shovill'},
         "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
         "alignsnpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
@@ -918,14 +923,14 @@ sub Get_TODOs {
         "test+" => \$todo_list->{todo}{'Bio::Adventure::PBS::Test_Job'},
         "tophat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Tophat'},
         "tpp+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Transit_TPP'},
-        "trainprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Train_Prodigal'},    
+        "trainprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Train_Prodigal'},
         "transdecoder+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Transdecoder'},
         "trimomatic+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Trimomatic'},
         "trinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity'},
         "trinitypost+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
         "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Trinotate'},
         "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::tRNAScan'},
-        "unicycler+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler'},    
+        "unicycler+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler'},
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
         "watsonplus+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Watson_Plus'},
@@ -936,7 +941,7 @@ sub Get_TODOs {
         "pbt2+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie2'},
         "pbwa+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::BWA'},
         "phageassemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Phage_Assemble'},
-        "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},            
+        "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},
         "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Kallisto'},
         "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
         "psalmon+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Salmon'},
@@ -1065,12 +1070,12 @@ sub Get_Vars {
     }
     ## If we have come here more than 1 time, then we should stop using the getopt
     ## overrides, because that will totally fubar chains of functioncalls.
-    
+
     my %getopt_override_vars = ();
     if (defined($class->{variable_getopt_overrides})) {
         %getopt_override_vars = %{$class->{variable_getopt_overrides}};
     }
-   
+
     ## The returned args will be a hopefully useful combination of the above.
     my %returned_vars = ();
 
@@ -1122,7 +1127,7 @@ sub Get_Vars {
             $getopt_override_vars{$needed} = $response;
         }
     } ## Done looking for required varnames.
-    
+
     ## Use this for loop to fill in default values from the class.
     for my $varname (keys %default_vars) {
         $returned_vars{$varname} = $default_vars{$varname};
@@ -1134,7 +1139,7 @@ sub Get_Vars {
     for my $varname (keys %getvars_default_vars) {
         ## required and args are provided in the function call, so skip them.
         next if ($varname eq 'required' || $varname eq 'args');
-        $returned_vars{$varname} = $getvars_default_vars{$varname};        
+        $returned_vars{$varname} = $getvars_default_vars{$varname};
     }
     ## Pick up options passed in the parent function call, e.g.
     ## my $bob = $class->Function(bob => 'jane');
@@ -1153,9 +1158,9 @@ sub Get_Vars {
     for my $varname (keys %getopt_override_vars) {
         next if ($varname eq 'required' || $varname eq 'args');
         next unless (defined($getopt_override_vars{$varname}));
-        $returned_vars{$varname} = $getopt_override_vars{$varname};        
+        $returned_vars{$varname} = $getopt_override_vars{$varname};
     }
-    
+
     ## Final sanity check(s)
     for my $varname (keys %returned_vars) {
         next unless (defined($returned_vars{$varname}));
@@ -1269,7 +1274,7 @@ sub Module_Loader {
     } else {
         print "I do not know this class: $mod_class, $args{modules}\n";
     }
-    
+
     my $count = 0;
     my $mod;
     if ($action eq 'unload') {
@@ -1452,7 +1457,7 @@ $end
     $out->close();
 }
 
-sub Submit { 
+sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args);
