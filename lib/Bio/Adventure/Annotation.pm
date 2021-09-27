@@ -761,7 +761,6 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
     my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL; Most similar taxon to this strain: $taxonomy_information->{taxon}";
     my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y '${tbl2asn_comment}'" .
         " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
-    print "TESTME: $tbl_command\n";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
@@ -873,7 +872,6 @@ sub Merge_Classifier {
     };
 
     my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
-    print "TESTME: input file: $args{input}\n";
     open(my $classifier_fh, "<:encoding(utf8)", $args{input});
     my $input_header = $input_tsv->getline($classifier_fh);
     $input_tsv->column_names($input_header);
@@ -1955,7 +1953,6 @@ sub Watson_Rewrite {
     $write_file = qq"${output_dir}/${write_file}";
     my $log_file = basename($write_file, ('.fasta'));
     $log_file = qq"${output_dir}/${log_file}.log";
-    print "TESTME: $log_file\n";
     my $read_fasta = Bio::SeqIO->new(-file => qq"<$options->{input}", -format => 'Fasta');
     my $write_fasta = Bio::SeqIO->new(-file => qq">${write_file}", -format => 'Fasta');
     my $write_log = FileHandle->new(">${log_file}");

@@ -305,7 +305,6 @@ sub Phageterm {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
     die("Could not find phageterm in your PATH.") unless($check);
-
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -327,13 +326,12 @@ sub Phageterm {
         my $in_dir = dirname($in[0]);
         make_path($in_dir);
         my $prefix = abs_path($in_dir);
-        my $r1_dirname = basename($in[0]);
-        my $r2_dirname = basename($in[1]);
+        my $r1_dirname = $inputs->{directory};
         my $r1_filename = basename($in[0]);
         my $r2_filename = basename($in[1]);
         $uncompress_string = qq!
 less \${start}/${r1_dirname}/${r1_filename} > r1.fastq && \\
-  less \${start}/${r2_dirname}/${r2_filename} > r2.fastq
+  less \${start}/${r1_dirname}/${r2_filename} > r2.fastq
 !;
         $input_string = qq! -f r1.fastq -p r2.fastq !;
         $delete_string = qq!rm r1.fastq && rm r2.fastq!;
@@ -342,7 +340,7 @@ less \${start}/${r1_dirname}/${r1_filename} > r1.fastq && \\
         my $r1_dirname = dirname($options->{input});
         my $r1 = abs_path($options->{input});
         $uncompress_string = qq!
-less \${start}/${r1_dirname}/${r1_filename} > r1.fastq
+less \${start}/outputs/${r1_dirname}/${r1_filename} > r1.fastq
 !;
         $input_string = qq! -f r1.fastq !;
         $delete_string = qq!rm r1.fastq!;

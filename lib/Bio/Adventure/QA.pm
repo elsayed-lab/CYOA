@@ -251,8 +251,6 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",);
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
-    my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
-        indir => $outdir,
     my $newname = qq"fqcstats_${job_name}_$input_paths->{dirname}";
     my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
         input => $final_output,
@@ -263,7 +261,6 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($fqc);
-
 }
 
 =head2 C<Fastqc_Stats>

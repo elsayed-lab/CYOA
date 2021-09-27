@@ -320,6 +320,7 @@ sub Phage_Assemble {
         jprefix => $prefix,);
     sleep(1);
 
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{input},
