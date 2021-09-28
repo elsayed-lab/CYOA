@@ -41,7 +41,7 @@ sub Bowtie {
     my ($class, %args) = @_;
     my $check = which('bowtie-build');
     die("Could not find bowtie in your PATH.") unless($check);
-    print "Recall that you can change the bowtie arguments via 'bt_type'.";
+    print "Recall that you can change the bowtie arguments via 'bt_type'.\n";
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
@@ -97,12 +97,16 @@ sub Bowtie {
     ## Check that the indexes exist
     my $bt_reflib = "$options->{libdir}/${libtype}/indexes/${species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
+    my $current_prefix = 10;
+    if (defined($options->{jprefix})) {
+        $current_prefix = $options->{jprefix};
+    }
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $options = $class->Set_Vars(bt1_indexjobs => 1);
         $index_job = $class->Bio::Adventure::Map::BT1_Index(
             jdepends => $options->{jdepends},
-            jprefix => $options->{jprefix} - 1,
+            jprefix => $current_prefix,
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{jobid};
     }

@@ -39,11 +39,6 @@ sub Submit {
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
     my $bash_log = qq"$options->{logdir}/outputs/$options->{jname}.out";
-
-    my $depends_string = "";
-    if ($options->{depends}) {
-        $depends_string = qq"$options->{depends_prefix}:$options->{depends}";
-    }
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
@@ -160,8 +155,8 @@ fi
     my $job_id = $bash_pid;
 
     print "Starting a new job: ${job_id} $options->{jname}";
-    if ($args{depends}) {
-        print ", depending on $args{depends}.";
+    if ($options->{jdepends}) {
+        print ", depending on $options->{jdepends}.";
     }
     print "\n";
     $job = {
@@ -175,8 +170,8 @@ fi
         next if ($k eq 'comment');
         $job->{$k} = $args{$k};
     }
-    my @wanted_vars = ('basedir', 'cpus', 'depends_string', 'input',
-                       'jname', 'jmem', 'jqueue', 'jwalltime', 'output');
+    my @wanted_vars = ('basedir', 'cpus', 'input', 'jname', 'jmem',
+                       'jqueue', 'jwalltime', 'output');
     foreach my $w (@wanted_vars) {
         $job->{$w} = $options->{$w} if (!defined($job->{$w}));
     }
