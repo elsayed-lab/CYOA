@@ -413,7 +413,7 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
-        jdepends => $depth_filtered->{job_id},
+        jdepends => $phastaf->{job_id},
         input => $depth_filtered->{output},
         jprefix => $prefix,
         jname => 'ictv',);
@@ -423,7 +423,7 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Watson strand to the one with the most ORFs.\n";
     my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
-        jdepends => $depth_filtered->{job_id},
+        jdepends => $ictv->{job_id},
         input => $depth_filtered->{output},
         jprefix => $prefix,
         jname => 'watsonplus',);
@@ -480,7 +480,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'abricate',
         input => $prokka->{output},
-        jdepends => $prokka->{job_id},);
+        jdepends => $trinotate->{job_id},);
     sleep(1);
 
     ## 16
@@ -490,14 +490,14 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'interproscan',
         input => $prokka->{output_peptide},
-        jdepends => $prokka->{job_id},);
+        jdepends => $abricate->{job_id},);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
     my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
         input => $prokka->{output_fsa},
-        jdepends => $prokka->{job_id},
+        jdepends => $interpro->{job_id},
         jprefix => $prefix);
     sleep(1);
 
@@ -515,7 +515,7 @@ sub Phage_Assemble {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',
-        jdepends => $interpro->{job_id},);
+        jdepends => $prodigal->{job_id},);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -544,9 +544,33 @@ sub Phage_Assemble {
         jnice => '1000',
         jname => 'mergeannot2',
         evalue => undef,
-        jdepends => $interpro->{job_id},);
+        jdepends => $prodigal->{job_id},);
     sleep(1);
 
+    my $ret = {
+        trim => $trim,
+        fastqc => $fastqc,
+        correction => $correct,
+        filter => $filter,
+        kraken_viral => $kraken,
+        kraken_standard => $kraken_std,
+        assembly => $assemble,
+        depth_filter => $depth_filtered,
+        phastaf => $phastaf,
+        ictv => $ictv,
+        watsonplus => $watsonplus,
+        phageterm => $phageterm,
+        terminase_reorder => $termreorder,
+        prokka => $prokka,
+        trinotate => $trinotate,
+        abricate => $abricate,
+        interproscan => $interpro,
+        prodigal => $prodigal,
+        cgview => $cgview,
+        merge_qualities => $merge,
+        merge_unmodified => $merge2,        
+    };
+    return($ret)
 }
 
 sub Annotate_Assembly {

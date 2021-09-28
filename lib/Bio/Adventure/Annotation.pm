@@ -223,11 +223,11 @@ start=\$(pwd)
 cd ${output_dir}
 interproscan.sh -i ${input_path} 2>interproscan.err \\
   1>interproscan.out
-ln -s ${output_filename} interproscan.tsv
+ln -sf ${output_filename} interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
-        cpus => 6,
+        cpus => 8,
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => "interproscan_${job_name}",
@@ -1832,7 +1832,7 @@ start=\$(pwd)
 cd ${output_dir}
 ln -sf $input_paths->{fullpath} .
 if [ -f $input_paths->{filename}.gene_trans_map ]; then
-  ln -s $input_paths->{filename}.gene_trans_map .
+  ln -sf $input_paths->{filename}.gene_trans_map .
 else
   ids=\$(grep "^>" $input_paths->{fullpath} | sed 's/>//g' | awk '{print \$1}')
   rm -f $input_paths->{filename}.gene_trans_map

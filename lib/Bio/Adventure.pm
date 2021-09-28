@@ -203,7 +203,7 @@ has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment
 has align_parse => (is => 'rw', default => 1); ## Parse blast searches into a table?
 has arbitrary => (is => 'rw', default => undef); ## Extra arbitrary arguments to pass
 has bamfile => (is => 'rw', default => undef); ## Default bam file for converting/reading/etc.
-has basedir => (is => 'rw', default => '');  ## This was cwd() but I think that may cause problems.
+has basedir => (is => 'rw', default => cwd());  ## This was cwd() but I think that may cause problems.
 has bash_path => (is => 'rw', default => My_Which('bash'));
 has best_only => (is => 'rw', default => 0); ## keep only the best search result when performing alignments?
 has blast_params => (is => 'rw', default => ' -e 10 '); ## Default blast parameters
