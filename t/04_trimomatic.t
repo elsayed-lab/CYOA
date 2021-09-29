@@ -2,10 +2,10 @@
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Path qw"remove_tree";
 use File::Copy qw"cp";
-use String::Diff qw" diff ";
+use File::Path qw"remove_tree";
 use File::ShareDir qw"dist_file";
+use String::Diff qw"diff";
 
 my $start = getcwd();
 ##my $new = tempdir(CLEANUP => 0, TEMPLATE => 'test_XXXX');

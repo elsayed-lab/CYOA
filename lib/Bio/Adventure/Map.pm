@@ -40,8 +40,8 @@ species.
 sub Bowtie {
     my ($class, %args) = @_;
     my $check = which('bowtie-build');
-    die("Could not find bowtie in your PATH.") unless($check);
-    print "Recall that you can change the bowtie arguments via 'bt_type'.\n";
+    die('Could not find bowtie in your PATH.') unless($check);
+    print 'Recall that you can change the bowtie arguments via "bt_type".\n';
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
@@ -75,8 +75,10 @@ sub Bowtie {
     my $sleep_time = 3;
     my $bt_input = $options->{input};
 
+    my $paired = 0;
     my $test_file = "";
     if ($bt_input =~ /\:|\;|\,|\s+/) {
+        $paired = 1;
         my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
@@ -113,8 +115,6 @@ sub Bowtie {
 
     my $bowtie_input_flag = "-q"; ## fastq by default
     $bowtie_input_flag = "-f" if ($options->{input} =~ /\.fasta/);
-
-    my $cpus = $options->{cpus};
     my $error_file = qq"${bt_dir}/$options->{jbasename}-${bt_type}.err";
     my $comment = qq!## This is a bowtie1 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt_args}.
@@ -125,7 +125,7 @@ sub Bowtie {
     my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie \\
   ${bt_reflib} \\
   ${bt_args} \\
-  -p ${cpus} \\
+  -p $options->{cpus} \\
   ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
@@ -165,17 +165,19 @@ sub Bowtie {
         jdepends => $bt_job->{job_id},
         jname => "xzal",
         jprefix => $options->{jprefix} + 2,
-        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq",);
+        xz_input => qq"${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq",);
     $bt_job->{aligned_compression} = $al_comp;
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
-
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $bt_job->{job_id},
         jname => "s2b_${jname}",
-        jprefix => $options->{jprefix} + 3,);
+        jprefix => $options->{jprefix} + 3,
+        paired => $paired,
+        species => $options->{species},);
+    
     $bt_job->{samtools} = $sam_job;
     my $htmulti;
     if ($count) {
@@ -968,11 +970,10 @@ sub Hisat2 {
         do_htseq => 1,
         jprefix => '40',
         libtype => 'genome',
-        modules => ['hisat2', 'samtools', 'htseq'],
-        );
+        modules => ['hisat2', 'samtools', 'htseq'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
-    die("Could not find hisat2 in your PATH.") unless($check);
+    die('Could not find hisat2 in your PATH.') unless($check);
 
     if ($options->{species} =~ /:/) {
         my $start_species = $options->{species};
@@ -990,14 +991,13 @@ sub Hisat2 {
 
     my $ready;
     if (!$options->{jdepends}) {
-        $ready = $class->Check_Input(
-            files => $options->{input},);
+        $ready = $class->Check_Input(files => $options->{input},);
     }
     my $sleep_time = 3;
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
 
-    my $prefix_name = qq"hisat2";
+    my $prefix_name = qq'hisat2';
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
@@ -1007,7 +1007,7 @@ sub Hisat2 {
 
     my $hisat_dir = qq"outputs/$options->{jprefix}hisat2_$options->{species}";
     my $hisat_input = $options->{input};
-    my $test_file = "";
+    my $test_file = '';
     my $paired = 0;
     if ($hisat_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $hisat_input);
@@ -1017,12 +1017,13 @@ sub Hisat2 {
         ## After years of working without problem, suddenly my lesspipe
         ## process substitution pre-filter for arbitrarily compressed files
         ## stopped working and might well give me an aneurysm trying to figure out.
+        ## It turns out that there is a race condition somewhere which is triggered when
+        ## less buffers its output -- so make sure the environment variable 'LESS'
+        ## contains --unbuffered
         $hisat_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
-        ##$hisat_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($hisat_input);
-        ## $hisat_input = qq" ${hisat_input} ";
         $hisat_input = qq" <(less ${test_file}) ";
     }
 
@@ -1031,18 +1032,19 @@ sub Hisat2 {
     my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
     my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
 
+    my $jdepends = '';
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
-        sleep(20);
-        my $index_job = Bio::Adventure::Map::HT2_Index(
-            $class,
+        sleep(10);
+        my $index_job = $class->Bio::Adventure::Map::HT2_Index(
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
             libtype => $options->{libtype},);
-        $options->{jdepends} = $index_job->{job_id};
+        $jdepends = $index_job->{job_id};
     }
-    my $hisat_input_flag = "-q "; ## fastq by default
-    $hisat_input_flag = "-f " if (${hisat_input} =~ /\.fasta$/);
+
+    my $hisat_input_flag = '-q '; ## fastq by default
+    $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
     my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.err";
@@ -1079,7 +1081,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     my $hisat_job = $class->Submit(
         aligned => $aligned_concordant_filename,
         comment => $comment,
-        jdepends => $options->{jdepends},
+        jdepends => $jdepends,
         input => $hisat_input,
         jname => $hisat_name,
         jstring => $jstring,
@@ -1103,9 +1105,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jdepends => $hisat_job->{job_id},
         jname => qq"hisat2st_${suffix_name}",
         jprefix => $new_jprefix,
-        output_dir => $hisat_dir,
-        ## trim_input => ${trim_output_file},
-        );
+        output_dir => $hisat_dir,);
 
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";

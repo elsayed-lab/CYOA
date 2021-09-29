@@ -36,20 +36,26 @@ sub Recompress {
         comment => '',
         jdepends => '',
         jname => 'xz',
-        jqueue => 'long'
-    );
+        jqueue => 'long');
     my $input = $options->{xz_input};
-    my ($input1, $input2) = "";
-    if ($input =~ /\:|\,/) {
-        ($input1, $input2) = split(/\:|\,/, $input);
-    } else {
-        $input1 = $input;
-        $input2 = "";
-    }
     my $jname = $options->{jname};
     my $comment = $options->{comment};
+    my $input_info = $class->Get_Paths($input);
+    my $indir = $input_info->{dirname};
+    
+    my @inputs = ();
+    if ($input =~ /\:|\,/) {
+        @inputs = split(/\:|\,|\s+/);
+    } else {
+        $inputs[0] = $input;
+    }
+
     my $jstring = "";
-    my $indir = dirname($input1);
+    for my $in (@inputs) {
+
+    }
+
+
     my ($in1, $in2) = "";
     $in1 = dirname($input1) . '/' . basename($input1, ('.gz','.bz2'));
     $in2 = dirname($input2) . '/' . basename($input2, ('.gz','.bz2')) if ($input2);
