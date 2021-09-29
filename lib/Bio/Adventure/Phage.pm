@@ -160,7 +160,7 @@ sub Blast_Classify {
     my $blast_outfile = qq"$options->{output_blast}";
     my $final_fh = FileHandle->new(">$options->{output}");
     ## Print the tsv header: contig, description, taxon,length
-    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\n";
+    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_family\thit_genus\n";
     my @params = (
         -e => $options->{evalue},
         -db_name => $options->{library},
@@ -236,11 +236,15 @@ Writing filtered results to $options->{output}.
               my $second_name = $hashref->{virusrefseqaccession};
               my $hash_taxon = $hashref->{taxon};
               my $hash_longname = $hashref->{virusnames};
+              my $hash_family = $hashref->{family};
+              my $hash_genus = $hashref->{genus};
               if ($hit_name eq $first_name or $hit_name eq $second_name) {
                   $xref_found++;
                   print $log "A cross reference was found to the ICTV taxon: ${hash_taxon}.\n";
                   $longname = $hash_longname;
                   $taxon = $hash_taxon;
+                  $family = $hash_family;
+                  $genus = $hash_genus;
                   last XREFLOOP;
               }
           }
@@ -265,7 +269,9 @@ Writing filtered results to $options->{output}.
               sig => $hit_sig,
               bit => $hit_bits,
               longname => $longname,
-              taxon => $taxon,);
+              taxon => $taxon,
+              family => $family,
+              genus => $genus);
           push (@hit_lst, \%hit_datum);
           $result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
           $hit_count++;
@@ -275,9 +281,8 @@ Writing filtered results to $options->{output}.
     print $log "The number of results recorded: ${result_count}.\n";
     ## Sort largest to smallest score.
     my @sorted = sort { $b->{score} <=> $a->{score} } @hit_lst;
-    my $header = qq"query_name\tquery_description\ttaxon\tname\tlength\tquery_length\thit_acc\thit_description\thit_bit\thit_sig\thit_score\n";
     for my $d (@sorted) {
-        my $hit_string = qq"$d->{query_name}\t$d->{query_descr}\t$d->{taxon}\t$d->{longname}\t$d->{length}\t$d->{query_length}\t$d->{acc}\t$d->{description}\t$d->{bit}\t$d->{sig}\t$d->{score}\n";
+        my $hit_string = qq"$d->{query_name}\t$d->{query_descr}\t$d->{taxon}\t$d->{longname}\t$d->{length}\t$d->{query_length}\t$d->{acc}\t$d->{description}\t$d->{bit}\t$d->{sig}\t$d->{score}\t$d->{family}\t$d->{genus}\n";
         print $final_fh $hit_string;
     }
     $final_fh->close();
