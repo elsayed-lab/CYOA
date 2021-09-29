@@ -552,7 +552,9 @@ sub Get_Paths {
     } else {
         ## Then we should behave differently.
         for my $i (@inputs) {
-            $ret{i} = $class->Get_Paths($i);
+            $ret{$i} = $class->Get_Paths($i);
+            $ret{directory} = $ret{$i}{directory};
+            $ret{dirname} = $ret{$i}{dirname};
         }
     }
     return(\%ret);
