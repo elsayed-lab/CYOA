@@ -1,7 +1,7 @@
 ---
-abstract: Kitty!
+abstract: 'Choose Your Own Adventure in sequence processing.'
 author:
-  - '- atb'
+  - 'Ashton Trey Belew <abelew@gmail.com>'
 build_requires:
   Module::Build: '0.3601'
   Test::More: '0.88'
@@ -13,15 +13,66 @@ license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: '1.4'
-name: CYOA
-no_index:
-  directory:
-    - eg
-    - examples
-    - inc
-    - share
-    - t
-    - xt
+name: Bio-Adventure
+provides:
+  Bio::Adventure:
+    file: lib/Bio/Adventure.pm
+    version: '20151101'
+  Bio::Adventure::Align:
+    file: lib/Bio/Adventure/Align.pm
+  Bio::Adventure::Align_Blast:
+    file: lib/Bio/Adventure/Align_Blast.pm
+  Bio::Adventure::Align_Fasta:
+    file: lib/Bio/Adventure/Align_Fasta.pm
+  Bio::Adventure::Annotation:
+    file: lib/Bio/Adventure/Annotation.pm
+    version: v1.14.6
+  Bio::Adventure::Assembly:
+    file: lib/Bio/Adventure/Assembly.pm
+  Bio::Adventure::Cleanup:
+    file: lib/Bio/Adventure/Cleanup.pm
+  Bio::Adventure::Compress:
+    file: lib/Bio/Adventure/Compress.pm
+  Bio::Adventure::Convert:
+    file: lib/Bio/Adventure/Convert.pm
+  Bio::Adventure::Count:
+    file: lib/Bio/Adventure/Count.pm
+  Bio::Adventure::Local:
+    file: lib/Bio/Adventure/Local.pm
+  Bio::Adventure::Map:
+    file: lib/Bio/Adventure/Map.pm
+  Bio::Adventure::Phage:
+    file: lib/Bio/Adventure/Phage.pm
+  Bio::Adventure::Phylogeny:
+    file: lib/Bio/Adventure/Phylogeny.pm
+  Bio::Adventure::Pipeline:
+    file: lib/Bio/Adventure/Pipeline.pm
+  Bio::Adventure::PopGen:
+    file: lib/Bio/Adventure/PopGen.pm
+  Bio::Adventure::Predict:
+    file: lib/Bio/Adventure/Predict.pm
+  Bio::Adventure::Prepare:
+    file: lib/Bio/Adventure/Prepare.pm
+  Bio::Adventure::QA:
+    file: lib/Bio/Adventure/QA.pm
+  Bio::Adventure::Resistance:
+    file: lib/Bio/Adventure/Resistance.pm
+  Bio::Adventure::Riboseq:
+    file: lib/Bio/Adventure/Riboseq.pm
+  Bio::Adventure::SNP:
+    file: lib/Bio/Adventure/SNP.pm
+  Bio::Adventure::SeqMisc:
+    file: lib/Bio/Adventure/SeqMisc.pm
+  Bio::Adventure::Slurm:
+    file: lib/Bio/Adventure/Slurm.pm
+  Bio::Adventure::TNSeq:
+    file: lib/Bio/Adventure/TNSeq.pm
+  Bio::Adventure::Torque:
+    file: lib/Bio/Adventure/Torque.pm
+  Bio::Adventure::Trim:
+    file: lib/Bio/Adventure/Trim.pm
+  Bio::Adventure::Visualization:
+    file: lib/Bio/Adventure/Visualization.pm
 requires:
   AppConfig: '0'
   Archive::Extract: '0'
@@ -73,13 +124,6 @@ requires:
   Text::CSV_XS::TSV: '0'
   autodie: '0'
 resources:
-  bugtracker: https://github.com/abelew/CYOA/issues
-  homepage: https://github.com/abelew/CYOA
-  repository: https://github.com/abelew/CYOA.git
-version: '20151101'
-x_contributors:
-  - 'Ashton Trey Belew <abelew@gmail.com>'
-  - 'Ashton Trey Belew <abelew@umd.edu>'
-x_generated_by_perl: v5.26.2
+  license: http://dev.perl.org/licenses/
+version: '20180918'
 x_serialization_backend: 'CPAN::Meta::YAML version 0.018'
-x_static_install: 1

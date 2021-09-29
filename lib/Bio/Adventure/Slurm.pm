@@ -142,20 +142,20 @@ ${perl_file}
     }
 
     my $module_string = '';
-    if (scalar(@{$options->{modules}} > 0)) {
+    if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
         $module_string = qq"module add";
         for my $m (@{$options->{modules}}) {
-            $module_string .= qq" $m";
+            $module_string .= qq" ${m}";
         }
     }
     $script_start .= qq?
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
-
-${module_string}
-
 ?;
-
-
+    if ($module_string ne '') {
+        $script_start .= qq"
+${module_string}
+";
+    }
     my $script_end = qq!
 ## The following lines give status codes and some logging
 echo "## Job status: \$? " >> outputs/log.txt

@@ -39,7 +39,7 @@ sub HT_Multi {
         htseq_type => 'gene',
         htseq_id => 'ID',
         libtype => 'genome',
-        modules => 'htseq',
+        modules => ['htseq'],
         paired => 1,
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -277,9 +277,8 @@ sub HTSeq {
         jprefix => '',
         libtype => 'genome',
         mapper => 'hisat2',
-        modules => 'htseq',
-        paired => 1,
-        );
+        modules => ['htseq'],
+        paired => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $stranded = $options->{htseq_stranded};
     my $htseq_type = $options->{htseq_type};

@@ -532,32 +532,38 @@ sub Get_Paths {
     my $num_inputs = scalar(@inputs);
     if ($num_inputs == 0) {
         die("This requires an input filename.");
-    } elsif ($num_inputs == 1) {
-        my $in = $inputs[0];
+    }
+
+    my @outputs = ();
+    for my $in (@inputs) {
         my $filename = basename($in);
+        my $filebase_compress = basename($in, ('.gz', '.xz', '.bz2'));
+        my $filebase_extension = basename($filebase_compress, ('.fastq', '.fasta'));
         my $directory = dirname($in);
         my $dirname = basename($directory);
-
         ## This test/path build is because abs_path only works on stuff which exists.
         if (! -e $directory) {
             make_path($directory);
         }
         my $full_path = abs_path($directory);
-        $full_path .= "/$filename";
+        $full_path .= "/${filename}";
 
-        $ret{filename} = $filename;
-        $ret{directory} = $directory;
-        $ret{dirname} = $dirname;
-        $ret{fullpath} = $full_path;
-    } else {
-        ## Then we should behave differently.
-        for my $i (@inputs) {
-            $ret{$i} = $class->Get_Paths($i);
-            $ret{directory} = $ret{$i}{directory};
-            $ret{dirname} = $ret{$i}{dirname};
-        }
+        my %ret = (
+            filename => $filename,
+            filebase_compress => $filebase_compress,
+            filebase_extension => $filebase_extension,
+            directory => $directory,
+            dirname => $dirname,
+            fullpath => $full_path,);
+        push(@outputs, \%ret);
     }
-    return(\%ret);
+
+    my $final = \@outputs;
+    ## When there is just one file, just return its information.
+    if (scalar(@outputs) == 1) {
+        $final = $outputs[0];
+    }
+    return($final);
 }
 
 sub Get_Term {

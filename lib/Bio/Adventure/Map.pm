@@ -41,7 +41,7 @@ sub Bowtie {
     my ($class, %args) = @_;
     my $check = which('bowtie-build');
     die('Could not find bowtie in your PATH.') unless($check);
-    print 'Recall that you can change the bowtie arguments via "bt_type".\n';
+    say('Recall that you can change the bowtie arguments via "bt_type".');
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
@@ -152,21 +152,14 @@ sub Bowtie {
         $bt_job->{index} = $index_job;
     }
 
-    my $un_comp = $class->Bio::Adventure::Compress::Recompress(
+    my $compress_files = qq"${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq:${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq";
+    my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.\n",
         jdepends => $bt_job->{job_id},
         jname => "xzun",
         jprefix => $options->{jprefix} + 1,
-        xz_input => "${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq",);
-    $bt_job->{unaligned_compression} = $un_comp;
-
-    my $al_comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt_args}.",
-        jdepends => $bt_job->{job_id},
-        jname => "xzal",
-        jprefix => $options->{jprefix} + 2,
-        xz_input => qq"${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq",);
-    $bt_job->{aligned_compression} = $al_comp;
+        input => $compress_files,);
+    $bt_job->{compression} = $comp;
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
@@ -358,21 +351,14 @@ sub Bowtie2 {
         postscript => $options->{postscript},
         unaligned => $unaligned_filename,);
 
-    my $un_comp = $class->Bio::Adventure::Compress::Recompress(
+    my $compression_files = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq:${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
+    my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
-        xz_input => "${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq",
+        input => $compression_files,
         jdepends => $bt2_job->{job_id},
         jname => "xzun_${suffix_name}",
         jprefix => $options->{jprefix} + 1,);
-    $bt2_job->{unaligned_compression} = $un_comp;
-
-    my $al_comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the sequences which successfully aligned against ${bt_reflib} using options ${bt2_args}",
-        xz_input => "${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq",
-        jname => "xzal_${suffix_name}",
-        jprefix => $options->{jprefix} + 2,
-        depends => $bt2_job->{job_id},);
-    $bt2_job->{aligned_compression} = $al_comp;
+    $bt2_job->{compression} = $comp;
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
@@ -1051,10 +1037,10 @@ sub Hisat2 {
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
-    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aldis_$options->{species}_$options->{libtype}.fastq.gz";
-    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaldis_$options->{species}_$options->{libtype}.fastq.gz";
-    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_alcon_$options->{species}_$options->{libtype}.fastq.gz";
-    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unalcon_$options->{species}_$options->{libtype}.fastq.gz";
+    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aldis_$options->{species}_$options->{libtype}.fastq";
+    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaldis_$options->{species}_$options->{libtype}.fastq";
+    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_alcon_$options->{species}_$options->{libtype}.fastq";
+    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unalcon_$options->{species}_$options->{libtype}.fastq";
     my $sam_filename = qq"${hisat_dir}/$options->{jbasename}_$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
 sleep ${sleep_time}
@@ -1073,13 +1059,26 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     ## Example: r1_trimmed_unaligned_concordant_lpanamensis_v36.fastq.1.gz
 
     my $unaligned_filenames = $unaligned_concordant_filename;
+    my $aligned_filenames = $aligned_concordant_filename;
+    my $unaligned_xz_filenames = $unaligned_filenames;
+    my $aligned_xz_filenames = $aligned_filenames;
     if ($paired) {
-        my $tmp = basename($unaligned_filenames, ('.gz'));
+        my $tmp = basename($unaligned_filenames);
+        my $xz_tmp = basename($unaligned_filenames, ('.fastq'));
         my $dir = dirname($unaligned_filenames);
-        $unaligned_filenames = qq"${dir}/${tmp}.1.gz:${dir}/${tmp}.2.gz";
+        $unaligned_filenames = qq"${dir}/${tmp}.1:${dir}/${tmp}.2";
+        $unaligned_xz_filenames = qq"${dir}/${xz_tmp}.1.fastq:${dir}/${xz_tmp}.2.fastq";
+        $tmp = basename($aligned_filenames);
+        $xz_tmp = basename($aligned_filenames, ('.fastq'));
+        $dir = dirname($aligned_filenames);
+        $aligned_filenames = qq"${dir}/${tmp}.1:${dir}/${tmp}.2";
+        $aligned_xz_filenames = qq"${dir}/${xz_tmp}.1.fastq:${dir}/${xz_tmp}.2.fastq";
     }
+    my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
+    my $all_xz_filenames = qq"${aligned_xz_filenames}:${unaligned_xz_filenames}";
+
     my $hisat_job = $class->Submit(
-        aligned => $aligned_concordant_filename,
+        aligned => $aligned_filenames,
         comment => $comment,
         jdepends => $jdepends,
         input => $hisat_input,
@@ -1095,6 +1094,9 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         unaligned => $unaligned_filenames,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
+    my $comp = $class->Bio::Adventure::Compress::Recompress(
+        input => $all_xz_filenames,
+        jdepends => $hisat_job->{job_id});
 
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";

@@ -582,7 +582,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        modules => ['samtools'],);
+        modules => ['samtools', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 

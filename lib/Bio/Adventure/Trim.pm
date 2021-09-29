@@ -131,51 +131,15 @@ mkdir -p ${out_dir} && \\
             jname => qq"tach_${job_name}",
             jprefix => "08",);
     }
-    my $comp_short = Bio::Adventure::Compress::Recompress(
-        $class,
-        comment => qq"## Compressing the tooshort sequences.",
-        xz_input => qq"${out_dir}/${basename}_tooshort.fastq",
+    my $compression_files = qq"${out_dir}/${basename}_tooshort.fastq:${out_dir}/${basename}_toolong.fastq:${out_dir}/${basename}_untrimmed.fastq:${output}";
+    my $comp = $class->Bio::Adventure::Compress::Recompress(
+        comment => qq"## Compressing the output files.",
+        input => $compression_files,
         jdepends => $cutadapt->{job_id},
         jname => "xzcutshort_${job_name}",
         jprefix => '08',
         jqueue => 'workstation',
-        jwalltime => '04:00:00',);
-    my $comp_long = Bio::Adventure::Compress::Recompress(
-        $class,
-        comment => qq"## Compressing the toolong sequences.",
-        xz_input => qq"${out_dir}/${basename}_toolong.fastq",
-        jdepends => $cutadapt->{job_id},
-        jname => "xzcutlong_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '04:00:00',);
-    my $comp_un = Bio::Adventure::Compress::Recompress(
-        $class,
-        comment => qq"## Compressing the toolong sequences.",
-        xz_input => qq"${out_dir}/${basename}_untrimmed.fastq",
-        jdepends => $cutadapt->{job_id},
-        jname => "xzuncut_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '04:00:00',);
-    my $comp_original = Bio::Adventure::Compress::Recompress(
-        $class,
-        comment => qq"## Compressing the original sequence.",
-        xz_input => $input,
-        jdepends => $cutadapt->{job_id},
-        jname => "xzorig_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '04:00:00',);
-    my $comp_output = Bio::Adventure::Compress::Recompress(
-        $class,
-        comment => qq"## Compressing the output sequence.",
-        xz_input => $output,
-        jdepends => $cutadapt->{job_id},
-        jname => "xzout_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '04:00:00',);
+        jwalltime => '24:00:00',);
     return($cutadapt);
 }
 
