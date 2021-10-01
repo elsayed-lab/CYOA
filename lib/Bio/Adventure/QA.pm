@@ -134,40 +134,53 @@ sub Fastqc_Pairwise {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['fastqc'],
-        type => 'unfiltered',);
-    my $test = ref($class->{start_options});
-    my $type = $options->{type};
-    my $input = $options->{input};
-    my @input_list = split(/:|\,/, $input);
+        required => ['input'],
+        filtered => 'unfiltered',
+        jprefix => '01',
+        modules => ['fastqc'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+
+    my @input_list = split(/:|\,|\s+/, $options->{input});
+    my ($r1, $r2);
     if (scalar(@input_list) <= 1) {
-        my $ret = Bio::Adventure::QA::Fastqc_Single($class, %args);
+        my $ret = $class->Bio::Adventure::QA::Fastqc_Single(%args);
         return($ret);
-    }
-    my $r1 = $input_list[0];
-    my $r2 = $input_list[1];
-    my $basename = basename($r1, ('.fastq', '.gz', '.xz'));
-    $basename = basename($basename, ('.fastq', '.gz', '.xz'));
-    $basename = basename($basename, ('.fastq', '.gz', '.xz'));
-    my $output_suffix = 'forward';
-    if ($basename =~ /_R1/ or $basename =~ /forward/) {
-        $output_suffix = 'forward';
-    } elsif ($basename =~ /_R2/ or $basename =~ /reverse/) {
-        $output_suffix = 'reverse';
     } else {
-        $output_suffix = 'all';
+        my $r1 = $input_list[0];
+        my $r2 = $input_list[1];
     }
-    $basename =~ s/\_R1$//g;
-    $basename =~ s/_forward//g;
+
+    my $job_name = $class->Get_Job_Name();
+    my $input_paths = $class->Get_Paths($options->{input});
+    my $jname = qq"fqc_${job_name}_$input_paths->{dirname}";
     my $outdir = qq"outputs/$options->{jprefix}fastqc";
+
+    ## This is where fastqc should put its various output files
+    ## with one important exception: It tries to be smart and take its own basename of the input
+    ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
+    ## outputs/${jprefix}fastqc/xxx_fastqc...
+    my $modified_inputname = basename($r1, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
+    my $final_output = qq"${outdir}/${modified_inputname}";
+
+
     my $jstring = qq!mkdir -p ${outdir} && \\
   fastqc --extract -o ${outdir} <(less ${r1}) <(less ${r2}) \\
-  2>${outdir}.out 1>&2
+  2>outputs/${jname}-$options->{filtered}_fastqc.out 1>&2
+
+## Note that because I am using a subshell, fastqc will assume that the inputs
+## are /dev/fd/xx (usually 63 or 64).
+## We can likely cheat and get the subshell fd with this:
+badname=\$(basename <(env))
+echo \${badname}
+## with the caveat that this is subject to race conditions if a bunch of other things are
+## creating subshells on this host.
+mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_inputname}.html
+mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_inputname}.zip
+mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
+
 !;
-    my $comment = qq!## This FastQC run is against ${type} data and is used for
+    my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
-    my $job_name = $class->Get_Job_Name();
-    my $jname = qq"fqc_${job_name}";
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
@@ -178,21 +191,7 @@ sub Fastqc_Pairwise {
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        output => qq"${outdir}",);
-
-    my $forward_indir = qq"${outdir}/${r1}_fastqc";
-    $forward_indir =~ s/\.fastq//g;
-    my $reverse_indir = qq"${outdir}/${r2}_fastqc";
-    $reverse_indir =~ s/\.fastq//g;
-    my $fsf = Bio::Adventure::QA::Fastqc_Stats(
-        $class,
-        direction => 'forward',
-        indir => $forward_indir,
-        jdepends => $fqc->{job_id},
-        jname => $basename,
-        jprefix => $options->{jprefix},
-        paired => 1,);
-    $fqc->{stats_forward} = $fsf;
+        output => qq"$options->{jprefix}fastqc.html",);
     return($fqc);
 }
 
@@ -208,8 +207,7 @@ sub Fastqc_Single {
         required => ['input'],
         filtered => 'unfiltered',
         jprefix => '01',
-        modules => ['fastqc'],
-        );
+        modules => ['fastqc'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});

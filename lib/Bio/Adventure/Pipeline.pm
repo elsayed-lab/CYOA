@@ -501,7 +501,7 @@ sub Phage_Assemble {
         prodigal => $prodigal,
         cgview => $cgview,
         merge_qualities => $merge,
-        merge_unmodified => $merge2,        
+        merge_unmodified => $merge2,
     };
     return($ret)
 }
