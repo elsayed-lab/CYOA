@@ -170,7 +170,7 @@ sub Bowtie {
         jprefix => $options->{jprefix} + 3,
         paired => $paired,
         species => $options->{species},);
-    
+
     $bt_job->{samtools} = $sam_job;
     my $htmulti;
     if ($count) {
@@ -216,7 +216,7 @@ sub Bowtie {
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    
+
     return($bt_job);
 }
 

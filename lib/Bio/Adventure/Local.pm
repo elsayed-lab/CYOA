@@ -98,7 +98,7 @@ $args{jstring}" if ($options->{verbose});
             $module_string .= qq" $m";
         }
     }
-    
+
     my $script_start = qq?#!/usr/bin/env bash
 
 echo "####Started ${script_file} at \$(date)" >> outputs/log.txt

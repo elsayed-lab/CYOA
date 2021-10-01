@@ -36,7 +36,7 @@ sub Recompress {
         jname => 'xz',
         jqueue => 'long',);
     my $input_paths = $class->Get_Paths($options->{input});
-    
+
     my $jstring = "";
     my @outputs = ();
     for my $in (@{$input_paths}) {

@@ -32,22 +32,23 @@ This is most common used by me for ribosome profiling libraries.
 =cut
 sub Cutadapt {
     my ($class, %args) = @_;
-    my $check = which('cutadapt');
-    die('Could not find cutadapt in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'type'],
-        minlength => 8,
+	arbitrary => undef,
         maxlength => 42,
         maxerr => 0.1,
         maxremoved => 3,
+        minlength => 8,
         modules => ['cutadapt'],
-	arbitrary => undef,
 	left => undef,
 	right => undef,
-	either => undef,
-    );
+	either => undef,);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $check = which('cutadapt');
+    die('Could not find cutadapt in your PATH.') unless($check);
 
     if ($options->{task}) {
         $options->{type} = $options->{task};
@@ -66,8 +67,8 @@ sub Cutadapt {
     }
 
     my $input = $options->{input};
-    my $basename = basename($input, @{$options->{suffixes}});
-    $basename = basename($basename, @{$options->{suffixes}});
+    my $basename = basename($input, $options->{suffixes});
+    $basename = basename($basename, $options->{suffixes});
     my $adapter_flags = "";
     if ($type eq 'tnseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
