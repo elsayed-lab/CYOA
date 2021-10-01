@@ -176,7 +176,7 @@ Writing blast results to $options->{output_blast}.
 Writing filtered results to $options->{output}.
 ";
     print $log $log_message;
-    print $log_message;
+    print "TESTME: $log_message\n";
     my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
     my @parameters = $search->get_parameters;
     print $log qq"Blast parameters: @parameters.\n";
@@ -212,6 +212,7 @@ Writing filtered results to $options->{output}.
         my $stats = $result->available_statistics();
         my $hits = $result->num_hits();
         print $log "The query being considered is: ${query_name}.\n";
+        print "TESTME: The query considered is ${query_name}\n";
         my $datum_ref = {
             description => $query_descr,
             name => $query_name,
@@ -222,14 +223,17 @@ Writing filtered results to $options->{output}.
         };
         $result_data->{$query_name} = $datum_ref;
         my $hit_count = 0;
+        use Data::Dumper;
+        print Dumper $result;
       HITLOOP: while (my $hits = $result->next_hit()) {
           $number_hits = $number_hits++;
           my $hit_name = $hits->name();
           print $log "This result has a hit on ${hit_name}\n";
+          print "TESTME: ${hit_name} is a hit!\n";
           ## The hit_name should cross reference to one of the two accession columns in xref_aoh
           ## from the beginning of this function.
           my $longname = '';
-          my $taxon;
+          my ($taxon, $family, $genus);
           my $xref_found = 0;
           XREFLOOP: for my $hashref (@{$xref_aoh}) {
               my $first_name = $hashref->{virusgenbankaccession};
@@ -245,6 +249,7 @@ Writing filtered results to $options->{output}.
                   $taxon = $hash_taxon;
                   $family = $hash_family;
                   $genus = $hash_genus;
+                  print "TESTME: $family $genus\n";
                   last XREFLOOP;
               }
           }
@@ -272,6 +277,7 @@ Writing filtered results to $options->{output}.
               taxon => $taxon,
               family => $family,
               genus => $genus);
+          print "TESTME2: $family $genus\n";
           push (@hit_lst, \%hit_datum);
           $result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
           $hit_count++;
@@ -283,6 +289,7 @@ Writing filtered results to $options->{output}.
     my @sorted = sort { $b->{score} <=> $a->{score} } @hit_lst;
     for my $d (@sorted) {
         my $hit_string = qq"$d->{query_name}\t$d->{query_descr}\t$d->{taxon}\t$d->{longname}\t$d->{length}\t$d->{query_length}\t$d->{acc}\t$d->{description}\t$d->{bit}\t$d->{sig}\t$d->{score}\t$d->{family}\t$d->{genus}\n";
+        print "TESTME PRINT $hit_string\n";
         print $final_fh $hit_string;
     }
     $final_fh->close();

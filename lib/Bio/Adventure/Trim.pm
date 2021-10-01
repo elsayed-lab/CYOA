@@ -179,7 +179,7 @@ sub Racer {
         my $name = File::Temp::tempnam($output_dir, 'racer');
         my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
         push(@output_files, "${output}.gz");
-        $jstring .= "zcat $input_list[$c] > ${name}.fastq &&
+        $jstring .= "less $input_list[$c] > ${name}.fastq &&
   RACER \\
   ${name}.fastq \\
   ${output} \\
@@ -187,6 +187,7 @@ sub Racer {
   2>${output_dir}/racer.out 1>&2 &&
   rm ${name}.fastq
 gzip -9 ${output}
+
 ";
     }
     my $output = '';
@@ -309,7 +310,7 @@ sub Trimomatic_Pairwise {
         $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
     }
 
-    my $output = qq"${r1o}:${r2o}";
+    my $output = qq"${r1o}.xz:${r2o}.xz";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.

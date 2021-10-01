@@ -163,22 +163,25 @@ sub Assemble {
         args => \%args,
         required => ['input'],
         );
-    my $prefix = sprintf("%02d", 1);
     my $final_locustag = basename(cwd());
 
-    print "Starting fastqc.\n";
-    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
-        jprefix => $prefix,);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
+    my $prefix = sprintf("%02d", 1);
     print "\nStarting trimmer.\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
-        input => $fastqc->{input},
+        input => $options->{input},
         jprefix => $prefix,
         jname => 'trimomatic',);
     sleep(1);
 
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nStarting fastqc.\n";
+    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
+        input => $trim->{input},
+        jmem => 3,
+        jnice => 100,
+        jprefix => $prefix,);
+    sleep(1);
+    
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting read correction.\n";
     my $correct = $class->Bio::Adventure::Trim::Racer(
@@ -208,15 +211,6 @@ sub Assemble {
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSetting the Watson strand to the one with the most ORFs.\n";
-    my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
-        jdepends => $assemble->{job_id},
-        input => $assemble->{output},
-        jprefix => $prefix,
-        jname => 'watsonplus',);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
         jdepends => $assemble->{job_id},
@@ -228,73 +222,12 @@ sub Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
-        jdepends => $watsonplus->{job_id},
-        input => $watsonplus->{output},
+        jdepends => $assemble->{job_id},
+        input => $assemble->{output},
         jprefix => $prefix,
         jname => 'prokka',
         locus_tag => $final_locustag,);
     sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nInvoking trinotate.\n";
-    my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
-        jdepends => $prokka->{job_id},
-        input => $prokka->{output},
-        jprefix => $prefix,
-        jname => 'trinotate',
-        config => 'phage.txt',);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSearching for resistance genes with abricate.\n";
-    my $abricate = $class->Bio::Adventure::Resistance::Abricate(
-        jprefix => $prefix,
-        jname => 'abricate',
-        input => $prokka->{output},
-        jdepends => $prokka->{job_id},);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning interproscan.\n";
-    my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
-        jprefix => $prefix,
-        jname => 'interproscan',
-        input => $prokka->{output_peptide},
-        jdepends => $prokka->{job_id},);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning prodigal to get RBSes.\n";
-    my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
-        input => $prokka->{output_fsa},
-        jdepends => $prokka->{job_id},
-        jprefix => $prefix);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nMerging annotation files.\n";
-    my $merge = $class->Bio::Adventure::Annotation::Merge_Annotations(
-        input_abricate => $abricate->{output},
-        input_fsa => $prokka->{output_fsa},
-        input_genbank => $prokka->{output_genbank},
-        input_interpro => $interpro->{output_tsv},
-        input_phageterm => '',
-        input_prodigal => $prodigal->{output},
-        input_prokka_tsv => $prokka->{output_tsv},
-        input_trinotate => $trinotate->{output},
-        jprefix => $prefix,
-        jname => 'mergeannot',
-        jdepends => $interpro->{job_id},);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning cgview.\n";
-    my $cgview = $class->Bio::Adventure::Visualization::CGView(
-        input => $merge->{output_gbk},
-        jdepends => $merge->{job_id},
-        jprefix => $prefix);
-    sleep(1);
-
 }
 
 =head2 C<PhageAssemble>
