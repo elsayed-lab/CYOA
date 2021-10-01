@@ -67,8 +67,9 @@ sub Cutadapt {
     }
 
     my $input = $options->{input};
-    my $basename = basename($input, $options->{suffixes});
-    $basename = basename($basename, $options->{suffixes});
+    my @suffixes = split(/\,/, $options->{suffixes});
+    my $basename = basename($input, @suffixes);
+    $basename = basename($basename, @suffixes);
     my $adapter_flags = "";
     if ($type eq 'tnseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
@@ -76,9 +77,6 @@ sub Cutadapt {
     } elsif ($type eq 'riboseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
         $options->{minlength} = 16;
-        if ($input =~ /\.csfasta/) {
-            $adapter_flags = qq" -a CGCCTTGGCCGTACAGCAGCATATTGGATAAGAGAATGAGGAACCCGGGGCAG -a GCGGAACCGGCATGTCGTCGGGCATAACCCTCTCTTACTCCTTGGGCCCCGTC ";
-        }
     } else {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
     }
@@ -110,6 +108,10 @@ mkdir -p ${out_dir} && \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
   2>outputs/cutadapt.err 1>${output}
+xz -9e ${output}
+xz -9e ${out_dir}/${basename}_tooshort.${out_suffix}
+xz -9e ${out_dir}/${basename}_toolong.${out_suffix}
+xz -9e ${out_dir}/${basename}_untrimmed.${out_suffix}
 !;
     my $cutadapt = $class->Submit(
         comment => $comment,
@@ -132,15 +134,6 @@ mkdir -p ${out_dir} && \\
             jname => qq"tach_${job_name}",
             jprefix => "08",);
     }
-    my $compression_files = qq"${out_dir}/${basename}_tooshort.fastq:${out_dir}/${basename}_toolong.fastq:${out_dir}/${basename}_untrimmed.fastq:${output}";
-    my $comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the output files.",
-        input => $compression_files,
-        jdepends => $cutadapt->{job_id},
-        jname => "xzcutshort_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '24:00:00',);
     return($cutadapt);
 }
 
