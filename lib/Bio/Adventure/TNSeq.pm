@@ -900,8 +900,11 @@ sub Transit_TPP {
         required => ['species', 'input',],
         htseq_type => 'gene',
         htseq_id => 'locus_tag',
-        modules => ['transit'],
+        jprefix => '09',
+        modules => ['bwa', 'transit', 'htseq'],
         primer => 'GGGACTTATCATCCAACCTGT',
+        protocol => 'Sassetti', ## Or Mme1 or Tn5
+        transposon => 'Himar1',
         do_htseq => 1,);
         my $loaded = $class->Module_Loader(modules => $options->{modules});
         my $check = which('tpp');
@@ -947,13 +950,13 @@ sub Transit_TPP {
         my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $tpp_input = qq" -reads1 $pair_listing[0] -reads2 $pair_listing[1] ";
+        $tpp_input = qq" -reads1 <(less $pair_listing[0]) -reads2 <(less $pair_listing[1]) ";
         $test_file = $pair_listing[0];
         $tpp_basename = basename($pair_listing[0], ('.gz', '.xz'));
         $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
-        $tpp_input = qq" -reads1 ${tpp_input} ";
+        $tpp_input = qq" -reads1 <(less ${tpp_input}) ";
         $tpp_basename = basename($test_file, ('.gz', '.xz'));
         $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     }
@@ -961,14 +964,14 @@ sub Transit_TPP {
     my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
 
-    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_$options->{job_basename}.err";
-    my $comment = qq!## This is a transit preprocessing alignment of ${tpp_input} against
+    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${tpp_basename}.err";
+    my $comment = qq!## This is a transit preprocessing alignment of $options->{input} against
 ## ${tpp_genome} using arguments: ${tpp_args}.
-## This jobs depended on: $options->{jdepends}
 !;
     my $jstring = qq!mkdir -p ${tpp_dir}
 sleep ${sleep_time}
 tpp -ref ${tpp_genome} \\
+  -protocol $options->{protocol} \\
   -primer $options->{primer} \\
   -bwa \$(which bwa) \\
   ${tpp_input} \\

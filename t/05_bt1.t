@@ -43,8 +43,8 @@ ok($cyoa->Bio::Adventure::Map::Bowtie(
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv'),
    'Collect Bowtie1 Statistics');
 
-my $expected = qq"CYOA,v0M1,10000,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
-my $old_expected = qq"CYOA,v0M1,0,10000,30,9970,0,33333.3333333333,CYOA-v0M1.count.xz";
+my $expected = qq"test_output,v0M1,10000,10000,30,9970,0,33333.3333333333,test_output-v0M1.count.xz";
+my $old_expected = qq"test_output,v0M1,0,10000,30,9970,0,33333.3333333333,test_output-v0M1.count.xz";
 ## old bowtie provides different numbers and I am not chasing them down.
 unless(ok(($expected eq $actual || $old_expected eq $actual),
           'Are the bowtie stats as expected?')) {

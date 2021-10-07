@@ -39,8 +39,6 @@ species.
 =cut
 sub Bowtie {
     my ($class, %args) = @_;
-    my $check = which('bowtie-build');
-    die('Could not find bowtie in your PATH.') unless($check);
     say('Recall that you can change the bowtie arguments via "bt_type".');
     my $options = $class->Get_Vars(
         args => \%args,
@@ -53,6 +51,8 @@ sub Bowtie {
         jprefix => '10',
         modules => ['bowtie1', 'samtools', 'htseq'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('bowtie-build');
+    die('Could not find bowtie in your PATH.') unless($check);
     my $start_species = $options->{species};
     my $species = $start_species;
     if ($species =~ /\:/) {
@@ -178,7 +178,7 @@ sub Bowtie {
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_id => $options->{htseq_id},
-                htseq_input => $sam_job->{output},
+                input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
                 jname => "ht_${jname}",
@@ -191,7 +191,7 @@ sub Bowtie {
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 htseq_id => $options->{htseq_id},
-                htseq_input => $sam_job->{output},
+                input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
                 jname => "ht_${jname}",

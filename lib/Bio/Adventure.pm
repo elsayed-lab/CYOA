@@ -295,6 +295,7 @@ has product_columns => (is => 'rw', default => 'trinity_sprot_Top_BLASTX_hit,int
 has product_transmembrane => (is => 'rw', default => 'inter_TMHMM'); ## Column containing transmembrane domain data when upgrading annotations to 'product'
 has product_signal => (is => 'rw', default => 'inter_signalp'); ## Column containing signal peptide domain data when upgrading annotations to 'product'
 has prokka_tsv_input => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
+has protocol => (is => 'rw', default => 'Sassetti'); ## TNSeq protocol for TPP
 has pval => (is => 'rw', default => undef); ## Pvalue cutoffs.
 has qsub_args => (is => 'rw', default => '-j oe -V -m n'); ## What arguments will be passed to qsub by default?
 has qsub_depends => (is => 'rw', default => 'depend=afterok:'); ## String to pass for dependencies

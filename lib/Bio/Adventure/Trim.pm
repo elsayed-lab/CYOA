@@ -109,10 +109,10 @@ mkdir -p ${out_dir} && \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
   2>outputs/cutadapt.err 1>${output}
-xz -9e ${output}
-xz -9e ${out_dir}/${basename}_tooshort.${out_suffix}
-xz -9e ${out_dir}/${basename}_toolong.${out_suffix}
-xz -9e ${out_dir}/${basename}_untrimmed.${out_suffix}
+xz -9e -f ${output}
+xz -9e -f ${out_dir}/${basename}_tooshort.${out_suffix}
+xz -9e -f ${out_dir}/${basename}_toolong.${out_suffix}
+xz -9e -f ${out_dir}/${basename}_untrimmed.${out_suffix}
 !;
     my $cutadapt = $class->Submit(
         comment => $comment,
