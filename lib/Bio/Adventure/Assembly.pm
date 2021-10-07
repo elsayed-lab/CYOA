@@ -569,6 +569,7 @@ unicycler $options->{arbitrary} \\
   1>${output_dir}/unicycler_${outname}.out
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
 rm -f r1.fastq.gz r2.fastq.gz
+ln -s ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(
         jdepends => $options->{jdepends},
