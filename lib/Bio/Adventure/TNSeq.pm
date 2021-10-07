@@ -12,10 +12,9 @@ use Bio::Tools::GFF;
 use Cwd qw"abs_path getcwd";
 use File::Basename;
 use FileHandle;
+use File::Find;
 use File::Path qw"make_path";
 use File::Which qw"which";
-use PerlIO;
-use PerlIO::gzip;
 use String::Approx qw"amatch";
 
 =head1 Name
@@ -45,12 +44,10 @@ sub Do_Sort_Indexes {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['index_file', 'input'],
-    );
+        outdir => 'output',);
     my $input = $options->{input};
     $input = '.' unless (defined($input));
     my $outdir = $options->{output_dir};
-    $outdir = 'outputs' unless (defined($outdir));
-    $options = $class->Set_Vars(outdir => $outdir);
 
     if ($options->{help}) {
         print qq"This script is intended to split TNSeq reads as indexed by Yoann Le Breton.
@@ -61,24 +58,19 @@ It therefore makes some assumptions about the beginnings of reads and requires t
         exit(0);
     }
 
-    my $index_hash = Bio::Adventure::TNSeq::Read_Indexes(
-        $class,
-        index_file => $options->{index_file},
-    );
-
+    my $index_hash = $class->Bio::Adventure::TNSeq::Read_Indexes(
+        index_file => $options->{index_file},);
     my $reads;
     if (-f $options->{input}) {
-        $reads = Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
-            $class,
+        print "Invoking Sort_TNSeq_File_Approx\n";
+        $reads = $class->Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
             file => $options->{input},
-            index_hash => $index_hash,
-        );
+            index_hash => $index_hash,);
     } elsif (-d $options->{input}) {
-        $reads = Bio::Adventure::TNSeq::Sort_TNSeq_Dir(
-            $class,
-            dir => $options->{input},
-            index_hash => $options->{index_hash},
-        );
+        $reads = $class->Bio::Adventure::TNSeq::Sort_TNSeq_Dir(
+            input => $options->{input},
+            outdir => $options->{outdir},
+            index_hash => $index_hash,);
     } else {
         die("I need a directory containing some sequence.") unless($options->{input});
     }
@@ -109,26 +101,16 @@ sub TA_Check {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-    );
+        required => ['input'],);
     my $job_name = $class->Get_Job_Name();
     my $jstring = qq"
 use Bio::Adventure;
 use Bio::Adventure::TNSeq;
-my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
-  \$h,
-  input => '$options->{input}',
+my \$ret = \$h->Bio::Adventure::TNSeq::Do_TA_Check(
+  input => '$options->{input}',);
 ";
-    foreach my $option (sort keys %args) {
-        if ($args{$option}) {
-            $jstring .= qq"  ${option} => '$args{$option}',\n";
-        }
-    }
-    $jstring .= qq");";
-
     my $input_base = basename($options->{input}, ('.gz', '.xz', '.bz2'));
     $input_base = basename($input_base, ('.fastq', '.fasta'));
-
     my $sort_job = $class->Submit(
         comment => "# Check for tailing TAs!",
         cpus => 1,
@@ -140,8 +122,8 @@ my \$ret = Bio::Adventure::TNSeq::Do_TA_Check(
         jstring => $jstring,
         jwalltime => "10:00:00",
         language => 'perl',
-        output => qq"${input_base}_ta.fastq.gz",
-        output_nota => qq"${input_base}_nota.fastq.gz",);
+        output => qq"${input_base}_ta.fastq.xz",
+        output_nota => qq"${input_base}_nota.fastq.xz",);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     return($sort_job);
@@ -158,42 +140,43 @@ sub Do_TA_Check {
     my $input = $options->{input};
     my $input_base = basename($input, ('.gz', '.xz', '.bz2'));
     $input_base = basename($input_base, ('.fastq', '.fasta'));
-    my $with_ta = FileHandle->new("| gzip -f -9 > ${input_base}_ta.fastq.gz");
-    my $without_ta = FileHandle->new("| gzip -f -9 > ${input_base}_nota.fastq.gz");
-    my $inputted = FileHandle->new("less ${input} |"); ## PerlIO::gzip is failing on some files.
+    my $with_ta = FileHandle->new("| xz -f -9e > ${input_base}_ta.fastq.xz");
+    my $without_ta = FileHandle->new("| xz -f -9e > ${input_base}_nota.fastq.xz");
+    my $inputted = FileHandle->new("less ${input} |");
     my $in = new Bio::SeqIO(-fh => $inputted, -format => 'Fastq');
     my $count = 0;
     my $with_ta_count = 0;
     my $without_ta_count = 0;
   READS: while (my $in_seq = $in->next_dataset()) {
-        $count++;
-        my $id = $in_seq->{'-descriptor'};
-        my $sequence = $in_seq->{'-seq'};
-        my $qual = $in_seq->{'-raw_quality'};
-        if ($sequence =~ /TA$/) {
-            $with_ta_count++;
-            my $fastq_string = qq"\@${id}
+      $count++;
+      my $id = $in_seq->{'-descriptor'};
+      my $sequence = $in_seq->{'-seq'};
+      my $qual = $in_seq->{'-raw_quality'};
+      if ($sequence =~ /TA$/) {
+          $with_ta_count++;
+          my $fastq_string = qq"\@${id}
 ${sequence}
 +
 ${qual}
 ";
-            print $with_ta $fastq_string;
-        } else {
-            $without_ta_count++;
-            my $fastq_string = qq"\@${id}
+          print $with_ta $fastq_string;
+      } else {
+          $without_ta_count++;
+          my $fastq_string = qq"\@${id}
 ${sequence}
 +
 ${qual}
 ";
-            print $without_ta $fastq_string;
-        }
-    }
+          print $without_ta $fastq_string;
+      }
+  }
     my $counters = {
         total => $count,
         with => $with_ta_count,
-        without => $without_ta_count,
-    };
-    $input->close();
+        without => $without_ta_count,};
+
+    $with_ta->close();
+    $without_ta->close();
     $inputted->close();
     return($counters);
 }
@@ -205,29 +188,37 @@ Sort a pile of tnseq data for the set of known indexes.
 =cut
 sub Sort_Indexes {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'index_file'],
+        outdir => 'output',);
     ## If options are required, feed them back into %args here?
-    my $jstring = qq"
+    my $jstring = qq!
 use Bio::Adventure;
-my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
-  \$h,\n";
-    foreach my $option (keys %args) {
-        next unless defined($args{$options});
-        $jstring .= qq"  ${option} => '$args{$option}',\n";
-    }
-    $jstring .= qq");";
+my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
+  comment => '# Sort those indexes.',
+  cpus => 1,
+  input => "$options->{input}",
+  index_file => "$options->{index_file}",
+  jname => 'sort_indexes',
+  jmem => 8,
+  outdir => '$options->{outdir}',
+  output => '$options->{outdir}/tnseq_sorting_out.txt');
+!;
     my $sort_job = $class->Submit(
         comment => "# Sort those indexes!",
         cpus => 1,
+        input => $options->{input},
+        index_file => $options->{index_file},
         jname => 'sort_indexes',
+        jprefix => '01',
         jstring => $jstring,
         jmem => 8,
         jqueue => 'workstation',
         jwalltime => '60:00:00',
         language => 'perl',
+        outdir => $options->{outdir},
         output => qq"$options->{outdir}/tnseq_sorting_out.txt",);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
     return($sort_job);
 }
 
@@ -235,20 +226,17 @@ my \$ret = Bio::Adventure::TNSeq::Do_Sort_Indexes(
 
 hpgl->Sort_TNSeq_File(file => 'filename.fastq.gz', indexes =>*Index Hash*)
 is called by Sort_Indexes() when a single file is to be demultiplexed.
-It assumes the input file is gzipped and will use the PerlIO::gzip
-filter to uncompress the data.  It will then extract the sequences
-per the rules set up in the index hash.
+It will then extract the sequences per the rules set up in the index hash.
 
 =cut
 sub Sort_TNSeq_File_Approx {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        index_hash => {},
-    );
+        required => ['input'],
+        outdir => '.',
+        index_hash => {},);
     my $data = $options->{index_hash};
-
-    return(undef) unless ($options->{input} =~ /\.fastq/);
     my $out = FileHandle->new(">$options->{outdir}/tnseq_sorting_out.txt");
     ## Does FileHandle work here?
     my $inputted = FileHandle->new("less $options->{input} 2>/dev/null |");
@@ -327,30 +315,36 @@ sub Sort_TNSeq_Dir {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
+        outdir => '.',
         index_hash => {},
     );
     my $cwd_dir = getcwd();
-    my $searchdir = qq"$args{dir}";
+    my $searchdir = $options->{input};
     my $files = 0;
     unless ($searchdir =~ /^\//) {
         $searchdir = qq"${cwd_dir}/${searchdir}";
     }
-    ## print "Searching: $searchdir  for files to read.\n";
+    print "Searching: $searchdir  for files to read.\n";
     my @directory = ($searchdir);
     my @file_list = ();
-    find(sub { push(@file_list, $File::Find::name) if ($File::Find::name =~ /\.fastq\.gz/ and
-                                                           $file::Find::name !~ /$options->{outdir}/); }, @directory);
+    sub wanted {
+
+    }
+    find(sub {
+        push(@file_list, $File::Find::name) if ($File::Find::name =~ /\.fastq/);
+         }, @directory);
+
     my @approxes = ();
     foreach my $file (@file_list) {
         $files = $files++;
         next if ($file =~ /$options->{outdir}/);
         ## This might be incorrect, CHECKME!
         $file =~ s/\/\.\//\//;
-        my $approx = Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
-            $class,
-            file => $file,
-            index_hash => $options->{index_hash},
-        );
+        my $approx = $class->Bio::Adventure::TNSeq::Sort_TNSeq_File_Approx(
+            input => $file,
+            outdir => $options->{outdir},
+            index_hash => $options->{index_hash},);
         push(@approxes, $approx);
     }
     return(@approxes);
@@ -365,12 +359,14 @@ of file handles to which to write the data.
 =cut
 sub Read_Indexes {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    make_path($class->{outdir}) if (!-d $options->{outdir});
-    unlink("$options->{outdir}/unknown.fastq.gz") if (-r "$options->{outdir}/unknown.fastq.gz");
-    unlink("$options->{outdir}/ambiguous.fastq.gz") if (-r "$options->{outdir}/ambiguous.fastq.gz");
-    my $unknown = FileHandle->new("| gzip -9 >> $options->{outdir}/unknown.fastq.gz");
-    my $ambiguous = FileHandle->new("| gzip -9 >> $options->{outdir}/ambiguous.fastq.gz");
+    my $options = $class->Get_Vars(
+        args => \%args,
+        outdir => 'output');
+    make_path($options->{outdir}) if (!-d $options->{outdir});
+    unlink("$options->{outdir}/unknown.fastq.xz") if (-r "$options->{outdir}/unknown.fastq.xz");
+    unlink("$options->{outdir}/ambiguous.fastq.xz") if (-r "$options->{outdir}/ambiguous.fastq.xz");
+    my $unknown = FileHandle->new("| xz -9e >> $options->{outdir}/unknown.fastq.xz");
+    my $ambiguous = FileHandle->new("| xz -9e >> $options->{outdir}/ambiguous.fastq.xz");
     my $indexes = {
         total => {read => 0, written => 0,
               },
@@ -386,6 +382,7 @@ sub Read_Indexes {
                   },
     };
 
+    print "Note: The index file is assumed to be <index>separator<samplename>.\n";
     my $index_file = FileHandle->new("<$args{index_file}");
     while (my $line = <$index_file>) {
         chomp $line;
@@ -396,9 +393,9 @@ sub Read_Indexes {
         if ($ind =~ /^h|H/ && $sample =~ /^A|T|G|C/) {
             ($sample, $ind) = split(/\s+|\,|;/, $line);
         }
-        my $output_filename = qq"$options->{outdir}/${sample}.fastq.gz";
+        my $output_filename = qq"$options->{outdir}/${sample}.fastq.xz";
         unlink($output_filename) if (-r $output_filename);
-        my $handle = FileHandle->new("| gzip -9 >> $output_filename");
+        my $handle = FileHandle->new("| xz -9e >> $output_filename");
         $indexes->{$ind} = {
             name => $sample,
             filename => $output_filename,
@@ -898,33 +895,33 @@ Invoke hisat2
 =cut
 sub Transit_TPP {
     my ($class, %args) = @_;
-    my $check = which('tpp');
-    die("Could not find tpp in your PATH.") unless($check);
-
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],
         htseq_type => 'gene',
         htseq_id => 'locus_tag',
+        modules => ['transit'],
         primer => 'GGGACTTATCATCCAACCTGT',
-        do_htseq => 1,
-        );
+        do_htseq => 1,);
+        my $loaded = $class->Module_Loader(modules => $options->{modules});
+        my $check = which('tpp');
+    die("Could not find tpp in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
         foreach my $sp (@species_lst) {
             print "Invoking tpp on ${sp}\n";
-            $options = $class->Set_Vars(species => $sp);
-            my $result = Bio::Adventure::TNSeq::TPP($class);
+            my $result = $class->Bio::Adventure::TNSeq::TPP(species => $sp);
             push (@result_lst, $result);
         }
         return(@result_lst);
     }
 
-    my $ready = $class->Check_Input(
-        files => $options->{input},
-    );
+    my $ready = $class->Check_Input(files => $options->{input},);
     my $sleep_time = 3;
     my $libtype = 'genome';
     my $tpp_args = '';

@@ -35,15 +35,15 @@ sub Cutadapt {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'type'],
-	arbitrary => undef,
+        arbitrary => undef,
         maxlength => 42,
         maxerr => 0.1,
         maxremoved => 3,
         minlength => 8,
         modules => ['cutadapt'],
-	left => undef,
-	right => undef,
-	either => undef,);
+        left => undef,
+        right => undef,
+        either => undef,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -98,6 +98,7 @@ sub Cutadapt {
         $out_suffix = 'fastq';
     }
     my $output = qq"${basename}-trimmed_ca.${out_suffix}";
+    my $compressed_out = qq"${output}.xz";
     my $jstring = qq!
 mkdir -p ${out_dir} && \\
  ${input_flags} \\
@@ -124,12 +125,11 @@ xz -9e ${out_dir}/${basename}_untrimmed.${out_suffix}
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        output => $output,);
+        output => $compressed_out,);
     if ($type eq 'tnseq') {
-        my $ta_check = Bio::Adventure::TNSeq::TA_Check(
-            $class,
+        my $ta_check = $class->Bio::Adventure::TNSeq::TA_Check(
             comment => qq"## Check that TAs exist.",
-            input => qq"${output}",
+            input => $compressed_out,
             jdepends => $cutadapt->{job_id},
             jname => qq"tach_${job_name}",
             jprefix => "08",);
@@ -172,7 +172,7 @@ sub Racer {
     foreach my $c (0 .. $#input_list) {
         my $name = File::Temp::tempnam($output_dir, 'racer');
         my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
-        push(@output_files, "${output}.gz");
+        push(@output_files, "${output}.xz");
         $jstring .= "less $input_list[$c] > ${name}.fastq &&
   RACER \\
   ${name}.fastq \\
@@ -180,7 +180,7 @@ sub Racer {
   $options->{length} \\
   2>${output_dir}/racer.out 1>&2 &&
   rm ${name}.fastq
-gzip -9 ${output}
+xz -9e -f ${output}
 
 ";
     }
@@ -226,9 +226,9 @@ sub Trimomatic {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
-        $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
     } else {
-        $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%args);
     }
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -269,9 +269,7 @@ sub Trimomatic_Pairwise {
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
-        my $ret = Bio::Adventure::Trim::Trimomatic_Single(
-            $class,
-            input => $input,);
+        my $ret = $class->Bio::Adventure::Trim::Trimomatic_Single(input => $input,);
         return($ret);
     }
     my $r1 = $input_list[0];
@@ -367,15 +365,13 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $new_prefix = qq"$options->{jprefix}_1";
-    my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
-        $class,
+    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
         pairwise => 1,
-        output_dir => $output_dir,
-    );
+        output_dir => $output_dir,);
     $trim->{stats} = $trim_stats;
     return($trim);
 }
@@ -447,8 +443,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
-        $class,
+    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jname => "trst_${job_name}",
