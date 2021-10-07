@@ -142,7 +142,7 @@ sub Blast_Classify {
         topn => 5,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which($options->{blast_tool});
-    die("Could not find $options-{blast_tool} in your PATH.") unless($check);
+    die("Could not find $options->{blast_tool} in your PATH.") unless($check);
 
     ## Read the xref file, located in the blast database directory as ${library}.csv
     my $xref_file = qq"$ENV{BLASTDB}/$options->{library}.csv";

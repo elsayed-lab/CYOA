@@ -164,14 +164,15 @@ sub Bowtie {
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
+        cpus => 1,
         input => $sam_filename,
         jdepends => $bt_job->{job_id},
         jname => "s2b_${jname}",
         jprefix => $options->{jprefix} + 3,
         paired => $paired,
         species => $options->{species},);
-
     $bt_job->{samtools} = $sam_job;
+
     my $htmulti;
     if ($count) {
         if ($libtype eq 'rRNA') {
@@ -1112,10 +1113,11 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
+        cpus => 1,
         input => $sam_filename,
         jdepends => $hisat_job->{job_id},
-        jprefix => $sam_jprefix,
         jname => $sam_jname,
+        jprefix => $sam_jprefix,
         paired => $paired,
         species => $options->{species},);
 

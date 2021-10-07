@@ -387,6 +387,126 @@ ${htseq_invocation}
     return($htseq);
 }
 
+sub Jellyfish {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        length => 17,
+        jprefix => 18,
+        modules => ['jellyfish'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('jellyfish');
+    die("Could not find jellyfish in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}jellyfish_${cwd_name}";
+
+    my $jelly_base = qq"${output_dir}/${cwd_name}_$options->{length}";
+    my $count_file = qq"${jelly_base}.count";
+    my $info_file = qq"${jelly_base}.info";
+    my $histogram_file = qq"${jelly_base}.hist";
+    my $count_fasta = qq"${jelly_base}_by_count.fasta";
+    my $matrix_file = qq"${jelly_base}_matrix.tsv";
+    my $comment = qq"## Invoke jellyfish on some sequence!\n";
+    my $jstring = qq!
+jellyfish count -m $options->{length} \\
+  -o ${count_file} \\
+  -s 50000 -t 4 \\
+  <(less $options->{input})
+jellyfish info ${count_file} > ${info_file}
+jellyfish histo ${count_file} > ${histogram_file}
+jellyfish dump ${count_file} > ${count_fasta}
+!;
+
+    my $jelly = $class->Submit(
+        cpus => $options->{cpus},
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => "jelly_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 12,
+        modules => $options->{modules},
+        count_file => $count_file,
+        info_file => $info_file,
+        histogram_file => $histogram_file,
+        count_fasta => $count_fasta,
+        output => $matrix_file,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+
+    $comment = qq"## This should create a matrix with rows as kmers and elements
+## comprised of the number of occurrences.
+";
+    my $new_prefix = $options->{jprefix} + 1;
+    $jstring = qq?
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+\$h->Bio::Adventure::Count::Jellyfish_Matrix(
+  comment => '$comment',
+  input => '$jelly->{output}',
+  jdepends => '$jelly->{job_id}',
+  jname => 'jelly_matrix',
+  jprefix => '${new_prefix}',
+  output => '${matrix_file}',);
+?;
+    my $matrix_job = $class->Submit(
+        comment => '$comment',
+        input => '$jelly->{output}',
+        jdepends => '$jelly->{job_id}',
+        jname => 'jelly_matrix',
+        jprefix => '${new_prefix}',
+        jstring => $jstring,
+        output => '${matrix_file}',
+        language => 'perl',
+        shell => '/usr/bin/env perl',);
+    $jelly->{matrix_job} = $matrix_job;
+    return($jelly);
+}
+
+sub Jellyfish_Matrix {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        output => 'fasta_matrix.tsv',
+        jprefix => 19,);
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $in = FileHandle->new("less $options->{input} |");
+    my $counter = 1;
+    my $counts = {};
+    my $nmer_count = 0;
+    my $nmer_identity = '';
+    while (my $line = <$in>) {
+        chomp($line);
+        if ($counter == 1) {  ## Then it is the number line, also why in the flying hell did they do that
+            $nmer_count = $line;
+            $nmer_count =~ s/^>//g;
+            $counter++;
+        } elsif ($counter == 2) {
+            $counter--;
+            $nmer_identity = $line;
+            $counts->{$nmer_identity} = $nmer_count;
+        } else {
+            die("Should not get here.");
+        }
+    }
+    $in->close();
+
+    my $out = FileHandle->new(">$options->{output}");
+    foreach my $k (sort keys%{$counts}) {
+        print $out "$k\t$counts->{$k}\n";
+    }
+    $out->close();
+    return($nmer_count);
+}
+
 =head2 C<Mi_Map>
 
 Given a set of alignments, map reads to mature/immature miRNA species.

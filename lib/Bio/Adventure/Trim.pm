@@ -35,15 +35,15 @@ sub Cutadapt {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'type'],
-	arbitrary => undef,
+        arbitrary => undef,
         maxlength => 42,
         maxerr => 0.1,
         maxremoved => 3,
         minlength => 8,
         modules => ['cutadapt'],
-	left => undef,
-	right => undef,
-	either => undef,);
+        left => undef,
+        right => undef,
+        either => undef,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -67,8 +67,9 @@ sub Cutadapt {
     }
 
     my $input = $options->{input};
-    my $basename = basename($input, $options->{suffixes});
-    $basename = basename($basename, $options->{suffixes});
+    my @suffixes = split(/\,/, $options->{suffixes});
+    my $basename = basename($input, @suffixes);
+    $basename = basename($basename, @suffixes);
     my $adapter_flags = "";
     if ($type eq 'tnseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
@@ -76,9 +77,6 @@ sub Cutadapt {
     } elsif ($type eq 'riboseq') {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
         $options->{minlength} = 16;
-        if ($input =~ /\.csfasta/) {
-            $adapter_flags = qq" -a CGCCTTGGCCGTACAGCAGCATATTGGATAAGAGAATGAGGAACCCGGGGCAG -a GCGGAACCGGCATGTCGTCGGGCATAACCCTCTCTTACTCCTTGGGCCCCGTC ";
-        }
     } else {
         $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
     }
@@ -100,6 +98,7 @@ sub Cutadapt {
         $out_suffix = 'fastq';
     }
     my $output = qq"${basename}-trimmed_ca.${out_suffix}";
+    my $compressed_out = qq"${output}.xz";
     my $jstring = qq!
 mkdir -p ${out_dir} && \\
  ${input_flags} \\
@@ -110,6 +109,10 @@ mkdir -p ${out_dir} && \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
   2>outputs/cutadapt.err 1>${output}
+xz -9e ${output}
+xz -9e ${out_dir}/${basename}_tooshort.${out_suffix}
+xz -9e ${out_dir}/${basename}_toolong.${out_suffix}
+xz -9e ${out_dir}/${basename}_untrimmed.${out_suffix}
 !;
     my $cutadapt = $class->Submit(
         comment => $comment,
@@ -122,25 +125,15 @@ mkdir -p ${out_dir} && \\
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        output => $output,);
+        output => $compressed_out,);
     if ($type eq 'tnseq') {
-        my $ta_check = Bio::Adventure::TNSeq::TA_Check(
-            $class,
+        my $ta_check = $class->Bio::Adventure::TNSeq::TA_Check(
             comment => qq"## Check that TAs exist.",
-            input => qq"${output}",
+            input => $compressed_out,
             jdepends => $cutadapt->{job_id},
             jname => qq"tach_${job_name}",
             jprefix => "08",);
     }
-    my $compression_files = qq"${out_dir}/${basename}_tooshort.fastq:${out_dir}/${basename}_toolong.fastq:${out_dir}/${basename}_untrimmed.fastq:${output}";
-    my $comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the output files.",
-        input => $compression_files,
-        jdepends => $cutadapt->{job_id},
-        jname => "xzcutshort_${job_name}",
-        jprefix => '08',
-        jqueue => 'workstation',
-        jwalltime => '24:00:00',);
     return($cutadapt);
 }
 
@@ -179,7 +172,7 @@ sub Racer {
     foreach my $c (0 .. $#input_list) {
         my $name = File::Temp::tempnam($output_dir, 'racer');
         my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
-        push(@output_files, "${output}.gz");
+        push(@output_files, "${output}.xz");
         $jstring .= "less $input_list[$c] > ${name}.fastq &&
   RACER \\
   ${name}.fastq \\
@@ -187,7 +180,7 @@ sub Racer {
   $options->{length} \\
   2>${output_dir}/racer.out 1>&2 &&
   rm ${name}.fastq
-gzip -9 ${output}
+xz -9e -f ${output}
 
 ";
     }
@@ -233,9 +226,9 @@ sub Trimomatic {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
-        $trim = Bio::Adventure::Trim::Trimomatic_Pairwise($class, %args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
     } else {
-        $trim = Bio::Adventure::Trim::Trimomatic_Single($class, %args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%args);
     }
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -276,9 +269,7 @@ sub Trimomatic_Pairwise {
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     if (scalar(@input_list) <= 1) {
-        my $ret = Bio::Adventure::Trim::Trimomatic_Single(
-            $class,
-            input => $input,);
+        my $ret = $class->Bio::Adventure::Trim::Trimomatic_Single(input => $input,);
         return($ret);
     }
     my $r1 = $input_list[0];
@@ -374,15 +365,13 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $new_prefix = qq"$options->{jprefix}_1";
-    my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
-        $class,
+    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
         pairwise => 1,
-        output_dir => $output_dir,
-    );
+        output_dir => $output_dir,);
     $trim->{stats} = $trim_stats;
     return($trim);
 }
@@ -454,8 +443,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    my $trim_stats = Bio::Adventure::Trim::Trimomatic_Stats(
-        $class,
+    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jname => "trst_${job_name}",

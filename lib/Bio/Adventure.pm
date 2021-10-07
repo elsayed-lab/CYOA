@@ -243,6 +243,7 @@ has htseq_stranded => (is => 'rw', default => 'no'); ## Use htseq stranded optio
 has htseq_type => (is => 'rw', default => 'gene'); ## What type of gff file should be read by htseq?
 has identity => (is => 'rw', default => 70); ## Alignment specific identity cutoff
 has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing indexes:sampleIDs when demultiplexing samples - likely tnseq
+has index_hash => (is => 'rw', default => undef);
 has input => (is => 'rw', default => undef); ## Generic input argument
 has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
@@ -263,6 +264,7 @@ has jstring => (is => 'rw', default => undef); ## String of the job
 has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
 has language => (is => 'rw', default => 'bash'); ## What kind of script is this?
+has length => (is => 'rw', default => 17); ## kmer length, other stuff too.
 has libdir => (is => 'rw', default => "$ENV{HOME}/libraries"); ## Directory containing genomes/gff/indexes
 has library => (is => 'rw', default => undef);  ## The library to be used for fasta36/blast searches
 has libtype => (is => 'rw', default => 'genome'); ## Type of sequence to map against, genomic/rRNA/contaminants
