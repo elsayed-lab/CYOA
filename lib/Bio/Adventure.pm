@@ -1331,7 +1331,7 @@ sub Read_Genome_Fasta {
     my $fasta_name = basename($options->{genome}, ['.fasta']);
     my $genome_file = qq"$options->{basedir}/${fasta_name}.pdata";
     if (-r $genome_file) {
-        $chromosomes = retrieve($genome_file);
+        $chromosomes = lock_retrieve($genome_file);
     } else {
         my $input_genome = Bio::SeqIO->new(-file => $options->{genome}, -format => 'Fasta');
         while (my $genome_seq = $input_genome->next_seq()) {
@@ -1350,7 +1350,7 @@ sub Read_Genome_Fasta {
             $chromosomes->{$id}->{reverse} = $empty_reverse;
             $chromosomes->{$id}->{obj} = $genome_seq;
         } ## End reading each chromosome
-        store($chromosomes, $genome_file);
+        my $stored = lock_store($chromosomes, $genome_file);
     } ## End checking for a .pdata file
     return($chromosomes);
 }
@@ -1447,7 +1447,7 @@ sub Read_Genome_GFF {
         if (-f $genome_file) {
             unlink($genome_file);
         }
-        store($gff_out, $genome_file);
+        my $stored = lock_store($gff_out, $genome_file);
     } ## End looking for the gff data file
     return($gff_out);
 }

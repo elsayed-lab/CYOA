@@ -71,8 +71,6 @@ sub Bowtie {
     my $bt_type = $options->{bt_type};
     my $bt_args = $options->{bt_args}->{$bt_type};
     $bt_args = ' --best -v 0 -M 1 ' if (!defined($bt_args));
-
-    my $sleep_time = 3;
     my $bt_input = $options->{input};
 
     my $paired = 0;
@@ -122,7 +120,8 @@ sub Bowtie {
     my $aligned_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}.sam";
-    my $jstring = qq!mkdir -p ${bt_dir} && sleep ${sleep_time} && bowtie \\
+    my $jstring = qq!mkdir -p ${bt_dir}
+bowtie \\
   ${bt_reflib} \\
   ${bt_args} \\
   -p $options->{cpus} \\
@@ -266,7 +265,6 @@ sub Bowtie2 {
     my $ready = $class->Check_Input(
         files => $options->{input},
     );
-    my $sleep_time = 3;
     my %bt_jobs = ();
     my $libtype = 'genome';
     my $bt2_args = $options->{bt2_args};
@@ -324,9 +322,8 @@ sub Bowtie2 {
     my $aligned_filename = qq"${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq";
     my $sam_filename = qq"${bt_dir}/$options->{jbasename}.sam";
-    my $jstring = qq!mkdir -p ${bt_dir} && \\
-  sleep ${sleep_time} && \\
-  bowtie2 -x ${bt_reflib} ${bt2_args} \\
+    my $jstring = qq!mkdir -p ${bt_dir}
+bowtie2 -x ${bt_reflib} ${bt2_args} \\
     -p ${cpus} \\
     ${bowtie_input_flag} ${bt_input} \\
     --un ${unaligned_filename} \\
@@ -673,9 +670,7 @@ sub BWA {
         return(@result_lst);
     }
 
-    my $sleep_time = 3;
     my $bwa_input = $options->{input};
-
     my $test_file = "";
     my $forward_reads = "";
     my $reverse_reads = undef;
@@ -790,7 +785,7 @@ bwa aln ${aln_args} \\
     my $aln_job = $class->Submit(
         comment => $aln_comment,
         input => $bwa_input,
-        jdepends => $mem_sam_job,
+        jdepends => $mem_sam_job->{job_id},
         jname => "bwaaln_$options->{species}",
         output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
         jprefix => $options->{jprefix} + 2,
@@ -799,9 +794,9 @@ bwa aln ${aln_args} \\
         modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
-        jqueue => 'workstation',
-    );
+        jqueue => 'workstation',);
     $bwa_job->{aln} = $aln_job;
+
     my $rep_job = $class->Submit(
         comment => $report_comment,
         input => $aln_job->{output},
@@ -816,6 +811,7 @@ bwa aln ${aln_args} \\
         prescript => $options->{prescript},
         jqueue => 'workstation',);
     $bwa_job->{reporter} = $rep_job;
+
     my $aln_sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $aln_sam,
         jdepends => $rep_job->{job_id},
@@ -826,7 +822,7 @@ bwa aln ${aln_args} \\
 
     my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_id => $options->{htseq_id},
-        htseq_input => $mem_sam_job->{output},
+        input => $mem_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $mem_sam_job->{job_id},
         jname => "htmem_${jname}",
@@ -836,7 +832,7 @@ bwa aln ${aln_args} \\
 
     my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_id => $options->{htseq_id},
-        htseq_input => $aln_sam_job->{output},
+        input => $aln_sam_job->{output},
         htseq_type => $options->{htseq_type},
         jdepends => $aln_sam_job->{job_id},
         jname => "htaln_${jname}",
@@ -979,7 +975,6 @@ sub Hisat2 {
     if (!$options->{jdepends}) {
         $ready = $class->Check_Input(files => $options->{input},);
     }
-    my $sleep_time = 3;
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
 
@@ -1043,23 +1038,33 @@ sub Hisat2 {
     my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unalcon_$options->{species}_$options->{libtype}.fastq";
     my $sam_filename = qq"${hisat_dir}/$options->{jbasename}_$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
-sleep ${sleep_time}
 hisat2 -x ${hisat_reflib} ${hisat_args} \\
   -p ${cpus} \\
   ${hisat_input_flag} ${hisat_input} \\
   --phred$options->{phred} \\
-  --un-gz ${unaligned_discordant_filename} \\
-  --al-gz ${aligned_discordant_filename} \\
-  --un-conc-gz ${unaligned_concordant_filename} \\
-  --al-conc-gz ${aligned_concordant_filename} \\
-  -S ${sam_filename} \\
+  --un ${unaligned_discordant_filename} \\
+  --al ${aligned_discordant_filename} \\
+!;
+    if ($paired) {
+        ## The concordant flag tries to send reads to xxx.1 and xxx.2 even if
+        ## the data is not paired.
+        $jstring .= qq!  --un-conc ${unaligned_concordant_filename} \\
+  --al-conc ${aligned_concordant_filename} \\
+!;
+    }
+    $jstring .= qq!  -S ${sam_filename} \\
   2>${error_file} \\
   1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.out
 !;
     ## Example: r1_trimmed_unaligned_concordant_lpanamensis_v36.fastq.1.gz
 
-    my $unaligned_filenames = $unaligned_concordant_filename;
-    my $aligned_filenames = $aligned_concordant_filename;
+    ## This logic is a bit tortured, the goal is to provide the set of fastq files
+    ## returned by hisat to be more aggressively compressed.
+    ##  1.  If the reads are single-ended, this is just the aligned+unaligned(discordant).
+    ##  2.  If the reads are paired, then this becomes the set of 4, concordant and discordant.
+    ## with the caveat that hisat names things strangely when it returns paired reads.
+    my $unaligned_filenames = $unaligned_discordant_filename;
+    my $aligned_filenames = $aligned_discordant_filename;
     my $unaligned_xz_filenames = $unaligned_filenames;
     my $aligned_xz_filenames = $aligned_filenames;
     if ($paired) {
@@ -1094,14 +1099,15 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         unaligned => $unaligned_filenames,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
+
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         input => $all_xz_filenames,
         jdepends => $hisat_job->{job_id});
+    $hisat_job->{compression} = $comp;
 
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $new_jprefix = qq"$options->{jprefix}_1";
-
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
@@ -1112,6 +1118,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jprefix => $sam_jprefix,
         paired => $paired,
         species => $options->{species},);
+    $hisat_job->{samtools} = $sam_job;
 
     $new_jprefix = qq"$options->{jprefix}_3";
     my $htseq_input;
@@ -1150,11 +1157,12 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
 
     my $stats = $class->Bio::Adventure::Map::HT2_Stats(
         ht_input => $error_file,
-        count_table => $hisat_job->{htseq_job}->[0]->{output},
+        count_table => $hisat_job->{htseq}->[0]->{output},
         jdepends => $hisat_job->{job_id},
         jname => qq"hisat2st_${suffix_name}",
         jprefix => $new_jprefix,
         output_dir => $hisat_dir,);
+    $hisat_job->{stats} = $stats;
 
     return($hisat_job);
 }
@@ -1237,6 +1245,7 @@ echo "\$stat_string" >> ${output}!;
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        output => $output,
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',);
@@ -1271,7 +1280,6 @@ sub Kallisto {
         return(@result_lst);
     }
 
-    my $sleep_time = 3;
     my %ka_jobs = ();
     my $ka_depends_on = '';
     my $libtype = 'genome';
@@ -1322,7 +1330,7 @@ sub Kallisto {
 ## because kallisto is so fast
 !;
     my $dropped_args = qq" --pseudobam ";
-    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+    my $jstring = qq!mkdir -p ${outdir}
 kallisto quant ${ka_args} \\
   --plaintext -t 4 -b 100 \\
   -o ${outdir} \\
@@ -1536,7 +1544,6 @@ sub Salmon {
     }
 
     my $ready = $class->Check_Input(files => $options->{input});
-    my $sleep_time = 3;
     my %sa_jobs = ();
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
@@ -1569,9 +1576,9 @@ sub Salmon {
     my $error_file = qq"${outdir}/salmon_${species}.stderr";
     my $comment = qq!## This is a salmon pseudoalignment of ${sa_input} against
 ## ${sa_reflib}.
-OB## This jobs depended on: $options->{jdepends}
+## This jobs depended on: $options->{jdepends}
 !;
-    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+    my $jstring = qq!mkdir -p ${outdir}
 salmon quant -i ${sa_reflib} \\
   -l A --gcBias --validateMappings  \\
   ${sa_args} \\
@@ -1706,7 +1713,6 @@ sub STAR {
     my $ready = $class->Check_Input(
         files => $options->{input},);
 
-    my $sleep_time = 3;
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = $options->{species};
@@ -1742,7 +1748,7 @@ sub STAR {
 ## This jobs depended on: $options->{jdepends}
 ## Currently, this only works with the module star/git_201803
 !;
-    my $jstring = qq!mkdir -p ${outdir} && sleep ${sleep_time} && \\
+    my $jstring = qq!mkdir -p ${outdir}
 STAR \\
   --genomeDir ${star_refdir} \\
   --outFileNamePrefix outputs/star_$options->{species}/${input_name} \\

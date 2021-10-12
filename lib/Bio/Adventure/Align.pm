@@ -203,7 +203,10 @@ Create sequential directories for each job and actually write the sequences usin
 =cut
 sub Make_Directories {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        num_per_split => 100,
+        align_jobs => 40,);
     my $num_per_split = $options->{num_per_split};
     my $splits = $options->{align_jobs};
     my $workdir = $options->{workdir};
