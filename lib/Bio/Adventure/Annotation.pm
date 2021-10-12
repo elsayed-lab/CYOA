@@ -1859,7 +1859,7 @@ cd \${start}
         jname => qq"trinotate_$input_paths->{filename}_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 80,
+        jmem => 12,
         modules => $options->{modules},
         output => qq"${output_dir}/${output_name}",
         prescript => $options->{prescript},

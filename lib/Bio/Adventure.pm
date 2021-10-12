@@ -702,6 +702,7 @@ sub Get_Menus {
             choices => {
                 '(htseq): Count mappings with htseq-count.' =>  \&Bio::Adventure::Count::HTSeq,
                 '(htmulti): Use different option sets for counting with htseq.' => \&Bio::Adventure::Count::HT_Multi,
+                '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
                 '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
                 '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
             },
@@ -911,6 +912,7 @@ sub Get_TODOs {
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM_Index'},
         "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon_Index'},
         "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
+        "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
         "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
         "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annotations'},

@@ -392,7 +392,7 @@ sub Jellyfish {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        length => 17,
+        length => 9,
         jprefix => 18,
         modules => ['jellyfish'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -409,9 +409,10 @@ sub Jellyfish {
     my $info_file = qq"${jelly_base}.info";
     my $histogram_file = qq"${jelly_base}.hist";
     my $count_fasta = qq"${jelly_base}_by_count.fasta";
-    my $matrix_file = qq"${jelly_base}_matrix.tsv";
+    my $matrix_file = qq"${jelly_base}_matrix.csv";
     my $comment = qq"## Invoke jellyfish on some sequence!\n";
     my $jstring = qq!
+mkdir -p ${output_dir}
 jellyfish count -m $options->{length} \\
   -o ${count_file} \\
   -s 50000 -t 4 \\
@@ -449,20 +450,20 @@ use Bio::Adventure;
 use Bio::Adventure::Phage;
 \$h->Bio::Adventure::Count::Jellyfish_Matrix(
   comment => '$comment',
-  input => '$jelly->{output}',
+  input => '${count_fasta}',
   jdepends => '$jelly->{job_id}',
   jname => 'jelly_matrix',
   jprefix => '${new_prefix}',
   output => '${matrix_file}',);
 ?;
     my $matrix_job = $class->Submit(
-        comment => '$comment',
-        input => '$jelly->{output}',
-        jdepends => '$jelly->{job_id}',
+        comment => $comment,
+        input => $count_fasta,
+        jdepends => $jelly->{job_id},
         jname => 'jelly_matrix',
-        jprefix => '${new_prefix}',
+        jprefix => $new_prefix,
         jstring => $jstring,
-        output => '${matrix_file}',
+        output => $matrix_file,
         language => 'perl',
         shell => '/usr/bin/env perl',);
     $jelly->{matrix_job} = $matrix_job;
@@ -474,7 +475,7 @@ sub Jellyfish_Matrix {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        output => 'fasta_matrix.tsv',
+        output => 'fasta_matrix.csv',
         jprefix => 19,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -500,7 +501,7 @@ sub Jellyfish_Matrix {
     $in->close();
 
     my $out = FileHandle->new(">$options->{output}");
-    foreach my $k (sort keys%{$counts}) {
+    foreach my $k (sort keys %{$counts}) {
         print $out "$k\t$counts->{$k}\n";
     }
     $out->close();

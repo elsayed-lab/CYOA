@@ -101,7 +101,7 @@ close(\$out);
         $total_perl_string .= "$options->{jstring}\n" if ($options->{jstring});
         $total_perl_string .= "$perl_end\n";
 
-        my $perl_script = FileHandle->new(">$perl_file");
+        my $perl_script = FileHandle->new(">${perl_file}");
         print $perl_script $total_perl_string;
         $perl_script->close();
         chmod(0775, $perl_file);
