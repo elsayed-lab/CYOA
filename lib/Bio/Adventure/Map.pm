@@ -208,7 +208,7 @@ sub Bowtie {
         %args,
         bt_input => $error_file,
         bt_type => $bt_type,
-        count_table => qq"$options->{jbasename}-${bt_type}.count.xz",
+        count_table => $bt_job->{htseq}->[0]->{output},
         jdepends => $bt_job->{job_id},
         jname => "${jname}_stats",
         jprefix => $options->{jprefix} + 5,
@@ -217,7 +217,6 @@ sub Bowtie {
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-
     return($bt_job);
 }
 
@@ -1102,13 +1101,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $new_jprefix = qq"$options->{jprefix}_1";
-    my $stats = $class->Bio::Adventure::Map::HT2_Stats(
-        ht_input => $error_file,
-        count_table => qq"$options->{jbasename}.count.xz",
-        jdepends => $hisat_job->{job_id},
-        jname => qq"hisat2st_${suffix_name}",
-        jprefix => $new_jprefix,
-        output_dir => $hisat_dir,);
 
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";
@@ -1152,9 +1144,18 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 libtype => $options->{libtype},
                 mapper => 'hisat2',
                 paired => $paired,);
-            $hisat_job->{htseq_job} = $htmulti;
         }
+        $hisat_job->{htseq} = $htmulti;
     }  ## End checking if we should do htseq
+
+    my $stats = $class->Bio::Adventure::Map::HT2_Stats(
+        ht_input => $error_file,
+        count_table => $hisat_job->{htseq_job}->[0]->{output},
+        jdepends => $hisat_job->{job_id},
+        jname => qq"hisat2st_${suffix_name}",
+        jprefix => $new_jprefix,
+        output_dir => $hisat_dir,);
+
     return($hisat_job);
 }
 

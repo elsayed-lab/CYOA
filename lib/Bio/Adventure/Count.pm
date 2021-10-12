@@ -40,8 +40,7 @@ sub HT_Multi {
         htseq_id => 'ID',
         libtype => 'genome',
         modules => ['htseq'],
-        paired => 1,
-        );
+        paired => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('htseq-count');
     die('Could not find htseq in your PATH.') unless($check);
@@ -92,8 +91,7 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                suffix => $options->{suffix},
-            );
+                suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
         } elsif (-r "$gtf") {
@@ -135,8 +133,7 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $options->{postscript},
             prescript => $options->{prescript},
-            suffix => $options->{suffix},
-        );
+            suffix => $options->{suffix},);
         push(@jobs, $ht);
     } elsif (-r "$gtf") {
         print "Found $gtf, performing htseq_all with it.\n";
@@ -332,11 +329,7 @@ sub HTSeq {
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     }
 
-    if ($options->{suffix}) {
-        $output = qq"${output}_$options->{suffix}.count";
-    } else {
-        $output = qq"${output}_${gff_type}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}.count";
-    }
+    $output = qq"${output}_${gff_type}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}.count";
     if (!-r "${gff}" and !-r "${gtf}") {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
     }
@@ -363,6 +356,7 @@ ${htseq_invocation}
   1>${output} && \\
     xz -f -9e ${output} 2>${error}.xz 1>${output}.xz
 !;
+    $output = qq"${output}.xz";
     my $comment = qq!## Counting the number of hits in ${htseq_input} for each feature found in ${annotation}
 ## Is this stranded? ${stranded}.  The defaults of htseq are:
 ## $options->{htseq_args}

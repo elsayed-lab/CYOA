@@ -69,10 +69,10 @@ phiX174p08\t0
 phiX174p09\t0
 phiX174p10\t0
 ";
+
 $actual = qx"xzcat outputs/bwa_phix/CYOA_aln.count.xz | head";
 unless(ok($expected eq $actual,
           "${test_num}: Check bwa count tables aln version.")) {
     my ($old, $new) = diff($expected, $actual);
     diag("expected:\n$old\nactual:\n$new\n");
 }
-

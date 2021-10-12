@@ -946,17 +946,23 @@ sub Transit_TPP {
 
     my $tpp_basename = "";
     my $test_file = "";
+    my $tpp_pre;
+    my $tpp_post;
     if ($tpp_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $tpp_input = qq" -reads1 <(less $pair_listing[0]) -reads2 <(less $pair_listing[1]) ";
+        $tpp_pre = qq"less $pair_listing[0] > ${tpp_dir}/r1.fastq && less $pair_listing[1] > ${tpp_dir}/r2.fastq";
+        $tpp_post = qq"rm ${tpp_dir}/r1.fastq ${tpp_dir}/r2.fastq";
+        $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq -reads2 ${tpp_dir}/r2.fastq ";
         $test_file = $pair_listing[0];
         $tpp_basename = basename($pair_listing[0], ('.gz', '.xz'));
         $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
-        $tpp_input = qq" -reads1 <(less ${tpp_input}) ";
+        $tpp_pre = qq"less ${tpp_input} > ${tpp_dir}/r1.fastq";
+        $tpp_post = qq"rm ${tpp_dir}/r1.fastq";
+        $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq ";
         $tpp_basename = basename($test_file, ('.gz', '.xz'));
         $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     }
@@ -970,12 +976,14 @@ sub Transit_TPP {
 !;
     my $jstring = qq!mkdir -p ${tpp_dir}
 sleep ${sleep_time}
+${tpp_pre}
 tpp -ref ${tpp_genome} \\
   -protocol $options->{protocol} \\
   -primer $options->{primer} \\
   -bwa \$(which bwa) \\
   ${tpp_input} \\
   -output ${tpp_dir}/${tpp_basename}
+${tpp_post}
 !;
     my $tpp_job = $class->Submit(
         comment => $comment,
