@@ -108,8 +108,7 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                suffix => $options->{suffix},
-            );
+                suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
         }
@@ -148,8 +147,7 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $args{postscript},
             prescript => $args{prescript},
-            suffix => $args{suffix},
-        );
+            suffix => $args{suffix},);
         push(@jobs, $ht);
     } else {
         print "Did not find ${gff} nor ${gtf}, not running htseq_all.\n";
@@ -159,7 +157,7 @@ sub HT_Multi {
     return(\@jobs);
 }
 
-=head2 C<HT_TYPES>
+=head2 C<HT_Types>
 
 Read the first 100k lines of a gff file and use that to guess at the most likely
 type of feature when invoking htseq.
@@ -288,7 +286,9 @@ sub HTSeq {
     ## Top level directory containing the input files.
     my $top_dir = basename(getcwd());
     ## The sam/bam input basename
+    ## Keep in mind this input bam file likely has the genome as part of its name
     my $output_name = basename($htseq_input, ('.bam', '.sam'));
+
     ## And directory containing it.
     my $output_dir = dirname($htseq_input);
     my $output = qq"${output_dir}/${output_name}";
@@ -298,7 +298,7 @@ sub HTSeq {
     $gtf =~ s/\.gff/\.gtf/g;
     my $htseq_args = "";
 
-        ## Set the '-t FEATURETYPE --type' argument used by htseq-count
+    ## Set the '-t FEATURETYPE --type' argument used by htseq-count
     ## This may be provided by a series of defaults in %HT_Multi::gff_types, overridden by an argument
     ## Or finally auto-detected by HT_Types().
     ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
@@ -313,8 +313,7 @@ sub HTSeq {
             !defined($htseq_id) or $htseq_id eq '' or $htseq_id eq 'auto') {
         my $htseq_type_pair = $class->Bio::Adventure::Count::HT_Types(
             annotation => $annotation,
-            type => $htseq_type,
-            );
+            type => $htseq_type,);
         $htseq_type = $htseq_type_pair->[0];
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}"
@@ -329,7 +328,7 @@ sub HTSeq {
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     }
 
-    $output = qq"${output}_${gff_type}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}.count";
+    $output .= qq"_${gff_type}_s${stranded}_${htseq_type}_${htseq_id}.count";
     if (!-r "${gff}" and !-r "${gtf}") {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
     }
