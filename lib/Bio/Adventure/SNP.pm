@@ -32,6 +32,7 @@ sub Align_SNP_Search {
         required => ['input', 'species'],
         htseq_id => 'ID',
         htseq_type => 'gene',
+        modules => ['bowtie2', 'samtools'],
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
     );
@@ -42,15 +43,13 @@ sub Align_SNP_Search {
     my $query_base = basename(${query}, (".bam"));
     $query = qq"${query_home}/${query_base}";
     print "About to start Bowtie2 search against of $query against $options->{species}.\n";
-    my $bt2_job = Bio::Adventure::Map::Bowtie2(
-        $class,
+    my $bt2_job = $class->Bio::Adventure::Map::Bowtie2(
         htseq_type => "exon",
         input => $query,
         species => $options->{species},);
     my $bamfile = $bt2_job->{samtools}->{job_output};
     print "About to start SNP search of $bamfile against $options->{species}\n";
-    my $search = Bio::Adventure::SNP::SNP_Search(
-        $class,
+    my $search = $class->Bio::Adventure::SNP::SNP_Search(
         gff_tag => $options->{htseq_id},
         gff_type => $options->{htseq_type},
         input => $bamfile,
@@ -69,6 +68,7 @@ sub SNP_Search {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'gff_tag', 'gff_type'],
+        modules => ['bowtie2', 'samtools'],
         varfilter => 0,
         vcf_cutoff => 5,
         vcf_minpct => 0.8,);
@@ -148,8 +148,7 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
 !;
-    my $parse = Bio::Adventure::SNP::SNP_Ratio(
-        $class,
+    my $parse = $class->Bio::Adventure::SNP::SNP_Ratio(
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
         input => ${final_output},
@@ -157,7 +156,8 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
         species => $options->{species},
         vcf_cutoff => $vcf_cutoff,
         vcf_minpct => $vcf_minpct,);
-    return([$pileup, $parse]);
+    $pileup->{parse} = $parse;
+    return($pileup);
 }
 
 =head2 C<CNP_Ratio>
@@ -193,8 +193,7 @@ sub SNP_Ratio {
 
     my $jstring = qq"
 use Bio::Adventure::SNP;
-Bio::Adventure::SNP::Make_SNP_Ratio(
-  \$h,
+\$h->Bio::Adventure::SNP::Make_SNP_Ratio(
   input => '$print_input',
   output => '$print_output',
   species => '$options->{species}',
@@ -236,8 +235,7 @@ sub Make_SNP_Ratio {
         gff_tag => 'ID',
         gff_type => 'gene',
         vcf_cutoff => 5,
-        vcf_minpct => 0.8,
-    );
+        vcf_minpct => 0.8,);
     my $input = $options->{input};
     my $output_base = $options->{output};
     my $species = $options->{species};
@@ -302,11 +300,13 @@ sub Make_SNP_Ratio {
     $pct_out->close();
 
     if ($num_variants > 0) {
-        my $input_genome = Bio::Adventure::Read_Genome_Fasta($class, %args, fasta => $genome,);
+        my $input_genome = $class->Bio::Adventure::Read_Genome_Fasta(%args,
+                                                                     fasta => $genome,);
         my $input_data = FileHandle->new("<${output_base}_pct.txt");
-        my $annotations = Bio::Adventure::Read_Genome_GFF($class, gff => $gff,
-                                                          feature_type => $options->{gff_type},
-                                                          %args);
+        my $annotations = $class->Bio::Adventure::Read_Genome_GFF(
+            gff => $gff,
+            feature_type => $options->{gff_type},
+            %args);
         my $output_by_gene = FileHandle->new(">${output_base}_hits_by_gene.txt");
         my $vars_by_gene = {};
       READER: while (my $line = <$input_data>) {
@@ -397,8 +397,8 @@ sub Snippy {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
-    );
+        modules => ['snippy', 'gubbins', 'fasttree'],
+        required => ['input', 'species'],);
     my $species = $options->{species};
     my $genome = "$options->{libdir}/$options->{libtype}/${species}.fasta";
     my $query = $options->{input};
@@ -429,10 +429,10 @@ sub Snippy {
 
     my $snippy_dir = qq"outputs/snippy_$options->{species}";
     my $jstring = qq!mkdir -p ${snippy_dir}
-eval \$(modulecmd bash purge)
-eval \$(modulecmd bash add snippy)
-eval \$(modulecmd bash add gubbins)
-eval \$(modulecmd bash add fasttree)
+## eval \$(modulecmd bash purge)
+## eval \$(modulecmd bash add snippy)
+## eval \$(modulecmd bash add gubbins)
+## eval \$(modulecmd bash add fasttree)
 echo "Started snippy at \$(date)" >> ${snippy_dir}/snippy_$options->{species}.out
 
 snippy --force \\

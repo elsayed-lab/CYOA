@@ -952,7 +952,7 @@ sub Hisat2 {
         do_htseq => 1,
         jprefix => '40',
         libtype => 'genome',
-        modules => ['hisat2', 'samtools', 'htseq'],);
+        modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
     die('Could not find hisat2 in your PATH.') unless($check);

@@ -34,6 +34,7 @@ sub Recompress {
         required => ['input'],
         comment => '## Recompressing files.',
         jname => 'xz',
+        jmem => 8,
         jqueue => 'long',);
     my $input_paths = $class->Get_Paths($options->{input});
 
@@ -52,22 +53,11 @@ less ${in_full} | \\
 !;
     }
 
-    ##my $compression = $class->Submit(
-    ##    comment => $options->{comment},
-    ##    cpus => 1,
-    ##    jdepends => $options->{jdepends},
-    ##    input => $options->{input},
-    ##    jname => $options->{jname},
-    ##    jprefix => $options->{jprefix},
-    ##    jstring => $jstring,
-    ##    jmem => 4,
-    ##    jqueue => 'long',
-    ##    modules => [],
-    ##    output => @outputs,);
     my $compression = $class->Submit(
         comment => $options->{comment},
         jdepends => $options->{jdepends},
         input => $options->{input},
+        jmem => $options->{jmem},
         jstring => $jstring,
         modules => [],);
     return($compression);

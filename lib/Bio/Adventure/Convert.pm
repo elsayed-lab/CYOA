@@ -526,7 +526,7 @@ sub Sam2Bam {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ["species", "input"],
-        modules => ['samtools'],);
+        modules => ['samtools', 'bamtools'],);
     my @input_list = ();
     if ($options->{input}) {
         push(@input_list, $options->{input});
@@ -609,9 +609,8 @@ sub Samtools {
   2>${sorted_name}.err 1>${sorted_name}.out && \\";
     }
     my $jstring = qq!
-sleep 1
 echo "Starting samtools"
-if \$(test \! -r ${input}); then
+if [[ \! -f "${input}" ]]; then
     echo "Could not find the samtools input file."
     exit 1
 fi
