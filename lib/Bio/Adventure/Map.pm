@@ -7,6 +7,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use File::Basename;
+use File::Copy qw"cp";
 use File::Spec;
 use File::Which qw"which";
 
@@ -104,7 +105,9 @@ sub Bowtie {
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $options = $class->Set_Vars(bt1_indexjobs => 1);
+        my $genome_input = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
         $index_job = $class->Bio::Adventure::Map::BT1_Index(
+            input => $genome_input,
             jdepends => $options->{jdepends},
             jprefix => $current_prefix,
             libtype => $libtype,);
@@ -303,8 +306,9 @@ sub Bowtie2 {
     if (!-r $bt_reftest && !-r $bt_reftest_large) {
         print "Hey! The Indexes do not appear to exist, check this out: ${bt_reftest}\n";
         sleep(20);
-        $index_job = Bio::Adventure::Map::BT2_Index(
-            $class,
+        my $genome_input = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+        $index_job = $class->Bio::Adventure::Map::BT2_Index(
+            input => $genome_input,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
             libtype => $libtype,);
@@ -483,18 +487,23 @@ sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"],);
+        required => ['input']);
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
 
-    my $jstring = qq!bowtie-build $options->{libdir}/$options->{libtype}/$options->{species}.fasta \\
-  $options->{libdir}/$options->{libtype}/indexes/$options->{species}
+        my $jstring = qq!bowtie-build $options->{input} \\
+  $options->{libdir}/$options->{libtype}/indexes/${species}
 !;
-    my $comment = qq!## Generating bowtie1 indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
+    my $comment = qq!## Generating bowtie1 indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
         comment => $comment,
-        jname => "bt1idx_$options->{species}",
+        jname => qq"bt1idx_${species}",
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jprefix => "10",
+        jprefix => '10',
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($bt1_index);
@@ -510,26 +519,24 @@ sub BT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"],
-        modules => ['bowtie'],);
+        required => ['input'],
+        modules => ['bowtie2'],);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
     my $jstring = qq!
-if test \! -e "${libdir}/genome/$options->{species}.fa"; then
-  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
-fi
-if test \! -e "${libdir}/genome/indexes/$options->{species}.fa"; then
-  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
-fi
-
-bowtie2-build $options->{libdir}/genome/$options->{species}.fasta \\
-  $options->{libdir}/${libtype}/indexes/$options->{species}
+bowtie2-build $options->{input} \\
+  $options->{libdir}/${libtype}/indexes/${species}
 !;
-    my $comment = qq!## Generating bowtie2 indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating bowtie2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "bt2idx_$options->{species}",
+        jname => "bt2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -698,11 +705,13 @@ sub BWA {
     my $uncompress_jobid = undef;
     my $index_jobid = undef;
     ## Check that the indexes exist
-    my $bwa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
+    ## NOTE: BWA Might require the file to be named ...fa instead of ...fasta
+    my $bwa_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     my $index_job;
     if (!-r $bwa_reftest) {
         $index_job = $class->Bio::Adventure::Map::BWA_Index(
+            input => $bwa_reflib,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
             libtype => $libtype,);
@@ -860,19 +869,23 @@ sub BWA_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         modules => ['bwa'],);
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fa";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
     my $jstring = qq!
-if test \! -e "$options->{libdir}/genome/$options->{species}.fa"; then
-  ln -sf $options->{libdir}/genome/$options->{species}.fasta $options->{libdir}/genome/$options->{species}.fa
-fi
 start=\$(pwd)
-cd $options->{libdir}/$options->{libtype}/indexes &&
-  bwa index $options->{species}.fa \\
+cd $options->{libdir}/$options->{libtype}/indexes
+ln -sf ../${species}.fa .
+bwa index ${species}.fa \\
   2>bwa_index.err \\
   1>bwa_index.out
 cd \$start
 !;
-    my $comment = qq!## Generating bwa indexes for species: $options->{species} in $options->{libdir}/$options->{libtype}/indexes!;
+    my $comment = qq!## Generating bwa indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bwa_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -1009,7 +1022,7 @@ sub Hisat2 {
     }
 
     ## Check that the indexes exist
-    my $hisat_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
+    my $hisat_reflib = qq"$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
     my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
     my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
 
@@ -1017,7 +1030,9 @@ sub Hisat2 {
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
+        my $genome_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
         my $index_job = $class->Bio::Adventure::Map::HT2_Index(
+            input => $genome_fasta,
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
             libtype => $options->{libtype},);
@@ -1177,26 +1192,24 @@ sub HT2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species"],
+        required => ['input'],
         jprefix => '21',);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
     my $jstring = qq!
-if test \! -e "${libdir}/genome/$options->{species}.fa"; then
-  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/$options->{species}.fa
-fi
-if test \! -e "${libdir}/genome/indexes/$options->{species}.fa"; then
-  ln -sf ${libdir}/genome/$options->{species}.fasta ${libdir}/genome/indexes/$options->{species}.fa
-fi
-
-hisat2-build $options->{libdir}/genome/$options->{species}.fasta \\
-  $options->{libdir}/${libtype}/indexes/$options->{species}
+hisat2-build $options->{input} \\
+  $options->{libdir}/${libtype}/indexes/${species}
 !;
-    my $comment = qq!## Generating hisat2 indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating hisat2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => qq"ht2idx_$options->{species}",
+        jname => qq"ht2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         prescript => $options->{prescript},
@@ -1301,13 +1314,15 @@ sub Kallisto {
         $input_name = $pair_listing[0];
     } else {
         $ka_input = qq" <(less $ka_input) ";
-        $ka_args .= " --bias --single -l 40 -s 10 ";
+        $ka_args .= qq" --bias --single -l 40 -s 10 ";
     }
 
     ## Check that the indexes exist
-    my $ka_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
+    my $ka_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
     if (!-r $ka_reflib) {
+        my $transcriptome_fasta = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
         my $index_job = $class->Bio::Adventure::Map::Kallisto_Index(
+            input => $transcriptome_fasta,
             jdepends => $options->{jdepends},
             libtype => $libtype,);
         $ka_jobs{index} = $index_job;
@@ -1378,18 +1393,19 @@ sub Kallisto_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         modules => ['kallisto'],
-        required => ["species", "genome"],
-    );
-
-    my $libtype = $options->{libtype};
-    my $genome = File::Spec->rel2abs($options->{genome});
-    unless (-r $genome) {
-        die("The indexing operation for kallisto will fail because the $options->{species} genome does not exist.")
+        required => ['input'],);
+    my $cds = basename($options->{input}, ('.fasta', '.fa'));
+    my $species = $cds;
+    $species =~ /_cds//g;
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
     }
-
+    my $libtype = $options->{libtype};
+    my $input = File::Spec->rel2abs($options->{input});
     my $jstring = qq!
-kallisto index -i $options->{libdir}/${libtype}/indexes/$options->{species}.idx ${genome}!;
-    my $comment = qq!## Generating kallisto indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx ${input}!;
+    my $comment = qq!## Generating kallisto indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $ka_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -1441,7 +1457,7 @@ sub RSEM {
             die("RSEM_Index requires a cds fasta file at: ${cds}, create it with a cyoa2 conversion.");
         }
         $index_job = $class->Bio::Adventure::Map::RSEM_Index(
-            cds_fasta => $cds,
+            input => $cds,
             index => $idx,
             jdepends => $options->{jdepends},
             jname => qq"rsidx_${jbasename}",
@@ -1497,11 +1513,19 @@ sub RSEM_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species",],
-        modules => ['rsem']);
+        required => ['input'],
+        modules => ['rsem', 'bowtie2']);
+
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    $species =~ s/_cds//g;
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
+
     my $comment = qq"## RSEM Index creation.";
     my $jstring = qq!
-rsem-prepare-reference --bowtie2 $options->{cds_fasta} $options->{index}
+rsem-prepare-reference --bowtie2 $options->{input} ${species}
 !;
     my $jobid = $class->Submit(
         comment => $comment,
@@ -1551,22 +1575,24 @@ sub Salmon {
 
     my $jname = qq"sal_${species}";
     ## $jname = $options->{jname} if ($options->{jname});
-    my $sa_args = qq"";
+    my $sa_args = '';
     my $sa_input = $options->{input};
     my $input_name = $sa_input;
     if ($sa_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $sa_input);
-        $sa_args .= " -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        $sa_args .= qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
         $input_name = $pair_listing[0];
     } else {
-        $sa_args .= " -r <(less $sa_input) ";
+        $sa_args .= qq" -r <(less $sa_input) ";
     }
 
     ## Check that the indexes exist
-    my $sa_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index";
+    my $sa_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index";
     my $index_job;
     if (!-r $sa_reflib) {
+        my $transcript_file = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
         $index_job = $class->Bio::Adventure::Map::Salmon_Index(
+            input => $transcript_file,
             depends => $options->{jdepends},
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
@@ -1618,22 +1644,27 @@ sub Salmon_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "genome"],
+        required => ['input'],
         modules => ['salmon'],);
     my $libtype = $options->{libtype};
-    my $genome = File::Spec->rel2abs($options->{genome});
-    unless (-r $genome) {
-        die("The indexing operation for salmon will fail because the $options->{species} genome does not exist.")
+    my $genome = File::Spec->rel2abs($options->{input});
+
+    my $cds = basename($options->{input}, ('.fasta', '.fa'));
+    my $species = $cds;
+    $species =~ s/_cds//g;
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
     }
 
     my $jstring = qq!
-salmon index -t ${genome} -i $options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index!;
-    my $comment = qq!## Generating salmon indexes for species: $options->{species} in $options->{libdir}/${libtype}/indexes!;
+salmon index -t $options->{input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
+    my $comment = qq!## Generating salmon indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jname => "salidx_$options->{species}",
+        jname => "salidx_${species}",
         jmem => 24,
         jprefix => "15",
         modules => $options->{modules},
@@ -1731,11 +1762,13 @@ sub STAR {
     }
 
     ## Check that the indexes exist
-    my $star_refdir = "$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
+    my $star_refdir = qq"$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
     my $star_reflib = qq"${star_refdir}/SAindex";
     my $index_job;
     if (!-r $star_reflib) {
+        my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
         $index_job = $class->Bio::Adventure::Map::STAR_Index(
+            input => $genome_file,
             jdepends => $options->{jdepends},
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
@@ -1800,19 +1833,24 @@ sub STAR_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species",],
+        required => ['input',],
         modules => ['star'],);
     my $comment = qq"## STAR Index creation.";
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
-    my $star_refdir = "$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
+    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    if (!-f $copied_location) {
+        cp($options->{input}, $copied_location);
+    }
+    my $star_refdir = "$options->{libdir}/${libtype}/indexes/${species}_star_index";
     my $jstring = qq!
 STAR \\
   --runMode genomeGenerate \\
   --runThreadN 12 \\
   --genomeDir ${star_refdir} \\
-  --genomeFastaFiles $options->{libdir}/${libtype}/$options->{species}.fasta \\
-  --sjdbGTFfile $options->{libdir}/${libtype}/$options->{species}.gtf \\
+  --genomeFastaFiles $options->{libdir}/${libtype}/${species}.fasta \\
+  --sjdbGTFfile $options->{libdir}/${libtype}/${species}.gtf \\
   --limitGenomeGenerateRAM 160000000000
 !;
     my $jobid = $class->Submit(
@@ -1889,13 +1927,14 @@ sub Tophat {
         $tophat_dir = $options->{tophat_dir};
     }
     my $libtype = $options->{libtype};
-    my $bt_reflib = "$options->{libdir}/${libtype}/indexes/$options->{species}";
+    my $bt_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.bt2";
     my $index_job = undef;
     if (!-r $bt_reftest) {
         print "Did not find the index for $options->{species} at: ${bt_reflib}, indexing now.\n";
-        $index_job = Bio::Adventure::Map::BT2_Index(
-            $class,
+        my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
+        $index_job = $class->Bio::Adventure::Map::BT2_Index(
+            input => $genome_file,
             jdepends => $options->{jdepends},);
         $options->{jdepends} = $index_job->{job_id};
     }
