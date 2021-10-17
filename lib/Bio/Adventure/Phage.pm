@@ -63,6 +63,14 @@ sub Get_DTR {
     return(%dtr_features);
 }
 
+=head2 C<Classify_Phage>
+
+Use tblastx against a database extracted from reference accessions
+provided by the ICTV.  This should hopefully provide a reasonably
+complete set of taxonomic classifications for viral assemblies.  This
+function pretty much just calls Blast_Classify().
+
+=cut
 sub Classify_Phage {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -99,8 +107,7 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
   output_blast => '${output_blast}',
   output_dir => '${output_dir}',
   output_log => '${output_log}',
-  topn => '$options->{topn}',
-);
+  topn => '$options->{topn}',);
 ?;
 
     my $cjob = $class->Submit(
@@ -123,6 +130,12 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
     return($cjob);
 }
 
+=head2 C<Blast_Classify>
+
+Does the actual work of attempting to classify a viral sequence
+against the ICTV database.
+
+=cut
 sub Blast_Classify {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -176,7 +189,6 @@ Writing blast results to $options->{output_blast}.
 Writing filtered results to $options->{output}.
 ";
     print $log $log_message;
-    print "TESTME: $log_message\n";
     my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
     my @parameters = $search->get_parameters;
     print $log qq"Blast parameters: @parameters.\n";
@@ -212,7 +224,6 @@ Writing filtered results to $options->{output}.
         my $stats = $result->available_statistics();
         my $hits = $result->num_hits();
         print $log "The query being considered is: ${query_name}.\n";
-        print "TESTME: The query considered is ${query_name}\n";
         my $datum_ref = {
             description => $query_descr,
             name => $query_name,
@@ -229,7 +240,6 @@ Writing filtered results to $options->{output}.
           $number_hits = $number_hits++;
           my $hit_name = $hits->name();
           print $log "This result has a hit on ${hit_name}\n";
-          print "TESTME: ${hit_name} is a hit!\n";
           ## The hit_name should cross reference to one of the two accession columns in xref_aoh
           ## from the beginning of this function.
           my $longname = '';
@@ -249,7 +259,6 @@ Writing filtered results to $options->{output}.
                   $taxon = $hash_taxon;
                   $family = $hash_family;
                   $genus = $hash_genus;
-                  print "TESTME: $family $genus\n";
                   last XREFLOOP;
               }
           }
@@ -277,7 +286,6 @@ Writing filtered results to $options->{output}.
               taxon => $taxon,
               family => $family,
               genus => $genus);
-          print "TESTME2: $family $genus\n";
           push (@hit_lst, \%hit_datum);
           $result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
           $hit_count++;
@@ -289,7 +297,6 @@ Writing filtered results to $options->{output}.
     my @sorted = sort { $b->{score} <=> $a->{score} } @hit_lst;
     for my $d (@sorted) {
         my $hit_string = qq"$d->{query_name}\t$d->{query_descr}\t$d->{taxon}\t$d->{longname}\t$d->{length}\t$d->{query_length}\t$d->{acc}\t$d->{description}\t$d->{bit}\t$d->{sig}\t$d->{score}\t$d->{family}\t$d->{genus}\n";
-        print "TESTME PRINT $hit_string\n";
         print $final_fh $hit_string;
     }
     $final_fh->close();
@@ -428,6 +435,12 @@ cd \${start}
     return($phageterm);
 }
 
+=head2 C<Phastaf>
+
+Invoke Torsten Seeman's phastaf tool in order to hunt for
+phage-derived sequences in an assembly.
+
+=cut
 sub Phastaf {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -681,7 +694,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     ## S        T       3            E D
     ## Start    Terminas3            End
     ## <<<<<<<<<|||||||||<<<<<<<<<<<<<<<
-    ## From the 3 of terminase to the S of start (revcomp'd) as the first subsequence
+    ## From the 3' of terminase to the S of start (revcomp'd) as the first subsequence
     ## Then from the D of end to 3+1 as the second.
     my @other_objects = ();
     my $first_object;
@@ -752,8 +765,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     return($result_data);
 }
 
-
-=head2 Terminase_Reorder
+=head2 C<Terminase_Reorder>
 
 Reorder an assembly so that a terminase gene is at the beginning.
 This will take an arbitrary assembly file, invoke prodigal on it to get ORFs,
@@ -801,7 +813,7 @@ sub Terminase_ORF_Reorder {
     my $comment = qq"## This should use the predicted prodigal ORFs to search against a
 ## local terminase sequence database.  Then for each contig, move the best
 ## terminase hit to the front of the sequence.\n";
-    my $jstring = qq?
+    my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 Bio::Adventure::Phage::Search_Reorder(\$h,
@@ -817,7 +829,7 @@ Bio::Adventure::Phage::Search_Reorder(\$h,
   output => '${final_output}',
   output_dir => '${output_dir}',
   test_file => '$options->{test_file}',);
-?;
+!;
     my $tjob = $class->Submit(
         jdepends => $options->{jdepends},
         evalue => $options->{evalue},
@@ -839,3 +851,11 @@ Bio::Adventure::Phage::Search_Reorder(\$h,
 }
 
 1;
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+=cut

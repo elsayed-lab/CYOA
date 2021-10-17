@@ -39,9 +39,14 @@ sub Abricate {
     die("Could not find abricate in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
-    my $inputs = $class->Get_Paths($options->{input});
-    my $input_dir = basename(dirname($options->{input}));
-    my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_dir}";
+    my $input_paths = $class->Get_Paths($options->{input});
+    my $input_name;
+    if (defined($input_paths->{dirname})) {
+        $input_name = $input_paths->{dirname};
+    } else {
+        $input_name = $input_paths->{filebase_extension};
+    }
+    my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_name}";
     my $species_string = qq"";
     my $comment = qq!## This is a script to run abricate.
 !;
@@ -137,7 +142,6 @@ run_resfinder.py -ifa $options->{input} \\
     return($resfinder);
 }
 
-
 =head2 C<Rgi>
 
 RGI is an alternative to Resfinder, I have not really explored it yet,
@@ -186,3 +190,11 @@ rgi main --input_sequence $options->{input} \\
 }
 
 1;
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+=cut

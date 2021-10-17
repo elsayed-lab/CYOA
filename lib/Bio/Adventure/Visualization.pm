@@ -20,7 +20,8 @@ use File::ShareDir qw":ALL";
 
 =head2 C<CGView>
 
-Invoke cgview
+Invoke cgview on an input genbank file in order to create a pretty
+picture of the genome.
 
 =cut
 sub CGView {
@@ -67,7 +68,7 @@ sub CGView {
         $option_string .= "-gene_labels T ";
     }
 
-    my $jstring = qq?
+    my $jstring = qq!
 mkdir -p ${output_directory}
 cgview_xml_builder.pl -sequence ${xml_input} \\
   -output ${xml_output} \\
@@ -80,14 +81,14 @@ cgview -i ${xml_output} \\
 cgview -i ${xml_output} \\
   -o ${output_file}.svg -f svg \\
   2>>${output_directory}/cgview.err 1>>${output_directory}/cgview.out
-?;
+!;
     if ($options->{imagemap}) {
-        $jstring = qq?
+        $jstring = qq!
 ${jstring}
 cgview -i ${xml_output} \\
   -s ${output_directory}/imagemap \\
   2>>${output_directory}/cgview.err 1>>${output_directory}/cgview.out
-?;
+!;
     }
 
     my $cgview = $class->Submit(
@@ -106,3 +107,11 @@ cgview -i ${xml_output} \\
 }
 
 1;
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+=cut

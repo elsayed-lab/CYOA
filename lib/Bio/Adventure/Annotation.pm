@@ -303,6 +303,15 @@ sub Kraken {
     return($kraken);
 }
 
+=head2 C<Merge_Annotations>
+
+Pull a series of annotation data sources into a single table of data.
+The resulting table should be useful for tbl2asn.
+
+This function basically just puts Merge_Annotations_Make_Gbk onto the
+dependency chain.
+
+=cut
 sub Merge_Annotations {
    my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -376,6 +385,12 @@ Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(\$h,
    return($merge_job);
 }
 
+=head2 C<Merge_Annotations_Make_Gbk>
+
+This does the actual work of merging various annotation sources into a
+new and more interesting genbank file.
+
+=cut
 sub Merge_Annotations_Make_Gbk {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -456,8 +471,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         'abricate_ncbi' => 'ncbi_resistance',
         'abricate_plasmidfinder' => 'plasmidfinder',
         'abricate_resfinder' => 'resfinder',
-        'abricate_vfdb' => 'vfdb',
-        );
+        'abricate_vfdb' => 'vfdb',);
 
     ## A quick rundown of the various inputs and why they are being used:
     ## 1.   Data sources to create the merged table of annotations:
@@ -716,8 +730,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         ## In theory, we now have a set of features with some new notes.
         ## So now let us steal the tbl writer from prokka and dump this new stuff...
         print $log_fh "Writing new tbl file to ${output_tbl}.\n";
-        use Data::Dumper;
-        print Dumper $taxonomy_information;
         my $tbl_written = Tbl_Writer(tbl_file => $output_tbl,
                                      taxonomy_information => $taxonomy_information,
                                      sequences => \@new_seq,
@@ -729,8 +741,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## Before running tbl2asn, write a fresh copy of the fsa file containing the detected phage taxonomy.
     my $fsa_in = FileHandle->new("<$options->{input_fsa}");
     my $fsa_out = FileHandle->new(">$output_fsa");
-    use Data::Dumper;
-    print Dumper $taxonomy_information;
     while (my $line = <$fsa_in>) {
         ## chomp $line;  ## probably not needed for this.
         if ($line =~ /^\>/) {
@@ -791,6 +801,12 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
     return($job);
 }
 
+=head2 C<Merge_Trinotate>
+
+Given a hash of annotation data, read a trinotate tsv file and pull
+the information from it into that hash and pass it back to the caller.
+
+=cut
 sub Merge_Trinotate {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
@@ -814,6 +830,12 @@ sub Merge_Trinotate {
     return($merged_data);
 }
 
+=head2 C<Merge_Abricate>
+
+Given a hash of annotation data, read the results from abricate and pull
+that information into the input hash and pass it back to the caller.
+
+=cut
 sub Merge_Abricate {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
@@ -840,6 +862,12 @@ sub Merge_Abricate {
     return($merged_data);
 }
 
+=head2 C<Merge_Classifier>
+
+Given a hash of annotation data, read ICTV classification information
+and pass it back.
+
+=cut
 sub Merge_Classifier {
     my %args = @_;
     my $primary_key = $args{primary_key};
@@ -902,6 +930,12 @@ sub Merge_Classifier {
     return($merged_data, $default_values);
 }
 
+=head2 C<Merge_Prodigal>
+
+Given a hash of annotation data, read some prodigal information and pass
+the information from it into that hash and pass it back to the caller.
+
+=cut
 sub Merge_Prodigal {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
@@ -921,6 +955,12 @@ sub Merge_Prodigal {
     return($merged_data);
 }
 
+=head2 C<Merge_Interpro>
+
+Given a hash of annotation data, read an interpro tsv file and pull
+the information from it into that hash and pass it back to the caller.
+
+=cut
 sub Merge_Interpro {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
@@ -951,6 +991,12 @@ sub Merge_Interpro {
     return($merged_data);
 }
 
+=head2 C<Merge_Prokka>
+
+Given a hash of annotation data, read a prokka log and pull
+the information from it into that hash and pass it back to the caller.
+
+=cut
 sub Merge_Prokka {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
@@ -978,6 +1024,13 @@ sub Merge_Prokka {
     return($merged_data);
 }
 
+=head2 C<Write_XLSX>
+
+Given a pile of annotations in tabular format, send them to an xlsx
+file.  I chose a set of annotation sources and columns that I like,
+but if I were smarter I would make it mutable.
+
+=cut
 sub Write_XLSX {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -1068,7 +1121,13 @@ sub Write_XLSX {
     $outtsv->close();
 }
 
+=head2 C<Tbl_Writer>
 
+This is basically just stealing a small piece of code from Torsten
+Seeman's prokka tool which is capable of writing a tbl file in
+preparation for running NCBI's tbl2sqn and generating a genbank file.
+
+=cut
 sub Tbl_Writer {
     my %args = @_;
     my $file = $args{tbl_file};
@@ -1093,8 +1152,6 @@ sub Tbl_Writer {
                 $f->add_tag_value('organism', "Phage similar to $taxonomy_information->{taxon}.");
                 $f->add_tag_value('strain', "Similar accession: $taxonomy_information->{hit_accession}.");
                 $f->seq_id("Phage species similar to $taxonomy_information->{taxon}.");
-                use Data::Dumper;
-                print Dumper $f;
             }
             if ($f->primary_tag eq 'CDS' and not $f->has_tag('product')) {
                 $f->add_tag_value('product', $hypothetical_string);
@@ -1121,7 +1178,12 @@ sub Tbl_Writer {
     }
 }
 
+=head2 C<TAG>
 
+I just copy/pasted this outright from prokka so that the table writer
+will work properly.
+
+=cut
 sub TAG {
   my($f, $tag) = @_;
   # very important to "return undef" here and not just "return"
@@ -1129,8 +1191,6 @@ sub TAG {
   return undef unless $f->has_tag($tag);
   return ($f->get_tag_values($tag))[0];
 }
-
-
 
 =head2 C<Prodigal>
 
@@ -1306,6 +1366,7 @@ sub Prokka {
     die("Could not find prokka in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
+    my $input_paths = $class->Get_Paths($options->{input});
     my $kingdom_string = '';
     if ($options->{kingdom} ne '') {
         $kingdom_string = qq" --kingdom $options->{kingdom} --gcode $options->{gcode} ";
@@ -1313,7 +1374,15 @@ sub Prokka {
 
     my $training_file = qq"$options->{libdir}/hmm/$options->{species}_gc$options->{gcode}.training";
     my $cwd_name = basename(cwd());
-    my $input_name = basename(dirname($options->{input}));
+    ## If this is being run a part of a pipeline, the basename(dirname(input)) will be something
+    ## useful/interesting.  If not, it will not likely be of use but instead be '.'
+    ## Let us check for that and set $input_name to something useful in that case.
+    my $input_name;
+    if (defined($input_paths->{dirname})) {
+        $input_name = $input_paths->{dirname};
+    } else {
+        $input_name = $input_paths->{filebase_extension};
+    }
     my $locus_tag;
     if ($options->{locus_tag}) {
         $locus_tag = $options->{locus_tag};
@@ -1377,7 +1446,6 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
                                     action => 'unload');
     return($prokka);
 }
-
 
 =head2 C<tRNAScan>
 
@@ -1538,7 +1606,6 @@ sub Extract_Trinotate {
     $input->close();
     return($count);
 }
-
 
 =head2 C<Read_Write_Annotation>
 
@@ -1872,13 +1939,14 @@ cd \${start}
     return($trinotate);
 }
 
+=head2 C<Watson_Plus>
 
-=head1 AUTHOR - atb
+Use prodigal to count up putative ORFs on the plus and minus strands.
+If the number of minus strand ORFs is larger than plus, reverse
+complement the sequence.
 
-Email  <abelew@gmail.com>
-
-=head1 SEE ALSO
-
+This function just puts the actual function which does the work onto
+the dependency chain.
 
 =cut
 sub Watson_Plus {
@@ -1886,8 +1954,7 @@ sub Watson_Plus {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jprefix => '44',
-        );
+        jprefix => '44',);
 
     my $input_seq = $options->{input};
     my $job_name = 'watsonplus';
@@ -1909,7 +1976,7 @@ sub Watson_Plus {
     my $comment_string = qq"## This takes the prodigal output and checks to see which strand has
 ## more ORFs, if it is the crick strand, then the chromsome is reverse complemented.
 ";
-    my $jstring = qq?
+    my $jstring = qq!
 use Bio::Adventure::Annotation;
 \$result = Bio::Adventure::Annotation::Watson_Rewrite(\$h,
   gff => '${input_gff}',
@@ -1919,7 +1986,7 @@ use Bio::Adventure::Annotation;
   jprefix => '$options->{jprefix}',
   output => '${output_file}',
   output_dir => '${output_dir}',);
-?;
+!;
     my $rewrite = $class->Submit(
         comment => $comment_string,
         gff => $options->{gff},
@@ -1935,6 +2002,12 @@ use Bio::Adventure::Annotation;
     return($rewrite);
 }
 
+=head2 C<Watson_Rewrite>
+
+Does the actual work of rewriting a genome to put the majority ORFs on
+the plus strand.  Watson_Plus() calls this.
+
+=cut
 sub Watson_Rewrite {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -2006,3 +2079,11 @@ If the crick strand is larger, flipping them.
 }
 
 1;
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+=cut

@@ -181,7 +181,7 @@ sub Assemble {
         jnice => 100,
         jprefix => $prefix,);
     sleep(1);
-    
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting read correction.\n";
     my $correct = $class->Bio::Adventure::Trim::Racer(
@@ -395,7 +395,16 @@ sub Phage_Assemble {
         locus_tag => $final_locustag,);
     sleep(1);
 
-    ## 14
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Jellyfish on the assembly.\n";
+    my $jelly = $class->Bio::Adventure::Count::Jellyfish(
+        jdepends => $prokka->{job_id},
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,
+        jname => 'jelly',);
+    sleep(1);
+
+    ## 15
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
@@ -406,7 +415,7 @@ sub Phage_Assemble {
         config => 'phage.txt',);
     sleep(1);
 
-    ## 15
+    ## 16
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSearching for resistance genes with abricate.\n";
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
@@ -416,7 +425,7 @@ sub Phage_Assemble {
         jdepends => $trinotate->{job_id},);
     sleep(1);
 
-    ## 16
+    ## 17
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
@@ -451,6 +460,7 @@ sub Phage_Assemble {
         jdepends => $prodigal->{job_id},);
     sleep(1);
 
+    ## 20
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning cgview.\n";
     my $cgview = $class->Bio::Adventure::Visualization::CGView(
@@ -459,7 +469,7 @@ sub Phage_Assemble {
         jprefix => $prefix);
     sleep(1);
 
-    ## 20
+    ## 21
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files a second time.\n";
@@ -495,6 +505,7 @@ sub Phage_Assemble {
         phageterm => $phageterm,
         terminase_reorder => $termreorder,
         prokka => $prokka,
+        jellyfish => $jelly,
         trinotate => $trinotate,
         abricate => $abricate,
         interproscan => $interpro,
@@ -541,6 +552,15 @@ sub Annotate_Assembly {
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Jellyfish on the assembly.\n";
+    my $jelly = $class->Bio::Adventure::Count::Jellyfish(
+        jdepends => $prokka->{job_id},
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,
+        jname => 'jelly',);
+    sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         jdepends => $prokka->{job_id},
@@ -617,6 +637,20 @@ sub Annotate_Assembly {
         jdepends => $interpro->{job_id},);
     sleep(1);
 
+    my $ret = {
+        phastaf => $phastaf,
+        ictv => $ictv,
+        prokka => $prokka,
+        jellyfish => $jelly,
+        trinotate => $trinotate,
+        abricate => $abricate,
+        interproscan => $interpro,
+        prodigal => $prodigal,
+        cgview => $cgview,
+        merge_qualities => $merge,
+        merge_unmodified => $merge2,
+    };
+    return($ret)
 }
 
 1;

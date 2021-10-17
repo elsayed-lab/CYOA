@@ -1396,7 +1396,7 @@ sub Kallisto_Index {
         required => ['input'],);
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
     my $species = $cds;
-    $species =~ /_cds//g;
+    $species =~ s/_cds//g;
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
@@ -1743,7 +1743,6 @@ sub STAR {
 
     my $ready = $class->Check_Input(
         files => $options->{input},);
-
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = $options->{species};
@@ -1805,7 +1804,6 @@ STAR \\
   --readFilesCommand /usr/bin/lesspipe.sh \\
   --runThreadN 6 \\
   2>outputs/star_tx.out 1>&2
-
 !;
 
     my $star_job = $class->Submit(

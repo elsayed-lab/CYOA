@@ -196,7 +196,6 @@ use Bio::Adventure::Visualization;
 
 =cut
 
-
 ## Lets move all the default values here.
 has align_blast_format => (is => 'rw', default => 5); ## Which alignment type should we use? (5 is blastxml)
 has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment jobs should we make when splitting alignments across nodes?
@@ -410,7 +409,7 @@ sub Help {
     my ($class, $args) = @_;
     my $fh = \*STDOUT;
     ##    my $usage = pod2usage(-output => $fh, -verbose => 99, -sections => "SYNOPSIS");
-    use Pod::Find qw(pod_where);
+    use Pod::Find qw"pod_where";
     pod2usage(-input => pod_where({-inc => 1}, __PACKAGE__),
               -verbose => 2, -output => $fh,
               -sections => "NAME|SYNOPSIS|DESCRIPTION|VERSION",
@@ -467,7 +466,7 @@ sub BUILD {
     }
 
     ## Now pull an arbitrary set of command line arguments
-    ## Options set in the config file are trumped by those placed on the comamnd line.
+    ## Options set in the config file are trumped by those placed on the command line.
     my (%override, %conf_specification, %conf_specification_temp);
     foreach my $spec (keys %defaults) {
         ## This line tells Getopt::Long to use as a string argument anything in the set of defaults.
@@ -494,9 +493,12 @@ sub BUILD {
     ## Take a moment to create a simplified job basename
     ## Eg. if the input file is 'hpgl0523_forward-trimmed.fastq.gz'
     ## Take just hpgl0523 as the job basename
-    my $job_basename;
-    my @suffixes = split(/,/, $class->{suffixes});
-    if ($class->{input}) {
+    my $job_basename = '';
+    my @suffixes = ('.gz', '.xz', '.bz2');
+    if (defined($class->{suffixes})) {
+        @suffixes = split(/,/, $class->{suffixes});
+    }
+    if (defined($class->{input})) {
         $job_basename = $class->{input};
         ## Start by pulling apart any colon/comma separated inputs
         if ($job_basename =~ /:|\,/) {
@@ -506,7 +508,7 @@ sub BUILD {
         }
         $job_basename = basename($job_basename, @suffixes);
         $job_basename = basename($job_basename, @suffixes);
-    } else {
+    } elsif (defined($class->{basedir})) {
         $job_basename = basename($class->{basedir}, @suffixes);
     }
     $job_basename =~ s/_forward.*//g;
@@ -520,7 +522,9 @@ sub BUILD {
     }
 
     ## These are both problematic when (n)storing the data.
-    $class->{menus} = Get_Menus();
+    if (defined($class->interactive) && $class->interactive) {
+        $class->{menus} = Get_Menus();
+    }
     $class->{methods_to_run} = Get_TODOs(%{$class->{variable_getopt_overrides}});
     return $args;
 }
@@ -541,9 +545,15 @@ sub Get_Paths {
     for my $in (@inputs) {
         my $filename = basename($in);
         my $filebase_compress = basename($in, ('.gz', '.xz', '.bz2'));
-        my $filebase_extension = basename($filebase_compress, ('.fastq', '.fasta'));
+        my @exts = ('.fastq', '.fasta', '.fsa', '.faa', 'fna', '.fa', '.ffn',
+                    '.tsv', 'gff', '.gff3', '.gbk', '.gbf', '.sqn', 'tbl');
+        my $filebase_extension = basename($filebase_compress, @exts);
         my $directory = dirname($in);
         my $dirname = basename($directory);
+        ## Check that doing basename(dirname(input)) leaves us with something interesting
+        if ($dirname eq '.') {
+            $dirname = undef;
+        }
         ## This test/path build is because abs_path only works on stuff which exists.
         if (! -e $directory) {
             make_path($directory);

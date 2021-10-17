@@ -257,14 +257,16 @@ sub HT_Types {
 
 =head2 C<HTSeq>
 
-Invoke htseq-count.
+Invoke htseq-count.  This should be able to automagically pick up
+other types of countable features and send the htseq-count results to
+a separate count file.
 
 =cut
 sub HTSeq {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["input", "species", "htseq_stranded", "htseq_args",],
+        required => ['input', 'species', 'htseq_stranded', 'htseq_args',],
         gff_type => '',
         htseq_type => 'gene',
         htseq_id => 'ID',
@@ -380,6 +382,14 @@ ${htseq_invocation}
     return($htseq);
 }
 
+=head2 C<Jellyfish>
+
+Use jellyfish to count up all of the kmers in a set of sequence(s).
+This should also send the wacky fasta format fo counted sequences to a
+tsv of kmers and numbers, which should be a rather more tractable
+format with which to play.
+
+=cut
 sub Jellyfish {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -390,7 +400,7 @@ sub Jellyfish {
         modules => ['jellyfish'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('jellyfish');
-    die("Could not find jellyfish in your PATH.") unless($check);
+    die('Could not find jellyfish in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -438,7 +448,7 @@ jellyfish dump ${count_file} > ${count_fasta}
 ## comprised of the number of occurrences.
 ";
     my $new_prefix = $options->{jprefix} + 1;
-    $jstring = qq?
+    $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 \$h->Bio::Adventure::Count::Jellyfish_Matrix(
@@ -448,7 +458,7 @@ use Bio::Adventure::Phage;
   jname => 'jelly_matrix',
   jprefix => '${new_prefix}',
   output => '${matrix_file}',);
-?;
+!;
     my $matrix_job = $class->Submit(
         comment => $comment,
         input => $count_fasta,
@@ -463,6 +473,12 @@ use Bio::Adventure::Phage;
     return($jelly);
 }
 
+=head2 C<Jellyfish_Matrix>
+
+This function is responsible for actually converting the fasta output
+from jellyfish into tsv.  It is pretty quick and dirty.
+
+=cut
 sub Jellyfish_Matrix {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -511,44 +527,33 @@ sub Mi_Map {
     eval "use Bio::DB::Sam; 1;";
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["mirbase_data", "mature_fasta",
-                     "mi_genome", "bamfile",]
-    );
-    my $bam_base = basename($options->{bamfile}, (".bam", ".sam"));
+        required => ['mirbase_data', 'mature_fasta', 'mi_genome', 'bamfile',]);
+    my $bam_base = basename($options->{bamfile}, ('.bam', '.sam'));
     my $pre_map = qq"${bam_base}_mirnadb.txt";
     my $final_map = qq"${bam_base}_mature.count";
 
     ## Step 1:  Read the mature miRNAs to get the global IDs and sequences of the longer transcripts.
     ## This provides the IDs as 'mm_miR_xxx_3p' and short sequences ~21 nt.
     print "Starting to read miRNA sequences.\n";
-    my $sequence_db = Bio::Adventure::Count::Read_Mi(
-        $class,
-        seqfile => $options->{mature_fasta},
-    );
+    my $sequence_db = $class->Bio::Adventure::Count::Read_Mi(seqfile => $options->{mature_fasta});
 
     ## Step 2:  Collate those IDs against the set of miRNA_transcripts->miRNA_mature IDs using
     ## the tab delimited file downloaded from mirbase.org
     print "Starting to read miRNA mappings.\n";
-    my $sequence_mappings = Bio::Adventure::Count::Read_Mappings_Mi(
-        $class,
+    my $sequence_mappings = $class->Bio::Adventure::Count::Read_Mappings_Mi(
         mappings => $options->{mirbase_data},
         output => $pre_map,
-        seqdb => $sequence_db,
-    );
+        seqdb => $sequence_db,);
     ## At this point, we have brought together mature sequence/mature IDs to parent transcript IDs
     ## When we read the provided bam alignment, we will simultaneously read the immature miRNA database
     ## and use them to make a bridge from the mature sequence/IDs to immature miRNA IDs.
-    my $final_hits = Bio::Adventure::Count::Read_Bam_Mi(
-        $class,
+    my $final_hits = $class->Bio::Adventure::Count::Read_Bam_Mi(
         mappings => $sequence_mappings,
         mi_genome => $options->{mi_genome},
-        bamfile => $options->{bamfile},
-    );
-    my $printed = Bio::Adventure::Count::Final_Print_Mi(
-        $class,
+        bamfile => $options->{bamfile},);
+    my $printed = $class->Bio::Adventure::Count::Final_Print_Mi(
         data => $final_hits,
-        output => $final_map,
-    );
+        output => $final_map,);
 
     my $job = $printed;
     $job->{final_hits} = $final_hits;
@@ -744,42 +749,48 @@ sub Final_Print_Mi {
     }
     $output->close();
     return($hits);
-}                               ## End of Final_Print
+} ## End of Final_Print
 
+=head2 C<Count_Alignments>
+
+Count alignments across a host and parasite.  This function should
+give a sense of how many reads were single-mapped to the host and
+parasite along with multi-hits across both.  This was first used to
+distinguish between T. cruzi and human hits, ergo the 'Tc' as the
+default parasite pattern.
+
+=cut
 sub Count_Alignments {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'genome'],
         para_pattern => '^Tc',
-        host_pattern => '',
-    );
+        host_pattern => '',);
     my $result = {
         mapped => 0,
         unmapped => 0,
         multi_count => 0,
         single_count => 0,
         unmapped_count => 0,
-        single_para => 0,       ## Single-hit parasite
-        single_host => 0,       ## Single-hit host
+        single_para => 0, ## Single-hit parasite
+        single_host => 0, ## Single-hit host
         multi_host => 0, ## Multi-hit host -- keep in mind htseq will not count these.
         multi_para => 0, ## Ditto parasite
         single_both => 0, ## These are the dangerzone reads, 1 hit on both. -- false positives
         single_para_multi_host => 0,
         single_host_multi_para => 0,
-        multi_both => 0,      ## These have multi on both and are not a problem.
-        zero_both => 0,       ## This should stay zero.
+        multi_both => 0, ## These have multi on both and are not a problem.
+        zero_both => 0, ## This should stay zero.
         wtf => 0,
     };
 
     my %group = (
         para => 0,
-        host => 0,
-    );
+        host => 0,);
     my %null_group = (
         para => 0,
-        host => 0,
-    );
+        host => 0,);
 
     my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam = Bio::DB::Sam->new(-bam => $options->{input},

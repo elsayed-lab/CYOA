@@ -359,7 +359,6 @@ ${cds}
     return($features_written);
 }
 
-
 =head2 C<Gff2Gtf>
 
 $hpgl->Gff2Gtf(gff => 'mmusculus.gff')
