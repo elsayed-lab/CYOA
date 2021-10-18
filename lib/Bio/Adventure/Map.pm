@@ -1553,6 +1553,7 @@ sub Salmon {
         required => ["species","input"],
         modules => ['salmon'],);
 
+    my $depends = $options->{jdepends};
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1602,7 +1603,6 @@ sub Salmon {
     my $error_file = qq"${outdir}/salmon_${species}.stderr";
     my $comment = qq!## This is a salmon pseudoalignment of ${sa_input} against
 ## ${sa_reflib}.
-## This jobs depended on: $options->{jdepends}
 !;
     my $jstring = qq!mkdir -p ${outdir}
 salmon quant -i ${sa_reflib} \\
@@ -1621,6 +1621,7 @@ salmon quant -i ${sa_reflib} \\
         jstring => $jstring,
         jmem => 48,
         modules => $options->{modules},
+        output => qq"${outdir}/quant.sf",
         prescript => $args{prescript},
         postscript => $args{postscript},);
     $salmon->{index_job} = $index_job;
@@ -1630,14 +1631,24 @@ salmon quant -i ${sa_reflib} \\
         jdepends => $salmon->{job_id},
         jname => "sastats_$options->{species}",
         jprefix => "33",);
-    $salmon->{stats_job} = $stats;
+    $salmon->{stats} = $stats;
     return($salmon);
 }
 
 =head2 C<Salmon_Index>
 
 Invoke salmon with an annotated_CDS fasta sequence library to create a
-transcript index.
+transcript index.  Note that newer version of salmon would like a set
+of decoys, which may be performed in a couple of ways, the second of
+which I am copy/pasting from the documentation.
+
+The second is to use the entire genome of the organism as the decoy
+sequence. This can be done by concatenating the genome to the end of
+the transcriptome you want to index and populating the decoys.txt
+file with the chromosome names. Detailed instructions on how to
+prepare this type of decoy sequence is available here. This scheme
+provides a more comprehensive set of decoys, but, obviously, requires
+considerably more memory to build the index
 
 =cut
 sub Salmon_Index {
@@ -1650,15 +1661,44 @@ sub Salmon_Index {
     my $genome = File::Spec->rel2abs($options->{input});
 
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
+    my $cds_dir = dirname($options->{input});
     my $species = $cds;
+    ## Drop the suffixes which might be annoying.
     $species =~ s/_cds//g;
+    $species =~ s/_nt//g;
+    my $species_file = qq"${cds_dir}/${species}.fasta";
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
+    my $species_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
+    my $decoy_copy_string = qq'';
+    my $jstring = qq'';
+    my $index_input = $options->{input};
+    my $index_string = qq!
+salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
+    if (-f $species_location or -f $species_file) {
+        if (!-f $species_location) {
+            cp($species_file, $species_location);
+        }
+        my $decoy_location = qq"$options->{libdir}/${libtype}/${species}_decoys.fasta";
+        $decoy_copy_string = qq!less $options->{input} > ${decoy_location} && less ${species_file} >> ${decoy_location}
+less ${species_file} | grep '^>' | sed 's/^>//g' > ${decoy_location}.txt
+!;
+        $index_input = $decoy_location;
+        $index_string = qq!
+salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
+        $jstring = qq!${decoy_copy_string}
+${index_string} --decoys ${decoy_location}.txt
+!;
+    } else {
+        warn("This function would prefer to make a decoy aware index set which requires the full genome.");
+        say("Waiting 10 seconds to see if you want to quit and gather that genome,
+otherwise a decoy-less index will be generated.");
+        sleep(10);
+    }
 
-    my $jstring = qq!
-salmon index -t $options->{input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
     my $comment = qq!## Generating salmon indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
         comment => $comment,
@@ -1684,21 +1724,22 @@ sub Salmon_Stats {
     my $jname = "stats";
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
-    my $output = "outputs/salmon_stats.csv";
-    my $comment = qq!## This is a stupidly simple job to collect salmon alignment statistics.!;
+    my $outdir = dirname($options->{input});
+    my $output = qq"${outdir}/salmon_stats.csv";
+    my $comment = qq"## This is a stupidly simple job to collect salmon alignment statistics.";
     my $jstring = qq!
 if [ \! -r "${output}" ]; then
   echo "basename,species,fragments,assigned,consistent,inconsistent,bias" > ${output}
 fi
-reads_tmp=\$(grep "^num_compatible" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+reads_tmp=\$(grep "num_compatible" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
 reads=\${reads_tmp:-0}
-aligned_tmp=\$(grep "^num_assigned" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+aligned_tmp=\$(grep "num_assigned" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
 aligned=\${aligned_tmp:-0}
-consistent_tmp=\$(grep "^concordant" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+consistent_tmp=\$(grep "concordant" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
 consistent=\${consistent_tmp:-0}
-inconsistent_tmp=\$(grep "^inconsistent" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+inconsistent_tmp=\$(grep "inconsistent" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
 inconsistent=\${inconsistent_tmp:-0}
-bias_tmp=\$(grep "^mapping_bias" $options->{input} | awk '{print \$3}' | sed 's/^ *//g')
+bias_tmp=\$(grep "mapping_bias" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
 bias=\${bias_tmp:-0}
 stat_string=\$(printf "$options->{jbasename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
 echo "\$stat_string" >> "${output}"!;
@@ -1711,7 +1752,8 @@ echo "\$stat_string" >> "${output}"!;
         jprefix => $args{jprefix},
         jstring => $jstring,
         jmem => 1,
-        jqueue => 'throughput',);
+        jqueue => 'throughput',
+        output => $output,);
     return($stats);
 }
 

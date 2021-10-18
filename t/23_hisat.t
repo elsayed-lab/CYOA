@@ -50,7 +50,7 @@ my $actual = $cyoa->Last_Stat(input => $stats_file);
 ok($actual, 'Collect Hisat Statistics');
 
 my $expected = qq"test_output,10000,46,9954,0,21739.1304347826";
-unless(ok($expected eq $actual), 'Are the hisat stats as expected?') {
+unless(ok($expected eq $actual, 'Are the hisat stats as expected?')) {
     my ($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");
 }

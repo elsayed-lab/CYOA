@@ -284,28 +284,28 @@ Upon completion, it returns the number of entries written.
 =cut
 sub Gff2Fasta {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
-                                   required => ['gff', 'genome'],
-                                   htseq_id => 'gene_id',
-                                   htseq_type => undef,
-        );
-    my $genome = $options->{genome};
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['gff', 'input'],
+        htseq_id => 'gene_id',
+        htseq_type => undef,);
+    my $genome = $options->{input};
     my $gff = $options->{gff};
     my $tag = $options->{htseq_id};
     my $ftype = $options->{htseq_type};
     my $genome_basename = basename($genome, ('.fasta'));
+    my $out_dir = dirname($genome);
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
     my $gff_handle = FileHandle->new("less ${gff} |");
-    my $out_fasta_amino = FileHandle->new(qq">${genome_basename}_cds_aa.fasta");
-    my $out_fasta_nt = FileHandle->new(qq">${genome_basename}_cds_nt.fasta");
-    my @tag_list = ('ID','gene_id','locus_tag','transcript_id');
+    my $out_fasta_amino = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_aa.fasta");
+    my $out_fasta_nt = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_nt.fasta");
+    my @tag_list = ('ID', 'gene_id', 'locus_tag', 'transcript_id');
     my $feature_type = Bio::Adventure::Count::HT_Types($class, annotation => $gff,
                                                        feature_type => $ftype);
     $feature_type = $feature_type->[0];
     my $annotation_in = Bio::Tools::GFF->new(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
     my $features_read = 0;
-
   LOOP: while(my $feature = $annotation_in->next_feature()) {
       $features_read++;
       next LOOP unless ($feature->{_primary_tag} eq $feature_type);
@@ -329,7 +329,7 @@ sub Gff2Fasta {
           print STDERR "Something is wrong with $gff_chr\n";
           next LOOP;
       }
-      my $id = "";
+      my $id = '';
       foreach my $i (@ids) {
           $id .= "$i ";
       }
@@ -345,14 +345,14 @@ sub Gff2Fasta {
       my $aa_cds = $seq_obj->translate->seq();
       $aa_cds = join("\n", ($aa_cds =~ m/.{1,80}/g));
       $cds = join("\n", ($cds =~ m/.{1,80}/g));
-      print $out_fasta_amino ">${gff_chr}_${id}
+      print $out_fasta_amino ">${gff_chr}_${id}_${features_read}
 ${aa_cds}
 ";
-      print $out_fasta_nt ">${gff_chr}_${id}
+      print $out_fasta_nt ">${gff_chr}_${id}_${features_read}
 ${cds}
 ";
       $features_written++;
-  }                           ## End LOOP
+  } ## End LOOP
     $gff_handle->close();
     $out_fasta_amino->close();
     $out_fasta_nt->close();
@@ -375,11 +375,11 @@ sub Gff2Gtf {
     my $input = $args{gff};
 
     my ($name, $path, $suffix) = fileparse($input, qr/\.gff/);
-    my $out_file = $path . $name . ".gtf";
+    my $out_file = $path . $name . '.gtf';
 
-    my $in_gff = Bio::FeatureIO->new('-file' => "$input",
-                                     '-format' => 'GFF',
-                                     '-version' => 3);
+    my $in_gff = Bio::FeatureIO->new(-file => "$input",
+                                     -format => 'GFF',
+                                     -version => 3);
     my $out_gtf = FileHandle->new(">${out_file}");
     local $| = 1;
     ##my $out_gtf = new FileHandle();
@@ -416,11 +416,11 @@ sub Gff2Gtf {
       ## my $string = qq"${seqid}\t${source}\tCDS\t$start\t$end\t.\t$strand\t0\t";
       my $string = qq"${seqid}\t${source}\t${primary_id}\t${start}\t${end}\t.\t${strand}\t${phase}\t";
 
-      my $last_column = "";
+      my $last_column = '';
       my $annot = $feature->{annotation};
       my $stringified;
-      my $transcript_string = "";
-      my $geneid_string = "";
+      my $transcript_string = '';
+      my $geneid_string = '';
       foreach my $key ($annot->get_all_annotation_keys()) {
           my @values = $annot->get_Annotations($key);
           foreach my $value (@values) {

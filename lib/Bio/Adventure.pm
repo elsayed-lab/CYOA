@@ -68,6 +68,49 @@ use Bio::Adventure::Torque;
 use Bio::Adventure::Trim;
 use Bio::Adventure::Visualization;
 
+=head1 NAME
+
+    Bio::Adventure - A perl library to make preprocessing high-throughput data easier.
+
+=head1 SYNOPSIS
+
+    Bio::Adventure.pm  Methods to simplify creating job scripts and submitting them to a
+    computing cluster.  Bio::Adventure makes heavy use of command line options and as a result
+    accepts many options.  The simplest way to access these methods is via the cyoa script, but
+    everything may be called directly in perl.
+
+    use Bio::Adventure;
+    my $hpgl = new Bio::Adventure;
+    $hpgl->{species} = 'mmusculus';  ## There had better be a mmusculus.[fasta&gff] in $hpgl->{libdir}
+    my $hpgl = new Bio::Adventure(species => 'scerevisiae', libdir => '/home/bob/libraries');
+    $hpgl->{input} = 'test.fastq';  ## Also via with script.pl --input=test.fastq
+
+    ## Run Fastqc on untrimmed sequence.
+    my $bp = $hpgl->Fastqc()
+    ## Generates test-trimmed.fastq from test.fastq
+    my $trim = $hpgl->Trimomatic();
+    ## Graph statistics from test-trimmed.fastq
+    my $bp = $hpgl->Biopieces_Graph(jdepends => $trim->{pbs_id});
+    ## Run bowtie1, convert the output to sorted/indexed bam, and run htseq-count against mmusculus
+    ## bowtie1 outputs go (by default) into bowtie_out/
+    my $bt = $hpgl->Bowtie();
+    ## Run htseq-count with a different gff file, use 'mRNA' as the 3rd column of the gff, and 'locus_tag' as the identifier in the last column.
+    my $ht = $hpgl->HTSeq(jdepends => $bt->{pbs_id}, input => $bt->{output}, htseq_gff => 'other.gff', htseq_type => 'mRNA', htseq_identifier => 'locus_tag'
+    ## Run tophat
+    my $tp = $hpgl->TopHat(jdepends => $trim->{pbs_id});
+    ## or BWA
+    my $bw = $hpgl->BWA(jdepends => $trim->{pbs_id});
+
+=head1 DESCRIPTION
+
+    This library should write out PBS/slurm compatible job files and
+    submit them to the appropriate computing cluster.  It should also
+    collect the outputs and clean up the mess.
+
+=head2 Methods
+
+=over 4
+
 =item C<General Options>
 
   basedir - Base directory from which all other directories inherit. (cwd)
@@ -355,48 +398,7 @@ $XZ_DEFAULTS = '-9e';
 $ENV{LESSOPEN} = '| lesspipe %s';
 $ENV{LESS} = '--buffers 0';
 
-=head1 NAME
-
-    Bio::Adventure - A perl library to make preprocessing high-throughput data easier.
-
-=head1 SYNOPSIS
-
-    Bio::Adventure.pm  Methods to simplify creating job scripts and submitting them to a
-    computing cluster.  Bio::Adventure makes heavy use of command line options and as a result
-    accepts many options.  The simplest way to access these methods is via the cyoa script, but
-    everything may be called directly in perl.
-
-    use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
-    $hpgl->{species} = 'mmusculus';  ## There had better be a mmusculus.[fasta&gff] in $hpgl->{libdir}
-    my $hpgl = new Bio::Adventure(species => 'scerevisiae', libdir => '/home/bob/libraries');
-    $hpgl->{input} = 'test.fastq';  ## Also via with script.pl --input=test.fastq
-
-    ## Run Fastqc on untrimmed sequence.
-    my $bp = $hpgl->Fastqc()
-    ## Generates test-trimmed.fastq from test.fastq
-    my $trim = $hpgl->Trimomatic();
-    ## Graph statistics from test-trimmed.fastq
-    my $bp = $hpgl->Biopieces_Graph(jdepends => $trim->{pbs_id});
-    ## Run bowtie1, convert the output to sorted/indexed bam, and run htseq-count against mmusculus
-    ## bowtie1 outputs go (by default) into bowtie_out/
-    my $bt = $hpgl->Bowtie();
-    ## Run htseq-count with a different gff file, use 'mRNA' as the 3rd column of the gff, and 'locus_tag' as the identifier in the last column.
-    my $ht = $hpgl->HTSeq(jdepends => $bt->{pbs_id}, input => $bt->{output}, htseq_gff => 'other.gff', htseq_type => 'mRNA', htseq_identifier => 'locus_tag'
-    ## Run tophat
-    my $tp = $hpgl->TopHat(jdepends => $trim->{pbs_id});
-    ## or BWA
-    my $bw = $hpgl->BWA(jdepends => $trim->{pbs_id});
-
-=head1 DESCRIPTION
-
-    This library should write out PBS/slurm compatible job files and
-    submit them to the appropriate computing cluster.  It should also
-    collect the outputs and clean up the mess.
-
-=head2 Methods
-
-=over 4
+=over
 
 =item C<Help>
 
