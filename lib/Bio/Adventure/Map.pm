@@ -1272,12 +1272,14 @@ Perform a kallisto transcript quantification.
 =cut
 sub Kallisto {
     my ($class, %args) = @_;
-    my $check = which('kallisto');
-    die("Could not find kallisto in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species","input"],
-    );
+        modules => ['kallisto'],
+        jprefix => '46',
+        required => ['species', 'input'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('kallisto');
+    die('Could not find kallisto in your PATH.') unless($check);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1286,7 +1288,7 @@ sub Kallisto {
         foreach my $sp (@species_lst) {
             print "Invoking kallisto on ${sp}\n";
             $options->{species} = $sp;
-            my $result = Bio::Adventure::Map::Kallisto($class, %{$options});
+            my $result = $class->Bio::Adventure::Map::Kallisto(%{$options});
             push (@result_lst, $result);
         }
         $options->{species} = $start_species;
@@ -1301,12 +1303,12 @@ sub Kallisto {
 
     my $jname = qq"kall_${species}";
     ## $jname = $options->{jname} if ($options->{jname});
-    my $ka_args = qq"";
+    my $ka_args = '';
     my $ka_input = $options->{input};
     my $input_name = $ka_input;
     if ($ka_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $ka_input);
-        $ka_args .= " --bias ";
+        $ka_args .= ' --bias ';
         if ($options->{stranded} != 0) {
             $ka_args .= " --$options->{stranded} ";
         }
@@ -1314,22 +1316,22 @@ sub Kallisto {
         $input_name = $pair_listing[0];
     } else {
         $ka_input = qq" <(less $ka_input) ";
-        $ka_args .= qq" --bias --single -l 40 -s 10 ";
+        $ka_args .= qq' --bias --single -l 40 -s 10 ';
     }
 
     ## Check that the indexes exist
     my $ka_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
+    my $index_job;
     if (!-r $ka_reflib) {
         my $transcriptome_fasta = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
-        my $index_job = $class->Bio::Adventure::Map::Kallisto_Index(
+        $index_job = $class->Bio::Adventure::Map::Kallisto_Index(
             input => $transcriptome_fasta,
             jdepends => $options->{jdepends},
             libtype => $libtype,);
-        $ka_jobs{index} = $index_job;
         $options->{jdepends} = $index_job->{job_id};
     }
 
-    my $outdir = qq"outputs/kallisto_${species}";
+    my $outdir = qq"outputs/$options->{jprefix}kallisto_${species}";
     my $error_file = qq"${outdir}/kallisto_${species}.stderr";
     my $output_sam = qq"${outdir}/kallisto_${species}.sam";
     my $output_bam = qq"${outdir}/kallisto_${species}.bam";
@@ -1337,7 +1339,6 @@ sub Kallisto {
     my $sorted_bam = qq"${outdir}/kallisto_${species}-sorted";
     my $comment = qq!## This is a kallisto pseudoalignment of ${ka_input} against
 ## ${ka_reflib}.
-## This jobs depended on: $options->{jdepends}
 ## Other candidates for making a pretty count table include:
 ##  perl -F'\\t' -a -n -e 'print "\$F[0] \$F[3]\\n"' ${outdir}/abundance.tsv > ${outdir}/abundance.count
 ##   awk '{printf("%s %s\\n", \$1, \$4)}' ${outdir}/abundance.tsv > ${outdir}/abundance.count
@@ -1354,22 +1355,18 @@ kallisto quant ${ka_args} \\
   2>${error_file} \\
   1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
-  gzip -9 -f ${outdir}/${input_name}_abundance.count
+  xz -9e -f ${outdir}/${input_name}_abundance.count
 !;
-
-    ## I am going to stop doing these pseudobam indexes because that is pretty dumb for kallisto to do
-    ## It was interesting for the exosome samples, but only because I wanted to compare them against
-    ## the full miRNA database.
-    my $unused_material = qq!
-  samtools view -u -t ${ka_reflib} -S ${output_sam} \\
-    2>${output_bam}.err \\
-    1>${output_bam} && \\
-  samtools sort -l 9 ${output_bam} ${sorted_bam} \\
-    2>${sorted_bam}.err \\
-    1>${sorted_bam}.out && \\
-  rm ${output_bam} && mv ${sorted_bam}.bam ${output_bam} && samtools index ${output_bam} && \\
-  bamtools stats -in ${output_bam} 2>${output_stats} 1>&2
-!;
+    ## Newer kallisto does not seem to do this well anymore...
+##  samtools view -u -t ${ka_reflib} -S ${output_sam} \\
+##    2>${output_bam}.err \\
+##    1>${output_bam} && \\
+##  samtools sort -l 9 ${output_bam} ${sorted_bam} \\
+##    2>${sorted_bam}.err \\
+##    1>${sorted_bam}.out
+##mv ${sorted_bam}.bam ${output_bam} && samtools index ${output_bam} && \\
+##  bamtools stats -in ${output_bam} 2>${output_stats} 1>&2
+##!;
     my $kallisto = $class->Submit(
         comment => $comment,
         input => $ka_input,
@@ -1378,8 +1375,12 @@ kallisto quant ${ka_args} \\
         jprefix => '30',
         jstring => $jstring,
         jmem => 30,
+        output => qq"${outdir}/abundance.tsv",
+        count => qq"${outdir}/${input_name}_abundance.count",
         prescript => $args{prescript},
         postscript => $args{postscript},);
+
+    $kallisto->{index} = $index_job;
     return($kallisto);
 }
 
@@ -1393,10 +1394,12 @@ sub Kallisto_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         modules => ['kallisto'],
+        jprefix => '45',
         required => ['input'],);
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
     my $species = $cds;
     $species =~ s/_cds//g;
+    $species =~ s/_nt//g;
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
@@ -1404,7 +1407,9 @@ sub Kallisto_Index {
     my $libtype = $options->{libtype};
     my $input = File::Spec->rel2abs($options->{input});
     my $jstring = qq!
-kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx ${input}!;
+kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
+  ${input}
+!;
     my $comment = qq!## Generating kallisto indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $ka_index = $class->Submit(
         comment => $comment,
@@ -1546,12 +1551,14 @@ Perform a salmon quantification of transcript abundances.
 =cut
 sub Salmon {
     my ($class, %args) = @_;
-    my $check = which('salmon');
-    die("Could not find salmon in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species","input"],
+        jprefix => '45',
+        required => ['species', 'input'],
         modules => ['salmon'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('salmon');
+    die('Could not find salmon in your PATH.') unless($check);
 
     my $depends = $options->{jdepends};
     if ($options->{species} =~ /\:/) {
@@ -1599,7 +1606,7 @@ sub Salmon {
         $options->{jdepends} = $index_job->{job_id};
     }
 
-    my $outdir = qq"outputs/salmon_${species}";
+    my $outdir = qq"outputs/$options->{jprefix}salmon_${species}";
     my $error_file = qq"${outdir}/salmon_${species}.stderr";
     my $comment = qq!## This is a salmon pseudoalignment of ${sa_input} against
 ## ${sa_reflib}.

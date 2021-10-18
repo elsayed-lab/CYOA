@@ -35,7 +35,10 @@ This is responsible for the final writeup and submission of a local script.
 =cut
 sub Submit {
     my ($class, $parent, %args) = @_;
-    my $options = $parent->Get_Vars(args => \%args);
+    my $options = $parent->Get_Vars(
+        args => \%args,
+        jprefix => '10',
+        jname => 'unknown');
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
     my $bash_log = qq"$options->{logdir}/outputs/$options->{jname}.out";
