@@ -350,7 +350,8 @@ sub Split_Align_Fasta {
         align_jobs => 40,
         align_parse => 0,
         num_dirs => 0,
-        best_only => 0,);
+        best_only => 0,
+        modules => ['fasta']);
 
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
@@ -363,15 +364,15 @@ sub Split_Align_Fasta {
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         $options = $class->Set_Vars(workdir => $outdir);
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args,
-                                                             workdir => $outdir);
+        my $actual = $class->Bio::Adventure::Align::Make_Directories(
+            %args,
+            workdir => $outdir);
         print "Actually used ${actual} directories to write files.\n";
-        my $alignment = Bio::Adventure::Align_Fasta::Make_Fasta_Job($class,
-                                                                    align_jobs => $actual,
-                                                                    workdir => $outdir,
-                                                                    split => 1);
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches(
-            $class,
+        my $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
+            align_jobs => $actual,
+            workdir => $outdir,
+            split => 1);
+        $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
             jdepends => $alignment->{job_id},
             output => $output,
             workdir => $outdir,
@@ -379,7 +380,7 @@ sub Split_Align_Fasta {
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         $options->{align_jobs} = 1;
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         $options = $class->Set_Vars(workdir => $outdir);
         my $actual = $class->Bio::Adventure::Align::Make_Directories(

@@ -236,13 +236,13 @@ sub Parse_Blast {
         search_type => 'blastxml',
     );
     my $input = $options->{input};
-    my $output = qq"${input}";
+    my $output = $input;
     my $best = $options->{best_only};
     my $search_type = $options->{search_type};
     $output =~ s/\.txt\.gz//g;
-    $output .= "_parsed.txt";
+    $output .= '_parsed.txt';
     print "Writing parsed output to ${output}\n";
-    my $count_table = qq"${output}";
+    my $count_table = $output;
     $count_table =~ s/_parsed\.txt/_counts\.txt/g;
     print "Writing count table to ${count_table}\n";
     my $counts = FileHandle->new(">$count_table");
@@ -318,7 +318,7 @@ sub Parse_Blast {
             if ($args{best_only}) {
                 next RESULT;
             }
-        }                       ## End each hit for a single result
+        } ## End each hit for a single result
         print $counts "${query_name}\t${real_name}\t${hit_count}\n";
         ## print "$result had $hit_count hits\n";
     }   ## Finish looking at each sequence
@@ -363,10 +363,10 @@ sub Run_Parse_Blast {
                                    required => ['query', 'library'],
                                    evalue => 0.01);
     print STDERR qq"Please note that this function calls blastall
-    separately for every sequence in the database.  As a result it is
-    not recommended fo use with large sequence libraries.  Instead use
-    the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
-    followed by 'Parse_Blast()' which does these steps separately.";
+separately for every sequence in the database.  As a result it is
+not recommended fo use with large sequence libraries.  Instead use
+the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
+followed by 'Parse_Blast()' which does these steps separately.";
     my $blast_program = 'blastp';
     my @search_libraries = ('nr', );
     my $blast_output = Bio::SearchIO->new(-format => 'blast', );
@@ -493,11 +493,9 @@ them all separately.
 =cut
 sub Split_Align_Blast {
     my ($class, %args) = @_;
-    my $check = which('blastp');
-    die("Could not find blast in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["query","library", "blast_tool"],
+        required => ['query', 'library', 'blast_tool'],
         param => ' -e 10 ',
         blast_tool => 'blastn',
         align_jobs => 40,
@@ -506,8 +504,12 @@ sub Split_Align_Blast {
         num_dirs => 0,
         best_only => 0,
         interactive => 0,
-    );
+        modules => ['blast', 'blastdb'],);
     ## This might be wrong (tblastx)
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('blastp');
+    die("Could not find blast in your PATH.") unless($check);
+
     print STDERR qq"A quick reminder because I (atb) get confused easily:
 tblastn is a protein fasta query against a nucleotide blast database.
 tblastx is a nucleotide fasta query (which is translated on the fly) against a nucleotide blast db.
@@ -532,41 +534,33 @@ blastp is normal protein/protein.
     make_path("${outdir}") unless(-d ${outdir});
     my $output = qq"${outdir}/${que}_vs_${lib}.txt";
     my $concat_job;
-    $lib = Bio::Adventure::Align_Blast::Check_Blastdb($class, %args);
+    $lib = $class->Bio::Adventure::Align_Blast::Check_Blastdb(%args);
     if ($options->{pbs}) {
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         print "Going to make $options->{align_jobs} directories with $num_per_split sequences each.\n";
-        my $actual = Bio::Adventure::Align::Make_Directories($class, %args);
+        my $actual = $class->Bio::Adventure::Align::Make_Directories(%args);
         print "Actually used ${actual} directories to write files.\n";
-        my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
-            $class,
+        my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
             align_jobs => $actual,
-            output_type => $options->{blast_format},
-        );
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches(
-            $class,
+            output_type => $options->{blast_format},);
+        $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
             jdepends => $alignment->{job_id},
-            output => ${output},
-        );
+            output => ${output},);
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         print "Not using the cluster.\n";
         $options = $class->Set_Vars(align_jobs => 1);
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class);
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split();
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        my $actual = Bio::Adventure::Align::Make_Directories($class);
-        my $alignment = Bio::Adventure::Align_Blast::Make_Blast_Job(
-            $class,
+        my $actual = $class->Bio::Adventure::Align::Make_Directories();
+        my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
             align_jobs => $actual,
-            output_type => $options->{blast_format},
-        );
-        $concat_job = Bio::Adventure::Align::Concatenate_Searches(
-            $class,
-            output => ${output},
-        );
+            output_type => $options->{blast_format},);
+        $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
+            output => ${output},);
     }
 
     my $parse_input = cwd() . qq"/$concat_job->{output}";
@@ -581,10 +575,11 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     my $parse_job = $class->Submit(
         comment => $comment_string,
         jdepends => $concat_job->{job_id},
-        jname => "parse_search",
+        jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',
-        );
+        language => 'perl',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules},
+        action => 'unload');
     return($concat_job);
 }
 
