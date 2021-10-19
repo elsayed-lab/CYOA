@@ -300,8 +300,9 @@ sub Gff2Fasta {
     my $out_fasta_amino = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_aa.fasta");
     my $out_fasta_nt = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_nt.fasta");
     my @tag_list = ('ID', 'gene_id', 'locus_tag', 'transcript_id');
-    my $feature_type = Bio::Adventure::Count::HT_Types($class, annotation => $gff,
-                                                       feature_type => $ftype);
+    my $feature_type = $class->Bio::Adventure::Count::HT_Types(
+        annotation => $gff,
+        feature_type => $ftype,);
     $feature_type = $feature_type->[0];
     my $annotation_in = Bio::Tools::GFF->new(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;

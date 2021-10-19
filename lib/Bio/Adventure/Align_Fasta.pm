@@ -46,6 +46,7 @@ sub Make_Fasta_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        fasta_tool => 'ggsearch36',
         jdepends => '',
         split => 0,
         modules => ['fasta'],
@@ -244,12 +245,13 @@ sub Parse_Fasta_Global {
     $output = basename($output, ('.txt'));
 
     my $in = FileHandle->new("less $options->{input} |");
-    my $searchio = Bio::SearchIO->new(-format => $options->{fasta_format},
-                                      -fh => $in,
-                                      -best_hit_only => $options->{best_only},
-                                      -max_significance => $options->{evalue},
-                                      -check_all_hits => $options->{check_all_hits},
-                                      -min_score => $options->{min_score},);
+    my $searchio = Bio::SearchIO->new(
+        -format => $options->{fasta_format},
+        -fh => $in,
+        -best_hit_only => $options->{best_only},
+        -max_significance => $options->{evalue},
+        -check_all_hits => $options->{check_all_hits},
+        -min_score => $options->{min_score},);
 
     my $counts = FileHandle->new(qq">${outdir}/${output}.count");
     my $parsed = FileHandle->new(qq">${outdir}/${output}.parsed.txt");
@@ -345,6 +347,7 @@ sub Split_Align_Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        fasta_tool => 'ggsearch36',
         required => ['input', 'library'],
         interactive => 0,
         align_jobs => 40,
@@ -352,7 +355,6 @@ sub Split_Align_Fasta {
         num_dirs => 0,
         best_only => 0,
         modules => ['fasta']);
-
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
     my $outdir = qq"$options->{basedir}/outputs/fasta_${que}_${lib}";
@@ -360,7 +362,7 @@ sub Split_Align_Fasta {
     my $output = qq"${outdir}/${que}_vs_${lib}.txt.xz";
     my $concat_job;
     if ($options->{pbs}) {
-        my $num_per_split = Bio::Adventure::Align::Get_Split($class, %args);
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
         $options = $class->Set_Vars(workdir => $outdir);
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
@@ -369,6 +371,7 @@ sub Split_Align_Fasta {
             workdir => $outdir);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
+            %args,
             align_jobs => $actual,
             workdir => $outdir,
             split => 1);
@@ -387,6 +390,7 @@ sub Split_Align_Fasta {
             workdir => $outdir,
             %args);
         my $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
+            %args,
             workdir => $outdir,
             align_jobs => $actual);
         $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
