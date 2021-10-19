@@ -578,8 +578,8 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules},
-        action => 'unload');
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($concat_job);
 }
 

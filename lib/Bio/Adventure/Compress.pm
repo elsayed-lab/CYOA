@@ -58,6 +58,7 @@ less ${in_full} | \\
         jdepends => $options->{jdepends},
         input => $options->{input},
         jmem => $options->{jmem},
+        jname => $options->{jname},
         jstring => $jstring,
         modules => [],);
     return($compression);

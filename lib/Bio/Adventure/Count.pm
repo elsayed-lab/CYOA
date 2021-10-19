@@ -395,9 +395,19 @@ sub Jellyfish {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        length => 9,
+        length => '9,11,13,15',
         jprefix => 18,
         modules => ['jellyfish'],);
+    my @kmer_array = split(/\,|:/, $options->{length});
+    my @job_array = ();
+    if (scalar(@kmer_array) > 1) {
+        for my $k (@kmer_array) {
+            my $job = $class->Bio::Adventure::Count::Jellyfish(%args, length => $k);
+            push(@job_array, $job);
+        }
+        return(@job_array);
+    }
+
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('jellyfish');
     die('Could not find jellyfish in your PATH.') unless($check);
@@ -470,6 +480,15 @@ use Bio::Adventure::Phage;
         language => 'perl',
         shell => '/usr/bin/env perl',);
     $jelly->{matrix_job} = $matrix_job;
+
+    my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
+    my $comp = $class->Bio::Adventure::Compress::Recompress(
+        comment => qq"## Compress the jellyfish output files.",
+        jdepends => $matrix_job->{job_id},
+        jname => 'xzjelly',
+        jprefix => $options->{jprefix} + 1,
+        input => $compress_files,);
+    $jelly->{compression} = $comp;
     return($jelly);
 }
 
