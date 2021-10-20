@@ -160,8 +160,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jstring => $jstring,
         jmem => 32,
         modules => $options->{modules},
-        array_string => $array_string,
-        );
+        array_string => $array_string,);
     return($blast_jobs);
 }
 
@@ -185,15 +184,15 @@ sub Merge_Parse_Blast {
         args => \%args,
         required => ['output'],
     );
-    my $concat = Bio::Adventure::Align::Concatenate_Searches($class);
+    my $concat = $class->Bio::Adventure::Align::Concatenate_Searches();
     my $input = $options->{output};
-    my $jstring = qq?
+    my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 my \$h = Bio::Adventure->new(input => \$input);
-my \$final = Bio::Adventure::Align_Blast->Parse_Search(\$h, search_type => 'blastxml',);
-?;
+my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blastxml',);
+!;
     my $parse = $class->Submit(
         jdepends => $concat->{job_id},
         jname => 'parse_search',
@@ -250,15 +249,13 @@ sub Parse_Blast {
     print $counts "Query\tquery_accession\thits\n";
     my $fh = FileHandle->new(">$output");
     $fh->autoflush(1);
-    local $| = 0;               ## I want to watch the output as it happens.
+    local $| = 0; ## I want to watch the output as it happens.
     my $in = FileHandle->new("less ${input} |");
     $XML::SAX::ParserPackage = 'XML::SAX::PurePerl';
     my $searchio = Bio::SearchIO->new(-fh => $in);
     ## Perform a test for the output format, this will close the filehandle, so reopen it after
     my $guessed_format = $searchio->format();
     print STDERR "Guessed the format is: $guessed_format\n";
-    ##$guessed_format = 'blastxml';
-    ##print STDERR "It turns out that searchio->format() is crap, setting format to 'blastxml'\n";
     $in->close();
     $in = FileHandle->new("less ${input} |");
 
@@ -449,8 +446,8 @@ followed by 'Parse_Blast()' which does these steps separately.";
                     print $zeros $entry;
                 }
                 print $counts "$query_name\t$hit_count\n";
-            }    ## End of the individual blast search  (maybe not needed?)
-        }        ## End of this search library  (the 7 states to search against)
+            } ## End of the individual blast search  (maybe not needed?)
+        } ## End of this search library  (the 7 states to search against)
         $counts->close();
         $zeros->close();
         $singles->close();
@@ -495,7 +492,7 @@ sub Split_Align_Blast {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['query', 'library', 'blast_tool'],
+        required => ['query', 'library',],
         param => ' -e 10 ',
         blast_tool => 'blastn',
         align_jobs => 40,
@@ -537,9 +534,9 @@ blastp is normal protein/protein.
     $lib = $class->Bio::Adventure::Align_Blast::Check_Blastdb(%args);
     if ($options->{pbs}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
         print "Going to make $options->{align_jobs} directories with $num_per_split sequences each.\n";
-        my $actual = $class->Bio::Adventure::Align::Make_Directories(%args);
+        my $actual = $class->Bio::Adventure::Align::Make_Directories(%args,
+            num_per_split => $num_per_split);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
@@ -553,8 +550,9 @@ blastp is normal protein/protein.
         print "Not using the cluster.\n";
         $options = $class->Set_Vars(align_jobs => 1);
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split();
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
-        my $actual = $class->Bio::Adventure::Align::Make_Directories();
+        ## $options = $class->Set_Vars(num_per_split => $num_per_split);
+        my $actual = $class->Bio::Adventure::Align::Make_Directories(
+            num_per_split => $num_per_split);
         my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
             align_jobs => $actual,
