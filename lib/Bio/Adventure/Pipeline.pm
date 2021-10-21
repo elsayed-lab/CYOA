@@ -290,7 +290,7 @@ sub Phage_Assemble {
         do_htseq => 0,
         jname => 'hisatfilter',
         species => $host_species,);
-    my $filtered_reads = $filter->{unaligned};
+    my $filtered_reads = $filter->{unaligned_comp};
     my $filter_id = $filter->{job_id};
     sleep(1);
 

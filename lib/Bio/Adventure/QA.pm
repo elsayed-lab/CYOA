@@ -146,13 +146,17 @@ sub Fastqc_Pairwise {
         my $ret = $class->Bio::Adventure::QA::Fastqc_Single(%args);
         return($ret);
     } else {
-        my $r1 = $input_list[0];
-        my $r2 = $input_list[1];
+        $r1 = $input_list[0];
+        $r2 = $input_list[1];
     }
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
-    my $jname = qq"fqc_${job_name}_$input_paths->{dirname}";
+    my $dirname = $input_paths->[0]->{dirname};
+    my $jname = qq"fqc_${job_name}";
+    if (defined($dirname)) {
+        $jname .= qq"_${dirname}";
+    }
     my $outdir = qq"outputs/$options->{jprefix}fastqc";
 
     ## This is where fastqc should put its various output files
@@ -161,7 +165,6 @@ sub Fastqc_Pairwise {
     ## outputs/${jprefix}fastqc/xxx_fastqc...
     my $modified_inputname = basename($r1, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $final_output = qq"${outdir}/${modified_inputname}";
-
 
     my $jstring = qq!mkdir -p ${outdir} && \\
   fastqc --extract -o ${outdir} <(less ${r1}) <(less ${r2}) \\

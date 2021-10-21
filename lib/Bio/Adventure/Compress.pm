@@ -39,19 +39,20 @@ sub Recompress {
     my $input_paths = $class->Get_Paths($options->{input});
 
     my $jstring = "";
-    my @outputs = ();
+    my $output_string = '';
     for my $in (@{$input_paths}) {
         my $in_dir = $in->{directory};
         my $in_base = $in->{filebase_compress};
         my $in_full = $in->{fullpath};
         my $output_file = qq"${in_dir}/${in_base}.xz";
-        push(@outputs, $output_file);
+        $output_string .= "${output_file}:";
         $jstring .= qq!
 less ${in_full} | \\
   xz -9e -f > ${output_file} && \\
   rm ${in_full}
 !;
     }
+    $output_string =~ s/:$//g;
 
     my $compression = $class->Submit(
         comment => $options->{comment},
@@ -60,7 +61,7 @@ less ${in_full} | \\
         jmem => $options->{jmem},
         jname => $options->{jname},
         jstring => $jstring,
-        modules => [],);
+        output => $output_string,);
     return($compression);
 }
 

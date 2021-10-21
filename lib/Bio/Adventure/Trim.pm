@@ -165,7 +165,6 @@ sub Racer {
 ## arbitrary errors in sequencing data.
 !;
     my $jstring = qq"";
-
     my $output_dir = qq"outputs/$options->{jprefix}racer";
     my @created = make_path($output_dir);
     my @output_files;

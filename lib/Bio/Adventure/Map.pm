@@ -1003,8 +1003,9 @@ sub Hisat2 {
     my $hisat_input = $options->{input};
     my $test_file = '';
     my $paired = 0;
+    my @pair_listing;
     if ($hisat_input =~ /\:|\;|\,|\s+/) {
-        my @pair_listing = split(/\:|\;|\,|\s+/, $hisat_input);
+        @pair_listing = split(/\:|\;|\,|\s+/, $hisat_input);
         $paired = 1;
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
@@ -1026,7 +1027,6 @@ sub Hisat2 {
     my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
     my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
 
-    my $jdepends = '';
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
@@ -1036,7 +1036,9 @@ sub Hisat2 {
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
             libtype => $options->{libtype},);
-        $jdepends = $index_job->{job_id};
+        ## The following line inserts the indexer into the dependency chain
+        ## Do not forget this, it is rather important.
+        $options->{jdepends} = $index_job->{job_id};
     }
 
     my $hisat_input_flag = '-q '; ## fastq by default
@@ -1060,47 +1062,35 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
   --un ${unaligned_discordant_filename} \\
   --al ${aligned_discordant_filename} \\
 !;
+    ## Record the aligned/unaligned filenames both before and after compression.
+    my $aligned_filenames = $aligned_discordant_filename;
+    my $aligned_xz = qq"${aligned_filenames}.xz";
+    my $unaligned_filenames = $unaligned_discordant_filename;
+    my $unaligned_xz = qq"${unaligned_filenames}.xz";
     if ($paired) {
         ## The concordant flag tries to send reads to xxx.1 and xxx.2 even if
         ## the data is not paired.
         $jstring .= qq!  --un-conc ${unaligned_concordant_filename} \\
   --al-conc ${aligned_concordant_filename} \\
 !;
+        my $aligned_base = basename($aligned_concordant_filename, ('.fastq', '.fasta'));
+        my $unaligned_base = basename($unaligned_concordant_filename, ('.fastq', '.fastq'));
+        my $the_dirname = dirname($aligned_concordant_filename);
+        ## For the set of all aligned filenames, there should now be 3, the original discordant and two more.
+        ## For the xz filenames, there should be 2, just the concordant; because these will be used downstream.
+        $aligned_filenames .= qq":${the_dirname}/${aligned_base}.1.fastq:${the_dirname}/${aligned_base}.2.fastq";
+        $aligned_xz = qq"${the_dirname}/${aligned_base}.1.fastq.xz:${the_dirname}/${aligned_base}.2.fastq.xz";
+        $unaligned_filenames .= qq":${the_dirname}/${unaligned_base}.1.fastq:${the_dirname}/${unaligned_base}.2.fastq";
+        $unaligned_xz = qq"${the_dirname}/${unaligned_base}.1.fastq.xz:${the_dirname}/${unaligned_base}.2.fastq.xz";
     }
+    my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
     $jstring .= qq!  -S ${sam_filename} \\
   2>${error_file} \\
   1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.out
 !;
-    ## Example: r1_trimmed_unaligned_concordant_lpanamensis_v36.fastq.1.gz
-
-    ## This logic is a bit tortured, the goal is to provide the set of fastq files
-    ## returned by hisat to be more aggressively compressed.
-    ##  1.  If the reads are single-ended, this is just the aligned+unaligned(discordant).
-    ##  2.  If the reads are paired, then this becomes the set of 4, concordant and discordant.
-    ## with the caveat that hisat names things strangely when it returns paired reads.
-    my $unaligned_filenames = $unaligned_discordant_filename;
-    my $aligned_filenames = $aligned_discordant_filename;
-    my $unaligned_xz_filenames = $unaligned_filenames;
-    my $aligned_xz_filenames = $aligned_filenames;
-    if ($paired) {
-        my $tmp = basename($unaligned_filenames);
-        my $xz_tmp = basename($unaligned_filenames, ('.fastq'));
-        my $dir = dirname($unaligned_filenames);
-        $unaligned_filenames = qq"${dir}/${tmp}.1:${dir}/${tmp}.2";
-        $unaligned_xz_filenames = qq"${dir}/${xz_tmp}.1.fastq:${dir}/${xz_tmp}.2.fastq";
-        $tmp = basename($aligned_filenames);
-        $xz_tmp = basename($aligned_filenames, ('.fastq'));
-        $dir = dirname($aligned_filenames);
-        $aligned_filenames = qq"${dir}/${tmp}.1:${dir}/${tmp}.2";
-        $aligned_xz_filenames = qq"${dir}/${xz_tmp}.1.fastq:${dir}/${xz_tmp}.2.fastq";
-    }
-    my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
-    my $all_xz_filenames = qq"${aligned_xz_filenames}:${unaligned_xz_filenames}";
-
     my $hisat_job = $class->Submit(
-        aligned => $aligned_filenames,
         comment => $comment,
-        jdepends => $jdepends,
+        jdepends => $options->{jdepends},
         input => $hisat_input,
         jname => $hisat_name,
         jstring => $jstring,
@@ -1111,14 +1101,21 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        unaligned => $unaligned_filenames,);
+        aligned => $aligned_filenames,
+        aligned_comp => $aligned_xz,
+        unaligned => $unaligned_filenames,
+        unaligned_comp => $unaligned_xz,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-
+    my $xz_jname = qq"xz_${suffix_name}";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
-        input => $all_xz_filenames,
+        jname => $xz_jname,
+        input => qq"${aligned_filenames}:${unaligned_filenames}",
         jdepends => $hisat_job->{job_id});
     $hisat_job->{compression} = $comp;
+
+    ## Sneak the compression job's ID in place as hisat's.
+    $hisat_job->{job_id} = $comp->{job_id};
 
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
@@ -1178,7 +1175,10 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jprefix => $new_jprefix,
         output_dir => $hisat_dir,);
     $hisat_job->{stats} = $stats;
-
+    ## If this is not the final job in a chain, then make sure
+    ## that any jobs queued after it do not start until
+    ## samtools/htseq/etc are finished.
+    $hisat_job->{job_id} = $stats->{job_id};
     return($hisat_job);
 }
 

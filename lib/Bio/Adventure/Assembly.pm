@@ -548,12 +548,12 @@ sub Unicycler {
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz -2 ${output_dir}/r2.fastq.gz";
-        $ln_string = qq"cp $in[0] ${output_dir}/r1.fastq.gz
-cp $in[1] ${output_dir}/r2.fastq.gz
+        $ln_string = qq"less $in[0] | gzip > ${output_dir}/r1.fastq.gz
+less $in[1] | gzip > ${output_dir}/r2.fastq.gz
 ";
     } else {
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz";
-        $ln_string = qq"cp $options->{input} ${output_dir}/r1.fastq.gz
+        $ln_string = qq"less $options->{input} | gzip > ${output_dir}/r1.fastq.gz
 ";
     }
     my $comment = qq!## This is a unicycler submission script
