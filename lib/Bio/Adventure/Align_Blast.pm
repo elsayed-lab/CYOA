@@ -38,51 +38,76 @@ sub Check_Blastdb {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['library'],);
-    my $formatdb_ret = "not run.";
-    my $libname = $options->{library};
+        blast_tool => 'blastn',
+        type => 'prot',
+        required => ['input'],);
+    my $libname = basename($options->{input}, '.fasta');
     ## First check for the relevant library in $ENV{BLASTDB}
     ## If it isn't there, make one in basedir/blastdb/
     my $foundlib = 0;
-    my $checklib = "";
-    my $checklib_zero = "";
-    if ($options->{blast_tool} =~ m/blast/ and $options->{peptide} eq 'T') {
-        $checklib_zero = qq"$options->{library}.00.psq";
-        $checklib = qq"$options->{library}.psq";
-    } else {
-        $checklib_zero = qq"$options->{library}.00.nsq";
-        $checklib = qq"$options->{library}.nsq";
+    if ($options->{type} ne 'prot' && $options->{type} ne 'nucl') {
+        die("makeblastdb requires either a type of 'prot' or 'nucl'.");
     }
-    my $lib = "";
+
+    my $mismatches = 0;
+    my $matches = 0;
+    my $test_in = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+    while (my $seq = $test_in->next_seq) {
+        my $guess = $seq->alphabet;
+        if ($guess eq 'protein') {
+            $guess = 'prot';
+        } else {
+            $guess = 'nucl';
+        }
+        if ($options->{type} eq $guess) {
+            $matches++;
+        } else {
+            $mismatches++;
+        }
+    }
+    my $sum = $matches + $mismatches;
+    print "Out of ${sum} sequences, ${matches} were guessed to be $options->{type} and ${mismatches} were not.\n";
+    my $checklib = qq"${libname}.psq";
+    my $checklib_zero = qq"${libname}.00.psq";
+    if ($options->{type} eq 'nucl') {
+        $checklib_zero = qq"${libname}.00.nsq";
+        $checklib = qq"${libname}.nsq";
+    }
+    my $db_directory = $ENV{BLASTDB};
+    my $lib = '';
+    my $relative_directory = qq"blastdb";
     if (!defined($ENV{BLASTDB})) {
         $ENV{BLASTDB} = "$options->{basedir}/blastdb";
+        $db_directory = "$options->{basedir}/blastdb";
+    } else {
+        $relative_directory = qq"$ENV{BLASTDB}";
     }
-    print "Looking for ${checklib} / ${checklib_zero} in either $ENV{BLASTDB}.\n";
+
+    print "Looking for ${checklib} / ${checklib_zero} in either $ENV{BLASTDB} or $options->{basedir}/blastdb.\n";
     ## Start with BLASTDB
-    if (-f "$ENV{BLASTDB}/${checklib}" or -f "$ENV{BLASTDB}/${checklib_zero}") {
+    if (-f "$ENV{BLASTDB}/${checklib}" or
+        -f "$ENV{BLASTDB}/${checklib_zero}") {
         $foundlib++;
-        $libname = qq"$ENV{BLASTDB}/$options->{library}";
-        $lib = qq"$ENV{BLASTDB}/$options->{library}";
-        print "Found an existing blast database at $libname.\n";
-    } elsif (-f "$options->{basedir}/blastdb/${checklib}" or -f "$options->{basedir}/blastdb/${checklib_zero}") { ## Then try basedir
-        $foundlib++;
-        $libname = qq"$options->{basedir}/blastdb/$options->{library}";
-        $lib = qq"$options->{basedir}/blastdb/$options->{library}";
-        print "Found an existing blast database at $libname.\n";
+        $lib = qq"$ENV{BLASTDB}/${libname}";
+        print "Found an existing blast database at ${lib}.\n";
     } else {
         print "Did not find an existing blast database.\n";
     }
 
+    ## If we do not find the blast database, create it in the basedir.
     if (!$foundlib) {
         if (!-d qq"$options->{basedir}/blastdb") {
             make_path(qq"$options->{basedir}/blastdb");
         }
-        $libname = qq"$options->{basedir}/blastdb/$options->{library}";
-        my $formatdb_command = qq"formatdb -p $options->{peptide} -o T -n blastdb/$options->{library} -s -i $options->{library}";
-        print "The formatdb command run is: ${formatdb_command}\n";
-        $formatdb_ret = qx"${formatdb_command}";
+        my $formatdb_command = qq"makeblastdb \\
+  -in $options->{input} \\
+  -dbtype $options->{type} \\
+  -out ${db_directory}/${libname}";
+        print "The makeblastdb command run is: ${formatdb_command}\n";
+        my $formatdb_ret = qx"${formatdb_command}";
     }
-    return($libname);
+    my $final_directory = qq"${relative_directory}/${libname}";
+    return($final_directory);
 }
 
 =head2 C<Make_Blast_Job>
@@ -354,107 +379,126 @@ prefer to use the the 'blastsplit' method.
 =cut
 sub Run_Parse_Blast {
     my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'library'],
+        blast_tool => 'blastp',
+        evalue => 0.01,
+        modules => ['blast'],
+        output => 'blast_output.txt',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('blastp');
     die("Could not find blast in your PATH.") unless($check);
-    my $options = $class->Get_Vars(args => \%args,
-                                   required => ['query', 'library'],
-                                   evalue => 0.01);
+    my $query = $options->{input};
     print STDERR qq"Please note that this function calls blastall
 separately for every sequence in the database.  As a result it is
 not recommended fo use with large sequence libraries.  Instead use
 the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
 followed by 'Parse_Blast()' which does these steps separately.";
-    my $blast_program = 'blastp';
-    my @search_libraries = ('nr', );
-    my $blast_output = Bio::SearchIO->new(-format => 'blast', );
-    my $query = $options->{query};
+    my $library_path = $class->Bio::Adventure::Align_Blast::Check_Blastdb(%args);
+    my $library = $options->{library};
     my $number_hits = 0;
-    for my $library (@search_libraries) {
-        my $query_library = Bio::SeqIO->new(-file => ${query}, -format => 'Fasta');
-        my $output_directory = qq"$options->{basedir}/outputs/${query}_vs_${library}";
-        make_path("${output_directory}") unless (-d $output_directory);
-        my $counts = FileHandle->new(">${output_directory}/counts.txt");
-        my $zeros = FileHandle->new(">${output_directory}/zeros.fasta");
-        my $singles = FileHandle->new(">${output_directory}/singles.fasta");
-        my $doubles = FileHandle->new(">${output_directory}/doubles.fasta");
-        my $few = FileHandle->new(">${output_directory}/few.fasta");
-        my $many = FileHandle->new(">${output_directory}/many.fasta");
-        my $seq_count = 0;
+    my $libname = basename($library, ('.fasta'));
+    ## my $query_library = Bio::SeqIO->new(-file => ${query}, -format => 'Fasta');
+    my $output_directory = qq"$options->{basedir}/outputs/${query}_vs_${libname}";
+    print "TESTME: $output_directory\n";
+    make_path("${output_directory}") unless (-d $output_directory);
+    my $counts = FileHandle->new(">${output_directory}/counts.txt");
+    my $zeros = FileHandle->new(">${output_directory}/zeros.fasta");
+    my $singles = FileHandle->new(">${output_directory}/singles.fasta");
+    my $doubles = FileHandle->new(">${output_directory}/doubles.fasta");
+    my $few = FileHandle->new(">${output_directory}/few.fasta");
+    my $many = FileHandle->new(">${output_directory}/many.fasta");
+    my $seq_count = 0;
 
-        my @params = (
-            -program => $blast_program,
-            ## Show GI's in definition lines?
-            -F => 'T', ## Filter query sequence
-            -G => '-1', ## Cost to open a gap
-            -E => '-1', ## Cost to extend a gap
-            -X => '0',  ## X dropoff value for gapped alignment
-            -I => 'T',  ## Default in blast is F
-            ## -q => '-3', ## Penalty for nucleotide mismatch (blastn only)
-            ## And many more
-            -database => $library,
-            -outfile => qq"blast_out",
-            );
+    my @params = (
+        -program => $options->{blast_tool},
+        ## Show GI's in definition lines?
+        ##-F => 'T', ## Filter query sequence
+        ##-G => '-1', ## Cost to open a gap
+        ##-E => '-1', ## Cost to extend a gap
+        ##-X => '0',  ## X dropoff value for gapped alignment
+        ##-I => 'T',  ## Default in blast is F
+        ## -q => '-3', ## Penalty for nucleotide mismatch (blastn only)
+        ## And many more
+        -db_name => $library,);
 
-        while (my $query_seq = $query_library->next_seq()) {
-            ## I think this while loop may not be needed.
-            $seq_count++;
-            my $id = $query_seq->id;
-            my $desc = $query_seq->desc;
-            my $seq = $query_seq->seq;
-            my $search = Bio::Tools::Run::StandAloneBlast->new(@params);
-            my $blast_output;
-            eval {
-                ## $blast_output = $search->blastall($query_library);
-                $blast_output = $search->blastall($query_seq);
-            };
-            if ($@) {
-                print "Error? $@\n";
-            }
-            my $result_count = 0;
-            while (my $result = $blast_output->next_result()) {
-                $result_count++;
-                my $query_name = $result->query_name();
-                my $query_length = $result->query_length();
-                my $query_descr = $result->query_description();
-                my $stats = $result->available_statistics();
-                my $hits = $result->num_hits();
-                my $hit_count = 0;
-                my $score_cutoff = 100;
-                my $sig_cutoff = $options->{evalue};
-              HITLOOP: while (my $hits = $result->next_hit()) {
-                    $number_hits = $number_hits++;
-                    my $hit_name = $hits->name();
-                    my $hit_length = $hits->length();
-                    my $hit_acc = $hits->accession();
-                    my $hit_descr = $hits->description();
-                    my $hit_score = $hits->score();
-                    my $hit_sig = $hits->significance();
-                    my $hit_bits = $hits->bits();
-                    next HITLOOP unless ($hit_sig < $sig_cutoff and $hit_score > $score_cutoff);
-                    $hit_count++;
-                }
-                my $entry = "$query_name $query_descr\n";
-                if ($hit_count == 1) {
-                    print $singles $entry;
-                } elsif ($hit_count == 2) {
-                    print $doubles $entry;
-                } elsif ($hit_count >= 3 and $hit_count <= 10) {
-                    print $few $entry;
-                } elsif ($hit_count > 10) {
-                    print $many $entry;
-                } else {
-                    print $zeros $entry;
-                }
-                print $counts "$query_name\t$hit_count\n";
-            } ## End of the individual blast search  (maybe not needed?)
-        } ## End of this search library  (the 7 states to search against)
-        $counts->close();
-        $zeros->close();
-        $singles->close();
-        $doubles->close();
-        $few->close();
-        $many->close();
+    ##while (my $query_seq = $query_library->next_seq()) {
+    ##    ## I think this while loop may not be needed.
+    ##    $seq_count++;
+    ##    my $id = $query_seq->id;
+    ##    my $desc = $query_seq->desc;
+    ##    my $seq = $query_seq->seq;
+    my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
+    my $blast_output;
+    eval {
+        ## $blast_output = $search->blastall($query_library);
+        if ($options->{blast_tool} eq 'blastp') {
+            $blast_output = $search->blastp(-query => $options->{input},
+                -outfile => $options->{output});
+        } elsif ($options->{blast_tool} eq 'blastn') {
+            $blast_output = $search->blastn(-query => $options->{input},
+                -outfile => $options->{output});
+        } elsif ($options->{blast_tool} eq 'tblastx') {
+            $blast_output = $search->tblastx(-query => $options->{input},
+                -outfile => $options->{output});
+        } else {
+            $blast_output = $search->blastx(-query => $options->{input},
+                -outfile => $options->{output});
+        }
+    };
+    if ($@) {
+        print "Error? $@\n";
     }
+    my $blast_results = Bio::SearchIO->new(-format => 'blast',
+        -file => $options->{output});
+
+    my $result_count = 0;
+    while (my $result = $blast_results->next_result()) {
+        $result_count++;
+        my $query_name = $result->query_name();
+        my $query_length = $result->query_length();
+        my $query_descr = $result->query_description();
+        my $stats = $result->available_statistics();
+        my $hits = $result->num_hits();
+        my $hit_count = 0;
+        my $score_cutoff = 100;
+        my $sig_cutoff = $options->{evalue};
+      HITLOOP: while (my $hits = $result->next_hit()) {
+          $number_hits = $number_hits++;
+          my $hit_name = $hits->name();
+          my $hit_length = $hits->length();
+          my $hit_acc = $hits->accession();
+          my $hit_descr = $hits->description();
+          my $hit_score = $hits->score();
+          my $hit_sig = $hits->significance();
+          my $hit_bits = $hits->bits();
+          next HITLOOP unless ($hit_sig < $sig_cutoff and $hit_score > $score_cutoff);
+          $hit_count++;
+      } ## End iterating over each hit of the result.
+        my $entry = "$query_name $query_descr\n";
+        if ($hit_count == 1) {
+            print $singles $entry;
+        } elsif ($hit_count == 2) {
+            print $doubles $entry;
+        } elsif ($hit_count >= 3 and $hit_count <= 10) {
+            print $few $entry;
+        } elsif ($hit_count > 10) {
+            print $many $entry;
+        } else {
+            print $zeros $entry;
+        }
+        print $counts "$query_name\t$hit_count\n";
+    ## } ## End of the individual blast search  (maybe not needed?)
+    } ## End of this search library  (the 7 states to search against)
+    $counts->close();
+    $zeros->close();
+    $singles->close();
+    $doubles->close();
+    $few->close();
+    $many->close();
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+        action => 'unload');
     return($number_hits);
 }
 
@@ -492,7 +536,7 @@ sub Split_Align_Blast {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['query', 'library',],
+        required => ['input', 'library',],
         param => ' -e 10 ',
         blast_tool => 'blastn',
         align_jobs => 40,
@@ -526,7 +570,7 @@ blastp is normal protein/protein.
         $options->{library} = 'nr' if (!defined($options->{library}));
     }
     my $lib = basename($options->{library}, ('.fasta'));
-    my $que = basename($options->{query}, ('.fasta'));
+    my $que = basename($options->{input}, ('.fasta'));
     my $outdir = qq"$options->{basedir}/outputs";
     make_path("${outdir}") unless(-d ${outdir});
     my $output = qq"${outdir}/${que}_vs_${lib}.txt";

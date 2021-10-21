@@ -12,29 +12,31 @@ my $new = 'test_output';
 mkdir($new);
 chdir($new);
 
-
 my $phix_fasta = dist_file('Bio-Adventure', 'genome/phix.fasta');
 my $phix_gff = dist_file('Bio-Adventure', 'genome/phix.gff');
+my $phix_local = 'genome/phix.fasta';
+my $gff_local = 'genome/phix.gff';
+my $cds_local = 'genome/phix_cds_nt.fasta';
 
 make_path('genome'); ## Make a directory for the phix indexes.
-if (!-r 'genome/phix.fasta') {
-    ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
+if (!-r $phix_local) {
+    ok(cp($phix_fasta, $phix_local), 'Copying phix fasta file.');
 }
 
-if (!-r 'genome/phix.gff') {
-    ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
+if (!-r $gff_local) {
+    ok(cp($phix_gff, $gff_local), 'Copying phix gff file.');
 }
 
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 
 my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
-    input => 'genome/phix.fasta', gff => 'genome/phix.gff',
+    input => $phix_local, gff => $gff_local,
     libdir => 'share');
 ok($gff2fasta, 'Run gff2fasta.');
 
 my $run_fasta = $cyoa->Bio::Adventure::Align_Fasta::Split_Align_Fasta(
-    input => 'genome/phix_cds_nt.fasta',
-    library => 'genome/phix.fasta',
+    input => $cds_local,
+    library => $phix_local,
     fasta_tool => 'fasta36',
     number => 1,
     parse => 0,);
