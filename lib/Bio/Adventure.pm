@@ -327,7 +327,6 @@ has outgroup => (is => 'rw', default => undef); ## Outgroup for phylogenetic too
 has output => (is => 'rw', default => undef); ## Generic output argument
 has outdir => (is => 'rw', default => undef);
 has paired => (is => 'rw', default => 0); ## Is the input paired?
-has peptide => (is => 'rw', default => 'F'); ## Make peptide blast databases by default?
 has phageterm_input => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.

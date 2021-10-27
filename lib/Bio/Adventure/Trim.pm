@@ -357,6 +357,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
+        jwalltime => '24:00:00',
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
