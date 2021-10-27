@@ -10,6 +10,7 @@ extends 'Bio::Adventure';
 use feature 'try';
 no warnings 'experimental::try';
 
+use Bio::DB::EUtilities;
 use Bio::SeqFeature::Generic;
 use Bio::Tools::Run::Alignment::StandAloneFasta;
 use Bio::Tools::Run::StandAloneBlastPlus;
@@ -21,6 +22,7 @@ use File::Path qw"make_path rmtree";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
 use Text::CSV qw"csv";
+use WWW::Mechanize;
 
 =head2 C<Get_DTR>
 
@@ -62,6 +64,182 @@ sub Get_DTR {
   }
     return(%dtr_features);
 }
+
+=head2 C<Filter_Host_Kraken
+
+=cut
+sub Filter_Host_Kraken {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],);
+    my $comment = qq"## Use kraken results to choose a host species to filter against.\n";
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+Bio::Adventure::Phage::Get_Kraken_Host(\$h,
+  comment => '$comment',
+  input => '$options->{input}',
+  jdepends => '$options->{jdepends}',
+  jname => 'kraken_host',
+  jprefix => '$options->{jprefix}',);
+!;
+    my $host = $class->Submit(
+        jdepends => $options->{jdepends},
+        input => $options->{input},
+        jname => 'kraken_host',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        shell => '/usr/bin/env perl',);
+    return($host);
+}
+
+=head2 C<Get_Kraken_Host>
+
+Read the report from kraken and hunt down the species name with the most reads.
+
+=cut
+sub Get_Kraken_Host {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        type => 'species',);
+
+    my $output_dir = qq"outputs/$options->{jprefix}kraken_host";
+    make_path($output_dir);
+
+    my $separator;
+    if ($options->{type} eq 'domain') {
+        $separator = 'd__';
+    } elsif ($options->{type} eq 'phylum') {
+        $separator = 'p__';
+    } elsif ($options->{type} eq 'class') {
+        $separator = 'c__';
+    } elsif ($options->{type} eq 'order') {
+        $separator = 'o__';
+    } elsif ($options->{type} eq 'family') {
+        $separator = 'f__';
+    } elsif ($options->{type} eq 'genus') {
+        $separator = 'g__';
+    } elsif ($options->{type} eq 'species') {
+        $separator = 's__';
+    } else {
+        $separator = 's__';
+    }
+
+    my $out = FileHandle->new(">${output_dir}/kraken_filter.log");
+    my $in = FileHandle->new("<$options->{input}");
+    print $out "Starting search for best kraken host strain.\n";
+    print $out "Reading kraken report: $options->{input}.\n";
+    my %species_observed = ();
+    my $most_species = '';
+    my $most_observations = 0;
+    my $line_count = 0;
+    while (my $line = <$in>) {
+        chomp $line;
+        next unless ($line =~ m/$separator/);
+        $line_count++;
+        my ($entry, $number) = split(/\t/, $line);
+        my ($stuff, $species) = split(/$separator/, $entry);
+        $species_observed{$species} = $number;
+        if ($number > $most_observations) {
+            $most_species = $species;
+            $most_observations = $number
+        }
+    }
+    foreach my $s (keys %species_observed) {
+        print $out "$options->{type} $s was observed $species_observed{$s} times.\n";
+    }
+    print $out "\n";
+    $species_observed{most} = {
+        species => $most_species,
+        observations => $most_observations, };
+    print $out "The most observed species was: ${most_species}.\n";
+
+    my $factory = Bio::DB::EUtilities->new(-eutil => 'esearch',
+                                           -email => 'abelew@gmail.com',
+                                           -db => 'genome',
+                                           -term => $most_species,
+                                           -usehistory => 'y',);
+    my $count = $factory->get_count;
+    my @search_ids = $factory->get_ids();
+    print $out "The id: @search_ids has ${count} hits at entrez.\n";
+
+    $factory = Bio::DB::EUtilities->new(-eutil => 'esummary',
+                                        -email => 'abelew@gmail.com',
+                                        -db => 'genome',
+                                        -id => $search_ids[0],
+                                        -usehistory => 'y',);
+    ## We got a document containing the likely accession, now pull it out and
+    ## figure out what to download
+    my $accession = undef;
+    while (my $docsum = $factory->next_DocSum) {
+        while (my $item = $docsum->next_Item) {
+            my $item_name = $item->get_name();
+            if ($item_name eq 'Assembly_Accession') {
+                $accession = $item->get_content();
+                print $out "The likely accession at NCBI is: ${accession}.\n";
+            }
+        }
+    }
+
+    ## Check to see if we already downloaded this accession.
+    my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
+    if (-f $downloaded_file) {
+        print $out "The assembly has already been downloaded to: ${downloaded_file}.\n";
+        ## return(%species_observed);
+    }
+
+    print $out "Downloading assembly to: ${downloaded_file}.\n";
+    ## If this assembly has not already been downloaded, get it.
+    my $mech = WWW::Mechanize->new(autocheck => 1);
+    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
+    print $out "Searching ${url} for appropriate download links.\n";
+
+    my $data = $mech->get($url);
+    my @links = $mech->find_all_links(
+        tag => "a", text_regex => qr/FTP/i );
+  LINKS: foreach my $l (@links) {
+      my ($url, $title) = @{$l};
+      if ($title eq 'FTP directory for GenBank assembly') {
+          my $followed = $mech->follow_link(url => $url);
+          my @final = $mech->find_all_links(
+              tag => 'a', text_regex => qr/gbff.gz$/i);
+          print $out "Final download link: $final[0][0].\n";
+          my $final_followed = $mech->follow_link(url => $final[0][0]);
+          my $output = FileHandle->new(">${downloaded_file}");
+          my $printed = $mech->response->content();
+          print $output $printed;
+          $output->close();
+          last LINKS;
+      }
+  } ## End looking at links hopefully containing an assembly.
+
+
+    ## Convert the assembly to fasta/gff/etc.
+    print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
+    my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
+    use Data::Dumper;
+    print Dumper $converted;
+    print $out "Immediately indexing the new genome.\n";
+    my $temp_cyoa = Bio::Adventure->new(cluster => 0);
+    my $indexed = $temp_cyoa->Bio::Adventure::Map::HT2_Index(input => $converted->{fasta_out});
+    ## Check to see if there is a text file containing the putative host species
+    ## If it does not exist, write it with the species name.
+    if (-f 'host_species.txt') {
+        print $out "The host_species.txt file already exists.\n";
+    } else {
+        print $out "Writing a new host_species.txt file with: ${accession}.\n";
+        my $host = FileHandle->new(">host_species.txt");
+        print $host $accession;
+        $host->close();
+    }
+
+    return(%species_observed);
+}
+
 
 =head2 C<Classify_Phage>
 

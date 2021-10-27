@@ -271,6 +271,25 @@ sub Phage_Assemble {
         jprefix => $prefix,);
     sleep(1);
 
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nClassifying sequences with Kraken2 using the standard database.\n";
+    my $kraken_std = $class->Bio::Adventure::Annotation::Kraken(
+        jdepends => $correct->{job_id},
+        input => $correct->{output},
+        jprefix => $prefix,
+        jname => 'krakenstd',
+        library => 'standard',);
+    sleep(1);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nCollecting likely host assemblies.\n";
+    my $filter_kraken = $class->Bio::Adventure::Phage::Filter_Host_Kraken(
+        jdepends => $kraken_std->{job_id},
+        input => $kraken_std->{output},
+        jprefix => $prefix,
+        jname => 'krakenfilter',);
+    sleep(1);
+
     ## Take a moment and get the host species for sequence filtering
     my $host_species = $options->{host_species};
     if (-r "host_species.txt") {
@@ -284,7 +303,7 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting filter with hisat2.\n";
     my $filter = $class->Bio::Adventure::Map::Hisat2(
-        jdepends => $correct->{job_id},
+        jdepends => $filter_kraken->{job_id},
         input => $correct->{output},
         jprefix => $prefix,
         do_htseq => 0,
@@ -303,16 +322,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'kraken',
         library => 'viral',);
-    sleep(1);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nClassifying sequences with Kraken2 using the standard database.\n";
-    my $kraken_std = $class->Bio::Adventure::Annotation::Kraken(
-        jdepends => $filter->{job_id},
-        input => $filtered_reads,
-        jprefix => $prefix,
-        jname => 'krakenstd',
-        library => 'standard',);
     sleep(1);
 
     $prefix = sprintf("%02d", ($prefix + 1));

@@ -303,6 +303,66 @@ sub Kraken {
     return($kraken);
 }
 
+=head2 C<Kraken_Accession>
+
+Read the kraken_report.txt to extract the lowest common ancestor which has the most reads.
+In order to get the taxonomy ID while doing this, we will need to read
+the kraken output file which contains the status of each read; then
+extract the third column and find out which taxon (except 0) which
+has the most reads.  Once we have that taxonomy ID, we can go to
+
+
+=cut
+sub Kraken_Best_Hit {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'viral',
+        jprefix => '11',
+        modules => ['kraken'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('kraken2');
+    die("Could not find kraken2 in your PATH.") unless($check);
+    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
+    my $job_name = $class->Get_Job_Name();
+    my $input_directory = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}kraken_$options->{library}";
+    make_path($output_dir);
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" --paired <(less $in[0]) <(less $in[1]) ";
+    } else {
+        $input_string = qq"<(less $options->{input}) ";
+    }
+    my $comment = qq!## This is a kraken2 submission script
+!;
+    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
+  --report ${output_dir}/kraken_report.txt --use-mpa-style \\
+  --use-names ${input_string} \\
+  --classified-out ${output_dir}/classified#.fastq.gz \\
+  --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
+  2>${output_dir}/kraken.out 1>&2
+!;
+    my $kraken = $class->Submit(
+        cpus => 6,
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => "kraken_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 96,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        jqueue => 'large',
+        modules => $options->{modules},
+        output => qq"${output_dir}/kraken_report.txt",);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($kraken);
+}
+
 =head2 C<Merge_Annotations>
 
 Pull a series of annotation data sources into a single table of data.

@@ -20,6 +20,71 @@ $hpgl->Prepare(csv => 'all_samples.csv');
 
 =head1 Methods
 
+=head2 C<Download_NCBI_Accession>
+
+Given an accession, get the fasta/genbank/etc file.
+
+=cut
+sub Download_NCBI_Accession {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jprefix => '11',);
+    my $job_name = $class->Get_Job_Name();
+    ## Make an array of the accession(s)
+    my $unique = [$options->{input}, ];
+
+    my $eutil = Bio::DB::EUtilities->new(-eutil => 'esummary',
+                                         -email => 'abelew@gmail.com',
+                                         -db => 'nucleotide',
+                                         -id => $unique,);
+
+    while (my $docsum = $eutil->next_DocSum) {
+        my $acc_version = '';
+        my $accession = '';
+      ITEMS: while (my $item = $docsum->next_Item) {
+          my $item_name = $item->get_name;
+          if ($item_name eq 'AccessionVersion') {
+              $acc_version = $item->get_content();
+          } elsif ($item_name eq 'Caption') {
+              $accession = $item->get_content();
+          } else {
+              next ITEMS;
+          }
+      } ## End checking the document summary
+
+        ## Now check if we already have this file
+        if (-r qq"${acc_version}.gb") {
+            print "Already have: ${acc_version}.gb\n";
+      } else {
+          print "Downloading ${accession}\n";
+          my $download = Bio::DB::EUtilities->new(-eutil => 'efetch',
+                                                  -db => 'nucleotide',
+                                                  -rettype => 'gb',
+                                                  -email => 'abelew@umd.edu',
+                                                  -id => $accession,);
+          my $output_file = qq"${acc_version}.gb";
+          $download->get_Response(-file => $output_file);
+          sleep(1);
+
+          my @current_files = glob(qq"${acc_version}*");
+          my ($first_acc, $first_ver, $first_ext);
+          my ($second_acc, $second_ver, $second_ext);
+          if (scalar(@current_files) > 1) {
+              ($first_acc, $first_ver, $first_ext) = split(/\./, $current_files[0]);
+              ($second_acc, $second_ver, $second_ext) = split(/\./, $current_files[1]);
+              if ($first_ver > $second_ver) {
+                  unlink($current_files[1]);
+              } else {
+                  unlink($current_files[0]);
+              }
+          }
+      } ## Finished checking if we already have this accession
+    } ## Finished iterating over every phage ID
+
+}
+
 =head2 C<Fastq_Dump>
 
 Invoke fastq_dump to download some data from sra.

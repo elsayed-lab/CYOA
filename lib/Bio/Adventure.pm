@@ -744,6 +744,17 @@ sub Get_Menus {
                 '(indexsalmon): Create salmon indexes.' => \&Bio::Adventure::Map::Salmon_Index,
             },
         },
+        Phage => {
+            name => 'phage',
+            message => '',
+            choices => {
+                '(filterkraken): Filter out host sequences using a kraken report.' => \&Bio::Adventure::Phage::Filter_Host_Kraken,
+                '(classifyphage): Use ICTV data to classify a phage assembly.' => \&Bio::Adventure::Phage::Classify_Phage,
+                '(phageterm): Invoke phageterm to search for terminal repeats.' => \&Bio::Adventure::Annotation::Phageterm,
+                '(phastaf): Search for phage regions in arbitrary assemblies.' => \&Bio::Adventure::Phage::Phastaf,
+                '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
+            },
+        },
         Phylogeny => {
             name => 'phylogeny',
             message => '',

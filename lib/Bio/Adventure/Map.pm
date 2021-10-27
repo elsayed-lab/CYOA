@@ -1193,6 +1193,7 @@ sub HT2_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        modules => ['hisat2'],
         jprefix => '21',);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
