@@ -80,26 +80,21 @@ use Bio::Adventure::Visualization;
     everything may be called directly in perl.
 
     use Bio::Adventure;
-    my $hpgl = new Bio::Adventure;
+    my $hpgl = Bio::Adventure->new(cluster => 0);  ## Force it to run locally.
     $hpgl->{species} = 'mmusculus';  ## There had better be a mmusculus.[fasta&gff] in $hpgl->{libdir}
-    my $hpgl = new Bio::Adventure(species => 'scerevisiae', libdir => '/home/bob/libraries');
-    $hpgl->{input} = 'test.fastq';  ## Also via with script.pl --input=test.fastq
+    my $hpgl = Bio::Adventure->new(species => 'scerevisiae', libdir => '/home/bob/libraries');
+    $hpgl->{input} = 'test.fastq';  ## Also via with cyoa --input=test.fastq
 
     ## Run Fastqc on untrimmed sequence.
     my $bp = $hpgl->Fastqc()
     ## Generates test-trimmed.fastq from test.fastq
     my $trim = $hpgl->Trimomatic();
-    ## Graph statistics from test-trimmed.fastq
-    my $bp = $hpgl->Biopieces_Graph(jdepends => $trim->{pbs_id});
-    ## Run bowtie1, convert the output to sorted/indexed bam, and run htseq-count against mmusculus
-    ## bowtie1 outputs go (by default) into bowtie_out/
-    my $bt = $hpgl->Bowtie();
-    ## Run htseq-count with a different gff file, use 'mRNA' as the 3rd column of the gff, and 'locus_tag' as the identifier in the last column.
-    my $ht = $hpgl->HTSeq(jdepends => $bt->{pbs_id}, input => $bt->{output}, htseq_gff => 'other.gff', htseq_type => 'mRNA', htseq_identifier => 'locus_tag'
-    ## Run tophat
-    my $tp = $hpgl->TopHat(jdepends => $trim->{pbs_id});
-    ## or BWA
-    my $bw = $hpgl->BWA(jdepends => $trim->{pbs_id});
+
+    Conversely, just run 'cyoa' from the command line and follow the prompts and/or provide
+    all the parameters with the appropriate command line options:
+
+    > cyoa --task map --method hisat --species hg38_100 --input r1-trimmed.fastq.xz:r2-trimmed.fastq.xz
+    > cyoa --task align --method blast --library nr --input transcripts.fasta
 
 =head1 DESCRIPTION
 
@@ -107,7 +102,10 @@ use Bio::Adventure::Visualization;
     submit them to the appropriate computing cluster.  It should also
     collect the outputs and clean up the mess.
 
-=head2 Methods
+=head2 Options
+
+  The options for cyoa are all defined in Adventure.pm, but usually have preferred domains,
+  the most likely purpose for each parameter follows:
 
 =over 4
 
@@ -132,25 +130,24 @@ use Bio::Adventure::Visualization;
 
 =item C<Cluster Specific Options>
 
+  cluster - Use a computing cluster or just invoke scripts one at a time?
   jdepends - A string describing the set of dependencies for a job.
   jname - A machine-readable name for each job.
   jprefix - A prefix number for each job, to make reading successions easier.
   jstring - The string comprising the actual job to be run.
   job_id - The job ID returned by Torque/Slurm for a job.
+  jmem - Memory in Gb to request from the cluster.
+  jwalltime - Amount of walltime to request from the cluster. (10:00:00)
   queue_array_string - When running an array of jobs, this holds the requisite formatted string.
   language - Choose if the cluster options should be appropriate for a shell or perl script. (bash)
-  pbs - Use a computing cluster or just invoke scripts one at a time?
   qsub_args - Default arguments when using torque. (-j oe -V -m n)
   sbatch_depends - Dependency string on a slurm cluster. (afterok:)
   sbatch_dependsarray - Dependency string on a slurm for array jobs. (afterok:)
   qsub_depends - Dependency string on a torque cluster. (depend=afterok:)
   qsub_dependsarray - Dependency string on a torque cluster for array jobs. (depend=afterokarray:)
-  loghost - Host to send logs for torque. (localhost)
-  mem - Memory in Gb to request from the cluster. (6)
   queue - Default qos/queue to send jobs. (workstation)
   queues - Set of available queues. (throughput, workstation, long, large)
   shell - Default shell to request when using torque/slurm. (/usr/bin/bash)
-  wall - Amount of walltime to request from the cluster. (10:00:00)
 
 =item C<Alignment Arguments>
 
@@ -179,7 +176,8 @@ use Bio::Adventure::Visualization;
 
 =item C<Counting Arguments>
 
-  htseq_args - Some default arguments for htseq. (--order=name --idattr=gene_id --minaqual=10 --type exon --stranded=yes --mode=union)
+  htseq_args - Some default arguments for htseq. (--order=name --idattr=gene_id --minaqual=10
+     --type exon --stranded=yes --mode=union)
   htseq_stranded - Use htseq in stranded mode? (no)
   htseq_type - Which gff type (3rd column) to use in htseq? (exon)
   htseq_id - Which gff ID (tag in the last column) to use in htseq? (gene_id)
@@ -192,6 +190,8 @@ use Bio::Adventure::Visualization;
   bamfile - Where to put output bam data?  Used in a few places.
   feature_type - Primarily used when looking at gff files, ergo htseq and converting gff to other formats.
   taxid - Used for making gaf files.
+  species - When converting from sam->bam, use this to pull the appropriate genome fasta file.
+  paired - Explicitly set whether a sam file is from paired data and therefore filter unpaired reads.
 
 =item C<Preparation Arguments>
 

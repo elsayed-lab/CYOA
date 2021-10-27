@@ -27,15 +27,33 @@ $hpgl->Bowtie();
 
 Perform a bowtie alignment.  Unless instructed otherwise, it will do so with 0
 mismatches and with multi-matches randomly placed 1 time among the
-possibilities. (options -v 0 -M 1)
+possibilities (options -v 0 -M 1).  It will then convert the resulting sam alignment
+to a sorted-compressed-indexed bam, count it with htseq-count, compress the various
+output fastq files, and collect a few alignment statistics.
 
-It checks to see if a bowtie1 compatible index is in
-$libdir/$libtype/indexes/$species, if not it attempts to create
-them.
+This requires the arguments: 'input' and 'species'.  The input is likely a
+colon-separated pair of (compressed)fastq files.  The species will be used
+to look for bowtie indexes in ${libdir}/${libtype}/indexes/${species}.
 
-It will continue on to convert the bowtie sam output to a compressed, sorted,
-indexed bam file, and pass that to htseq-count using a gff file of the same
-species.
+The argument bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location)
+defines the mismatch and multimatch parameters; I
+pre-defined a few likely option sets for these rather important options.
+
+The count(1: e.g. yes) argument defines whether htseq-count will be performed.
+
+libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
+index to search against.
+
+htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
+the third column of a gff file.
+
+htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+other species follow their own arbitrary rules) defines the ID type for htseq-count. These
+are the tags in the last column of a gff file.
+
+jprefix(10): Used all over the place to define the prefix job number.
+
+modules(bowtie1)
 
 =cut
 sub Bowtie {
@@ -50,7 +68,7 @@ sub Bowtie {
         htseq_type => 'gene',
         htseq_id => 'ID',
         jprefix => '10',
-        modules => ['bowtie1', 'samtools', 'htseq'],);
+        modules => ['bowtie1'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bowtie-build');
     die('Could not find bowtie in your PATH.') unless($check);
@@ -207,8 +225,7 @@ bowtie \\
     }  ## End if ($count)
 
     my $stats = $class->Bio::Adventure::Map::BT1_Stats(
-        %args,
-        bt_input => $error_file,
+        input => $error_file,
         bt_type => $bt_type,
         count_table => $bt_job->{htseq}->[0]->{output},
         jdepends => $bt_job->{job_id},
@@ -224,17 +241,34 @@ bowtie \\
 
 =head2 C<Bowtie2>
 
-Perform a bowtie2 alignment.  Unless instructed otherwise, it will do so with 0
-mismatches and with multi-matches randomly placed 1 time among the
-possibilities. (options -v 0 -M 1)
+Perform a bowtie2 alignment.  This is pretty much a twin to the Bowtie function above
+with the obvious caveat that it uses bowtie2. It converts the resulting sam alignment
+to a sorted-compressed-indexed bam, count it with htseq-count, compress the various
+output fastq files, and collect a few alignment statistics.
 
-It checks to see if a bowtie2 compatible index is in
-$libdir/$libtype/indexes/$species, if not it attempts to create
-them.
+This requires the arguments: 'input' and 'species'.  The input is likely a
+colon-separated pair of (compressed)fastq files.  The species will be used
+to look for bowtie indexes in ${libdir}/${libtype}/indexes/${species}.
 
-It will continue on to convert the bowtie sam output to a
-compressed, sorted, indexed bam file, and pass that to htseq-count
-using a gff file of the same species.
+The argument bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location)
+defines the mismatch and multimatch parameters; I
+pre-defined a few likely option sets for these rather important options.
+
+The count(1: e.g. yes) argument defines whether htseq-count will be performed.
+
+libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
+index to search against.
+
+htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
+the third column of a gff file.
+
+htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+other species follow their own arbitrary rules) defines the ID type for htseq-count. These
+are the tags in the last column of a gff file.
+
+jprefix(10)
+
+modules(bowtie2)
 
 =cut
 sub Bowtie2 {
@@ -244,12 +278,12 @@ sub Bowtie2 {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],
-        do_htseq => 1,
+        count => 1,
         htseq_type => 'gene',
         htseq_id => 'ID',
         jmem => 28,
         jprefix => 20,
-        modules => ['bowtie']);
+        modules => ['bowtie2']);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -364,7 +398,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $stats = $class->Bio::Adventure::Map::BT2_Stats(
-        bt_input => $error_file,
+        input => $error_file,
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
         jname => "bt2st_${suffix_name}",
@@ -380,7 +414,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     $bt2_job->{samtools} = $sam_job;
     my $htseq_input = $sam_job->{output};
     my $htmulti;
-    if ($options->{do_htseq}) {
+    if ($options->{count}) {
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_input => $sam_job->{output},
@@ -409,24 +443,19 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
 
 =head2 C<Bowtie_RRNA>
 
-Perform an alignment against a home-curated set of ribosomal RNA/tRNA sequences.
-The alignment requires a fastq input library and fasta library found in
-'libraries/rRNA/$class->{species}.fasta'
-
-Example:
-  my $rrna = $hpgl->Bowtie_RRNA();
-  ## If you want to exclude the rRNA sequences from future alignments:
-  my $rrna = $hpgl->Bowtie_RRNA(exclude => 1);
+This function is probably extraneous at this point.  It simply calls Bowtie()
+with the libtype set to 'rRNA' in order to get it to look for ribosomal reads
+instead of the default, genomic reads.
 
 =cut
 sub Bowtie_RRNA {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        exclude => 0,
         required => ["species"],);
     my $job_name = qq"rRNA_$options->{jbasename}";
-    my $exclude = 0;
-    $exclude = $options->{exclude} if ($options->{exclude});
+    $exclude = $options->{exclude};
     my $species = $options->{species};
     my ${bt_dir} = qq"outputs/bowtie_$options->{species}";
     my $job = $class->Bio::Adventure::Map::Bowtie(
@@ -435,24 +464,26 @@ sub Bowtie_RRNA {
         libtype => 'rRNA',
         prescript => $args{prescript},
         postscript => $args{postscript},);
-    ## Return the basename back to normal so that future tasks don't
-    ## get confuseled.
     return($job);
 }
 
 =head2 C<BT_Multi>
 
 Attempts to run multiple bowtie1 runs for a given species.  One run is performed
-for each of a few parameters which are kept in the variable '$hpgl->{bt_types}'
+for each of a few parameter sets which are kept in the global 'bt_args' variable.
 and generally include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
 hit, 0 randomly placed hits, or default options.
+
+This should either be removed or modified to work more generally with other tools.
 
 =cut
 sub BT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "input", "htseq_type"],);
+        htseq_type => 'gene',
+        htseq_id => 'ID',
+        required => ['species', 'input'],);
     my $bt_input = $options->{input};
     my $species = $options->{species};
     my %bt_types = %{$options->{bt_args}};
@@ -479,22 +510,34 @@ sub BT_Multi {
 
 =head2 C<BT1_Index>
 
-Create a bowtie1 index using $hpgl->{species}.fasta and leaves it in the
-indexes/ directory.
+Create a bowtie1 index.
+
+This requires an 'input' argument.  This is a fasta file which will be used
+to write indexes in the libdir/libtype/indexes directory.  It assumes that the
+input fasta file is named in a way which is human-readable as the species.
+
+Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
+be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
+'lmajor_v46'.
+
+This also uses less(1) to send an uncompressed copy of the input file to
+libdir/libtype/species.fasta.
 
 =cut
 sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input']);
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
+        required => ['input'],
+        modules => ['bowtie1'],);
+    my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
+    $species = basename($species, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
+        my $copied = qx"less $options->{input} > ${copied_location}";
     }
 
-        my $jstring = qq!bowtie-build $options->{input} \\
+    my $jstring = qq!bowtie-build $options->{input} \\
   $options->{libdir}/$options->{libtype}/indexes/${species}
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
@@ -511,8 +554,18 @@ sub BT1_Index {
 
 =head2 C<BT2_Index>
 
-Create a bowtie2 index using ${species}.fasta and leaves it in the indexes/
-directory.
+Create a bowtie2 index.
+
+This requires an 'input' argument.  This is a fasta file which will be used
+to write indexes in the libdir/libtype/indexes directory.  It assumes that the
+input fasta file is named in a way which is human-readable as the species.
+
+Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
+be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
+'lmajor_v46'.
+
+This also uses less(1) to send an uncompressed copy of the input file to
+libdir/libtype/species.fasta.
 
 =cut
 sub BT2_Index {
@@ -523,13 +576,13 @@ sub BT2_Index {
         modules => ['bowtie2'],);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
+    $species = basename($species, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
+        my $copied = qx"less $options->{input} > ${copied_location}";
     }
-    my $jstring = qq!
-bowtie2-build $options->{input} \\
+    my $jstring = qq!bowtie2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species}
 !;
     my $comment = qq!## Generating bowtie2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
@@ -549,12 +602,20 @@ bowtie2-build $options->{input} \\
 
 Collect some alignment statistics from bowtie1.
 
+This uses a little creative grepping in order to extract information out of the STDERR file
+from bowtie, which happens to contain messages with the number of reads mapped etc.  The authors
+of bowtie2/tophat/hisat2/etc all continued to write error logs with similar messages, so this
+function is essentially the template for gathering statistics from all of those tools.
+
+It requires the 'input' argument, which is the bowtie error file.
+
 =cut
 sub BT1_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
-        args => \%args);
-    my $bt_input = $options->{bt_input};
+        args => \%args
+        required => ['input']);
+    my $bt_input = $options->{input};
     my $bt_type = "";
     $bt_type = $options->{bt_type} if ($options->{bt_type});
     my $jname = "stats";
@@ -600,13 +661,14 @@ echo "\$stat_string" >> ${stat_output}!;
 
 =head2 C<BT2_Stats>
 
-Collects alignment statistics from bowtie 2.
+Collects alignment statistics from bowtie2.  It is mostly a copy/paste from BT1_Stats().
 
 =cut
 sub BT2_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $bt_input = $options->{bt_input};
+    my $options = $class->Get_Vars(args => \%args,
+        required => ['input']);
+    my $bt_input = $options->{input};
     my $bt_type = $options->{bt_type};
     my $jname = "bt2_stats";
     $jname = $options->{jname} if ($options->{jname});
@@ -650,14 +712,37 @@ Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
 converts the output (when appropriate) to sorted/indexed bam and passes them to
 htseq.
 
+This requires the arguments: 'input' and 'species'.  The input is likely a
+colon-separated pair of (compressed)fastq files.  The species will be used
+to look for bwa indexes in ${libdir}/${libtype}/indexes/${species}.
+
+The count(1: e.g. yes) argument defines whether htseq-count will be performed.
+
+libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
+index to search against.
+
+htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
+the third column of a gff file.
+
+htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+other species follow their own arbitrary rules) defines the ID type for htseq-count. These
+are the tags in the last column of a gff file.
+
+jprefix(30)
+
+modules(bowtie1)
+
 =cut
 sub BWA {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        count => 1,
         species => 'lmajor',
         libtype => 'genome',
+        htseq_type => 'gene',
+        htseq_id => 'ID',
         jprefix => 30,
         modules => ['bwa'],);
     my $check = which('bwa');
@@ -829,25 +914,26 @@ bwa aln ${aln_args} \\
         jprefix => $options->{jprefix} + 4,);
     $bwa_job->{samtools_aln} = $aln_sam_job;
 
-    my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-        htseq_id => $options->{htseq_id},
-        input => $mem_sam_job->{output},
-        htseq_type => $options->{htseq_type},
-        jdepends => $mem_sam_job->{job_id},
-        jname => "htmem_${jname}",
-        jprefix => $options->{jprefix} + 5,
-        mapper => 'bwa',);
-    $bwa_job->{htseq_mem} = $mem_htmulti;
-
-    my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-        htseq_id => $options->{htseq_id},
-        input => $aln_sam_job->{output},
-        htseq_type => $options->{htseq_type},
-        jdepends => $aln_sam_job->{job_id},
-        jname => "htaln_${jname}",
-        jprefix => $options->{jprefix} + 6,
-        mapper => 'bwa',);
-    $bwa_job->{htseq_aln} = $aln_htmulti;
+    if ($options->{count}) {
+        my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
+            htseq_id => $options->{htseq_id},
+            input => $mem_sam_job->{output},
+            htseq_type => $options->{htseq_type},
+            jdepends => $mem_sam_job->{job_id},
+            jname => "htmem_${jname}",
+            jprefix => $options->{jprefix} + 5,
+            mapper => 'bwa',);
+        $bwa_job->{htseq_mem} = $mem_htmulti;
+        my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
+            htseq_id => $options->{htseq_id},
+            input => $aln_sam_job->{output},
+            htseq_type => $options->{htseq_type},
+            jdepends => $aln_sam_job->{job_id},
+            jname => "htaln_${jname}",
+            jprefix => $options->{jprefix} + 6,
+            mapper => 'bwa',);
+        $bwa_job->{htseq_aln} = $aln_htmulti;
+    }
 
     my $bwa_stats = $class->Bio::Adventure::Map::BWA_Stats(
         jdepends => $mem_sam_job->{job_id},
@@ -962,7 +1048,7 @@ sub Hisat2 {
         required => ['species', 'input',],
         htseq_type => 'gene',
         htseq_id => 'ID',
-        do_htseq => 1,
+        count => 1,
         jprefix => '40',
         libtype => 'genome',
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
@@ -1140,7 +1226,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         $htseq_input = $sam_job->{output};
     }
     my $htmulti;
-    if ($options->{do_htseq}) {
+    if ($options->{count}) {
         if ($options->{libtype} eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_id => $options->{htseq_id},

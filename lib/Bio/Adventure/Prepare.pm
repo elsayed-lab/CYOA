@@ -22,7 +22,14 @@ $hpgl->Prepare(csv => 'all_samples.csv');
 
 =head2 C<Download_NCBI_Accession>
 
-Given an accession, get the fasta/genbank/etc file.
+Given an accession, download the fasta/genbank/etc file.
+
+This function expects an input argument which is the NCBI accession.
+It currently expects to find that accession in the nucleotide database
+(which should be made a parameter).
+
+A somewhat different implementation of this exists in Phage.pm where it
+is used to download an assembly.
 
 =cut
 sub Download_NCBI_Accession {
@@ -82,12 +89,14 @@ sub Download_NCBI_Accession {
           }
       } ## Finished checking if we already have this accession
     } ## Finished iterating over every phage ID
-
 }
 
 =head2 C<Fastq_Dump>
 
 Invoke fastq_dump to download some data from sra.
+
+This expects an input argument which is the individual sample accession.
+In its current form it will dump fastq files as paired reads.
 
 =cut
 sub Fastq_Dump {
@@ -95,6 +104,7 @@ sub Fastq_Dump {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        modules => ['sra',],
         output => undef);
 
     my $fastq_comment = qq"## This script should download an sra accession to local fastq.gz files.
@@ -153,19 +163,20 @@ sub Fastq_Dump {
 
 =head2 C<Read_Samples>
 
-Read the sample csv file.
+This function currently has no real use-case.  It should be merged with the
+xlsx reader/writer which is used by the assembly annotation merger in order
+to provide a more flexible system for dealing with sample sheets/etc.
+
+With that in mind, this will dump an input csv file to a 2d hash and
+return that hash.
 
 =cut
 sub Read_Samples {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['csv_file']);
-    if (!-r $options->{csv_file}) {
-        print "Unable to find $options->{csv_file}.\n";
-        die();
-    }
-    my $fh = new FileHandle("<$options->{csv_file}");
+        required => ['input']);
+    my $fh = new FileHandle("<$options->{input}");
     my $csv = Text::CSV->new({binary => 1});
     my $row_count = 0;
     my @headers = ();
