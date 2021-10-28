@@ -402,7 +402,10 @@ sub Jellyfish {
     my @job_array = ();
     if (scalar(@kmer_array) > 1) {
         for my $k (@kmer_array) {
-            my $job = $class->Bio::Adventure::Count::Jellyfish(%args, length => $k);
+            my $job = $class->Bio::Adventure::Count::Jellyfish(
+                %args,
+                input => $options->{input},
+                length => $k);
             push(@job_array, $job);
         }
         return(@job_array);
@@ -411,7 +414,7 @@ sub Jellyfish {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('jellyfish');
     die('Could not find jellyfish in your PATH.') unless($check);
-
+    print "TESTME: $options->{input}\n";
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -423,9 +426,8 @@ sub Jellyfish {
     my $histogram_file = qq"${jelly_base}.hist";
     my $count_fasta = qq"${jelly_base}_by_count.fasta";
     my $matrix_file = qq"${jelly_base}_matrix.csv";
-    my $comment = qq"## Invoke jellyfish on some sequence!\n";
-    my $jstring = qq!
-mkdir -p ${output_dir}
+    my $comment = qq"## Invoke jellyfish on some sequence!";
+    my $jstring = qq!mkdir -p ${output_dir}
 jellyfish count -m $options->{length} \\
   -o ${count_file} \\
   -s 50000 -t 4 \\
@@ -439,7 +441,7 @@ jellyfish dump ${count_file} > ${count_fasta}
         cpus => $options->{cpus},
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "jelly_${job_name}",
+        jname => qq"jelly_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 12,
@@ -473,7 +475,7 @@ use Bio::Adventure::Phage;
         comment => $comment,
         input => $count_fasta,
         jdepends => $jelly->{job_id},
-        jname => 'jelly_matrix',
+        jname => qq"jelly_matrix_$options->{length}",
         jprefix => $new_prefix,
         jstring => $jstring,
         output => $matrix_file,
@@ -485,10 +487,15 @@ use Bio::Adventure::Phage;
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compress the jellyfish output files.",
         jdepends => $matrix_job->{job_id},
-        jname => 'xzjelly',
+        jname => qq"xzjelly_$options->{length}",
         jprefix => $options->{jprefix} + 1,
         input => $compress_files,);
     $jelly->{compression} = $comp;
+    $jelly->{output} = qq"${matrix_file}.xz";
+    $jelly->{count_file} = qq"${count_file}.xz";
+    $jelly->{info_file} = qq"${info_file}.xz";
+    $jelly->{histogram_file} = qq"${histogram_file}.xz";
+    $jelly->{count_fasta} = qq"${count_fasta}.xz";
     return($jelly);
 }
 
@@ -530,6 +537,7 @@ sub Jellyfish_Matrix {
 
     my $out = FileHandle->new(">$options->{output}");
     foreach my $k (sort keys %{$counts}) {
+        print "TESTME: $k $counts->{$k}\n";
         print $out "$k\t$counts->{$k}\n";
     }
     $out->close();

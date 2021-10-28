@@ -455,7 +455,7 @@ sub Bowtie_RRNA {
         exclude => 0,
         required => ["species"],);
     my $job_name = qq"rRNA_$options->{jbasename}";
-    $exclude = $options->{exclude};
+    my $exclude = $options->{exclude};
     my $species = $options->{species};
     my ${bt_dir} = qq"outputs/bowtie_$options->{species}";
     my $job = $class->Bio::Adventure::Map::Bowtie(
@@ -613,7 +613,7 @@ It requires the 'input' argument, which is the bowtie error file.
 sub BT1_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
-        args => \%args
+        args => \%args,
         required => ['input']);
     my $bt_input = $options->{input};
     my $bt_type = "";
