@@ -124,7 +124,7 @@ sub Bowtie {
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $options = $class->Set_Vars(bt1_indexjobs => 1);
         my $genome_input = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-        $index_job = $class->Bio::Adventure::Map::BT1_Index(
+        $index_job = $class->Bio::Adventure::Index::BT1_Index(
             input => $genome_input,
             jdepends => $options->{jdepends},
             jprefix => $current_prefix,
@@ -224,7 +224,7 @@ bowtie \\
         }
     }  ## End if ($count)
 
-    my $stats = $class->Bio::Adventure::Map::BT1_Stats(
+    my $stats = $class->Bio::Adventure::Metadata::BT1_Stats(
         input => $error_file,
         bt_type => $bt_type,
         count_table => $bt_job->{htseq}->[0]->{output},
@@ -341,7 +341,7 @@ sub Bowtie2 {
         print "Hey! The Indexes do not appear to exist, check this out: ${bt_reftest}\n";
         sleep(20);
         my $genome_input = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-        $index_job = $class->Bio::Adventure::Map::BT2_Index(
+        $index_job = $class->Bio::Adventure::Index::BT2_Index(
             input => $genome_input,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
@@ -397,7 +397,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
 
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
-    my $stats = $class->Bio::Adventure::Map::BT2_Stats(
+    my $stats = $class->Bio::Adventure::Metadata::BT2_Stats(
         input => $error_file,
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
@@ -508,204 +508,6 @@ sub BT_Multi {
     return($job);
 }
 
-=head2 C<BT1_Index>
-
-Create a bowtie1 index.
-
-This requires an 'input' argument.  This is a fasta file which will be used
-to write indexes in the libdir/libtype/indexes directory.  It assumes that the
-input fasta file is named in a way which is human-readable as the species.
-
-Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
-be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
-'lmajor_v46'.
-
-This also uses less(1) to send an uncompressed copy of the input file to
-libdir/libtype/species.fasta.
-
-=cut
-sub BT1_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['bowtie1'],);
-    my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
-    $species = basename($species, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        my $copied = qx"less $options->{input} > ${copied_location}";
-    }
-
-    my $jstring = qq!bowtie-build $options->{input} \\
-  $options->{libdir}/$options->{libtype}/indexes/${species}
-!;
-    my $comment = qq!## Generating bowtie1 indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
-    my $bt1_index = $class->Submit(
-        comment => $comment,
-        jname => qq"bt1idx_${species}",
-        jdepends => $options->{jdepends},
-        jstring => $jstring,
-        jprefix => '10',
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($bt1_index);
-}
-
-=head2 C<BT2_Index>
-
-Create a bowtie2 index.
-
-This requires an 'input' argument.  This is a fasta file which will be used
-to write indexes in the libdir/libtype/indexes directory.  It assumes that the
-input fasta file is named in a way which is human-readable as the species.
-
-Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
-be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
-'lmajor_v46'.
-
-This also uses less(1) to send an uncompressed copy of the input file to
-libdir/libtype/species.fasta.
-
-=cut
-sub BT2_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['bowtie2'],);
-    my $libtype = $options->{libtype};
-    my $libdir = File::Spec->rel2abs($options->{libdir});
-    my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
-    $species = basename($species, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        my $copied = qx"less $options->{input} > ${copied_location}";
-    }
-    my $jstring = qq!bowtie2-build $options->{input} \\
-  $options->{libdir}/${libtype}/indexes/${species}
-!;
-    my $comment = qq!## Generating bowtie2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
-    my $indexer = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jname => "bt2idx_${species}",
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($indexer);
-}
-
-=head2 C<BT1_Stats>
-
-Collect some alignment statistics from bowtie1.
-
-This uses a little creative grepping in order to extract information out of the STDERR file
-from bowtie, which happens to contain messages with the number of reads mapped etc.  The authors
-of bowtie2/tophat/hisat2/etc all continued to write error logs with similar messages, so this
-function is essentially the template for gathering statistics from all of those tools.
-
-It requires the 'input' argument, which is the bowtie error file.
-
-=cut
-sub BT1_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input']);
-    my $bt_input = $options->{input};
-    my $bt_type = "";
-    $bt_type = $options->{bt_type} if ($options->{bt_type});
-    my $jname = "stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
-    $count_table = $options->{count_table} if ($options->{count_table});
-    my $stat_output = qq"outputs/bowtie_stats.csv";
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $jstring = qq!
-if [ \! -r "${stat_output}" ]; then
-  echo "name,type,original_reads,reads,one_hits,failed,samples,rpm,count_table" > ${stat_output}
-fi
-original_reads=0
-if [ -r "outputs/trimomatic_stats.csv" ]; then
-  original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
-  original_reads=\${original_reads_tmp:-0}
-fi
-reads_tmp=\$(grep "^# reads processed" ${bt_input} | awk -F: '{print \$2}' | sed 's/ //g')
-reads=\${reads_tmp:-0}
-one_align_tmp=\$(grep "^# reads with at least one reported" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
-one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep "^# reads that failed to align" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
-failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep "^# reads with alignments sampled" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
-sampled=\${sampled_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
-echo "\$stat_string" >> ${stat_output}!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        input => $bt_input,
-        jdepends => $options->{jdepends},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        cpus => 1,
-        jmem => 1,
-        jqueue => 'throughput',);
-    return($stats);
-}
-
-=head2 C<BT2_Stats>
-
-Collects alignment statistics from bowtie2.  It is mostly a copy/paste from BT1_Stats().
-
-=cut
-sub BT2_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
-        required => ['input']);
-    my $bt_input = $options->{input};
-    my $bt_type = $options->{bt_type};
-    my $jname = "bt2_stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
-    $count_table = $options->{count_table} if ($options->{count_table});
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $output = "outputs/bowtie2_stats.csv";
-    my $jstring = qq!
-if [ \! -e "${output}" ]; then
-    echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
-fi
-original_reads_tmp=\$(grep " reads; of these" "${bt_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
-original_reads=\${original_reads_tmp:-0}
-one_align_tmp=\$(grep " aligned exactly 1 time" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
-one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep " aligned 0 times" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
-failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep " aligned >1 times" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
-sampled=\${sampled_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},${bt_type},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
-echo "\$stat_string" >> ${output}!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        input => $bt_input,
-        jname => $jname,
-        jdepends => $options->{jdepends},
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        cpus => 1,
-        jmem => 1,
-        jqueue => 'throughput',);
-    return($stats);
-}
-
 =head2 C<BWA>
 
 Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
@@ -795,7 +597,7 @@ sub BWA {
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     my $index_job;
     if (!-r $bwa_reftest) {
-        $index_job = $class->Bio::Adventure::Map::BWA_Index(
+        $index_job = $class->Bio::Adventure::Index::BWA_Index(
             input => $bwa_reflib,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
@@ -935,7 +737,7 @@ bwa aln ${aln_args} \\
         $bwa_job->{htseq_aln} = $aln_htmulti;
     }
 
-    my $bwa_stats = $class->Bio::Adventure::Map::BWA_Stats(
+    my $bwa_stats = $class->Bio::Adventure::Metadata::BWA_Stats(
         jdepends => $mem_sam_job->{job_id},
         jname => 'bwastats',
         jprefix => $options->{jprefix} + 7,
@@ -944,96 +746,6 @@ bwa aln ${aln_args} \\
     $bwa_job->{stats} = $bwa_stats;
 
     return($bwa_job);
-}
-
-=head2 C<BWA_Index>
-
-Create bwa indexes.
-
-=cut
-sub BWA_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['bwa'],);
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fa";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-    my $jstring = qq!
-start=\$(pwd)
-cd $options->{libdir}/$options->{libtype}/indexes
-ln -sf ../${species}.fa .
-bwa index ${species}.fa \\
-  2>bwa_index.err \\
-  1>bwa_index.out
-cd \$start
-!;
-    my $comment = qq!## Generating bwa indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
-    my $bwa_index = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jname => "bwaidx",
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($bwa_index);
-}
-
-=head2 C<BWA_Stats>
-
-Collect some alignment statistics from bwa.
-
-=cut
-sub BWA_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $aln_input = $options->{aln_output};
-    $aln_input = qq"${aln_input}.stats";
-    my $mem_input = $options->{mem_output};
-    $mem_input = qq"${mem_input}.stats";
-    my $stat_output = qq"outputs/bwa_stats.csv";
-
-    my $jname = "bwa_stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
-    $count_table = $options->{count_table} if ($options->{count_table});
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $jstring = qq!
-if [ \! -r "${stat_output}" ]; then
-    echo "# original reads, reads used, aln-aligned reads, mem-aligned reads, rpm" > ${stat_output}
-fi
-original_reads=0
-if [ -r "outputs/trimomatic_stats.csv" ]; then
-    original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
-    original_reads=\${original_reads_tmp:-0}
-fi
-reads_tmp=\$(grep "^Total reads: " ${aln_input} | awk '{print \$3}' | sed 's/ //g')
-reads=\${reads_tmp:-0}
-aln_aligned_tmp=\$(grep "^Mapped reads" ${aln_input} | awk '{print \$3}' | sed 's/ .*//g')
-aln_aligned=\${aln_aligned_tmp:-0}
-mem_aligned_tmp=\$(grep "^Mapped reads" ${mem_input} | awk '{print \$3}' | sed 's/ .*//g')
-mem_aligned=\${mem_aligned_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aln_aligned}" "\${mem_aligned}" "\$rpm")
-echo "\${stat_string}" >> ${stat_output}!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        input => $aln_input,
-        depends => $options->{jdepends},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        cpus => 1,
-        jmem => 1,
-        jqueue => "throughput",);
-    return($stats);
 }
 
 =head2 C<Hisat2>
@@ -1117,7 +829,7 @@ sub Hisat2 {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
         my $genome_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-        my $index_job = $class->Bio::Adventure::Map::HT2_Index(
+        my $index_job = $class->Bio::Adventure::Index::HT2_Index(
             input => $genome_fasta,
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},
@@ -1253,7 +965,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         $hisat_job->{htseq} = $htmulti;
     }  ## End checking if we should do htseq
 
-    my $stats = $class->Bio::Adventure::Map::HT2_Stats(
+    my $stats = $class->Bio::Adventure::Metadata::HT2_Stats(
         ht_input => $error_file,
         count_table => $hisat_job->{htseq}->[0]->{output},
         jdepends => $hisat_job->{job_id},
@@ -1266,90 +978,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     ## samtools/htseq/etc are finished.
     $hisat_job->{job_id} = $stats->{job_id};
     return($hisat_job);
-}
-
-=head2 C<HT2_Index>
-
-Create a hisat2 index using ${species}.fasta and leaves it in the indexes/
-directory.
-
-=cut
-sub HT2_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['hisat2'],
-        jprefix => '21',);
-    my $libtype = $options->{libtype};
-    my $libdir = File::Spec->rel2abs($options->{libdir});
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-    my $jstring = qq!
-hisat2-build $options->{input} \\
-  $options->{libdir}/${libtype}/indexes/${species}
-!;
-    my $comment = qq!## Generating hisat2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
-    my $indexer = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jname => qq"ht2idx_${species}",
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($indexer);
-}
-
-=head2 C<HT2_Stats>
-
-Collect alignment statistics from hisat 2.
-
-=cut
-sub HT2_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        output_dir => 'outputs',);
-    my $ht_input = $options->{ht_input};
-    my $jname = "ht2_stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
-    $count_table = $options->{count_table} if ($options->{count_table});
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $output = "$options->{output_dir}/hisat2_stats.csv";
-    my $jstring = qq!
-if [ \! -e "${output}" ]; then
-    echo "id, original reads, single hits, failed reads, multi-hits, rpm" > ${output}
-fi
-original_reads_tmp=\$(grep " reads; of these" "${ht_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
-original_reads=\${original_reads_tmp:-0}
-one_align_tmp=\$(grep " aligned exactly 1 time" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
-one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep " aligned 0 times" "${ht_input}" | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
-failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep " aligned >1 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
-sampled=\${sampled_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
-echo "\$stat_string" >> ${output}!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        input => $ht_input,
-        jname => $jname,
-        jdepends => $options->{jdepends},
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        output => $output,
-        cpus => 1,
-        jmem => 1,
-        jqueue => 'throughput',);
-    return($stats);
 }
 
 =head2 C<Kallisto>
@@ -1411,7 +1039,7 @@ sub Kallisto {
     my $index_job;
     if (!-r $ka_reflib) {
         my $transcriptome_fasta = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
-        $index_job = $class->Bio::Adventure::Map::Kallisto_Index(
+        $index_job = $class->Bio::Adventure::Index::Kallisto_Index(
             input => $transcriptome_fasta,
             jdepends => $options->{jdepends},
             libtype => $libtype,);
@@ -1471,45 +1099,6 @@ kallisto quant ${ka_args} \\
     return($kallisto);
 }
 
-=head2 C<Kallisto_Index
-
-Use kallisto and an annotated_CDS fasta sequence library to create an index.
-
-=cut
-sub Kallisto_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        modules => ['kallisto'],
-        jprefix => '45',
-        required => ['input'],);
-    my $cds = basename($options->{input}, ('.fasta', '.fa'));
-    my $species = $cds;
-    $species =~ s/_cds//g;
-    $species =~ s/_nt//g;
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-    my $libtype = $options->{libtype};
-    my $input = File::Spec->rel2abs($options->{input});
-    my $jstring = qq!
-kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
-  ${input}
-!;
-    my $comment = qq!## Generating kallisto indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
-    my $ka_index = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jstring => $jstring,
-        jname => "kalidx",
-        jprefix => $options->{jprefix},
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($ka_index);
-}
-
 =head2 C<RSEM>
 
 Invoke RSEM.
@@ -1548,7 +1137,7 @@ sub RSEM {
         unless (-r $cds) {
             die("RSEM_Index requires a cds fasta file at: ${cds}, create it with a cyoa2 conversion.");
         }
-        $index_job = $class->Bio::Adventure::Map::RSEM_Index(
+        $index_job = $class->Bio::Adventure::Index::RSEM_Index(
             input => $cds,
             index => $idx,
             jdepends => $options->{jdepends},
@@ -1594,41 +1183,6 @@ sub RSEM {
         postscript => $options->{postscript},);
     $rsem->{index_job} = $index_job;
     return($rsem);
-}
-
-=item C<RSEM_Index
-
-Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
-
-=cut
-sub RSEM_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['rsem', 'bowtie2']);
-
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
-    $species =~ s/_cds//g;
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-
-    my $comment = qq"## RSEM Index creation.";
-    my $jstring = qq!
-rsem-prepare-reference --bowtie2 $options->{input} ${species}
-!;
-    my $jobid = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jstring => $jstring,
-        jname => "rsemidx",
-        jprefix => $options->{jprefix},
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($jobid);
 }
 
 =head2 C<Salmon>
@@ -1686,7 +1240,7 @@ sub Salmon {
     my $index_job;
     if (!-r $sa_reflib) {
         my $transcript_file = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
-        $index_job = $class->Bio::Adventure::Map::Salmon_Index(
+        $index_job = $class->Bio::Adventure::Index::Salmon_Index(
             input => $transcript_file,
             depends => $options->{jdepends},
             libtype => $libtype,);
@@ -1720,135 +1274,13 @@ salmon quant -i ${sa_reflib} \\
         postscript => $args{postscript},);
     $salmon->{index_job} = $index_job;
 
-    my $stats = $class->Bio::Adventure::Map::Salmon_Stats(
+    my $stats = $class->Bio::Adventure::Metadata::Salmon_Stats(
         input => qq"${outdir}/lib_format_counts.json",
         jdepends => $salmon->{job_id},
         jname => "sastats_$options->{species}",
         jprefix => "33",);
     $salmon->{stats} = $stats;
     return($salmon);
-}
-
-=head2 C<Salmon_Index>
-
-Invoke salmon with an annotated_CDS fasta sequence library to create a
-transcript index.  Note that newer version of salmon would like a set
-of decoys, which may be performed in a couple of ways, the second of
-which I am copy/pasting from the documentation.
-
-The second is to use the entire genome of the organism as the decoy
-sequence. This can be done by concatenating the genome to the end of
-the transcriptome you want to index and populating the decoys.txt
-file with the chromosome names. Detailed instructions on how to
-prepare this type of decoy sequence is available here. This scheme
-provides a more comprehensive set of decoys, but, obviously, requires
-considerably more memory to build the index
-
-=cut
-sub Salmon_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        modules => ['salmon'],);
-    my $libtype = $options->{libtype};
-    my $genome = File::Spec->rel2abs($options->{input});
-
-    my $cds = basename($options->{input}, ('.fasta', '.fa'));
-    my $cds_dir = dirname($options->{input});
-    my $species = $cds;
-    ## Drop the suffixes which might be annoying.
-    $species =~ s/_cds//g;
-    $species =~ s/_nt//g;
-    my $species_file = qq"${cds_dir}/${species}.fasta";
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
-    my $species_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-    my $decoy_copy_string = qq'';
-    my $jstring = qq'';
-    my $index_input = $options->{input};
-    my $index_string = qq!
-salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
-    if (-f $species_location or -f $species_file) {
-        if (!-f $species_location) {
-            cp($species_file, $species_location);
-        }
-        my $decoy_location = qq"$options->{libdir}/${libtype}/${species}_decoys.fasta";
-        $decoy_copy_string = qq!less $options->{input} > ${decoy_location} && less ${species_file} >> ${decoy_location}
-less ${species_file} | grep '^>' | sed 's/^>//g' > ${decoy_location}.txt
-!;
-        $index_input = $decoy_location;
-        $index_string = qq!
-salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
-        $jstring = qq!${decoy_copy_string}
-${index_string} --decoys ${decoy_location}.txt
-!;
-    } else {
-        warn("This function would prefer to make a decoy aware index set which requires the full genome.");
-        say("Waiting 10 seconds to see if you want to quit and gather that genome,
-otherwise a decoy-less index will be generated.");
-        sleep(10);
-    }
-
-    my $comment = qq!## Generating salmon indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
-    my $jobid = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jstring => $jstring,
-        jname => "salidx_${species}",
-        jmem => 24,
-        jprefix => "15",
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
-    return($jobid);
-}
-
-=head2 C<Salmon_Stats>
-
-Collect some summary statistics from a salmon run.
-
-=cut
-sub Salmon_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $jname = "stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $outdir = dirname($options->{input});
-    my $output = qq"${outdir}/salmon_stats.csv";
-    my $comment = qq"## This is a stupidly simple job to collect salmon alignment statistics.";
-    my $jstring = qq!
-if [ \! -r "${output}" ]; then
-  echo "basename,species,fragments,assigned,consistent,inconsistent,bias" > ${output}
-fi
-reads_tmp=\$(grep "num_compatible" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
-reads=\${reads_tmp:-0}
-aligned_tmp=\$(grep "num_assigned" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
-aligned=\${aligned_tmp:-0}
-consistent_tmp=\$(grep "concordant" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
-consistent=\${consistent_tmp:-0}
-inconsistent_tmp=\$(grep "inconsistent" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
-inconsistent=\${inconsistent_tmp:-0}
-bias_tmp=\$(grep "mapping_bias" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
-bias=\${bias_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
-echo "\$stat_string" >> "${output}"!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        cpus => 1,
-        input => $options->{input},
-        jname => $jname,
-        jdepends => $options->{jdepends},
-        jprefix => $args{jprefix},
-        jstring => $jstring,
-        jmem => 1,
-        jqueue => 'throughput',
-        output => $output,);
-    return($stats);
 }
 
 =head2 C<STAR>
@@ -1902,7 +1334,7 @@ sub STAR {
     my $index_job;
     if (!-r $star_reflib) {
         my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
-        $index_job = $class->Bio::Adventure::Map::STAR_Index(
+        $index_job = $class->Bio::Adventure::Index::STAR_Index(
             input => $genome_file,
             jdepends => $options->{jdepends},
             libtype => $libtype,);
@@ -1956,49 +1388,6 @@ STAR \\
         jqueue => 'large',);
     $star_job->{index_job} = $index_job;
     return($star_job);
-}
-
-=head2 C<STAR_Index>
-
-Create indexes appropriate for STAR.
-
-=cut
-sub STAR_Index {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input',],
-        modules => ['star'],);
-    my $comment = qq"## STAR Index creation.";
-    my $libtype = 'genome';
-    $libtype = $options->{libtype} if ($options->{libtype});
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
-    }
-    my $star_refdir = "$options->{libdir}/${libtype}/indexes/${species}_star_index";
-    my $jstring = qq!
-STAR \\
-  --runMode genomeGenerate \\
-  --runThreadN 12 \\
-  --genomeDir ${star_refdir} \\
-  --genomeFastaFiles $options->{libdir}/${libtype}/${species}.fasta \\
-  --sjdbGTFfile $options->{libdir}/${libtype}/${species}.gtf \\
-  --limitGenomeGenerateRAM 160000000000
-!;
-    my $jobid = $class->Submit(
-        comment => $comment,
-        jdepends => $options->{depends},
-        jstring => $jstring,
-        jname => "staridx",
-        jprefix => $options->{jprefix},
-        jmem => 180,
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'xlarge',);
-    return($jobid);
 }
 
 =head2 C<Tophat>
@@ -2067,7 +1456,7 @@ sub Tophat {
     if (!-r $bt_reftest) {
         print "Did not find the index for $options->{species} at: ${bt_reflib}, indexing now.\n";
         my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
-        $index_job = $class->Bio::Adventure::Map::BT2_Index(
+        $index_job = $class->Bio::Adventure::Index::BT2_Index(
             input => $genome_file,
             jdepends => $options->{jdepends},);
         $options->{jdepends} = $index_job->{job_id};
@@ -2164,7 +1553,7 @@ fi
     $unaccepted =~ s/accepted_hits/unmapped/g;
     my $input_read_info = $accepted;
     $input_read_info =~ s/accepted_hits\.bam/prep_reads\.info/g;
-    my $stats = $class->Bio::Adventure::Map::Tophat_Stats(
+    my $stats = $class->Bio::Adventure::Metadata::Tophat_Stats(
         accepted_input => $accepted,
         count_table => qq"${count_table}.xz",
         jdepends => $tophat->{job_id},
@@ -2174,64 +1563,6 @@ fi
         unaccepted_input => $unaccepted,);
     $tophat->{stats} = $stats;
     return($tophat);
-}
-
-=head2 C<Tophat_Stats>
-
-Collect alignment statistics from the accepted_hits.bam/unaligned.bam files
-generated by a tophat run.
-
-=cut
-sub Tophat_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
-    my $accepted_input = $options->{accepted_input};
-    my $accepted_output = qq"${accepted_input}.stats";
-    my $unaccepted_input = $options->{unaccepted_input};
-    my $unaccepted_output = qq"${unaccepted_input}.stats";
-    my $read_info = $options->{prep_input};
-    my $jname = "stats";
-    $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
-    $count_table = $options->{count_table} if ($options->{count_table});
-    my $output = "outputs/tophat_stats.csv";
-    my $comment = qq!## This is a stupidly simple job to collect tophat alignment statistics.!;
-    my $jstring = qq!
-if [ \! -r "${output}" ]; then
-  echo "basename,species,original_reads,aligned_reads,failed_reads,rpm,count_table" > ${output}
-fi
-bamtools stats < "${accepted_input}" \\
-    2>${accepted_output} 1>&2 && \\
-  bamtools stats < "${unaccepted_input}" \\
-    2>${unaccepted_output} 1>&2
-
-original_reads=0
-if [ -r "outputs/trimomatic_stats.csv" ]; then
-  original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
-  original_reads=\${original_reads_tmp:-0}
-fi
-reads_tmp=\$(grep "^reads_in " ${read_info} | awk -F= '{print \$2}' | sed 's/ //g')
-reads=\${reads_tmp:-0}
-aligned_tmp=\$(grep "^Total reads" ${accepted_output} | awk '{print \$3}' | sed 's/ .*//g')
-aligned=\${aligned_tmp:-0}
-failed_tmp=\$(grep "^Total reads" ${unaccepted_output} | awk '{print \$3}' | sed 's/ .*//g')
-failed=\${failed_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},$options->{species},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aligned}" "\${failed}" "\$rpm")
-echo "\$stat_string" >> "${output}"!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        cpus => 1,
-        input => $accepted_input,
-        jname => $jname,
-        jdepends => $options->{jdepends},
-        jprefix => $args{jprefix},
-        jstring => $jstring,
-        jmem => 1,
-        jqueue => 'throughput',);
-    return($stats);
 }
 
 =back

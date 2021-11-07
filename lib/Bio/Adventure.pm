@@ -45,13 +45,16 @@ use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 use Bio::Adventure::Align_Fasta;
 use Bio::Adventure::Annotation;
+use Bio::Adventure::Annotation_Genbank;
 use Bio::Adventure::Assembly;
 use Bio::Adventure::Cleanup;
 use Bio::Adventure::Count;
 use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
+use Bio::Adventure::Index;
 use Bio::Adventure::Local;
 use Bio::Adventure::Map;
+use Bio::Adventure::Metadata;
 use Bio::Adventure::Phage;
 use Bio::Adventure::Phylogeny;
 use Bio::Adventure::Pipeline;
@@ -256,13 +259,13 @@ has bt_marg => (is => 'rw', default => '-M 0');
 has bt_larg => (is => 'rw', default => '-y -l 15');
 has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favorite bowtie2 arguments
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
-has classifier_input => (is => 'rw', default => 'outputs/18classifier/ictv_filtered.tsv'); ## Similar taxa detected by tblastx
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
 has config => (is => 'rw', default => undef); ## Not sure
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has cpus => (is => 'rw', default => 4); ## Number of processors to request in jobs
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
+has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
@@ -270,7 +273,6 @@ has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 progra
 has filtered => (is => 'rw', default => 'unfiltered');  ## Whether or not Fastqc is running on filtered data.
 has fsa_input => (is => 'rw'); ## fsa genome output file for creating a genbank file
 has gcode => (is => 'rw', default => '11'); ## Choose a genetic code
-has genbank_input => (is => 'rw', default => undef); ## Existing genbank file for merging annotations.
 has genome => (is => 'rw', default => undef); ## Choose a genome to work on.
 has genus => (is => 'rw', default => undef); ## Choose a genus when using prokka and potentially others like kraken
 has gff => (is => 'rw', default => undef); ## Feature file to read/write
@@ -288,8 +290,15 @@ has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing ind
 has index_hash => (is => 'rw', default => undef);
 has input => (is => 'rw', default => undef); ## Generic input argument
 has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
+has input_classifier => (is => 'rw', default => 'outputs/18classifier/ictv_filtered.tsv'); ## Similar taxa detected by tblastx
+has input_genbank => (is => 'rw', default => undef); ## Existing genbank file for merging annotations.
+has input_glimmer => (is => 'rw', default => 'outputs/16glimmer/glimmer.predict');
+has input_interpro => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
+has input_phageterm => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
+has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
+has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
+has trinotate_input => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07watson_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
-has interpro_input => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
 has jbasename => (is => 'rw', default => undef); ## Job basename
@@ -326,8 +335,8 @@ has orientation => (is => 'rw', default => 'start'); ## Default orientation when
 has outgroup => (is => 'rw', default => undef); ## Outgroup for phylogenetic tools
 has output => (is => 'rw', default => undef); ## Generic output argument
 has outdir => (is => 'rw', default => undef);
+has overlap => (is => 'rw', default => 20);
 has paired => (is => 'rw', default => 0); ## Is the input paired?
-has phageterm_input => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.
 has prescript => (is => 'rw', default => undef); ## String to put before a cluster job.
@@ -335,7 +344,6 @@ has primary_key => (is => 'rw', default => 'locus_tag'); ## Choose a keytype for
 has product_columns => (is => 'rw', default => 'trinity_sprot_Top_BLASTX_hit,inter_Pfam,inter_TIGRFAM'); ## When merging annotations, choose the favorites when upgrading an annotation to 'product'
 has product_transmembrane => (is => 'rw', default => 'inter_TMHMM'); ## Column containing transmembrane domain data when upgrading annotations to 'product'
 has product_signal => (is => 'rw', default => 'inter_signalp'); ## Column containing signal peptide domain data when upgrading annotations to 'product'
-has prokka_tsv_input => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
 has protocol => (is => 'rw', default => 'Sassetti'); ## TNSeq protocol for TPP
 has pval => (is => 'rw', default => undef); ## Pvalue cutoffs.
 has qsub_args => (is => 'rw', default => '-j oe -V -m n'); ## What arguments will be passed to qsub by default?
@@ -368,7 +376,7 @@ has ta_offset => (is => 'rw', default => 0); ## When counting TAs, this is eithe
 has task => (is => 'rw', default => undef);
 has taxid => (is => 'rw', default => '353153'); ## Default taxonomy ID, unknown for now.
 has test_file => (is => 'rw', default => 'direct-term-repeasts.fasta'); ## There are a few places where testing for the existence of a test file is useful.
-has trinotate_input => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07watson_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
+has threshold => (is => 'rw', default => 0.05); ## A second cutoff value (looking at you, glimmer.)
 has type => (is => 'rw', default => undef); ## Possibly superceded by htseq_type
 has varfilter => (is => 'rw', default => 1); ## use a varfilter when performing variant searches.
 has verbose => (is => 'rw', default => 0); ## Print extra information while running?
@@ -418,6 +426,13 @@ sub Help {
     return(0);
 }
 
+=head2 C<BUILD>
+
+This is the main CYOA constructor.  It takes up the variables at the
+top of Adventure.pm along with any arguments pulled in from @ARGV and
+incorporates them into the class.
+
+=cut
 sub BUILD {
     my ($class, $args) = @_;
     ## There are a few default variables which we cannot fill in with MOO defaults.
@@ -530,7 +545,12 @@ sub BUILD {
     return $args;
 }
 
+=head2 C<Get_Paths>
 
+Given a file/directory name, provide a set of paths which will
+hopefully prove useful for the various functions in CYOA.
+
+=cut
 sub Get_Paths {
     my ($class, @inputs) = @_;
     my %ret = ();
@@ -637,7 +657,12 @@ sub Get_Basename {
     return($in1);
 }
 
+=head2 C<Get_Menus>
 
+This is responsible for printing out the cyoa menus and connecting the
+various options to the functions in the package.
+
+=cut
 sub Get_Menus {
     my $menus = {
         Alignment => {
@@ -662,6 +687,7 @@ sub Get_Menus {
                 '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
+                '(glimmersingle): Use glimmer to search for ORFs without training.' => \&Bio::Adventure::Annotation::Glimmer_Single,
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
@@ -673,7 +699,7 @@ sub Get_Menus {
                 '(rgi): Search for resistance genes with genecards and peptide fasta input.' => \&Bio::Adventure::Resistance::Rgi,
                 '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Annotation::tRNAScan,
                 '(trainprodigal): Train prodgial using sequences from a species/strain.' => \&Bio::Adventure::Annotation::Train_Prodigal,
-                '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk,
+                '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk,
             },
         },
         Assembly => {
@@ -682,7 +708,6 @@ sub Get_Menus {
             choices => {
                 '(abyss): Run abyss to create a new assembly.' => \&Bio::Adventure::Assembly::Abyss,
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
-                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(filterdepth): Filter contigs based on sequencing depth.' => \&Bio::Adventure::Assembly::Filter_Depth,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
@@ -734,13 +759,20 @@ sub Get_Menus {
                 '(rrnabowtie): Map rRNA reads using bowtie1.' => \&Bio::Adventure::Map::Bowtie_RRNA,
                 '(rsem): Quantify reads using rsem.' => \&Bio::Adventure::Map::RSEM,
                 '(tophat): Map reads using tophat2 and count with htseq.' => \&Bio::Adventure::Map::Tophat,
-                '(indexbt1): Create bowtie1 compatible indexes.' => \&Bio::Adventure::Map::BT1_Index,
-                '(indexbt2): Create bowtie2 compatible indexes.' => \&Bio::Adventure::Map::BT2_Index,
-                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Map::HT2_Index,
-                '(indexbwa): Create bwa compatible indexes.' => \&Bio::Adventure::Map::BWA_Index,
-                '(indexkallisto): Create kallisto compatible indexes.' => \&Bio::Adventure::Map::Kallisto_Index,
-                '(indexrsem): Create rsem indexes.' => \&Bio::Adventure::Map::RSEM_Index,
-                '(indexsalmon): Create salmon indexes.' => \&Bio::Adventure::Map::Salmon_Index,
+            },
+        },
+        Indexers => {
+            name => 'index',
+            message => '',
+            choices => {
+                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Index::Extend_Kraken_DB,
+                '(indexbt1): Create bowtie1 compatible indexes.' => \&Bio::Adventure::Index::BT1_Index,
+                '(indexbt2): Create bowtie2 compatible indexes.' => \&Bio::Adventure::Index::BT2_Index,
+                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Index::HT2_Index,
+                '(indexbwa): Create bwa compatible indexes.' => \&Bio::Adventure::Index::BWA_Index,
+                '(indexkallisto): Create kallisto compatible indexes.' => \&Bio::Adventure::Index::Kallisto_Index,
+                '(indexrsem): Create rsem indexes.' => \&Bio::Adventure::Index::RSEM_Index,
+                '(indexsalmon): Create salmon indexes.' => \&Bio::Adventure::Index::Salmon_Index,
             },
         },
         Phage => {
@@ -864,6 +896,11 @@ sub Get_Menus {
     return($menus);
 }
 
+=head2 C<Get_Job_Name>
+
+This attempts to make a reasonable job name given a filename or cwd().
+
+=cut
 sub Get_Job_Name {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -880,6 +917,12 @@ sub Get_Job_Name {
     return($name);
 }
 
+=head2 C<Get_TODOs>
+
+The keys of possible_todos provide the GetOpt::Long options required
+to figure out if the user is requesting the various functions.
+
+=cut
 sub Get_TODOs {
     my %args = @_;
     my $todo_list = ();
@@ -919,6 +962,7 @@ sub Get_TODOs {
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},
+        "glimmersingle+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer_Single'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
         "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
@@ -937,9 +981,10 @@ sub Get_TODOs {
         "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
         "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
-        "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annotations'},
+        "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annotations'},
+        "mergecds+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
-        "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Merge_Annot_Prodigal'},
+        "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annot_Prodigal'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
         "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
@@ -1253,6 +1298,9 @@ sub Get_Vars {
 
   $options = $class->Set_Vars(exclude => 'bob');
 
+This function is likely no longer needed because of the way
+Get_Options now handles the options hash.
+
 =cut
 sub Set_Vars {
     my ($class, %args) = @_;
@@ -1290,7 +1338,11 @@ sub Last_Stat {
     return($last);
 }
 
+=head2 C<Module_Loader>
 
+This loads environment-modules into the current ENV.
+
+=cut
 sub Module_Loader {
     my ($class, %args) = @_;
     my $action = 'load';
@@ -1335,10 +1387,9 @@ sub Module_Loader {
     return($count);
 }
 
-
 =item C<Read_Genome_Fasta>
 
-    Read a fasta file and return the chromosomes.
+Read a fasta file and return the chromosomes.
 
 =cut
 sub Read_Genome_Fasta {
@@ -1379,7 +1430,7 @@ sub Read_Genome_Fasta {
 
 =item C<Read_Genome_GFF>
 
-    Read a GFF file and extract the annotation information from it.
+Read a GFF file and extract the annotation information from it.
 
 =cut
 sub Read_Genome_GFF {
@@ -1474,6 +1525,13 @@ sub Read_Genome_GFF {
     return($gff_out);
 }
 
+=head2 C<Reorder_Fasta>
+
+Some tools which pass back a set of chromosomes do not always return
+them in the most sensible order.  This attempts to fix that, and make
+them prettier.
+
+=cut
 sub Reorder_Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
@@ -1491,6 +1549,13 @@ $end
     $out->close();
 }
 
+=head2 C<Submit>
+
+Pass a job to slurm or torque after doing a little sanity checking.  I
+am increasinbly certain that keeping a copy of the options in a .pdata
+file is not needed.
+
+=cut
 sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(

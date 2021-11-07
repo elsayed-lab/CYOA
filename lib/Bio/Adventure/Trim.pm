@@ -365,7 +365,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $new_prefix = qq"$options->{jprefix}_1";
-    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
+    my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jprefix => $new_prefix,
@@ -443,7 +443,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    my $trim_stats = $class->Bio::Adventure::Trim::Trimomatic_Stats(
+    my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
         jname => "trst_${job_name}",
@@ -452,76 +452,6 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
     );
     $trim->{stats} = $trim_stats;
     return($trim);
-}
-
-=head2 C<Trimomatic_Stats>
-
-Collect the trimming statistics from the output file 'trimomatic.out' and report
-them in a .csv file by library.
-
-=cut
-sub Trimomatic_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        output_dir => 'outputs',
-    );
-    ## Dereferencing the options to keep a safe copy.
-    my $basename = $options->{basename};
-    my $input_file = "$options->{output_dir}/${basename}-trimomatic.out";
-    my $jname = 'trimst';
-    $jname = $options->{jname} if ($options->{jname});
-    my $comment = qq!## This is a stupidly simple job to collect trimomatic statistics!;
-    my $stat_output = qq"$options->{output_dir}/trimomatic_stats.csv";
-    my $jstring = qq!
-if [ \! -r ${stat_output} ]; then
-  echo "total_reads,surviving_reads,dropped_reads" > ${stat_output}
-fi
-total_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$3}')
-total_reads=\${total_reads_tmp:-0}
-surviving_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$5}')
-surviving_reads=\${surviving_reads_tmp:-0}
-dropped_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$8}')
-dropped_reads=\${dropped_reads_tmp:-0}
-
-stat_string=\$(printf "${basename},%s,%s,%s" "\${total_reads}" "\${surviving_reads}" "\${dropped_reads}")
-echo "\$stat_string" >> ${stat_output}
-!;
-    if ($options->{pairwise}) {
-        ## The output looks a bit different for pairwise input:
-        ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
-        $jstring = qq!
-if [ \! -r ${stat_output} ]; then
-  echo "total_reads,surviving_both,surviving_forward,surviving_reverse,dropped_reads" > ${stat_output}
-fi
-total_reads_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$4}')
-total_reads=\${total_reads_tmp:-0}
-surviving_both_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$7}')
-surviving_both=\${surviving_both_tmp:-0}
-surviving_forward_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$12}')
-surviving_forward=\${surviving_forward_tmp:-0}
-surviving_reverse_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$17}')
-surviving_reverse=\${surviving_reverse_tmp:-0}
-dropped_reads_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$20}')
-dropped_reads=\${dropped_reads_tmp:-0}
-
-stat_string=\$(printf "${basename},%s,%s,%s,%s,%s" "\${total_reads}" "\${surviving_both}" "\${surviving_forward}" "\${surviving_reverse}" "\${dropped_reads}")
-echo "\$stat_string" >> ${stat_output}
-!;
-    }
-    my $stats = $class->Submit(
-        comment => $comment,
-        cpus => 1,
-        input => $input_file,
-        jdepends => $options->{jdepends},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        jmem => 1,
-        jqueue => 'throughput',
-        jwalltime => '00:10:00',
-        output => $stat_output,);
-    return($stats);
 }
 
 =head1 AUTHOR - atb

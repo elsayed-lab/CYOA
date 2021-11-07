@@ -253,7 +253,7 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
         output => qq"$options->{jprefix}fastqc.html",);
     $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $newname = qq"fqcstats_${job_name}_$input_paths->{dirname}";
-    my $fqc_stats = $class->Bio::Adventure::QA::Fastqc_Stats(
+    my $fqc_stats = $class->Bio::Adventure::Metadata::Fastqc_Stats(
         input => $final_output,
         jdepends => $fqc->{job_id},
         jname => $jname,
@@ -262,77 +262,6 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($fqc);
-}
-
-=head2 C<Fastqc_Stats>
-
-Collect some information from the fastqc output files and present them in a
-simple-to-read csv file.
-
-=cut
-sub Fastqc_Stats {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        jname => 'fqcst',
-        paired => 1,);
-    ## Dereferencing the options to keep a safe copy.
-    my $jname = $options->{jname};
-    ## Dereferencing the options to keep a safe copy.
-    my $input_file = qq"$options->{input}/fastqc_data.txt";
-    if ($options->{paired}) {
-        $input_file = qq"$options->{input}/fastqc_data.txt";
-    }
-    my $stat_output = qq"outputs/fastqc_stats.csv";
-    if ($options->{direction}) {
-        $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
-        $jname = qq"$options->{jname}_$options->{direction}";
-    }
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $jstring = qq!
-if [ \! -r "${stat_output}" ]; then
-  echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
-fi
-total_reads_tmp=\$(grep "^Total Sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
-total_reads=\${total_reads_tmp:-0}
-poor_quality_tmp=\$(grep "^Sequences flagged as poor quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
-poor_quality=\${poor_quality_tmp:-0}
-per_quality_tmp=\$(grep "Per base sequence quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
-per_quality=\${per_quality_tmp:-0}
-per_base_content_tmp=\$(grep "Per base sequence content" ${input_file} | awk -F '\\\\t' '{print \$2}')
-per_base_content=\${per_base_content_tmp:-0}
-per_sequence_gc_tmp=\$(grep "Per sequence GC content" ${input_file} | awk -F '\\\\t' '{print \$2}')
-per_sequence_gc=\${per_sequence_gc_tmp:-0}
-per_base_n_tmp=\$(grep "Per base N content" ${input_file} | awk -F '\\\\t' '{print \$2}')
-per_base_n=\${per_base_n_tmp:-0}
-per_seq_length_tmp=\$(grep "Sequence Length Distribution" ${input_file} | awk -F '\\\\t' '{print \$2}')
-per_seq_length=\${per_seq_length_tmp:-0}
-over_rep_tmp=\$(grep "Overrepresented sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
-over_rep=\${over_rep_tmp:-0}
-adapter_content_tmp=\$(grep "Adapter Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
-adapter_content=\${adapter_content_tmp:-0}
-kmer_content_tmp=\$(grep "Kmer Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
-kmer_content=\${kmer_content_tmp:-0}
-
-stat_string=\$(printf "$options->{jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
-echo "\$stat_string" >> ${stat_output}
-!;
-    my $stats = $class->Submit(
-        comment => $comment,
-        cpus => 1,
-        input => $input_file,
-        jdepends => $options->{jdepends},
-        jmem => 1,
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jqueue => 'throughput',
-        jstring => $jstring,
-        jwalltime => '00:1:00',
-        output => qq"${stat_output}",);
-    ## Added to return the state of the system to what it was
-    ## before we messed with the options.
-    return($stats);
 }
 
 =head1 AUTHOR - atb

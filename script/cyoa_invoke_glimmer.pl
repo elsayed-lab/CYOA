@@ -25,7 +25,7 @@ use Bio::Adventure;
 ## Here is a shell script which basically performs everything:
 
 =head1 EXAMPLE
- 
+
 mkdir -p outputs/glimmer
 long-orfs -n -t 1.15 outputs/shovill_r1_trimmed-corrected/contigs.fa outputs/glimmer/first_run_longorfs.txt
 extract outputs/shovill_r1_trimmed-corrected/contigs.fa outputs/glimmer/first_run_longorfs.txt \
@@ -48,7 +48,7 @@ upstream-coords.awk 25 0 outputs/glimmer/first_run.out.predict | extract outputs
   outputs/glimmer/second_run_upstream.txt
 elph outputs/glimmer/second_run_upstream.txt LEN=6 2>outputs/glimmer/elph.err | \
     get-motif-counts.awk 2>outputs/glimmer/second_run_motif.txt 1>&2
-                                                                          
+
 startuse=$(start-codon-distrib -3 outputs/shovill_r1_trimmed-corrected/contigs.fa outputs/glimmer/first_run.out.predict)
 glimmer3 -o50 -g110 -t30 -b outputs/glimmer/second_run_motif.txt -P ${startuse} \
   outputs/shovill_r1_trimmed-corrected/contigs.fa outputs/glimmer/second_run.icm \
@@ -225,7 +225,7 @@ sub Invoke_Longorfs {
     my $argstring = qq" -n -t ${t} $args{input} ${longorfs_outfile} ";
     my $stdout_err = $longorfs_outfile;
     $stdout_err =~ s/\.txt$/.out/g;
-    
+
     my $shell_fh = FileHandle->new;
     print "Longorfs: About to run: ${program} ${argstring}\n";
     my $longorfs_stdout = FileHandle->new(">${stdout_err}");
@@ -256,7 +256,7 @@ sub Invoke_Extract {
     my $stderr_file = qq"$args{outdir}/$args{run}_$args{name}.stderr";
     my $outstring = qq" 1>${stdout_file} 2>${stderr_file}";
     my $argstring = qq" ${extract_args} $args{input} $args{long_orfs} ${outstring}";
-    
+
     my $shell_fh = FileHandle->new;
     print "Extract: About to run: ${program} ${argstring}\n";
     my $shell_pid = open($shell_fh, "${program} ${argstring} |");
@@ -279,14 +279,14 @@ sub Invoke_Buildicm {
 
     my $output_file = qq"$args{outdir}/$args{run}.icm";
     my $argstring = qq" -r ${output_file} < $args{input}";
-    
+
     my $shell_fh = FileHandle->new;
     print "Build-icm: About to run: ${program} ${argstring}\n";
 
     my $stdout_file = qq"$args{outdir}/$args{run}_build-icm.stdout";
     my $stderr_file = qq"$args{outdir}/$args{run}_build-icm.stderr";
     my $outstring = qq" 1>${stdout_file} 2>${stderr_file}";
-    
+
     my $shell_pid = open($shell_fh, "${program} ${argstring} ${outstring}|");
     while (my $line = <$shell_fh>) {
         chomp($line);
@@ -315,17 +315,17 @@ sub Invoke_Glimmer3 {
     if ($args{b}) {
         $b_arg = qq" -b $args{b} ";
     }
-    
+
     my $output_file = qq"$args{outdir}/$args{run}_glimmer.out";
     my $argstring = qq" -o$args{o} -g$args{g} -t$args{t} ${b_arg} ${P_arg} $args{input} $args{icm} ${output_file} ";
-    
+
     my $shell_fh = FileHandle->new;
     print "Glimmer3: About to run: ${program} ${argstring}\n";
 
     my $stdout_file = qq"$args{outdir}/$args{run}_glimmer.stdout";
     my $stderr_file = qq"$args{outdir}/$args{run}_glimmer.stderr";
     my $outstring = qq" 1>${stdout_file} 2>${stderr_file}";
-    
+
     my $shell_pid = open($shell_fh, "${program} ${argstring} ${outstring}|");
     while (my $line = <$shell_fh>) {
         chomp($line);
@@ -347,7 +347,7 @@ sub Invoke_Upstream {
     my $output_file = qq"$args{outdir}/$args{run}_upstream.txt";
     my $stderr_file = qq"$args{outdir}/$args{run}_upstream.stderr";
     my $argstring = qq" $args{upstream_args} $args{predict} 2>$stderr_file 1>${orfs_file}";
-    
+
     my $shell_fh = FileHandle->new;
     print "Upstream: About to run: ${program} ${argstring}\n";
     my $shell_pid = open($shell_fh, "${program} ${argstring}|");
@@ -380,7 +380,7 @@ sub Invoke_Elph {
     my $output_file = qq"$args{outdir}/$args{run}_motif.txt";
     my $stderr_file = qq"$args{outdir}/$args{run}_motif.stderr";
     my $argstring = qq" $args{upstream} LEN=$args{elph_len} 2>$args{outdir}/$args{run}_elph.stderr | get-motif-counts.awk 2>${stderr_file} 1>${output_file}";
-    
+
     my $shell_fh = FileHandle->new;
     print "Elph: About to run: ${program} ${argstring}\n";
     my $shell_pid = open($shell_fh, "${program} ${argstring}|");
@@ -403,7 +403,7 @@ sub Invoke_Startdistrib {
     die("Could not find ${program} in your PATH.") unless($check);
 
     my $argstring = qq" -3 $args{input} $args{predict} 2>$args{outdir}/startdistrib.err";
-    
+
     my $shell_fh = FileHandle->new;
     print "Startdistrib: About to run: ${program} ${argstring}\n";
     my $shell_pid = open($shell_fh, "${program} ${argstring}|");
@@ -506,11 +506,11 @@ sub Make_Predict_Useful {
           -type => 'glimmer',
           -attributes => { comment => $suffix, glimmer_phase => $start_phase },
           );
-      $out_gff->write_feature($gff_feature);   
+      $out_gff->write_feature($gff_feature);
   } ## End iterating over every line of the glimmer3 output.
 
     $in->close();
     ## close($in_fasta);
     ## close($out_fasta);
-    ## close($out_gff);    
+    ## close($out_gff);
 }

@@ -28,88 +28,6 @@ the cluster, collect the results, and (optionally) parse them into simplified ta
 
 =head1 METHODS
 
-=head2 C<Check_Blastdb>
-
-Check_Blastdb makes sure that there is an appropriately formatted blastdb for
-the library and type of blast performed.
-
-=cut
-sub Check_Blastdb {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        blast_tool => 'blastn',
-        type => 'prot',
-        required => ['input'],);
-    my $libname = basename($options->{input}, '.fasta');
-    ## First check for the relevant library in $ENV{BLASTDB}
-    ## If it isn't there, make one in basedir/blastdb/
-    my $foundlib = 0;
-    if ($options->{type} ne 'prot' && $options->{type} ne 'nucl') {
-        die("makeblastdb requires either a type of 'prot' or 'nucl'.");
-    }
-
-    my $mismatches = 0;
-    my $matches = 0;
-    my $test_in = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
-    while (my $seq = $test_in->next_seq) {
-        my $guess = $seq->alphabet;
-        if ($guess eq 'protein') {
-            $guess = 'prot';
-        } else {
-            $guess = 'nucl';
-        }
-        if ($options->{type} eq $guess) {
-            $matches++;
-        } else {
-            $mismatches++;
-        }
-    }
-    my $sum = $matches + $mismatches;
-    print "Out of ${sum} sequences, ${matches} were guessed to be $options->{type} and ${mismatches} were not.\n";
-    my $checklib = qq"${libname}.psq";
-    my $checklib_zero = qq"${libname}.00.psq";
-    if ($options->{type} eq 'nucl') {
-        $checklib_zero = qq"${libname}.00.nsq";
-        $checklib = qq"${libname}.nsq";
-    }
-    my $db_directory = $ENV{BLASTDB};
-    my $lib = '';
-    my $relative_directory = qq"blastdb";
-    if (!defined($ENV{BLASTDB})) {
-        $ENV{BLASTDB} = "$options->{basedir}/blastdb";
-        $db_directory = "$options->{basedir}/blastdb";
-    } else {
-        $relative_directory = qq"$ENV{BLASTDB}";
-    }
-
-    print "Looking for ${checklib} / ${checklib_zero} in either $ENV{BLASTDB} or $options->{basedir}/blastdb.\n";
-    ## Start with BLASTDB
-    if (-f "$ENV{BLASTDB}/${checklib}" or
-        -f "$ENV{BLASTDB}/${checklib_zero}") {
-        $foundlib++;
-        $lib = qq"$ENV{BLASTDB}/${libname}";
-        print "Found an existing blast database at ${lib}.\n";
-    } else {
-        print "Did not find an existing blast database.\n";
-    }
-
-    ## If we do not find the blast database, create it in the basedir.
-    if (!$foundlib) {
-        if (!-d qq"$options->{basedir}/blastdb") {
-            make_path(qq"$options->{basedir}/blastdb");
-        }
-        my $formatdb_command = qq"makeblastdb \\
-  -in $options->{input} \\
-  -dbtype $options->{type} \\
-  -out ${db_directory}/${libname}";
-        print "The makeblastdb command run is: ${formatdb_command}\n";
-        my $formatdb_ret = qx"${formatdb_command}";
-    }
-    my $final_directory = qq"${relative_directory}/${libname}";
-    return($final_directory);
-}
-
 =head2 C<Make_Blast_Job>
 
 This function is responsible for actually writing out an appropriate blast job.
@@ -395,13 +313,12 @@ separately for every sequence in the database.  As a result it is
 not recommended fo use with large sequence libraries.  Instead use
 the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
 followed by 'Parse_Blast()' which does these steps separately.";
-    my $library_path = $class->Bio::Adventure::Align_Blast::Check_Blastdb(%args);
+    my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     my $library = $options->{library};
     my $number_hits = 0;
     my $libname = basename($library, ('.fasta'));
     ## my $query_library = Bio::SeqIO->new(-file => ${query}, -format => 'Fasta');
     my $output_directory = qq"$options->{basedir}/outputs/${query}_vs_${libname}";
-    print "TESTME: $output_directory\n";
     make_path("${output_directory}") unless (-d $output_directory);
     my $counts = FileHandle->new(">${output_directory}/counts.txt");
     my $zeros = FileHandle->new(">${output_directory}/zeros.fasta");
@@ -575,7 +492,7 @@ blastp is normal protein/protein.
     make_path("${outdir}") unless(-d ${outdir});
     my $output = qq"${outdir}/${que}_vs_${lib}.txt";
     my $concat_job;
-    $lib = $class->Bio::Adventure::Align_Blast::Check_Blastdb(%args);
+    $lib = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     if ($options->{pbs}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         print "Going to make $options->{align_jobs} directories with $num_per_split sequences each.\n";

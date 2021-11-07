@@ -414,7 +414,6 @@ sub Jellyfish {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('jellyfish');
     die('Could not find jellyfish in your PATH.') unless($check);
-    print "TESTME: $options->{input}\n";
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -537,7 +536,6 @@ sub Jellyfish_Matrix {
 
     my $out = FileHandle->new(">$options->{output}");
     foreach my $k (sort keys %{$counts}) {
-        print "TESTME: $k $counts->{$k}\n";
         print $out "$k\t$counts->{$k}\n";
     }
     $out->close();

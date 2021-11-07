@@ -524,8 +524,8 @@ sub Phageterm {
         my $in_dir = dirname($in[0]);
         make_path($in_dir);
         my $prefix = abs_path($in_dir);
-        my $r1_dirname = basename($in[0]);
-        my $r2_dirname = basename($in[1]);
+        my $r1_dirname = dirname($in[0]);
+        my $r2_dirname = dirname($in[1]);
         my $r1_filename = basename($in[0]);
         my $r2_filename = basename($in[1]);
         $uncompress_string = qq!
