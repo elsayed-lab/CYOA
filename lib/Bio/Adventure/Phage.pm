@@ -72,14 +72,24 @@ sub Filter_Host_Kraken {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],);
+        required => ['input', 'input_fastq'],
+        jdepends => '',
+        jprefix => '06',);
     my $comment = qq"## Use kraken results to choose a host species to filter against.\n";
+    my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
+    make_path($output_dir);
+    my $out_r1_name = 'r1_host_filtered.fastq.xz';
+    my $out_r2_name = 'r2_host_filtered.fastq.xz';
+    my $output_files = qq"${output_dir}/${out_r1_name}:${output_dir}/${out_r2_name}";
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 Bio::Adventure::Phage::Get_Kraken_Host(\$h,
-  comment => '$comment',
+  comment => '${comment}',
+  output => '${output_files}',
+  output_dir => '${output_dir}',
   input => '$options->{input}',
+  input_fastq => '$options->{input_fastq}',
   jdepends => '$options->{jdepends}',
   jname => 'kraken_host',
   jprefix => '$options->{jprefix}',);
@@ -87,7 +97,10 @@ Bio::Adventure::Phage::Get_Kraken_Host(\$h,
     my $host = $class->Submit(
         jdepends => $options->{jdepends},
         input => $options->{input},
-        jname => 'kraken_host',
+        input_fastq => $options->{input_fastq},
+        output => $output_files,
+        output_dir => $output_dir,
+        jname => 'hostfilter',
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
@@ -104,11 +117,9 @@ sub Get_Kraken_Host {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
+        required => ['input', 'output'],
+        jname => 'krakenfilter',
         type => 'species',);
-
-    my $output_dir = qq"outputs/$options->{jprefix}kraken_host";
-    make_path($output_dir);
 
     my $separator;
     if ($options->{type} eq 'domain') {
@@ -129,6 +140,7 @@ sub Get_Kraken_Host {
         $separator = 's__';
     }
 
+    my $output_dir = $options->{output_dir};
     my $out = FileHandle->new(">${output_dir}/kraken_filter.log");
     my $in = FileHandle->new("<$options->{input}");
     print $out "Starting search for best kraken host strain.\n";
@@ -217,29 +229,49 @@ sub Get_Kraken_Host {
       }
   } ## End looking at links hopefully containing an assembly.
 
-
     ## Convert the assembly to fasta/gff/etc.
     print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
     my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
-    use Data::Dumper;
-    print Dumper $converted;
     print $out "Immediately indexing the new genome.\n";
-    my $temp_cyoa = Bio::Adventure->new(cluster => 0);
-    my $indexed = $temp_cyoa->Bio::Adventure::Map::HT2_Index(input => $converted->{fasta_out});
+    my $cyoa_shell = Bio::Adventure->new(cluster => 0);
+    my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $converted->{fasta_out});
     ## Check to see if there is a text file containing the putative host species
     ## If it does not exist, write it with the species name.
+    my $host_species;
     if (-f 'host_species.txt') {
-        print $out "The host_species.txt file already exists.\n";
+        my $host_file = FileHandle->new("<host_species.txt");
+        while (my $line = <$host_file>) {
+            chomp $line;
+            $host_species = $line;
+        }
+        $host_file->close();
+        print $out "The host_species.txt file already exists and suggests using ${host_species}.\n";
     } else {
         print $out "Writing a new host_species.txt file with: ${accession}.\n";
         my $host = FileHandle->new(">host_species.txt");
         print $host $accession;
         $host->close();
+        $host_species = $host;
     }
 
+    ## Now perform the filter using our temp_cyoa.
+    my $jprefix = $options->{jprefix} + 1;
+    print $out "Filtering out reads which map to ${host_species}.\n";
+    my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
+        input => $options->{input_fastq},
+        jprefix => $jprefix,
+        do_htseq => 0,
+        species => $host_species,);
+    my $filtered_reads = $filter->{unaligned_comp};
+    my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
+    $in_r1 = File::Spec->rel2abs($in_r1);
+    $in_r2 = File::Spec->rel2abs($in_r2);
+    my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
+    print $out "Symlinking final output files to $options->{output_dir}\n";
+    my $s1 = symlink($in_r1, $out_r1);
+    my $s2 = symlink($in_r2, $out_r2);
     return(%species_observed);
 }
-
 
 =head2 C<Classify_Phage>
 

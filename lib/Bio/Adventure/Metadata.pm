@@ -137,7 +137,7 @@ sub Merge_Annotations {
 
    my $jstring = qq?
 use Bio::Adventure::Annotation;
-\$h->Bio::Adventure::Annotation::Merge_Annotations_Make_Gbk(
+\$h->Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk(
   input_abricate => '$options->{input_abricate}',
   input_classifier => '$options->{input_classifier}',
   input_fsa => '$options->{input_fsa}',
@@ -572,7 +572,7 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
     print $log_fh "Writing final xlsx file of the annotations to $output_xlsx\n";
 
-    my $written = $class->Bio::Adventure::Annotation::Write_XLSX(
+    my $written = $class->Bio::Adventure::Metadata::Write_XLSX(
         input => $merged_data,
         output => $output_xlsx,
         primary_key => $primary_key);

@@ -33,18 +33,19 @@ default this will explictly search for tmRNA as well.
 =cut
 sub Aragorn {
     my ($class, %args) = @_;
-    my $check = which('aragorn');
-    die("Could not find aragorn in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         modules => ['aragorn'],
+        jprefix => 21,
         species => undef,
-        arbitrary => ' -rp -fasta -w -m -t -mt ',
-        );
+        arbitrary => ' -rp -fasta -w -m -t -mt ',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('aragorn');
+    die("Could not find aragorn in your PATH.") unless($check);
     my $aragorn_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/aragorn";
+    my $output_dir = qq"outputs/$options->{jprefix}aragorn";
     my $species_string = qq"";
     my $comment = qq!## This is a script to run aragorn.
 !;
@@ -67,6 +68,8 @@ sub Aragorn {
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+        action => 'unload',);
     return($aragorn);
 }
 

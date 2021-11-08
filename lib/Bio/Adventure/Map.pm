@@ -829,7 +829,7 @@ sub Hisat2 {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
         my $genome_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-        my $index_job = $class->Bio::Adventure::Index::HT2_Index(
+        my $index_job = $class->Bio::Adventure::Index::Hisat2_Index(
             input => $genome_fasta,
             jprefix => $options->{jprefix} - 1,
             jdepends => $options->{jdepends},

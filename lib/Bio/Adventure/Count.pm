@@ -399,16 +399,22 @@ sub Jellyfish {
         jprefix => 18,
         modules => ['jellyfish'],);
     my @kmer_array = split(/\,|:/, $options->{length});
-    my @job_array = ();
+    my $count = 0;
+    my $ret;
     if (scalar(@kmer_array) > 1) {
         for my $k (@kmer_array) {
+            $count++;
             my $job = $class->Bio::Adventure::Count::Jellyfish(
                 %args,
                 input => $options->{input},
                 length => $k);
-            push(@job_array, $job);
+            if ($count == 1) {
+                $ret = $job;
+            } else {
+                $ret->{$count} = $job;
+            }
         }
-        return(@job_array);
+        return($ret);
     }
 
     my $loaded = $class->Module_Loader(modules => $options->{modules});

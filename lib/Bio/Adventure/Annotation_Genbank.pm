@@ -250,7 +250,9 @@ sub Gather_Glimmer_CDS {
         } elsif ($found_glimmer->{operation} eq 'none') {
             my $formatted_number = sprintf("%04d", $orf_number);
             my $formatted_orf = qq"${prokka_contig}_${formatted_number}";
-            $prokka_f->remove_tag('protein_id');
+            if ($prokka_f->has_tag('protein_id')) {
+                $prokka_f->remove_tag('protein_id');
+            }
             $prokka_f->add_tag_value('protein_id', qq"prokka:${formatted_orf}");
             $prokka_f->remove_tag('locus_tag');
             $prokka_f->add_tag_value('locus_tag', $formatted_orf);

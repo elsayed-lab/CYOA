@@ -276,13 +276,13 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
     return($kraken);
 }
 
-=head2 C<HT2_Index>
+=head2 C<Hisat2_Index>
 
 Create a hisat2 index using ${species}.fasta and leaves it in the indexes/
 directory.
 
 =cut
-sub HT2_Index {
+sub Hisat2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,

@@ -293,6 +293,7 @@ has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09ter
 has input_classifier => (is => 'rw', default => 'outputs/18classifier/ictv_filtered.tsv'); ## Similar taxa detected by tblastx
 has input_genbank => (is => 'rw', default => undef); ## Existing genbank file for merging annotations.
 has input_glimmer => (is => 'rw', default => 'outputs/16glimmer/glimmer.predict');
+has input_fastq => (is => 'rw', default => undef);
 has input_interpro => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
 has input_phageterm => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
 has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
@@ -768,7 +769,7 @@ sub Get_Menus {
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Index::Extend_Kraken_DB,
                 '(indexbt1): Create bowtie1 compatible indexes.' => \&Bio::Adventure::Index::BT1_Index,
                 '(indexbt2): Create bowtie2 compatible indexes.' => \&Bio::Adventure::Index::BT2_Index,
-                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Index::HT2_Index,
+                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Index::Hisat2_Index,
                 '(indexbwa): Create bwa compatible indexes.' => \&Bio::Adventure::Index::BWA_Index,
                 '(indexkallisto): Create kallisto compatible indexes.' => \&Bio::Adventure::Index::Kallisto_Index,
                 '(indexrsem): Create rsem indexes.' => \&Bio::Adventure::Index::RSEM_Index,
@@ -959,6 +960,7 @@ sub Get_TODOs {
         "fastqct+" => \$todo_list->{todo}{'Bio::Adventure::QA::Fastqc'},
         "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
         "filterdepth+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Filter_Depth'},
+        "filterkraken+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Filter_Host_Kraken'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
         "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},
@@ -968,9 +970,8 @@ sub Get_TODOs {
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::Count::HT_Multi'},
-        "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htseq+" => \$todo_list->{todo}{'Bio::Adventure::Count::HTSeq'},
-        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::HT2_Index'},
+        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2_Index'},
         "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT1_Index'},
         "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT2_Index'},
         "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA_Index'},
