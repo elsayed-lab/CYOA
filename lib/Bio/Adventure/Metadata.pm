@@ -38,6 +38,138 @@ use List::MoreUtils qw"any";
 use Template;
 use Text::CSV_XS::TSV;
 
+=head2 C<Get_Aragorn>
+
+=cut
+sub Get_Aragorn {
+    my ($class, %args) = @_;
+    unless (-r $args{input}) {
+        return(undef);
+    }
+    my $input_txt = FileHandle->new($args{input});
+    my %aragorn_features = ();
+    my $current_contig = '';
+    my $current_description = '';
+    my $current_sequence = '';
+    my $last_line = '';
+    my $counter = 0;
+    my $number = '';
+    my $type = '';
+    my $coords = '';
+    my $unknown = '';
+    my $anticodon = '';
+    my $annotation = '';
+    my $trna_seq = '';
+    my $start = '';
+    my $end = '';
+    my $strand = '+1';
+    my $seq_portion = '';
+    my $finished_annotation = 0;
+    my @trna_annots = ();
+    my %single_annot = ();
+    my $orf_number = 0;
+    my $formatted_number = sprintf("%04d", $orf_number);
+  INPUT: while (my $line = <$input_txt>) {
+      $counter++;
+      chomp $line;
+      if ($line =~ /^\d+ genes found/) {
+          $current_contig = $last_line;
+          $current_contig =~ s/^>//g;
+          ## print "genes found line: $current_contig\n";
+          $counter = 0;
+      }
+      ## if ($counter == 1) {
+      if ($line =~ /^\d+\s+\S+\s+\S+\s+\d+\s+\(\w+\)$/) {
+          $counter = 1;
+          ($number, $type, $coords, $unknown, $anticodon) = split(/\s+/, $line);
+          ($start, $end) = split(/\,/, $coords);
+          ## print "TESTME PRE: $start\n";
+          my $complement = $start;
+          $complement =~ s/^(\w*).*$/$1/g;
+          $strand = '+1';
+          if ($complement eq 'c') {
+              $strand = '-1';
+          }
+          ## print "TESTME AFTER COMP: $strand\n";
+
+          $start =~ s/^\w*\[(\d+)$/$1/g;
+          ## print "TESTME POST: $start\n";
+          $end =~ s/\]//g;
+          $anticodon =~ s/\(//g;
+          $anticodon =~ s/\)//g;
+          ## print "counter1: n:$number t:$type c:$coords u:$unknown a:$anticodon f:$start t:$end\n";
+          $formatted_number = sprintf("%04d", $number);
+      }
+      if ($counter == 2) {
+          my ($annot, $start_end) = split(/\s+c*\[/, $line);
+          $annotation = $annot;
+          $annotation =~ s/^>//g;
+          ## print "counter2: $annotation\n";
+      }
+      if ($counter >= 3) {
+          ## print "counter3+ $trna_seq\n";
+          $seq_portion .= $line;
+          $seq_portion =~ s/\s+//g;
+          if ($seq_portion =~ /^\w{50}$/) {
+              ## print "This is the max length sequence line.\n";
+              $trna_seq = $seq_portion;
+          } elsif ($seq_portion =~ /^\w+/) {
+              $trna_seq .= $seq_portion;
+
+              $counter = 1;
+              my $orf_id = qq"${current_contig}_tRNA_${formatted_number}";
+              $single_annot{contig} = $current_contig;
+              $single_annot{formatted} = $orf_id;
+              $single_annot{type} = $type;
+              $single_annot{start} = $start;
+              $single_annot{end} = $end;
+              $single_annot{strand} = $strand;
+              $single_annot{annotation} = $annotation;
+              $single_annot{sequence} = $seq_portion;
+              $single_annot{random} = $unknown;
+              $single_annot{anticodon} = $anticodon;
+              my %this_annot = %single_annot;
+              push(@trna_annots, \%this_annot);
+              $seq_portion = '';
+          }
+      }
+      $last_line = $line;
+  }
+    $input_txt->close();
+
+    ## We have an array of tRNA annotations, make them into SeqFeatures;
+    my @aragorn_features = ();
+    for my $a (@trna_annots) {
+        my %trna = %{$a};
+        my $gene_feature = Bio::SeqFeature::Generic->new(
+            -primary => 'gene',
+            -seq_id => $trna{contig},
+            -start => $trna{start},
+            -end => $trna{end},
+            -strand => $trna{strand},
+            -display_name => $trna{formatted},
+            -tag => {
+                'locus_tag' => $trna{formatted},
+            });
+        push(@aragorn_features, $gene_feature);
+        my $trna_feature = Bio::SeqFeature::Generic->new(
+            -primary => 'tRNA',
+            -seq_id => $trna{contig},
+            -source => 'aragorn',
+            -start => $trna{start},
+            -end => $trna{end},
+            -strand => $trna{strand},
+            -display_name => $trna{formatted},
+            -tag => {
+                'locus_tag' => $trna{formatted},
+                'product' => $trna{type},
+                'note' => $trna{annotation},
+            },);
+        push(@aragorn_features, $trna_feature);
+    }
+    return(\@aragorn_features);
+}
+
 =head2 C<Kraken_Accession>
 
 Read the kraken_report.txt to extract the lowest common ancestor which has the most reads.
@@ -111,7 +243,7 @@ sub Merge_Annotations {
    my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input_fsa', 'input_genbank', 'input_prokka_gff'],
+        required => ['input_fsa', 'input_genbank', 'input_tsv'],
         input_abricate => '',
         input_classifier => '',
         input_glimmer => '',
@@ -138,14 +270,14 @@ sub Merge_Annotations {
    my $jstring = qq?
 use Bio::Adventure::Annotation;
 \$h->Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk(
-  input_abricate => '$options->{input_abricate}',
-  input_classifier => '$options->{input_classifier}',
   input_fsa => '$options->{input_fsa}',
   input_genbank => '$options->{input_genbank}',
+  input_tsv => '$options->{input_tsv}',
+  input_abricate => '$options->{input_abricate}',
+  input_classifier => '$options->{input_classifier}',
   input_glimmer => '$options->{input_glimmer}',
   input_phageterm => '$options->{input_phageterm}',
   input_interpro => '$options->{input_interpro}',
-  input_prokka_gff => '$options->{input_prokka_gff}',
   input_prodigal => '$options->{input_prodigal}',
   input_trinotate => '$options->{input_trinotate}',
   jdepends => '$options->{jdepends}',
@@ -153,15 +285,15 @@ use Bio::Adventure::Annotation;
   jname => 'merge_annotations',);
 ?;
    my $merge_job = $class->Submit(
-       input_abricate => $options->{input_abricate},
-       input_classifier => $options->{input_classifier},
        input_fsa => $options->{input_fsa},
        input_genbank => $options->{input_genbank},
+       input_tsv => $options->{input_tsv},
+       input_abricate => $options->{input_abricate},
+       input_classifier => $options->{input_classifier},
        input_glimmer => $options->{input_glimmer},
        input_interpro => $options->{input_interpro},
        input_phageterm => $options->{input_phageterm},
        input_prodigal => $options->{input_prodigal},
-       input_prokka_gff => $options->{input_prokka_gff},
        input_trinotate => $options->{input_trinotate},
        jdepends => $options->{jdepends},
        jname => 'merge_annotations',
@@ -193,8 +325,9 @@ sub Merge_Annotations_Make_Gbk {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input_fsa', 'input_genbank', 'input_prokka_gff'],
+        required => ['input_fsa', 'input_genbank', 'input_tsv'],
         input_abricate => '',
+        input_aragorn => '',
         input_classifier => '',
         input_glimmer => '',
         input_interpro => '',
@@ -293,13 +426,13 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## This is #1 above and should contain all the interesting stuff from 1a-1d
     my $merged_data = {};
 
-    print $log_fh "Reading prokka gff data from $options->{input_prokka_gff} to start.\n";
+    print $log_fh "Reading tsv data from $options->{input_tsv} to start.\n";
     ## 1a above, the starter set of annotations.
-    unless (-r $options->{input_prokka_gff}) {
-        die("Unable to find the prokka tsv output, this is required.\n");
+    unless (-r $options->{input_tsv}) {
+        die("Unable to find the tsv input: $options->{input_tsv}, this is required.\n");
     }
     unless (-r $options->{input_genbank}) {
-        die("Unable to find the prokka genbank output, this is required.\n");
+        die("Unable to find the prokka genbank output: $options->{input_genbank}, this is required.\n");
     }
 
     ## The template sbt file was written with template toolkit variables which will need
@@ -315,10 +448,10 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         template_out => $final_sbt,);
     print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
 
-    $merged_data = Merge_Prokka(
+    $merged_data = Merge_Start_Data(
         primary_key => $options->{primary_key},
         output => $merged_data,
-        input => $options->{input_prokka_gff});
+        input => $options->{input_tsv});
 
     if ($options->{input_trinotate} && -r $options->{input_trinotate}) {
         print $log_fh "Adding trinotate annotations from $options->{input_trinotate}.\n";
@@ -358,11 +491,22 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my %dtr_features = ();
     if ($options->{input_phageterm} && -r $options->{input_phageterm}) {
     ## Pull the direct-terminal-repeats from phageterm if they exist.
-        %dtr_features = Bio::Adventure::Phage::Get_DTR(
-            $class,
+        %dtr_features = $class->Bio::Adventure::Phage::Get_DTR(
             input => $options->{input_phageterm});
+        print $log_fh "Adding phageterm DTRs.\n";
     } else {
         print $log_fh "Not adding phageterm DTRs.\n";
+    }
+
+    ## An array reference;
+    my $aragorn_features;
+    if ($options->{input_aragorn} && -r $options->{input_aragorn}) {
+    ## Pull the direct-terminal-repeats from phageterm if they exist.
+        $aragorn_features = $class->Bio::Adventure::Metadata::Get_Aragorn(
+            input => $options->{input_aragorn});
+        print $log_fh "Adding aragorn tRNA annotations.\n";
+    } else {
+        print $log_fh "Not adding aragorn tRNA annotations.\n";
     }
 
     ## This section uses the genbank input file to aid writing an output tbl file.
@@ -395,6 +539,9 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
         foreach my $d (keys %dtr_features) {
             unshift(@feature_list, $dtr_features{$d});
+        }
+        foreach my $ara (@{$aragorn_features}) {
+            unshift(@feature_list, $ara);
         }
 
         for my $feat (@feature_list) {
@@ -522,7 +669,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         ## In theory, we now have a set of features with some new notes.
         ## So now let us steal the tbl writer from prokka and dump this new stuff...
         print $log_fh "Writing new tbl file to ${output_tbl}.\n";
-        my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl(
+        my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
             tbl_file => $output_tbl,
             taxonomy_information => $taxonomy_information,
             sequences => \@new_seq,
@@ -809,50 +956,50 @@ Given a hash of annotation data, read a prokka log and pull
 the information from it into that hash and pass it back to the caller.
 
 =cut
-sub Merge_Prokka {
+sub Merge_Start_Data {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
     my $merged_data = $args{output};
-    my $in = Bio::FeatureIO->new(-file => $args{input}, -format => 'GFF', -version => 3);
-  FEATURES: while (my $f = $in->next_feature()) {
-      next FEATURES if ($f->primary_tag eq 'source');
-      next FEATURES if ($f->primary_tag eq 'gene');
-      my @tags = $f->get_all_tags();
-      my $id = $f->seq_id();
-      my $start = $f->start;
-      my $end = $f->end;
-      my $strand = $f->strand;
-      my $key = $f->display_name;
-      $merged_data->{$key}->{locus_tag} = $key;
-      $merged_data->{$key}->{start} = $start;
-      $merged_data->{$key}->{end} = $end;
-      $merged_data->{$key}->{strand} = $strand;
-      foreach my $t (@tags) {
-          my @values = $f->get_tag_values($t);
-          my $value = $values[0];
-          $merged_data->{$key}->{$t} = $value;
-      }
+  ##  my $in = Bio::FeatureIO->new(-file => $args{input}, -format => 'GFF', -version => 3);
+  ##FEATURES: while (my $f = $in->next_feature()) {
+  ##    next FEATURES if ($f->primary_tag eq 'source');
+  ##    next FEATURES if ($f->primary_tag eq 'gene');
+  ##    my @tags = $f->get_all_tags();
+  ##    my $id = $f->seq_id();
+  ##    my $start = $f->start;
+  ##    my $end = $f->end;
+  ##    my $strand = $f->strand;
+  ##    my $key = $f->display_name;
+  ##    $merged_data->{$key}->{locus_tag} = $key;
+  ##    $merged_data->{$key}->{start} = $start;
+  ##    $merged_data->{$key}->{end} = $end;
+  ##    $merged_data->{$key}->{strand} = $strand;
+  ##    foreach my $t (@tags) {
+  ##        my @values = $f->get_tag_values($t);
+  ##        my $value = $values[0];
+  ##        $merged_data->{$key}->{$t} = $value;
+  ##    }
+  ##}
+    my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
+    open(my $input_fh, "<:encoding(utf8)", $args{input});
+    my $header = $input_tsv->getline($input_fh);
+    $input_tsv->column_names($header);
+  ROWS: while (my $row = $input_tsv->getline_hr($input_fh)) {
+      ## next ROWS if ($row->{ftype} eq 'gene');
+      my $key = $row->{$primary_key};
+      $merged_data->{$key}->{$primary_key} = $key;
+      foreach my $colname (@{$header}) {
+          ## Check that we already filled this data point
+          if ($merged_data->{$key}->{$colname}) {
+              ## There is something here.
+          } else {
+              if ($row->{$colname}) {
+                  $merged_data->{$key}->{$colname} = $row->{$colname};
+              }
+          }
+      } ## Run over the columns
   }
-    ## my $prokka_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
-    ## open(my $prokka_fh, "<:encoding(utf8)", $args{input});
-    ## my $prokka_header = $prokka_tsv->getline($prokka_fh);
-    ## $prokka_tsv->column_names($prokka_header);
-    ## ROWS: while (my $row = $prokka_tsv->getline_hr($prokka_fh)) {
-    ##     next ROWS if ($row->{ftype} eq 'gene');
-    ##     my $key = $row->{$primary_key};
-    ##     $merged_data->{$key}->{$primary_key} = $key;
-    ##     foreach my $colname (@{$prokka_header}) {
-    ##         ## Check that we already filled this data point
-    ##         if ($merged_data->{$key}->{$colname}) {
-    ##             ## There is something here.
-    ##         } else {
-    ##             if ($row->{$colname}) {
-    ##                 $merged_data->{$key}->{$colname} = $row->{$colname};
-    ##             }
-    ##         }
-    ##     }  ## Run over the columns
-    ## }
-    ## close $prokka_fh;
+    close $input_fh;
     return($merged_data);
 }
 

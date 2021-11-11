@@ -60,7 +60,7 @@ sub Aragorn {
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => "aragorn_${job_name}",
-        jprefix => "64",
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 24,
         modules => $options->{modules},
@@ -237,7 +237,9 @@ sub Interproscan {
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-interproscan.sh -i ${input_path} 2>interproscan.err \\
+perl -pe 's/\\*\$//g' ${input_path} > ${input_filename}
+interproscan.sh -i ${input_filename} \\
+  2>interproscan.err \\
   1>interproscan.out
 ln -sf ${output_filename} interproscan.tsv
 cd \${start}

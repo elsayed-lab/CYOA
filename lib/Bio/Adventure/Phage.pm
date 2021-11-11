@@ -169,74 +169,9 @@ sub Get_Kraken_Host {
         species => $most_species,
         observations => $most_observations, };
     print $out "The most observed species was: ${most_species}.\n";
+    my $escaped_species = $most_species;
+    $escaped_species =~ s/\s/\+/g;
 
-    my $factory = Bio::DB::EUtilities->new(-eutil => 'esearch',
-                                           -email => 'abelew@gmail.com',
-                                           -db => 'genome',
-                                           -term => $most_species,
-                                           -usehistory => 'y',);
-    my $count = $factory->get_count;
-    my @search_ids = $factory->get_ids();
-    print $out "The id: @search_ids has ${count} hits at entrez.\n";
-
-    $factory = Bio::DB::EUtilities->new(-eutil => 'esummary',
-                                        -email => 'abelew@gmail.com',
-                                        -db => 'genome',
-                                        -id => $search_ids[0],
-                                        -usehistory => 'y',);
-    ## We got a document containing the likely accession, now pull it out and
-    ## figure out what to download
-    my $accession = undef;
-    while (my $docsum = $factory->next_DocSum) {
-        while (my $item = $docsum->next_Item) {
-            my $item_name = $item->get_name();
-            if ($item_name eq 'Assembly_Accession') {
-                $accession = $item->get_content();
-                print $out "The likely accession at NCBI is: ${accession}.\n";
-            }
-        }
-    }
-
-    ## Check to see if we already downloaded this accession.
-    my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
-    if (-f $downloaded_file) {
-        print $out "The assembly has already been downloaded to: ${downloaded_file}.\n";
-        ## return(%species_observed);
-    }
-
-    print $out "Downloading assembly to: ${downloaded_file}.\n";
-    ## If this assembly has not already been downloaded, get it.
-    my $mech = WWW::Mechanize->new(autocheck => 1);
-    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
-    print $out "Searching ${url} for appropriate download links.\n";
-
-    my $data = $mech->get($url);
-    my @links = $mech->find_all_links(
-        tag => "a", text_regex => qr/FTP/i );
-  LINKS: foreach my $l (@links) {
-      my ($url, $title) = @{$l};
-      if ($title eq 'FTP directory for GenBank assembly') {
-          my $followed = $mech->follow_link(url => $url);
-          my @final = $mech->find_all_links(
-              tag => 'a', text_regex => qr/gbff.gz$/i);
-          print $out "Final download link: $final[0][0].\n";
-          my $final_followed = $mech->follow_link(url => $final[0][0]);
-          my $output = FileHandle->new(">${downloaded_file}");
-          my $printed = $mech->response->content();
-          print $output $printed;
-          $output->close();
-          last LINKS;
-      }
-  } ## End looking at links hopefully containing an assembly.
-
-    ## Convert the assembly to fasta/gff/etc.
-    print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
-    my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
-    print $out "Immediately indexing the new genome.\n";
-    my $cyoa_shell = Bio::Adventure->new(cluster => 0);
-    my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $converted->{fasta_out});
-    ## Check to see if there is a text file containing the putative host species
-    ## If it does not exist, write it with the species name.
     my $host_species;
     if (-f 'host_species.txt') {
         my $host_file = FileHandle->new("<host_species.txt");
@@ -246,14 +181,63 @@ sub Get_Kraken_Host {
         }
         $host_file->close();
         print $out "The host_species.txt file already exists and suggests using ${host_species}.\n";
-    } else {
+    }
+
+    if (!defined($host_species)) {
+        my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
+        my $mech = WWW::Mechanize->new(autocheck => 1);
+        print $out "Searching ${search_url} for appropriate download links.\n";
+        my $search_data = $mech->get($search_url);
+        my @search_links = $mech->find_all_links(
+            tag => "a", text_regex => qr/ASM/i);
+        my $first_hit = $search_links[0];
+        my ($assembly_link, $assembly_title) = @{$first_hit};
+        my $accession = basename($assembly_link);
+        my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
+        if (-r $downloaded_file) {
+            print $out "The file: ${downloaded_file} already exists.\n";
+        } else {
+            my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
+            print $out "Searching ${assembly_url} for appropriate download links.\n";
+            my $assembly_data = $mech->get($assembly_url);
+            my @download_links = $mech->find_all_links(
+                tag => "a", text_regex => qr/FTP/i);
+          LINKS: foreach my $l (@download_links) {
+              my ($download_url, $download_title) = @{$l};
+              if ($download_title eq 'FTP directory for GenBank assembly') {
+                  my $ftp_followed = $mech->follow_link(url => $download_url);
+                  my @download_links = $mech->find_all_links(
+                      tag => 'a', text_regex => qr/gbff.gz$/i);
+                  print $out "Final download link: $download_links[0][0].\n";
+                  my $download_followed = $mech->follow_link(url => $download_links[0][0]);
+                  my $output = FileHandle->new(">${downloaded_file}");
+                  my $printed = $mech->response->content();
+                  print $output $printed;
+                  $output->close();
+                  last LINKS;
+              }
+          } ## End looking at links hopefully containing an assembly.
+        } ## End of when the download file does not exist.
+
         print $out "Writing a new host_species.txt file with: ${accession}.\n";
         my $host = FileHandle->new(">host_species.txt");
         print $host $accession;
         $host->close();
-        $host_species = $host;
-    }
+        $host_species = $accession;
 
+        ## Convert the assembly to fasta/gff/etc.
+        print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
+        my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
+    } ## End checking if the host_species was defined.
+
+    my $cyoa_shell = Bio::Adventure->new(cluster => 0);
+    my $index_input = qq"$options->{libdir}/$options->{libtype}/${host_species}.fasta";
+    my $index_location = qq"$options->{libdir}/$options->{libtype}/indexes/${host_species}.1.ht2";
+    if (! -f $index_location) {
+        my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $index_input);
+        ## Check to see if there is a text file containing the putative host species
+        ## If it does not exist, write it with the species name.
+    }
     ## Now perform the filter using our temp_cyoa.
     my $jprefix = $options->{jprefix} + 1;
     print $out "Filtering out reads which map to ${host_species}.\n";
@@ -268,9 +252,64 @@ sub Get_Kraken_Host {
     $in_r2 = File::Spec->rel2abs($in_r2);
     my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
     print $out "Symlinking final output files to $options->{output_dir}\n";
-    my $s1 = symlink($in_r1, $out_r1);
-    my $s2 = symlink($in_r2, $out_r2);
+    if (! -f $out_r1) {
+        my $s1 = symlink($in_r1, $out_r1);
+    }
+    if (! -f $out_r2) {
+        my $s2 = symlink($in_r2, $out_r2);
+    }
     return(%species_observed);
+}
+
+sub Download_NCBI_Assembly_UID {
+    my %args = @_;
+    my $out_fh = $args{out};
+
+    ## If this assembly has not already been downloaded, get it.
+    my $mech = WWW::Mechanize->new(autocheck => 1);
+    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly?LinkName=genome_assembly&from_uid=$args{uid}";
+    my $data = $mech->get($url);
+    my @links = $mech->find_all_links(
+        tag => "a", text_regex => qr/ASM/i);
+  FIRST: for my $k (@links) {
+      my ($url2, $title2) = @{$k};
+  }
+    my $first = $links[0];
+    my $title = '';
+    ($url, $title) = @{$first};
+    my $accession = basename($url);
+    return($accession);
+}
+
+sub Download_NCBI_Assembly_Accession {
+    my %args = @_;
+    my $out_fh = $args{out};
+    my $accession = $args{accession};
+    ## If this assembly has not already been downloaded, get it.
+    my $mech = WWW::Mechanize->new(autocheck => 1);
+    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
+    print $out_fh "Searching ${url} for appropriate download links.\n";
+
+    my $data = $mech->get($url);
+    my @links = $mech->find_all_links(
+        tag => "a", text_regex => qr/FTP/i);
+    my $title;
+  LINKS: foreach my $l (@links) {
+      ($url, $title) = @{$l};
+      if ($title eq 'FTP directory for GenBank assembly') {
+          my $followed = $mech->follow_link(url => $url);
+          my @final = $mech->find_all_links(
+              tag => 'a', text_regex => qr/gbff.gz$/i);
+          print $out_fh "Final download link: $final[0][0].\n";
+          my $final_followed = $mech->follow_link(url => $final[0][0]);
+          my $output = FileHandle->new(">$args{file}");
+          my $printed = $mech->response->content();
+          print $output $printed;
+          $output->close();
+          last LINKS;
+      }
+  } ## End looking at links hopefully containing an assembly.
+    return($title);
 }
 
 =head2 C<Classify_Phage>
@@ -444,8 +483,6 @@ Writing filtered results to $options->{output}.
         };
         $result_data->{$query_name} = $datum_ref;
         my $hit_count = 0;
-        use Data::Dumper;
-        print Dumper $result;
       HITLOOP: while (my $hits = $result->next_hit()) {
           $number_hits = $number_hits++;
           my $hit_name = $hits->name();
@@ -877,6 +914,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
   } ## Finished iterating over every potential result.
     print $log "Out of ${total_hits} hits, ${best_query} was chosen with an e-value of: ${best_score}.\n";
     print $log "Best terminase description: ${best_description}\n";
+    ## print "Best terminase description: ${best_description}\n";
     ## Now things get a bit confusing: Keep in mind that prodigal's ORFs are printed as:
     ## ${contig}_${orf} # start # end # strand # stuff, so the first thing to do is pull out the best contig.
     my $best_contig = 'failed';
@@ -907,25 +945,31 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     ## From the 3' of terminase to the S of start (revcomp'd) as the first subsequence
     ## Then from the D of end to 3+1 as the second.
     my @other_objects = ();
+    my %assembly_lengths = ();
     my $first_object;
     while (my $seqobj = $in_assembly->next_seq()) {
         my $current_id = $seqobj->id();
+        my $current_length = $seqobj->length();
         if ($current_id eq $best_contig) {
             $first_object = $seqobj;
         } else {
             push(@other_objects, $seqobj);
         }
-    }
+        $assembly_lengths{$current_id} = $current_length;
+    } ## End iterating over the sequences.
 
     ## The last thing to remember is that prodigal encodes its position information
     ## as a set of # thing # thing # things, so lets grab out the information of interest.
-    my @start_end_array = split(/# /, $best_description);
+    my @start_end_array = split(/\s*#\s*/, $best_description);
+    ## print "TESTME: @start_end_array\n";
+    ## use Data::Dumper;
+    ## print Dumper @start_end_array;
     my $best_seq_start = $start_end_array[1];
-    $best_seq_start =~ s/ //g;
+    $best_seq_start =~ s/\s*//g;
     my $best_seq_end = $start_end_array[2];
-    $best_seq_end =~ s/ //g;
+    $best_seq_end =~ s/\s*//g;
     my $best_seq_strand = $start_end_array[3];
-    $best_seq_strand =~ s/ //g;
+    $best_seq_strand =~ s/\s*//g;
 
     ## No matter what, we will need the sequence length:
     my $sequence_end = $first_object->length;
@@ -940,25 +984,42 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
         $second_end = $best_seq_start - 1;
         $first_seq = $first_object->subseq($first_start, $first_end);
         $second_seq = $first_object->subseq($second_start, $second_end);
+        print $log "Merging two + strand pieces:
+  ${first_start}:${first_end} and ${second_start}:${second_end}.\n";
     } else {
         $first_start = 1;
         $first_end = $best_seq_end;
         $second_start = $best_seq_end + 1;
+        ## $second_start = $best_seq_end;
         $second_end = $sequence_end;
         ## yeah yeah I know one is supposed to use revcomp, but damn
         ## it annoys me when it yells at me for not using a sequence object.
+        ## print "TESTME: $first_start $first_end $second_start $second_end\n";
         $first_seq = $first_object->subseq($first_start, $first_end);
+        print $log "Merging two - strand pieces:
+  ${first_start}:${first_end}";
+
         $first_seq = reverse($first_seq);
         $first_seq =~ tr/ATGCU/TACGA/;
-        $second_seq = $first_object->subseq($second_start, $second_end);
-        $second_seq = reverse($second_seq);
-        $second_seq =~ tr/ATGCU/TACGA/;
+        if ($second_start < $second_end) {
+            $second_seq = $first_object->subseq($second_start, $second_end);
+            $second_seq = reverse($second_seq);
+            $second_seq =~ tr/ATGCU/TACGA/;
+            print $log " and ${second_start}:${second_end}";
+        } else {
+            print $log " and nothing, something is weird with the second sequence.";
+        }
+        print $log "\n";
     }
-    my $final_sequence = $first_seq . $second_seq;
+    my $final_sequence;
+    if (defined($second_seq)) {
+        $final_sequence = $first_seq . $second_seq;
+    } else {
+        $final_sequence = $first_seq;
+    }
 
     ## Now write out the sequence, starting with 'first_seq', then iterate through everyone else
     my $input_id = $first_object->id();
-
     ## First write the reordered contig
     my $output_seq = Bio::Seq->new(-seq => $final_sequence,
                                    -id => $input_id);
@@ -968,7 +1029,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     for my $obj (@other_objects) {
         $out_assembly->write_seq($obj);
     }
-
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     $log->close();

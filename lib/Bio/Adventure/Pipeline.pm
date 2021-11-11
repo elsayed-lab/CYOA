@@ -112,42 +112,42 @@ sub Annotate_Assembly {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
-        input_abricate => $abricate->{output},
         input_fsa => $prokka->{output_fsa},
         input_genbank => $prokka->{output_genbank},
+        input_prokka_gff => $prokka->{output_gff},
+        input_abricate => $abricate->{output},
         input_interpro => $interpro->{output_tsv},
         input_prodigal => $prodigal->{output},
-        input_prokka_tsv => $prokka->{output_tsv},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',
         jdepends => $interpro->{job_id},);
     sleep(0.2);
 
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning cgview.\n";
-    my $cgview = $class->Bio::Adventure::Visualization::CGView(
-        input => $merge->{output_gbk},
-        jdepends => $merge->{job_id},
-        jprefix => $prefix);
-    sleep(0.2);
-
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files a second time.\n";
     my $merge2 = $class->Bio::Adventure::Metadata::Merge_Annotations(
-        input_abricate => $abricate->{output},
         input_fsa => $prokka->{output_fsa},
         input_genbank => $prokka->{output_genbank},
+        input_prokka_gff => $prokka->{output_gff},
+        input_abricate => $abricate->{output},
         input_interpro => $interpro->{output_tsv},
         input_prodigal => $prodigal->{output},
-        input_prokka_tsv => $prokka->{output_tsv},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jnice => '1000',
         jname => 'mergeannot2',
         evalue => undef,
         jdepends => $interpro->{job_id},);
+    sleep(0.2);
+
+        $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning cgview.\n";
+    my $cgview = $class->Bio::Adventure::Visualization::CGView(
+        input => $merge->{output_gbk},
+        jdepends => $merge->{job_id},
+        jprefix => $prefix);
     sleep(0.2);
 
     my $ret = {
@@ -600,7 +600,8 @@ sub Phage_Assemble {
     print "\nRunning prodigal to get RBSes.\n";
     my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
         jdepends => $last_job,
-        input => $prokka->{output_fsa},
+        ## Use output_assembly to avoid having too much clutter on the sequence ID line.
+        input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $prodigal->{job_id};
     sleep(0.2);
@@ -609,7 +610,7 @@ sub Phage_Assemble {
     print "\nRunning glimmer for less stringent ORFs.\n";
     my $glimmer = $class->Bio::Adventure::Annotation::Glimmer_Single(
         jdepends => $last_job,
-        input => $prokka->{output_fsa},
+        input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $glimmer->{job_id};
     sleep(0.2);
@@ -683,14 +684,15 @@ sub Phage_Assemble {
     print "\nMerging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
         jdepends => $last_job,
-        input_abricate => $abricate->{output},
-        input_classifier => $ictv->{output},
         input_fsa => $cds_merge->{output_fsa},
         input_genbank => $cds_merge->{output_gbk},
+        input_tsv => $cds_merge->{output_tsv},
+        input_abricate => $abricate->{output},
+        input_aragorn => $aragorn->{output},
+        input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
         input_phageterm => $phageterm->{test_file},
         input_prodigal => $prodigal->{output},
-        input_prokka_gff => $cds_merge->{output_gff},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot',);
@@ -703,14 +705,15 @@ sub Phage_Assemble {
     print "\nMerging annotation files a second time.\n";
     my $merge2 = $class->Bio::Adventure::Metadata::Merge_Annotations(
         jdepends => $last_job,
-        input_abricate => $abricate->{output},
-        input_classifier => $ictv->{output},
         input_fsa => $cds_merge->{output_fsa},
         input_genbank => $cds_merge->{output_gbk},
+        input_tsv => $cds_merge->{output_tsv},
+        input_abricate => $abricate->{output},
+        input_aragorn => $aragorn->{output},
+        input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
         input_phageterm => $phageterm->{test_file},
         input_prodigal => $prodigal->{output},
-        input_prokka_tsv => $cds_merge->{output_gff},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot2',
@@ -721,7 +724,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning cgview.\n";
     my $cgview = $class->Bio::Adventure::Visualization::CGView(
-        jprefix => $last_job,
+        jdepends => $last_job,
+        jprefix => $prefix,
         input => $merge->{output_gbk},);
     $last_job = $cgview->{job_id};
     sleep(0.2);

@@ -290,6 +290,7 @@ has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing ind
 has index_hash => (is => 'rw', default => undef);
 has input => (is => 'rw', default => undef); ## Generic input argument
 has input_abricate => (is => 'rw', default => 'outputs/12abricate_10prokka_09termreorder_08phageterm_07watson_plus/abricate_combined.tsv'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
+has input_aragorn => (is => 'rw', default => 'outputs/21aragorn/aragorn.txt'); ## Used when merging annotation files into a xlsx/tbl/gbk file.
 has input_classifier => (is => 'rw', default => 'outputs/18classifier/ictv_filtered.tsv'); ## Similar taxa detected by tblastx
 has input_genbank => (is => 'rw', default => undef); ## Existing genbank file for merging annotations.
 has input_glimmer => (is => 'rw', default => 'outputs/16glimmer/glimmer.predict');
@@ -1592,20 +1593,20 @@ sub Submit {
         ## Code references are invalid for these things...
         ## Why is it that periodically I get this error?
         ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?
-        my %saved_options = ();
-        SAVED: foreach my $k (keys %{$options}) {
-            my $r = ref($options->{$k});
-            next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
-            $saved_options{$k} = $options->{$k};
-        }
-        try {
-            my $stored = lock_store(\%saved_options, $option_file);
-        } catch ($e) {
-            warn "An error occurred when storing the options: $e";
-            print "HERE ARE THE OPTIONS:\n";
-            use Data::Dumper;
-            print Dumper \%saved_options;
-        }
+        ##my %saved_options = ();
+        ##SAVED: foreach my $k (keys %{$options}) {
+        ##    my $r = ref($options->{$k});
+        ##    next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
+        ##    $saved_options{$k} = $options->{$k};
+        ##}
+        ##try {
+        ##    my $stored = lock_store(\%saved_options, $option_file);
+        ##} catch ($e) {
+        ##    warn "An error occurred when storing the options: $e";
+        ##    print "HERE ARE THE OPTIONS:\n";
+        ##    use Data::Dumper;
+        ##    print Dumper \%saved_options;
+        ##}
     }
     my $runner;
     if ($class->{sbatch_path}) {

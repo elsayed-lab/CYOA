@@ -75,18 +75,19 @@ my \$d = qx'date';
 print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
-?;
-        if ($options->{option_file}) {
-            $perl_start .= qq!
-use Storable qw "lock_retrieve";
-local \$Storable::Eval = 1;
-use FileHandle;
-## Pull options from the option file: $parent->{option_file}
-my \$options = lock_retrieve('$parent->{option_file}');
-\$h->{options} = \$options;
 my \$result;
-!;
-        }
+?;
+##        if ($options->{option_file}) {
+##            $perl_start .= qq!
+##use Storable qw "lock_retrieve";
+##local \$Storable::Eval = 1;
+##use FileHandle;
+#### Pull options from the option file: $parent->{option_file}
+##my \$options = lock_retrieve('$parent->{option_file}');
+##\$h->{options} = \$options;
+##my \$result;
+##!;
+##        }
         my $perl_end = qq!## The following lines give status codes and some logging
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
