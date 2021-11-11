@@ -64,6 +64,7 @@ use Bio::Adventure::Resistance;
 use Bio::Adventure::Riboseq;
 use Bio::Adventure::QA;
 use Bio::Adventure::SeqMisc;
+use Bio::Adventure::Structure;
 use Bio::Adventure::Slurm;
 use Bio::Adventure::SNP;
 use Bio::Adventure::TNSeq;
@@ -299,7 +300,7 @@ has input_interpro => (is => 'rw', default => 'outputs/13_interproscan_10prokka_
 has input_phageterm => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
 has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
 has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
-has trinotate_input => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07watson_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
+has input_trinotate => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07watson_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
