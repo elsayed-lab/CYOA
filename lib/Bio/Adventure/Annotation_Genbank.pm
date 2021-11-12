@@ -168,16 +168,16 @@ sub Merge_CDS_Predictions_Worker {
     ## the prokka-derived prodigal data is expected to agree (except I did train them
     ## slightly differently and set a couple of options.
 
-    my $prokka_glimmer = Gather_Glimmer_CDSv3(prokka => \@prokka_features,
-                                              glimmer => \@glimmer_features);
+    my $prokka_glimmer = Gather_Glimmer_CDS(prokka => \@prokka_features,
+                                            glimmer => \@glimmer_features);
     ## Now we should have a data structure containing:
     ##  1.  A hash of the sources (e.g. the contigs)
     ##  2.  A hash of genes from prokka, which I may discard and rewrite.
     ##  3.  A hash of other features from prokka, which will be good to keep.
     ##  4.  A hash of cds from the merge of prokka and glimmer.
     my @merged_features = @{$prokka_glimmer->{cds}};
-    my $final_features = Gather_Prodigal_CDSv3(merged => \@merged_features,
-                                               prodigal => \@prodigal_features);
+    my $final_features = Gather_Prodigal_CDS(merged => \@merged_features,
+                                             prodigal => \@prodigal_features);
     my @final_set = @{$final_features};
     ## Add the non CDS features
     my $final_length = scalar(@final_set);
@@ -186,27 +186,31 @@ sub Merge_CDS_Predictions_Worker {
         push(@final_set, $other_feature);
     }
     $final_length = scalar(@final_set);
-    ##my $prokka_glimmer_len = scalar(@prokka_glimmer);
-    ##print "TESTME: $prokka_glimmer_len\n";
-    ##my @prok_glim_prod = Gather_Prodigal_CDS(prokka => \@prokka_glimmer,
-    ##                                         prodigal => \@prodigal_features);
-    ##my $all_len = scalar(@prok_glim_prod);
-    ##print "TESTME: $all_len\n";
-    ##my $num = scalar(@prok_glim_prod);
 
-    ## Lets make the CDS names just be the basename of the sample
-    ## followed by an incrementer.
-    my $prefix = basename($options->{basedir});
-    my @renamed = Rename_Features(features => \@final_set,
-                                  prefix => $prefix,
-                                  add_genes => 1);
-    ## Write the various output files.
+    ## Pull the source features into an array.
     my @assembly_features = ();
     for my $contig (keys %{$prokka_glimmer->{source}}) {
         my $source_feature = $prokka_glimmer->{source}->{$contig};
         ## Put the source at the front.
         push(@assembly_features, $source_feature);
     }
+
+    ## Lets make the CDS names just be the basename of the sample
+    ## followed by an incrementer.
+
+    ## There is one important corner case that needs to be addressed.
+    ## Sometimes glimmer (and maybe prodigal?) picks up a potential ORF
+    ## which crosses the 0 mark of the assembly.  Since this is used
+    ## primarily with circular genomes, that is perfectly reasonable.
+    ## But I am not certain how to properly handle it.
+    ## It seems like this is the best place to handle that case though,
+    ## since at this point we have the full catalog of features in one place.
+    my $prefix = basename($options->{basedir});
+    my @renamed = Rename_Features(
+        features => \@final_set, assembly => \@assembly_features,
+        prefix => $prefix, add_genes => 1);
+    ## Write the various output files.
+
 
     my $fsa_written = Write_Fsa_from_SeqFeature_Generic(
         input_seq => \@assembly_features,
@@ -234,7 +238,7 @@ sub Merge_CDS_Predictions_Worker {
 }
 
 ## Something in my logic for merging the locus_tag names is incorrect here.
-sub Gather_Glimmer_CDSv3 {
+sub Gather_Glimmer_CDS {
     my %args = @_;
     my @prokka = @{$args{prokka}};
     my @glimmer = @{$args{glimmer}};
@@ -362,7 +366,7 @@ sub Gather_Glimmer_CDSv3 {
 }
 
 
-sub Gather_Prodigal_CDSv3 {
+sub Gather_Prodigal_CDS {
     my %args = @_;
     my @merged = @{$args{merged}};
     my @prodigal = @{$args{prodigal}};
@@ -493,164 +497,61 @@ sub Gather_Prodigal_CDSv3 {
     return(\@final_cds);
 }
 
-sub Gather_Glimmer_CDS {
-    my %args = @_;
-    my @prokka = @{$args{prokka}};
-    my @glimmer = @{$args{glimmer}};
-
-    ## new_features will be the result of the merge.
-    my @new_features = ();
-    my $current_source;
-    my $pcount = 0;
-    my $orf_number = 1;
-  PROKKA: for my $prokka_f (@prokka) {
-      $pcount++;
-      my $prokka_tag = $prokka_f->primary_tag();
-      if ($prokka_tag eq 'source') {
-          push(@new_features, $prokka_f);
-          $current_source = $prokka_f;
-          next PROKKA;
-      }
-      if ($prokka_tag eq 'gene') {
-          next PROKKA;
-      }
-      ## The contig ID
-      my $prokka_contig = $prokka_f->seq_id();
-      ## prediction location.
-      my $prokka_strand = $prokka_f->strand();
-      my $prokka_start = $prokka_f->start();
-      my $prokka_end = $prokka_f->end();
-      ## I want to make sure display_name is set.
-      my @display_names = $prokka_f->get_tag_values('locus_tag');
-      ## With the caveat that I am going to turn around and change it almost immediately.
-      my $named = $prokka_f->display_name($display_names[0]);
-      my $continue_scanning = 1;
-    SCANNER: while ($continue_scanning) {
-        my $found_glimmer = Scan_Glimmer_Features(
-            features => \@glimmer, contig => $prokka_contig,
-            strand => $prokka_strand, start => $prokka_start, end => $prokka_end,
-            orf_number => $orf_number, source => 'glimmer', source_seq => $current_source);
-        @glimmer = @{$found_glimmer->{remaining}};
-        if ($found_glimmer->{operation} eq 'prepend') {
-            my $operation = $found_glimmer->{operation};
-            my $new_data = $found_glimmer->{feature};
-            my $new_number = $found_glimmer->{number};
-            ## Replace the glimmer array with an array which is 1 element smaller.
-            $orf_number = $new_number;
-            push(@new_features, $new_data);
-        } elsif ($found_glimmer->{operation} eq 'none') {
-            my $formatted_number = sprintf("%04d", $orf_number);
-            my $formatted_orf = qq"${prokka_contig}_${formatted_number}";
-            if ($prokka_f->has_tag('protein_id')) {
-                $prokka_f->remove_tag('protein_id');
-            }
-            $prokka_f->add_tag_value('protein_id', qq"prokka:${formatted_orf}");
-            $prokka_f->remove_tag('locus_tag');
-            $prokka_f->add_tag_value('locus_tag', $formatted_orf);
-            push(@new_features, $prokka_f);
-            $continue_scanning = 0;
-            next PROKKA;
-        }
-    }
-  }
-    return(@new_features);
-}
-
-sub Gather_Prodigal_CDS {
-    my %args = @_;
-    my @prokka = @{$args{prokka}};
-    my @prodigal = @{$args{prodigal}};
-    my $annotation_tag = 'note';
-    if (defined($args{tag})) {
-        $annotation_tag = $args{tag};
-    }
-    ## Do it again for prodigal
-    my @final_features = ();
-    my $current_source;
-    my $pcount = 0;
-    my $orf_number = 1;
-  PROKKA: for my $prokka_f (@prokka) {
-      $pcount++;
-      my $prokka_tag = $prokka_f->primary_tag();
-      if ($prokka_tag eq 'source') {
-          push(@final_features, $prokka_f);
-          $current_source = $prokka_f;
-          next PROKKA;
-      }
-      if ($prokka_tag eq 'gene') {
-          next PROKKA;
-      }
-      ## The contig ID
-      my $prokka_contig = $prokka_f->seq_id();
-      ## prediction location.
-      my $prokka_strand = $prokka_f->strand();
-      my $prokka_start = $prokka_f->start();
-      my $prokka_end = $prokka_f->end();
-      my $continue_scanning = 1;
-      while ($continue_scanning) {
-          my $found_prodigal = Scan_Prodigal_Features(
-              features => \@prodigal, contig => $prokka_contig,
-              strand => $prokka_strand, start => $prokka_start, end => $prokka_end,
-              orf_number => $orf_number, source => 'prodigal', source_seq => $current_source);
-          @prodigal = @{$found_prodigal->{remaining}};
-          if ($found_prodigal->{operation} eq 'prepend') {
-              my $operation = $found_prodigal->{operation};
-              my $new_data = $found_prodigal->{feature};
-              my $new_number = $found_prodigal->{number};
-              ## print "Setting orf_number from $orf_number to $new_number\n";
-              ## Replace the glimmer array with an array which is 1 element smaller.
-              $orf_number = $new_number;
-              push(@final_features, $new_data);
-          } elsif ($found_prodigal->{operation} eq 'merge') {
-              my $new_data = $found_prodigal->{feature};
-              my $new_number = $found_prodigal->{number};
-              my $formatted_number = sprintf("%04d", $new_number);
-              $orf_number = $new_number;
-              my $formatted_orf = qq"${prokka_contig}_${formatted_number}";
-              $prokka_f->remove_tag('protein_id');
-              $prokka_f->add_tag_value('protein_id', qq"prodigal:${formatted_orf}");
-              $prokka_f->remove_tag('locus_tag');
-              $prokka_f->add_tag_value('locus_tag', $formatted_orf);
-              my @new_scores = $new_data->get_tag_values($annotation_tag);
-              $prokka_f->add_tag_value($annotation_tag, $new_scores[0]);
-              $prokka_f->display_name($formatted_orf);
-              push(@final_features, $prokka_f);
-              $continue_scanning = 0;
-              next PROKKA;
-          } elsif ($found_prodigal->{operation} eq 'none') {
-              my $formatted_number = sprintf("%04d", $orf_number);
-              my $formatted_orf = qq"${prokka_contig}_${formatted_number}";
-              $prokka_f->remove_tag('protein_id');
-              $prokka_f->add_tag_value('protein_id', qq"prokka:${formatted_orf}");
-              $prokka_f->remove_tag('locus_tag');
-              $prokka_f->add_tag_value('locus_tag', $formatted_orf);
-              $prokka_f->display_name($formatted_orf);
-              push(@final_features, $prokka_f);
-              $continue_scanning = 0;
-              $orf_number++;
-              next PROKKA;
-          }
-      }
-  }
-    return(@final_features);
-}
-
 sub Rename_Features {
     my %args = @_;
     my $prefix = $args{prefix};
     my @features = @{$args{features}};
+    my @assembly = @{$args{assembly}};
     my $count = 0;
     my $contig_id;
+
+    ## Set aside a feature in case we need to move one to the end.
+    my $terminal_feature = undef;
+
+    my %keyed_assembly = ();
+    for my $a (@assembly) {
+        my $key = $a->seq_id;
+        $keyed_assembly{$key} = $a;
+    }
+
+    my @renamed = ();
   RENAME: for my $n (@features) {
-      next if ($n->primary_tag() eq 'source');
+      if ($n->primary_tag eq 'source') {
+          next RENAME;
+      }
       $count++;
       my $display_number = sprintf("%04d", $count);
       $contig_id = $n->seq_id();
       my $display_name = qq"${prefix}_${display_number}";
       my $protein_name = qq"Phokka:${display_name}";
-      my $end = $n->end;
       my $start = $n->start;
+      my $end = $n->end;
       my $strand = $n->strand;
+
+      ## Handle the weird corner case of features which bridge the origin here:
+      ## I think these are happening only when phageterm reorients the genome to a
+      ## DTR and prodigal/glimmer picks up an ORF which ends at the beginning of
+      ## the DTR.
+      ## With that in mind, I am going to copy the logic (maybe move it) from
+      ## Write_CDS_from_SeqFeatures() which handles this case, but end the feature
+      ## at the origin.
+      if ($end < $start) {
+          ## I think any features which fall in this category should end very close to position 1.
+          ## In theory, probably significantly less than 100.
+          $count--; ## Reset the ORF counter.
+          if ($end < 1000) {
+              my $source_feature = $keyed_assembly{$n->seq_id};
+              ## Assume this is caused by phageterm-reorganization.
+              my $moved_end = $n->end($source_feature->end);
+              my $note = qq"This CDS is actually ${start} nt. longer, but was truncated because it crossed the origin.  The primary hypothesis for this is due to phageterm-reorganization of the genome, resulting in a DTR which begins at the end of this CDS.";
+              $n->add_tag_value('note', $note);
+              $terminal_feature = $n;
+          } else {
+              print "I am not sure how to handle this feature, start:${start} end:${end}\n";
+          }
+          next RENAME;
+      }
+
       my $id = $n->display_name($display_name);
       $n->remove_tag('locus_tag');
       $n->add_tag_value('locus_tag', $display_name);
@@ -658,14 +559,38 @@ sub Rename_Features {
           $n->remove_tag('protein_id');
       }
       $n->add_tag_value('protein_id', $protein_name);
+      push(@renamed, $n);
+  } ## End of the rename loop.
+
+    ## Final step in addressing phageterm-annoying features,
+    ## Pick up the modified feature and stick it on the end of the list.
+    if (defined($terminal_feature)) {
+        my $display_number = sprintf("%04d", $count);
+        my $contig_id = $terminal_feature->seq_id();
+        my $display_name = qq"${prefix}_${display_number}";
+        my $protein_name = qq"Phokka:${display_name}";
+        my $start = $terminal_feature->start;
+        my $end = $terminal_feature->end;
+        my $strand = $terminal_feature->strand;
+        my $id = $terminal_feature->display_name($display_name);
+        $terminal_feature->remove_tag('locus_tag');
+        $terminal_feature->add_tag_value('locus_tag', $display_name);
+        if ($terminal_feature->has_tag('protein_id')) {
+            $terminal_feature->remove_tag('protein_id');
+        }
+        $terminal_feature->add_tag_value('protein_id', $protein_name);
+        push(@renamed, $terminal_feature);
   }
+
+    ## Finally, re-iterate over the features and add genes if requested.
+    my @final_features = ();
     if ($args{add_genes}) {
-        my @new_features = ();
-      FEATLOOP: for my $f (@features) {
+      FEATLOOP: for my $f (@renamed) {
           if ($f->primary_tag() eq 'source') {
-              push(@new_features, $f);
+              push(@final_features, $f);
               next FEATLOOP;
           }
+
           my $gene = Bio::SeqFeature::Generic->new(
               -primary_tag => 'gene',
               -seq_id => $contig_id,
@@ -674,13 +599,13 @@ sub Rename_Features {
               -strand => $f->strand,
               -end => $f->end,
               -tag => { locus_tag => $f->display_name },);
-          push(@new_features, $gene);
-          push(@new_features, $f);
+          push(@final_features, $gene);
+          push(@final_features, $f);
       } ## Finished iterating over the features and adding genes.
-        @features = @new_features;
   }
-    my $len = scalar(@features);
-    return(@features);
+
+    my $len = scalar(@final_features);
+    return(@final_features);
 }
 
 sub Scan_Glimmer_Features {
@@ -1042,9 +967,6 @@ sub Write_CDS_from_SeqFeatures {
 
     ## Make a hash of the contigs by name
   CONTIGS: for my $s (@sequences) {
-      ##for my $k (keys %{$s}) {
-      ##    print "TESTME NAMED: $k\n";
-      ##}
       my $id = $s->display_name;
       ##print "TESTME: THE ID IS: $id\n";
       $named_seq{$id} = $s;
@@ -1065,13 +987,40 @@ sub Write_CDS_from_SeqFeatures {
      my $end = $in->end;
      my $strand = $in->strand;
      my $full_sequence = $named_seq{$contig};
-     my $cds_sequence = $full_sequence->trunc($start, $end);
-     if ($strand < 0) {
-         $cds_sequence = $cds_sequence->revcom;
+     ## This is hopefully only happening when a phageterm-reorganized
+     ## genome is putting an ORF at the 'top of the clock'
+     ## My solution therefore will be to check that it is bound at the
+     ## new beginning.
+     my $cds_obj = '';
+     if ($end < $start) {
+         ## I am going to assume that any real orf in this context must
+         ## be no more than 5000 before and/or 5000 after the 0 point, thus
+         ## a 6k ORF ending at position 100 will fail this test.
+         my $post_dist = $end;
+         my $pre_dist = $full_sequence->length - $start;
+         if ($pre_dist < 5000 && $post_dist < 5000) {
+             print "Found an overlap with 12 on the clock.\n";
+             my $pre_sequence = $full_sequence->trunc($end, $pre_dist);
+             my $post_sequence = $full_sequence->trunc(1, $start);
+             if ($strand < 0) {
+                 $pre_sequence = $pre_sequence->revcom;
+                 $post_sequence = $post_sequence->revcom;
+             }
+             my $tmp_sequence_string = $pre_sequence->seq . $post_sequence->seq;
+             $cds_obj = Bio::Seq->new(-display_id => $name, -seq => $tmp_sequence_string);
+         } else {
+             print "Cannot deal with this sequence right now, start:${start}, end:${end}\n";
+             next FEATURES;
+         }
+     } else {  ## Normal sequence where start < end
+         $cds_obj = $full_sequence->trunc($start, $end);
+         if ($strand < 0) {
+             $cds_obj = $cds_obj->revcom;
+         }
      }
-     my $aa_sequence = $cds_sequence->translate;
-     my $cds_sequence_string = $cds_sequence->seq;
-     my $aa_sequence_string = $aa_sequence->seq;
+     my $aa_obj = $cds_obj->translate;
+     my $cds_sequence_string = $cds_obj->seq;
+     my $aa_sequence_string = $aa_obj->seq;
      $aa_sequence_string =~ s/\*$//g;
 
      my $cds_seq_obj = Bio::Seq->new(-display_id => $name, -seq => $cds_sequence_string);

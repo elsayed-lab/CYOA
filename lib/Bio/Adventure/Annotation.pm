@@ -39,7 +39,7 @@ sub Aragorn {
         modules => ['aragorn'],
         jprefix => 21,
         species => undef,
-        arbitrary => ' -rp -fasta -w -m -t -mt ',);
+        arbitrary => ' -rp -fasta -w -m -t ',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('aragorn');
     die("Could not find aragorn in your PATH.") unless($check);
@@ -237,7 +237,7 @@ sub Interproscan {
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-perl -pe 's/\\*\$//g' ${input_path} > ${input_filename}
+perl -pe 's/\\*//g' ${input_path} > ${input_filename}
 interproscan.sh -i ${input_filename} \\
   2>interproscan.err \\
   1>interproscan.out

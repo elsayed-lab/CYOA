@@ -38,8 +38,9 @@ entries, CDS, and interCDS regions.
 =cut
 sub Gb2Gff {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
-                                   required => ['input']);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input']);
     my $input = $options->{input};
 
     my $base = basename($input, ('.gz', '.xz', '.bz2'));
