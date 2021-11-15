@@ -47,15 +47,11 @@ if (!defined($overrides->{task})) {
     $cyoa = Main($cyoa);
 } elsif (!defined($overrides->{method})) {
     ## If task is defined, but method is not, use the menu system to get that information
-    $cyoa = Iterate(
-        $cyoa,
-        task => $overrides->{task});
+    $cyoa = Iterate($cyoa, task => $overrides->{task});
 } else {
     ## If both task and method are defined, run whatever is requested.
-    $cyoa = Run_Method(
-        $cyoa,
-        task => $overrides->{task},
-        method => $overrides->{method});
+    $cyoa = $cyoa->Run_Method(task => $overrides->{task},
+                              method => $overrides->{method});
 }
 
 =head2 C<Main>
@@ -69,19 +65,14 @@ sub Main {
     if (!defined($term)) {
         $term = Bio::Adventure::Get_Term();
     }
-    my $menus = $class->{menus};
-
+    my $menus = Bio::Adventure::Get_Menus();
     my $finished = 0;
     while ($finished != 1) {
         my @choices = sort keys(%{$menus});
         my $top_level = $term->get_reply(prompt => 'Choose your adventure!',
-                                         choices => \@choices,
-                                         default => 'TNSeq',
-                                     );
-        my $tasks = Iterate($class, term => $term, task => $top_level, interactive => 1,);
-        my $bool = $term->ask_yn(prompt => 'Are you done?',
-                                 default => 'n',
-                             );
+                                         choices => \@choices, default => 'TNSeq',);
+        my $tasks = Iterate($cyoa, term => $term, task => $top_level, interactive => 1,);
+        my $bool = $term->ask_yn(prompt => 'Are you done?', default => 'n',);
         $finished = 1 if ($bool eq '1');
         ## my $string = q[some_command -option --no-foo --quux='this thing'];
         ## my ($options,$munged_input) = $term->parse_options($string);
@@ -89,7 +80,7 @@ sub Main {
         ## Retrieve the entire session as a printable string:
         ## $hist = Term::UI::History->history_as_string;
         ## $hist = $term->history_as_string;
-    }   ## End while not finished.
+    } ## End while not finished.
     return($class)
 }
 
@@ -102,7 +93,7 @@ sub Iterate {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars();
     my $term = $args{term};
-    my $menus = $options->{menus};
+    my $menus = Bio::Adventure::Get_Menus();
     my $type = $args{task};
     my $finished = 0;
     my $process;
@@ -110,8 +101,7 @@ sub Iterate {
         my $choices = $menus->{$type}->{choices};
         my @choice_list = sort keys(%{$choices});
         my $task_name = $term->get_reply(prompt => $menus->{$type}->{message},
-                                         choices => \@choice_list,
-                                         default => 1);
+                                         choices => \@choice_list, default => 1);
         ## This now returns a function reference.
         my $task = $choices->{$task_name};
         my $cyoa_result;
@@ -125,13 +115,12 @@ sub Iterate {
             $process = $task->($class, type => $type, interactive => $args{interactive});
             chdir($start_dir);
         }
-        my $bool = $term->ask_yn(prompt => 'Go back to the toplevel?',
-                                 default => 'n',);
+        my $bool = $term->ask_yn(prompt => 'Go back to the toplevel?', default => 'n',);
         if ($bool eq '1') {
             $finished = 1;
-            my $reset = $term->get_reply(prompt => 'How many of your parameters do you want to reset?',
-                                         choices => ['Everything', 'Just input', 'Nothing'],
-                                         default => 'Just input');
+            my $reset = $term->get_reply(
+                prompt => 'How many of your parameters do you want to reset?',
+                choices => ['Everything', 'Just input', 'Nothing'], default => 'Just input');
             if ($reset eq 'Just input') {
                 $cyoa->{input} = undef;
             } elsif ($reset eq 'Everything') {

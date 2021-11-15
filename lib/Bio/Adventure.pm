@@ -543,7 +543,7 @@ sub BUILD {
     }
 
     ## These are both problematic when (n)storing the data.
-    if (defined($class->interactive) && $class->interactive) {
+    if (defined($class->{interactive}) && $class->{interactive}) {
         $class->{menus} = Get_Menus();
     }
     $class->{methods_to_run} = Get_TODOs(%{$class->{variable_getopt_overrides}});

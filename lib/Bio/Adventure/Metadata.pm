@@ -38,7 +38,47 @@ use List::MoreUtils qw"any";
 use Template;
 use Text::CSV_XS::TSV;
 
+=head2 C<Generate_Samplesheet>
+
+Use the extract_metadata() R function from hpgltools to create a
+sample sheet given an inital sheet containing (at least) the
+sample IDs for a series of samples within the current working
+directory.
+
+extract_metadata() uses a set of predefined regular expressions
+in order to hunt for the various outputs from the tools I use
+for a given set of samples and pull out of them the lines/cells
+which contain data of interest vis a vis what happened when
+processing the samples.
+
+=cut
+sub Generate_Samplesheet {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        modules => ['R']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('R');
+    die("Could not find R in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+
+    my $jstring = qq!
+
+!;
+    my $sample_sheet = $class->Submit(
+        jstring => $jstring,
+        language => 'R',
+        shell => '/usr/bin/env Rscript',);
+    return($sample_sheet);
+}
+
 =head2 C<Get_Aragorn>
+
+Extract the tRNA annotations from a file produced by aragorn.
 
 =cut
 sub Get_Aragorn {
