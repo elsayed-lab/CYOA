@@ -178,7 +178,6 @@ the kraken output file which contains the status of each read; then
 extract the third column and find out which taxon (except 0) which
 has the most reads.  Once we have that taxonomy ID, we can go to
 
-
 =cut
 sub Kraken_Best_Hit {
     my ($class, %args) = @_;
@@ -452,7 +451,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         output => $merged_data,
         primary_key => $options->{primary_key},
         template_sbt => $options->{template_sbt},
-        template_out => $final_sbt,);
+        template_out => $final_sbt,
+        wanted_levels => 'order,family,genus',);
     print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
 
     $merged_data = Merge_Start_Data(
@@ -841,6 +841,7 @@ sub Merge_Classifier {
     my $template = $args{template_sbt};
     my $output = $args{template_out};
     my $merged_data = $args{output};
+    my $wanted_levels = $args{wanted_levels};
     my $default_values = {
         last_name => 'Margulieux',
         first_name => 'Katie',
@@ -878,11 +879,22 @@ sub Merge_Classifier {
       }
       $rows_read++;
 
+      ## Here is a taxon entry provided by the ICTV classifier:
+      ## Duplodnaviria Heunggongvirae Uroviricota Caudoviricetes Caudovirales Myoviridae Hadassahvirus Acinetobacter virus PhT2
+      ## domain        phylum         class       order          family       genus      species       dunno
+      ## Look at dunno in the previous line, it is highly likely that I got confused about the level names
       my @wanted_columns = ('taxon', 'hit_length', 'hit_accession', 'hit_description',
                             'hit_bit', 'hit_sig', 'hit_score');
-      foreach my $colname (@wanted_columns) {
+      for my $colname (@wanted_columns) {
           ## Check that we already filled this data point
           $default_values->{$colname} = $row->{$colname};
+      }
+      ## Now add columns for the set of wanted taxonomy levels
+      my @wanted_levels = split(/,/, $args{wanted_levels});
+      my ($domain, $phylum, $class, $order,
+          $family, $genus, $species, $rest) = split(/\s+/, $row->{taxon});
+      for my $wanted (@wanted_levels) {
+          $default_values->{$wanted} = ${$wanted};
       }
   }
     close $classifier_fh;
