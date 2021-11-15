@@ -51,6 +51,7 @@ use Bio::Adventure::Cleanup;
 use Bio::Adventure::Count;
 use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
+use Bio::Adventure::Feature_Prediction;
 use Bio::Adventure::Index;
 use Bio::Adventure::Local;
 use Bio::Adventure::Map;
@@ -298,6 +299,7 @@ has input_glimmer => (is => 'rw', default => 'outputs/16glimmer/glimmer.predict'
 has input_fastq => (is => 'rw', default => undef);
 has input_interpro => (is => 'rw', default => 'outputs/13_interproscan_10prokka_09termreorder_08phageterm_07watson_plus/interproscan.tsv'); ## interpro output file when merging annotations.
 has input_phageterm => (is => 'rw', default => 'outputs/08phageterm_07watson_plus/direct-term-repeats.fasta'); ## phageterm output file when merging annotations.
+has input_phanotate => (is => 'rw', default => 'outputs/16phanotate/phanotate.tsv.xz');
 has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
 has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
 has input_trinotate => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07watson_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
@@ -374,7 +376,7 @@ has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
 has starting_tree => (is => 'rw', default => undef); ## Starting tree for phylogenetic analyses
 has stranded => (is => 'rw', default => 0); ## Did this data come from a stranded library kit?
-has suffixes => (is => 'rw', default => '.fastq,.gz,.xz,.fasta,.sam,.bam,.count,.csfasta,.qual'); ## Suffixes to remove when invoking basename
+has suffixes => (is => 'rw', default => '.fastq,.gz,.xz,.fasta,.sam,.bam,.count,.csfasta,.qual,.fsa,.faa,.fna,.gbf,.gbk,.tsv,.csv,.gff,.tbl,.ffn,.sf'); ## Suffixes to remove when invoking basename
 has ta_offset => (is => 'rw', default => 0); ## When counting TAs, this is either 0 or 2 depending on if the TA was removed.
 has task => (is => 'rw', default => undef);
 has taxid => (is => 'rw', default => '353153'); ## Default taxonomy ID, unknown for now.
@@ -686,22 +688,16 @@ sub Get_Menus {
             message => 'How come Aquaman can control whales?  They are mammals!  Makes no sense.',
             choices =>  {
                 '(abricate): Search for Resistance genes across databases.' => \&Bio::Adventure::Resistance::Abricate,
-                '(aragorn): Search for tRNAs with aragorn.' => \&Bio::Adventure::Annotation::Aragorn,
                 '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
-                '(glimmer): Use glimmer to search for ORFs.' => \&Bio::Adventure::Annotation::Glimmer,
-                '(glimmersingle): Use glimmer to search for ORFs without training.' => \&Bio::Adventure::Annotation::Glimmer_Single,
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
                 '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
                 '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,
                 '(terminasereorder): Reorder an assembly based on the results of a blast search.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(prodigal): Run prodigal on an assembly.' => \&Bio::Adventure::Annotation::Prodigal,
                 '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,
                 '(resfinder): Search for antimicrobial resistance genes.' => \&Bio::Adventure::Resistance::Resfinder,
                 '(rgi): Search for resistance genes with genecards and peptide fasta input.' => \&Bio::Adventure::Resistance::Rgi,
-                '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Annotation::tRNAScan,
-                '(trainprodigal): Train prodgial using sequences from a species/strain.' => \&Bio::Adventure::Annotation::Train_Prodigal,
                 '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk,
             },
         },
@@ -721,8 +717,6 @@ sub Get_Menus {
                 '(unicycler): Perform de novo assembly with unicycler.' => \&Bio::Adventure::Assembly::Unicycler,
                 '(shovill): Perform the shovill pre/post processing with spades.' => \&Bio::Adventure::Assembly::Shovill,
                 '(terminasereorder): Reorder an existing assembly to the most likely terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(prodigal): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Annotation::Prodigal,
-                '(glimmer): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Annotation::Glimmer,
                 '(watson_plus): Make sure the Watson strand has the most pluses.' => \&Bio::Adventure::Annotation::Watson_Plus,
             },
         },
@@ -744,6 +738,19 @@ sub Get_Menus {
                 '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
                 '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
                 '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
+            },
+        },
+        Feature_Prediction => {
+            name => 'features',
+            message => '',
+            choices => {
+                '(aragorn): Search for tRNAs with aragorn.' => \&Bio::Adventure::Feature_Prediction::Aragorn,
+                '(glimmer): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediction::Glimmer,
+                '(glimmersingle): Use glimmer to search for ORFs without training.' => \&Bio::Adventure::Feature_Prediction::Glimmer_Single,
+                '(phanotate): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediciton::Phanotate,
+                '(prodigal): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediction::Prodigal,
+                '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Feature_Prediction::tRNAScan,
+                '(trainprodigal): Train prodgial using sequences from a species/strain.' => \&Bio::Adventure::Feature_Prediction::Train_Prodigal,
             },
         },
         Mapping => {
@@ -933,7 +940,8 @@ sub Get_TODOs {
         "abricate+" => \$todo_list->{todo}{'Bio::Adventure::Resistance::Abricate'},
         "abyss+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Abyss'},
         "angsdfilter+" => \$todo_list->{todo}{'Bio::Adventure::PopGen::Angsd_Filter'},
-        "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Aragorn'},
+        "annotatephage+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Phage'},
+        "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Aragorn'},
         "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
         "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
         "blastparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Blast_Parse'},
@@ -965,8 +973,8 @@ sub Get_TODOs {
         "filterkraken+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Filter_Host_Kraken'},
         "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
         "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
-        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer'},
-        "glimmersingle+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Glimmer_Single'},
+        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Glimmer'},
+        "glimmersingle+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Glimmer_Single'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
         "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
@@ -990,8 +998,9 @@ sub Get_TODOs {
         "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annot_Prodigal'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
         "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
+        "phanotate+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Phanotate'},
         "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
-        "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prodigal'},
+        "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Prodigal'},
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
         "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},
@@ -1023,10 +1032,11 @@ sub Get_TODOs {
         "trinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity'},
         "trinitypost+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
         "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Trinotate'},
-        "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::tRNAScan'},
+        "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::tRNAScan'},
         "unicycler+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler'},
         "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
+        "vienna+" => \$todo_list->{todo}{'Bio::Adventure::Structure::RNAFold_Windows'},
         "watsonplus+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Watson_Plus'},
         ## A set of pipelines combining the above.
         "pannotate+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Assembly'},

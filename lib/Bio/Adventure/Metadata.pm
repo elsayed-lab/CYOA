@@ -245,14 +245,16 @@ sub Merge_Annotations {
         args => \%args,
         required => ['input_fsa', 'input_genbank', 'input_tsv'],
         input_abricate => '',
+        input_aragorn => '',
         input_classifier => '',
-        input_glimmer => '',
         input_interpro => '',
         input_phageterm => '',
         input_prodigal => '',
         input_trinotate => '',
         jprefix => '15',
         evalue => '1e-10',
+        keep_genes => 1,
+        locus_tag => 1,
         primary_key => 'locus_tag',
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
@@ -274,23 +276,25 @@ use Bio::Adventure::Annotation;
   input_genbank => '$options->{input_genbank}',
   input_tsv => '$options->{input_tsv}',
   input_abricate => '$options->{input_abricate}',
+  input_aragorn => '$options->{input_aragorn}',
   input_classifier => '$options->{input_classifier}',
-  input_glimmer => '$options->{input_glimmer}',
   input_phageterm => '$options->{input_phageterm}',
   input_interpro => '$options->{input_interpro}',
   input_prodigal => '$options->{input_prodigal}',
   input_trinotate => '$options->{input_trinotate}',
   jdepends => '$options->{jdepends}',
   jprefix => '$options->{jprefix}',
-  jname => 'merge_annotations',);
+  jname => 'merge_annotations',
+  keep_genes => '$options->{keep_genes}',
+  locus_tag => '$options->{locus_tag}',);
 ?;
    my $merge_job = $class->Submit(
        input_fsa => $options->{input_fsa},
        input_genbank => $options->{input_genbank},
        input_tsv => $options->{input_tsv},
        input_abricate => $options->{input_abricate},
+       input_aragorn => $options->{input_aragorn},
        input_classifier => $options->{input_classifier},
-       input_glimmer => $options->{input_glimmer},
        input_interpro => $options->{input_interpro},
        input_phageterm => $options->{input_phageterm},
        input_prodigal => $options->{input_prodigal},
@@ -304,16 +308,17 @@ use Bio::Adventure::Annotation;
        output_dir => $output_dir,
        output_fsa => $output_fsa,
        output_gbf => $output_gbf,
-       output_gbk =>  $output_gbk,
+       output_gbk => $output_gbk,
        output_tbl => $output_tbl,
        output_xlsx => $output_xlsx,
        primary_key => $options->{primary_key},
+       keep_genes => $options->{keep_genes},
+       locus_tag => $options->{locus_tag},
        shell => '/usr/bin/env perl',);
    $class->{language} = 'bash';
    $class->{shell} = '/usr/bin/env bash';
    return($merge_job);
 }
-
 
 =head2 C<Merge_Annotations_Make_Gbk>
 
@@ -340,6 +345,8 @@ sub Merge_Annotations_Make_Gbk {
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
         product_signalp => 'inter_signal',
+        keep_genes => 1,
+        locus_tag => 1,
         template_sbt => '/bio/reference/tbl2asn_template.sbt',);
     my $high_confidence = undef;
     my $likely_maximum = undef;
@@ -537,20 +544,28 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         $seq_count++;
         my @feature_list = $seq->get_SeqFeatures();
         ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
-        foreach my $d (keys %dtr_features) {
+        for my $d (keys %dtr_features) {
             unshift(@feature_list, $dtr_features{$d});
         }
-        foreach my $ara (@{$aragorn_features}) {
+        for my $ara (@{$aragorn_features}) {
             unshift(@feature_list, $ara);
         }
 
-        for my $feat (@feature_list) {
+        FEATURES: for my $feat (@feature_list) {
             my $contig = $feat->seq_id(); ## The contig ID
             my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
             my $annot = $feat->annotation();
             my $locus = 'failed_locustag';
+            my $type = $feat->primary_tag;
+
+            ## A couple of places to attempt to make my gbk file more similar to patric's vis a vis
+            ## the tags that are retained.
+            if (!$options->{keep_genes} && $type eq 'gene') {
+                next FEATURES;
+            }
+
             ## I want to mess with the CDS entries and leave the others alone.
-            if ($feat->primary_tag eq 'CDS') {
+            if ($type eq 'CDS') {
                 ## Get the information from our extra data source and add it as notes.
                 my @loci = $feat->get_tag_values('locus_tag');
                 $locus = $loci[0];
@@ -615,27 +630,34 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 my @product_columns = @{$options->{product_columns}};
                 my $best_hit = 0;
                 my $current_hit = 0;
-                for my $col (@product_columns) {
+                ## print "Precolumns\n\n";
+                PRODCOL: for my $col (@product_columns) {
                     ## Accession^Accession^Query,Hit^Identity^Evalue^RecName^Taxonomy
-                    next unless(defined($new_info->{$col}));
+                    next PRODCOL unless(defined($new_info->{$col}));
                     my ($accession, $id, $query_hit, $identity, $evalue, $db_name, $taxonomy) = split(/\^/, $new_info->{$col});
-                    next unless(defined($evalue));
+                    next PRODCOL unless(defined($db_name));
+                    next PRODCOL if ($db_name eq '-');
+                    ## A little sanitization for the db names.
+                    $db_name =~ s/\;//g;
+                    $db_name =~ s/(\{.*\})?//g;
+                    ## print "TESTME: acc:$accession id:$id qh:$query_hit name:$db_name\n";
+                    next PRODCOL unless(defined($evalue));
                     $evalue =~ s/^(E|e)://g;
                     my $this_string;
                     if (defined($high_confidence)) {
                         if ($evalue <= $high_confidence) {
-                            $this_string = qq"_High confidence ${db_name}";
+                            $this_string = qq"_High confidence ${db_name}: ${accession}";
                             $current_hit = 3;
                         } elsif ($evalue <= $likely_maximum) {
-                            $this_string = qq"_Likely ${db_name}";
+                            $this_string = qq"_Likely ${db_name}: ${accession}";
                             $current_hit = 2;
                         } elsif ($evalue <= $possible_maximum) {
-                            $this_string = qq"_Potential ${db_name}";
+                            $this_string = qq"_Potential ${db_name}: ${accession}";
                             $current_hit = 1;
                         }
                         ## If we are not attempting to discriminate among potential hits.
                     } else {
-                        $this_string = qq"${db_name}";
+                        $this_string = qq"${db_name}: ${accession}";
                     }
                     if ($current_hit > $best_hit) {
                         $product_string = $this_string;
@@ -647,7 +669,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 if (defined($product_string)) {
                     $product_string =~ s/RecName: Full=//g;
                     my @current_values = $feat->remove_tag('product');
-                    $product_string = qq"${product_string}";
                     my $new = $feat->add_tag_value('product', $product_string);
                     my $inf;
                     if ($product_string eq $signal_string) {
@@ -660,9 +681,16 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                         $inference_string = qq"ab initio prediction:${inference_string}\n";
                         $inf = $feat->add_tag_value('inference', $inference_string);
                     }
-                }
+                } ## End if there is already a product string associated with this feature.
 
             } ## End looking for CDS entries
+
+            ## Another place to try to make my genbank file more similar to patric's
+            ## Its genbank files do not include a locus_tag.  I don't know why, though.
+            if (!$options->{locus_tag}) {
+                $feat->remove_tag('locus_tag') if ($feat->has_tag('locus_tag'));
+            }
+
             push(@new_features, $feat);
         } ## End iterating over the feature list
 

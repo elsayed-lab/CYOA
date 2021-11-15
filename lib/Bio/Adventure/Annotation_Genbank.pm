@@ -21,6 +21,7 @@ use File::Path qw"make_path";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
 use List::MoreUtils qw"any uniq";
+use Math::SigFigs qw"FormatSigFigs";
 use Template;
 use Text::CSV_XS::TSV;
 
@@ -30,6 +31,132 @@ use Bio::SeqFeature::Generic;
 use Bio::SeqFeature::Lite;
 use Bio::SeqIO;
 use Bio::Tools::GuessSeqFormat;
+
+=head2 C<Combine_CDS_Features>
+
+This is a generalized Feature-merger.  It attempts to keep a
+heirarchy of source priorities as well as maintain the annotations
+of the CDS predictions for the methods which provide useful or
+interesting information.
+
+It currently has some tortured logic to allow one to choose the
+preferred annotation source and also set the first/second source.
+I am pretty sure this logic is redundant.
+
+=cut
+sub Combine_CDS_Features {
+    my %args = @_;
+    my @first = @{$args{first}};
+    my @second = @{$args{second}};
+    my $keep_both = 0;
+    $keep_both = $args{keep_both} if ($args{keep_both});
+    my $assembly_type = 'phage';
+    if (defined($args{assembly_type})) {
+        $assembly_type = $args{assembly_type};
+    }
+    my $first_name = 'prokka';
+    if (defined($args{first_name})) {
+        $first_name = $args{first_name};
+    }
+    my $second_name = 'phanotate';
+    if (defined($args{second_name})) {
+        $second_name = $args{second_name};
+    }
+    my $dominant = 'first';
+    if (defined($args{dominant})) {
+        $dominant = $args{dominant};
+    }
+    my $notes = $dominant;
+    if (defined($args{notes})) {
+        $notes = $args{notes};
+    }
+
+    my @merged_cds = ();
+    my $count = 0;
+    my %finished_first = ();
+    my %finished_second = ();
+  FIRST: for my $first_cds (@first) {
+      $count++;
+      my $first_contig = $first_cds->seq_id();
+      ## and the information about the location
+      my $first_strand = $first_cds->strand();
+      my $first_start = $first_cds->start();
+      my $first_end = $first_cds->end();
+      my ($first_fivep, $first_threep) = ($first_start, $first_end);
+      if ($first_strand < 0) {
+          ($first_fivep, $first_threep) = ($first_end, $first_start);
+      }
+      ## Get the set of tags and the locus tag specifically
+      my @first_tags = $first_cds->get_all_tags();
+      my @locus_tags = $first_cds->get_tag_values('locus_tag');
+    SECOND: for my $second_cds (@second) {
+        ## We do not have to think about the type of these features.
+        my $second_strand = $second_cds->strand();
+        my $second_start = $second_cds->start;
+        my $second_end = $second_cds->end;
+        my ($second_fivep, $second_threep) = ($second_start, $second_end);
+        if ($second_strand < 0) {
+            ($second_fivep, $second_threep) = ($second_end, $second_start);
+        }
+        if (defined($finished_second{$second_threep})) {
+            next SECOND;
+        }
+        my $first_length = scalar(@first);
+        my $second_length = scalar(@second);
+        if ($count < $first_length) {
+            if ($second_end > $first_end) {
+                last SECOND;
+            }
+        }
+
+        if (($first_fivep eq $second_fivep) and ($first_threep eq $second_threep)) {
+            if ($dominant eq 'first') {
+                ## my $tag = $first_cds->add_tag_value('note', qq"cds_prediciton: ${first_name}");
+                if ($args{notes} eq 'both') {
+                    my @second = $second_cds->get_tag_values('note');
+                    $first_cds->add_tag_value('note', $second[0]);
+                }
+                push(@merged_cds, $first_cds);
+            } else {
+                if ($args{notes} eq 'both') {
+                    my @first = $first_cds->get_tag_values('note');
+                    $second_cds->add_tag_values('note', $first[0]);
+                }
+                push(@merged_cds, $second_cds);
+            }
+            $finished_first{$first_threep} = 1;
+            $finished_second{$first_threep} = 1;
+        } elsif ($first_threep eq $second_threep) {
+            if ($dominant eq 'first') {
+                ## my $first_tag = $first_cds->add_tag_value('note', qq"cds_prediction: ${first_name}");
+                push(@merged_cds, $first_cds);
+                if ($keep_both) {
+                    ## my $second_tag = $second_cds->add_tag_value('note', qq"cds_prediction: ${second_name}");
+                    push(@merged_cds, $second_cds);
+                }
+            } else {
+                ## my $second_tag = $second_cds->add_tag_value('note', qq"cds_prediction: ${second_name}");
+                push(@merged_cds, $second_cds);
+                if ($keep_both) {
+                    ## my $first_tag = $first_cds->add_tag_value('note', qq"cds_prediction: ${first_name}");
+                    push(@merged_cds, $first_cds);
+                }
+            }
+            $finished_first{$first_threep} = 1;
+            $finished_second{$first_threep} = 1;
+        } else {
+            $finished_second{$second_threep} = 1;
+            ## my $second_tag = $second_cds->add_tag_value('note', qq"cds_prediction: ${second_name}");
+            push(@merged_cds, $second_cds);
+        }
+    } ## End inner iteration
+      if (!defined($finished_first{$first_threep})) {
+          push(@merged_cds, $first_cds);
+    }
+      my $merged_cds_length = scalar(@merged_cds);
+  }
+    return(\@merged_cds);
+}
 
 =head2 C<Merge_CDS_Predictions>
 
@@ -49,6 +176,7 @@ sub Merge_CDS_Predictions {
         args => \%args,
         required => ['input'],
         input_glimmer => '',
+        input_phanotate => '',
         input_prodigal => '',
         jprefix => '19',
         primary_key => 'locus_tag',);
@@ -84,6 +212,7 @@ use Bio::Adventure::Annotation;
 \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Worker(
   input => '$options->{input}',
   input_glimmer => '$options->{input_glimmer}',
+  input_phanotate => '$options->{input_phanotate}',
   input_prodigal => '$options->{input_prodigal}',
   jprefix => '$options->{jprefix}',
   jname => 'merge_orfs',
@@ -104,6 +233,7 @@ use Bio::Adventure::Annotation;
         comment => $comment,
         input => $options->{input},
         input_glimmer => $options->{input_glimmer},
+        input_phanotate => $options->{input_phanotate},
         input_prodigal => $options->{input_prodigal},
         jdepends => $options->{jdepends},
         jname => 'merge_orfs',
@@ -128,12 +258,42 @@ use Bio::Adventure::Annotation;
     return($merge_orfs);
 }
 
+=head2 C<Merge_CDS_Predictions_Worker>
+
+This does the actual work spawned by Merge_CDS_Predictions().
+
+In its current form it does the following:
+1.  Reads the phanotate tsv file into an array of SeqFeatures.
+2.  Reads the prokka gbk file into another array and splits it up
+    by type (source/other/cds/etc)
+3.  Reads the prodigal GFF file into an array of SeqFeatures.
+    (This may seem redundant with prokka, but I promise it is not,
+    partially because it pulls in the neat Shine-Dalgarno information,
+    and partially because this separate run is trained a little differently).
+4.  Reads the Glimmer predict file into yet another array of Features.
+5.  Runs the function Combine_CDS_Features() multiple times, each time
+    attempting to add a few more features and/or merge in the interesting
+    stuff.  This is a place where some logic should be added to allow one to
+    choose arbitrary sets of features rather than the currently hard-coded logic
+    to state that glimmer<prokka<prodigal<phanotate.
+6.  Pull the non-CDS and assembly features from prokka into the array.
+7.  Cleanup the names of the features so they are consistent across methods.
+8.  Write out the various output files of interest, including:  .fsa of the
+    assembly, .ffn of the nucleotide coding sequences, .faa of the amino
+    acid sequences, .gff of the features, .tbl of the features in the format
+    expected by tbl2asn(1).
+9.  Actually run tbl2asn in order to generate genbank flat files.
+
+Currently it does not return anything useful, which is dumb.
+
+=cut
 sub Merge_CDS_Predictions_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         input_glimmer => '',
+        input_phanotate => '',
         input_prodigal => '',
         output_dir => '.',
         output_basename => 'assembly',
@@ -148,49 +308,51 @@ sub Merge_CDS_Predictions_Worker {
         output_tsv => 'assembly.tsv',
         jprefix => '19',);
 
-    ## First read in the prokka data as a set of sequences and features
-    ## Keep in mind that the features will have the full sequence attached.
-    my ($pfeat, $pseq, $seqids) = Read_Prokka_Gbk_to_SeqFeatures(
-        input => $options->{input});
-    my @prokka_features = @{$pfeat};
+    ## Start gathering features from each of the annotation methods:
+    ## Phanotate first.
+    my $phanotate_features_ref = Read_Phanotate_to_SeqFeatures(input => $options->{input_phanotate});
+    my @phanotate_features = @{$phanotate_features_ref};
+    ## Follow that up with prokka, keep in mind that prokka provides
+    ## features of multiple types, the genes, cds, source, and others.
+    my ($pfeat, $pseq, $seqids) = Read_Prokka_Gbk_to_SeqFeatures(input => $options->{input});
     my @prokka_sequences = @{$pseq};
     my @sequence_ids = @{$seqids};
-
-    my $prodfeat = Read_Prodigal_GFF_to_SeqFeatures(
-        input => $options->{input_prodigal});
+    my $prokka_features = Separate_Prokka_Features(input => $pfeat);
+    my @prokka_cds = @{$prokka_features->{cds}};
+    my %source_features = %{$prokka_features->{source}};
+    my %gene_features = %{$prokka_features->{gene}};
+    my %other_features = %{$prokka_features->{other}};
+    ## Add the prodigal features next.
+    my $prodfeat = Read_Prodigal_GFF_to_SeqFeatures(input => $options->{input_prodigal});
     my @prodigal_features = @{$prodfeat};
-
     ## Read the glimmer predict file, transform it into a feature list, and return that.
-    my @glimmer_features = Predict_to_Features(in => $options->{input_glimmer});
-    ## This order of operations is important, I am effectively saying that I trust the
-    ## run of prodigal that I manually performed more than either prokka or glimmer
-    ## because it will override either of them.  Though to be fair, most of the time
-    ## the prokka-derived prodigal data is expected to agree (except I did train them
-    ## slightly differently and set a couple of options.
+    my $glimmer_features_ref = Predict_to_Features(in => $options->{input_glimmer});
+    my @glimmer_features = @{$glimmer_features_ref};
 
-    my $prokka_glimmer = Gather_Glimmer_CDS(prokka => \@prokka_features,
-                                            glimmer => \@glimmer_features);
+    my $first_merged = Combine_CDS_Features(first => \@phanotate_features, second => \@prokka_cds);
+    my $second_merged = Combine_CDS_Features(first => $first_merged, second => \@glimmer_features);
+    my $final_merged_ref = Combine_CDS_Features(
+        first => $second_merged, second => \@prodigal_features, notes => 'both',);
+    my @final_merged = @{$final_merged_ref};
+
     ## Now we should have a data structure containing:
     ##  1.  A hash of the sources (e.g. the contigs)
     ##  2.  A hash of genes from prokka, which I may discard and rewrite.
     ##  3.  A hash of other features from prokka, which will be good to keep.
     ##  4.  A hash of cds from the merge of prokka and glimmer.
-    my @merged_features = @{$prokka_glimmer->{cds}};
-    my $final_features = Gather_Prodigal_CDS(merged => \@merged_features,
-                                             prodigal => \@prodigal_features);
-    my @final_set = @{$final_features};
+
     ## Add the non CDS features
-    my $final_length = scalar(@final_set);
-    for my $other (keys %{$prokka_glimmer->{other}}) {
-        my $other_feature = $prokka_glimmer->{other}->{$other};
-        push(@final_set, $other_feature);
+    my $final_length = scalar(@final_merged);
+    for my $other (keys %other_features) {
+        my $other_feature = $other_features{$other};
+        push(@final_merged, $other_feature);
     }
-    $final_length = scalar(@final_set);
+    $final_length = scalar(@final_merged);
 
     ## Pull the source features into an array.
     my @assembly_features = ();
-    for my $contig (keys %{$prokka_glimmer->{source}}) {
-        my $source_feature = $prokka_glimmer->{source}->{$contig};
+    for my $contig (keys %source_features) {
+        my $source_feature = $source_features{$contig};
         ## Put the source at the front.
         push(@assembly_features, $source_feature);
     }
@@ -207,10 +369,9 @@ sub Merge_CDS_Predictions_Worker {
     ## since at this point we have the full catalog of features in one place.
     my $prefix = basename($options->{basedir});
     my @renamed = Rename_Features(
-        features => \@final_set, assembly => \@assembly_features,
+        features => \@final_merged, assembly => \@assembly_features,
         prefix => $prefix, add_genes => 1);
     ## Write the various output files.
-
 
     my $fsa_written = Write_Fsa_from_SeqFeature_Generic(
         input_seq => \@assembly_features,
@@ -235,172 +396,174 @@ sub Merge_CDS_Predictions_Worker {
         output_gbk => $options->{output_gbk},
         output_fsa => $options->{output_fsa},);
     ## TODO: Write the other output files.
+
+    ## This should return something useful -- maybe parse the error file from tbl2asn?
 }
 
-## Something in my logic for merging the locus_tag names is incorrect here.
-sub Gather_Glimmer_CDS {
-    my %args = @_;
-    my @prokka = @{$args{prokka}};
-    my @glimmer = @{$args{glimmer}};
-    my $source_remove = 'gnl\|Prokka\|' unless defined($args{source_remove});
-    my $keep_both = 0;
-    $keep_both = $args{keep_both} if ($args{keep_both});
+=head2 C<Predict_to_Features>
 
-    ## new_features will be the result of the merge.
-    my %source_features = ();
-    my %gene_features = ();
-    my %other_features = ();
-    my @cds_features = ();
-  PROKKA: for my $prokka_f (@prokka) {
-      my $prokka_tag = $prokka_f->primary_tag();
-      my $prokka_name = $prokka_f->display_name();
-      my $new_name = $prokka_name;
-      $new_name =~ s/$source_remove//g;
-      my $display_renamed = $prokka_f->display_name($new_name);
-      my $prokka_source_id = $prokka_f->seq_id;
-      if ($prokka_tag eq 'source') {
-          $source_features{$prokka_source_id} = $prokka_f;
-      } elsif ($prokka_tag eq 'gene') {
-          $gene_features{$prokka_name} = $prokka_f;
-      } elsif ($prokka_tag eq 'CDS') {
-          push(@cds_features, $prokka_f);
+This reads the .predict file producted by glimmer and sends the data
+to an array of SeqFeature::Generic's.
+
+=cut
+sub Predict_to_Features {
+    my %args = @_;
+    my $glimmer = $args{in};
+    my $glimmer_in = FileHandle->new("less ${glimmer} |");
+    my $contig_id;
+    my $fixed_id;
+    my @glimmer_features = ();
+  ENTRIES: while (my $line = <$glimmer_in>) {
+      chomp $line;
+      if ($line =~ /^>/) {
+          ## Then this tells us the contig
+          $contig_id = $line;
+          $fixed_id = Remove_Contig_Cruft($contig_id);
+          next ENTRIES;
+      }
+      ## Example prediction
+      ## orf00001   109351       25  +2    12.06
+      my ($orf_id, $start, $end, $strand_frame, $score) = split(/\s+/, $line);
+      my ($str, $frame) = split(//, $strand_frame);
+      my $strand;
+      if ($str eq '+') {
+          $strand = '1';
+      } elsif ($str eq '-') {
+          $strand = '-1';
       } else {
-          $other_features{$prokka_name} = $prokka_f;
+          $strand = '0';
       }
-  }
 
-    ## These three arrays will hold the final information
-    ## I may drop the genes.
-    my @final_cds = ();
-    my $prokka_count = 0;
-    my %finished_glimmer = ();
-    my %finished_prokka = ();
-  CDS: for my $p_cds (@cds_features) {
-      $prokka_count++;
-      ## Definitely need the contig:
-      my $p_contig = $p_cds->seq_id();
-      ## and the information about the location
-      my $p_strand = $p_cds->strand();
-      my $p_start = $p_cds->start();
-      my $p_end = $p_cds->end();
-      my ($p_fivep, $p_threep) = ($p_start, $p_end);
-      if ($p_strand < 0) {
-          ($p_fivep, $p_threep) = ($p_end, $p_start);
+      my $start_phase = $frame;
+      $start_phase =~ s/^.{1}(\d)$/$1/g;
+      my $phase = $start_phase - 1;
+      my $fivep = $start;
+      my $threep = $end;
+      if ($strand eq '-1') {
+          $fivep = $end;
+          $threep = $start;
       }
-      ## Get the set of tags and the locus tag specifically
-      my @tags = $p_cds->get_all_tags();
-      my @locus_tags = $p_cds->get_tag_values('locus_tag');
-    GLIMMER: for my $g_cds (@glimmer) {
-        ## We do not have to think about the type of these features.
-        my $g_strand = $g_cds->strand();
-        my $g_start = $g_cds->start;
-        my $g_end = $g_cds->end;
-        my ($g_fivep, $g_threep) = ($g_start, $g_end);
-        if ($g_strand < 0) {
-            ($g_fivep, $g_threep) = ($g_end, $g_start);
-        }
-        if (defined($finished_glimmer{$g_threep})) {
-            next GLIMMER;
-        }
-        ## We are scanning through the prokka features in lexical order (start->end),
-        ## therefore scan the glimmer data _only_ until we get to the current end.
-        ## Thus, if we pass the current prokka end, get out of this inner loop
-        ## With one important caveat, what if there are glimmer annotations
-        ## after the final prokka end?
-        if ($prokka_count < scalar(@cds_features)) {
-            ## As long as we are not on the last feature
-            ## test to see if we should break out to the next.
-            my $cds_featlen = scalar(@cds_features);
-            if ($g_end > $p_end) {
-                ## print "$prokka_count is less than $cds_featlen and glimmer: $g_end is bigger than prokka end: $p_end\n";
-                last GLIMMER;
-            }
-        }
-
-        ## Now think through the possibilities:
-        ##  1.  They are the same, if so, take the prokka feature
-        ##  2.  They agree on the stop codon, but not the start, decide what to do.
-        ##  3.  They disagree, then in this inner loop add the glimmer feature
-        ##  4.  They disagree, and the prokka feature is never found, then add the prokka feature after the inner loop.
-        if (($p_fivep eq $g_fivep) and ($p_threep eq $g_threep)) {
-            ## print "prokka: $p_fivep and $p_threep are the same as glimmer.\n";
-            ## Then use the prokka annotation.
-            $p_cds->add_tag_value('note', 'cds_prediction: prodigal via prokka.');
-            push(@final_cds, $p_cds);
-            $finished_glimmer{$g_threep} = 1;
-            $finished_prokka{$p_threep} = 1;
-        } elsif ($p_threep eq $g_threep) {
-            ## print "The threep annotations are the same: $p_threep\n";
-            ## When they do not agree on the start codon, I say go with prokka.
-            $g_cds->add_tag_value('note', 'cds_prediction: untrained glimmer.');
-            push(@final_cds, $p_cds);
-            $finished_glimmer{$g_threep} = 1;
-            $finished_prokka{$p_threep} = 1;
-            if ($keep_both) {
-                push(@final_cds, $g_cds);
-            }
-        } else {
-            ## print "The glimmer is different: $g_threep and $g_fivep\n";
-            ## The final possibility is that the glimmer entry is different.
-            $finished_glimmer{$g_threep} = 1;
-            $g_cds->add_tag_value('note', 'cds_prediction: untrained glimmer.');
-            push(@final_cds, $g_cds);
-        }
-    } ## End inner iteration over glimmer features.
-      if (!defined($finished_prokka{$p_threep})) {
-          ## Then this prokka entry was never found.
-          ## print "The entry $p_start $p_end is only in prokka.\n";
-          $p_cds->add_tag_value('note', 'cds_prediction: prodigal via prokka.');
-          push(@final_cds, $p_cds);
-    }
-      my $final_cds_length = scalar(@final_cds);
-      ## print "End outer loop, cds array is: $final_cds_length entries.\n";
-  } ## End the outer iteration over prokka features.
-
-    my %ret = (
-        source => \%source_features,
-        cds => \@final_cds,
-        gene => \%gene_features,
-        other => \%other_features,);
-    return(\%ret);
+      my $feature = Bio::SeqFeature::Generic->new(
+          -primary_tag => 'CDS',
+          -display_name => $orf_id,
+          -seq_id => $fixed_id,
+          -start => $fivep,
+          -end => $threep,
+          -strand => $strand,
+          -score => $score,
+          -frame => $phase,
+          -tag => {
+              note => 'cds_prediction: glimmer',
+              locus_tag => $orf_id,
+              transl_table => 11, });
+      $feature->strand($strand);
+      push(@glimmer_features, $feature);
+  } ## End iterating over every line of the glimmer3 output.
+    $glimmer_in->close();
+    return(\@glimmer_features);
 }
 
+=head2 C<Read_Phanotate_to_SeqFeatures>
 
-sub Gather_Prodigal_CDS {
+Either this or Predict_to_Features() should probably be renamed,
+because they do much the same; except of course this reads
+the phanotate tsv output file and sends it to an array of
+SeqFeatures.
+
+=cut
+sub Read_Phanotate_to_SeqFeatures {
     my %args = @_;
-    my @merged = @{$args{merged}};
-    my @prodigal = @{$args{prodigal}};
-    my $keep_both = 0;
-    $keep_both = $args{keep_both} if ($args{keep_both});
-
-    ## These three arrays will hold the final information
-    ## I may drop the genes.
-    my @final_cds = ();
-    my $merged_count = 0;
-    my %finished_merged = ();
-    my %finished_prodigal = ();
-  MERGED: for my $m_cds (@merged) {
-      $merged_count++;
-      my $m_contig = $m_cds->seq_id();
-      ## and the information about the location
-      my $m_strand = $m_cds->strand();
-      my $m_start = $m_cds->start();
-      my $m_end = $m_cds->end();
-      my ($m_fivep, $m_threep) = ($m_start, $m_end);
-      if ($m_strand < 0) {
-          ($m_fivep, $m_threep) = ($m_end, $m_start);
+    my $phanotate = $args{input};
+    my $phanotate_in = FileHandle->new("less ${phanotate} |");
+    my $contig_id;
+    my $fixed_id;
+    my @phanotate_features = ();
+    my $count = 0;
+  ENTRIES: while (my $line = <$phanotate_in>) {
+      chomp $line;
+      next ENTRIES if ($line =~ /^#/);
+      $count++;
+      my $orf_number = sprintf("%04d", $count);
+      my ($start, $end, $frame, $contig, $score) = split(/\t/, $line);
+      my $fixed_id = Remove_Contig_Cruft($contig);
+      my $orf_id = qq"${fixed_id}_${orf_number}";
+      my $strand = '+';
+      if ($frame eq '+') {
+          $strand = '1';
+      } elsif ($frame eq '-') {
+          $strand = '-1';
+      } else {
+          $strand = '0';
       }
-      ## Get the set of tags and the locus tag specifically
-      my @tags = $m_cds->get_all_tags();
-      my @locus_tags = $m_cds->get_tag_values('locus_tag');
-    PRODIGAL: for my $p_cds (@prodigal) {
-        ## We do not have to think about the type of these features.
-        my $p_strand = $p_cds->strand();
-        my $p_start = $p_cds->start;
-        my $p_end = $p_cds->end;
-        my ($p_fivep, $p_threep) = ($p_start, $p_end);
+      my $fivep = $start;
+      my $threep = $end;
+      if ($end < $start) {
+          $fivep = $end;
+          $threep = $start;
+      }
+      $score = FormatSigFigs($score, 3);
 
-        ## Do a little work to standardize the prodigal feature:
+      my $feature = Bio::SeqFeature::Generic->new(
+          -primary_tag => 'CDS',
+          -display_name => $orf_id,
+          -seq_id => $fixed_id,
+          -start => $fivep,
+          -end => $threep,
+          -strand => $strand,
+          -score => $score,
+          -tag => {
+              note => qq"cds_prediction: phanotate, score: ${score}",
+              locus_tag => $orf_id,
+              transl_table => 11, });
+      $feature->strand($strand);
+      push(@phanotate_features, $feature);
+  } ## End iterating over every line of the glimmer3 output.
+    $phanotate_in->close();
+    return(\@phanotate_features);
+}
+
+=head2 C<Read_Prokka_Gbk_to_SeqFeatures>
+
+Read the genbank output from prokka into a set of SeqFeature's.
+This will be the basis for quite a few of the downstream methods
+along the way to creating a merged set of annotations.
+
+=cut
+sub Read_Prokka_Gbk_to_SeqFeatures {
+    my %args = @_;
+    my $prokka_in = FileHandle->new("less $args{input} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $prokka_in);
+    my (@prokka_sequences, @prokka_features, @sequence_ids);
+    while (my $seq = $seqio->next_seq) {
+        push(@prokka_sequences, $seq);
+        my $seq_id = $seq->id;
+        push(@sequence_ids, $seq_id);
+        my @feature_list = $seq->get_SeqFeatures();
+        for my $f (@feature_list) {
+            push(@prokka_features, $f);
+        }
+    } ## End grabbing prokka sequences
+    $prokka_in->close();
+    return(\@prokka_features, \@prokka_sequences, \@sequence_ids);
+}
+
+=head2 C<Read_Prodigal_GFF_to_SeqFeatures>
+
+Read the gff output from prodigal into an array of SeqFeature's.  Collect the
+Shine-Dalgarno information and scores while at it.
+
+=cut
+sub Read_Prodigal_GFF_to_SeqFeatures {
+    my %args = @_;
+    my $prodigal_in = FileHandle->new("less $args{input} |");
+    my $prodigal_io = Bio::FeatureIO->new(-format => 'gff', -fh => $prodigal_in);
+    my @prodigal_features = ();
+    while (my $feature = $prodigal_io->next_feature()) {
+        my $contig_id = $feature->seq_id;
+        my $fixed_id = Remove_Contig_Cruft($contig_id);
+        my $reset_contig = $feature->seq_id($fixed_id);
+
+        ## Pull out the scoring information
         my $spacer = '';
         my $rbs = '';
         my $uscore = '';
@@ -409,94 +572,82 @@ sub Gather_Prodigal_CDS {
         my $rscore = '';
         my $cscore = '';
         my $start_type = '';
-        my @spacers = $p_cds->get_tag_values('rbs_spacer');
-        $p_cds->remove_tag('rbs_spacer');
+        my @spacers = $feature->get_tag_values('rbs_spacer');
+        $feature->remove_tag('rbs_spacer');
         $spacer = $spacers[0] if ($spacers[0]);
-        my @rbses = $p_cds->get_tag_values('rbs_motif');
-        $p_cds->remove_tag('rbs_motif');
+        my @rbses = $feature->get_tag_values('rbs_motif');
+        $feature->remove_tag('rbs_motif');
         $rbs = $rbses[0] if ($rbses[0]);
-        my @uscores = $p_cds->get_tag_values('uscore');
-        $p_cds->remove_tag('uscore');
+        my @uscores = $feature->get_tag_values('uscore');
+        $feature->remove_tag('uscore');
         $uscore = $uscores[0] if ($uscores[0]);
-        my @tscores = $p_cds->get_tag_values('tscore');
-        $p_cds->remove_tag('tscore');
+        my @tscores = $feature->get_tag_values('tscore');
+        $feature->remove_tag('tscore');
         $tscore = $tscores[0] if ($tscores[0]);
-        my @sscores = $p_cds->get_tag_values('sscore');
-        $p_cds->remove_tag('sscore');
+        my @sscores = $feature->get_tag_values('sscore');
+        $feature->remove_tag('sscore');
         $sscore = $sscores[0] if ($sscores[0]);
-        my @rscores = $p_cds->get_tag_values('rscore');
-        $p_cds->remove_tag('rscore');
+        my @rscores = $feature->get_tag_values('rscore');
+        $feature->remove_tag('rscore');
         $rscore = $rscores[0] if ($rscores[0]);
-        my @cscores = $p_cds->get_tag_values('cscore');
-        $p_cds->remove_tag('cscore');
+        my @cscores = $feature->get_tag_values('cscore');
+        $feature->remove_tag('cscore');
         $cscore = $cscores[0] if ($cscores[0]);
-        my @start_types = $p_cds->get_tag_values('start_type');
-        $p_cds->remove_tag('start_type');
+        my @start_types = $feature->get_tag_values('start_type');
+        $feature->remove_tag('start_type');
         $start_type = $start_types[0] if ($start_types[0]);
 
         my $score_string = qq"cds_prediction: trained prodigal(rbs:${rbs} spacer:${spacer} start:${start_type} c:${cscore} r:${rscore} s:${sscore} t:${tscore} u:${uscore})";
-        if (!$p_cds->has_tag('note')) {
-            $p_cds->add_tag_value('note', $score_string);
-        }
-
-        if ($p_strand < 0) {
-            ($p_fivep, $p_threep) = ($p_end, $p_start);
-        }
-        if (defined($finished_prodigal{$p_threep})) {
-            next PRODIGAL;
-        }
-        ## We are scanning through the merged features in lexical order (start->end),
-        ## therefore scan the prodigal data _only_ until we get to the current end.
-        ## Thus, if we pass the current merged end, get out of this inner loop
-        ## With one important caveat, what if there are prodigal annotations
-        ## after the final merged end?
-        if ($merged_count < scalar(@merged)) {
-            ## As long as we are not on the last feature
-            ## test to see if we should break out to the next.
-            my $cds_featlen = scalar(@merged);
-            if ($p_end > $m_end) {
-                last PRODIGAL;
-            }
-        }
-
-        ## Now think through the possibilities:
-        ##  1.  They are the same, in this case, we take the prodigal feature
-        ##  2.  They agree on the stop codon, but not the start, decide what to do.
-        ##  3.  They disagree completely, then add the prodigal feature.
-        ##  4.  They disagree and the merged feature is never found, then add the merged after.
-        if (($m_fivep eq $p_fivep) and ($m_threep eq $p_threep)) {
-            ## print "merged: $m_fivep and $m_threep are the same as prodigal.\n";
-            ## Then use the prodigal annotation.
-            push(@final_cds, $p_cds);
-            $finished_merged{$m_threep} = 1;
-            $finished_prodigal{$m_threep} = 1;
-        } elsif ($m_threep eq $p_threep) {
-            ## print "The threep annotations are the same: $p_threep\n";
-            ## When they do not agree on the start codon, I say go with prodigal.
-            push(@final_cds, $p_cds);
-            $finished_prodigal{$p_threep} = 1;
-            $finished_merged{$p_threep} = 1;
-            if ($keep_both) {
-                push(@final_cds, $m_cds);
-            }
-        } else {
-            ## print "The prodigal is different: $p_threep and $p_fivep\n";
-            ## The final possibility is that the prodigal entry is different.
-            $finished_prodigal{$p_threep} = 1;
-            push(@final_cds, $p_cds);
-        }
-    } ## End inner iteration over glimmer features.
-      if (!defined($finished_merged{$m_threep})) {
-          ## Then this merged entry was not found.
-          ## print "The entry $m_start $m_end was only in the merged data.\n";
-          push(@final_cds, $m_cds);
+        $feature->add_tag_value('note', $score_string);
+        push(@prodigal_features, $feature);
     }
-      my $final_cds_length = scalar(@final_cds);
-      ## print "End outer loop, cds array is: $final_cds_length entries.\n";
-  } ## End the outer iteration over prokka features.
-    return(\@final_cds);
+    $prodigal_in->close();
+    return(\@prodigal_features);
 }
 
+=head2 C<Remove_Contig_Cruft>
+
+This takes the various contig IDs producted by prokka and friends and
+attempts to simplify/standardize them so that downstream reader methods
+will not get confused.
+
+=cut
+sub Remove_Contig_Cruft {
+    my $contig_id = shift;
+    ## Take into account the possible contig lines
+    ## >gnl|Prokka|EPr2_1 [gcode=11] [organism=Phage species] [strain=strain]
+    ## vs.
+    ## >gnl|Prokka|EPr2_1
+    ## vs
+    ## >EPr2_1
+    ## Get rid of the ^>
+    $contig_id =~ s/^>//g;
+    if ($contig_id =~ /\[/) {  ## Then it is the long annoying one.
+        ## And the stuff after the whitespace
+        $contig_id =~ s/^(\S+)?\s+.*$/$1/g;
+        ## Then pull out anything left after the last |
+        $contig_id =~ s/^(.*\|)(\w+)\s*$/$2/g;
+    } elsif ($contig_id =~ /\|/) {
+        ## grab anything after the last |
+        $contig_id =~ s/^(.*\|)?(\S+)\s*$/$2/g;
+    } else {
+        ## Just drop the >
+        $contig_id =~ s/^>//g;
+    }
+    return($contig_id);
+}
+
+=head2 C<Rename_Features>
+
+This function takes a big pile of features from different data sources
+(prokka/prodigal/glimmer/phanotate/aragorn/tnrascan) and attempts to give
+them a single set of canonical names.
+
+One detail worth noting, I decided to _not_ begin numbering again when
+going from one contig to another.  In addition, tRNA features have
+a separate number from CDS.
+
+=cut
 sub Rename_Features {
     my %args = @_;
     my $prefix = $args{prefix};
@@ -608,347 +759,58 @@ sub Rename_Features {
     return(@final_features);
 }
 
-sub Scan_Glimmer_Features {
-    my %args = @_;
-    my @gfeat = @{$args{features}};
-    my $contig = $args{contig};
-    my $strand = $args{strand};
-    my $start = $args{start};
-    my $end = $args{end};
-    my $number = $args{orf_number};
-    my $source_seq = $args{source_seq};
-    my $seq = $source_seq->seq();
-    my $formatted_number = sprintf("%04d", $number);
-    my $formatted_orf = qq"${contig}_${formatted_number}";
-    $number++;
+=head2 C<Separate_Prokka_Features>
 
-    my $fcount = 0;
-    my $returned_feature = undef; ## The feature to send back
-    my $operation = 'none';
-  THESE: for my $glimmer_f (@gfeat) {
-      $fcount++;
-      my $this_contig = $glimmer_f->seq_id();
-      $this_contig =~ s/^gnl\|Prokka\|//g;
-      my $this_name = $glimmer_f->name();
-      my $this_strand = $glimmer_f->strand();
-      my $this_start = $glimmer_f->start();
-      my $this_end = $glimmer_f->end();
-      my $this_phase = $glimmer_f->phase();
-      if ($contig eq $this_contig) {
-          if ($this_end < $end) {
-              ## Remove the feature to be returned from the feature array.
-              $operation = 'prepend';
-              my $features_pre = scalar(@gfeat);
-              my $tmp_feature = splice(@gfeat, $fcount - 1, 1);
-              my $features_post = scalar(@gfeat);
-              my $subsequence = $seq->trunc($this_start, $this_end);
-              if ($this_strand eq '-1') {
-                  $subsequence = $subsequence->revcom();
-              }
-              my $translation = $subsequence->translate->seq();
-              $returned_feature = Bio::SeqFeature::Generic->new(
-                  -display_name => $this_contig,
-                  -start => $this_start,
-                  -end => $this_end,
-                  -strand => $this_strand,
-                  -primary => 'CDS',
-                  -phase => $this_phase,
-                  -source_tag => $args{source},
-                  -score => $glimmer_f->score,
-                  -tag => {
-                      locus_tag => $formatted_orf,
-                      protein_id => qq"$args{source}:${formatted_orf}",
-                      product => 'hypothetical protein',
-                      translation => $translation,
-                      inference => "ab initio prediction:glimmer",
-                      transl_table => 11,
-                  },);
-              $returned_feature->attach_seq($seq);
-              $returned_feature->seq_id($source_seq->seq_id);
-              ## And get out of this loop.
-              next THESE;
-          } elsif (($this_end == $end && $this_strand eq $strand && $this_start eq $start) ||
-                   ($this_end == $end && $this_strand eq $strand)) {
-              ## This glimmer feature is identical in location to an existing prokka feature.
-              ## So pull it out of the array and discard it.
-              my $tmp_feature = splice(@gfeat, $fcount - 1, 1);
-              next THESE;
-          }
+Given a pile of features extracted from a prokka annotation, pull them apart
+so that the assembly, genes, cds, etc may be addressed separately.
+
+=cut
+sub Separate_Prokka_Features {
+    my %args = @_;
+    my @prokka = @{$args{input}};
+    my $source_remove = 'gnl\|Prokka\|';
+    if (defined($args{source_remove})) {
+        $source_remove = $args{source_remove};
+    }
+    ## new_features will be the result of the merge.
+    my %source_features = ();
+    my %gene_features = ();
+    my %other_features = ();
+    my @cds_features = ();
+  PROKKA: for my $prokka_f (@prokka) {
+      my $prokka_tag = $prokka_f->primary_tag();
+      my $prokka_name = $prokka_f->display_name();
+      my $new_name = $prokka_name;
+      $new_name =~ s/$source_remove//g;
+      my $display_renamed = $prokka_f->display_name($new_name);
+      my $prokka_source_id = $prokka_f->seq_id;
+      if ($prokka_tag eq 'source') {
+          $source_features{$prokka_source_id} = $prokka_f;
+      } elsif ($prokka_tag eq 'gene') {
+          $gene_features{$prokka_name} = $prokka_f;
+      } elsif ($prokka_tag eq 'CDS') {
+          $prokka_f->add_tag_value('note', 'cds_prediction: prodigal via prokka');
+          push(@cds_features, $prokka_f);
       } else {
-          next THESE;
+          $other_features{$prokka_name} = $prokka_f;
       }
-  } ## End iterating over the array to destroy.
+  }  ## End initial iteration over prokka features.
 
-    ## We should get here only through a last or if we ran out of features.
-    my $ret;
-    if (defined($returned_feature)) {
-        $ret = {
-            operation => $operation,
-            number => $number,
-            feature => $returned_feature,
-            remaining => \@gfeat,
-        };
-    } else {
-        $ret = {
-            operation => 'none',
-            remaining => \@gfeat,
-        };
-    }
-    return($ret);
+    my %ret = (
+        source => \%source_features,
+        cds => \@cds_features,
+        gene => \%gene_features,
+        other => \%other_features,);
+    return(\%ret);
 }
 
-sub Scan_Prodigal_Features {
-    my %args = @_;
-    my @feat = @{$args{features}};
-    my $contig = $args{contig};
-    my $strand = $args{strand};
-    my $start = $args{start};
-    my $end = $args{end};
-    my $number = $args{orf_number};
-    my $source_seq = $args{source_seq};
-    my $annotation_tag = 'note';
-    if (defined($args{tag})) {
-        $annotation_tag = $args{tag};
-    }
-    my $seq = $source_seq->seq();
-    my $formatted_number = sprintf("%04d", $number);
-    my $formatted_orf = qq"${contig}_${formatted_number}";
-    $number++;
+=head2 C<Write_CDS_from_SeqFeature>
 
-    my $fcount = 0;
-    my $returned_feature = undef; ## The feature to send back
-    my $operation = 'none';
-  THESE: for my $f (@feat) {
-      $fcount++;
-      my $this_contig = $f->seq_id();
-      $this_contig =~ s/^gnl\|Prokka\|//g;
-      my $this_name = $f->name();
-      my $this_strand = $f->strand();
-      my $this_start = $f->start();
-      my $this_end = $f->end();
-      my $this_phase = $f->phase();
-      ## print "PRODIGAL THESE: $this_start $this_end $this_strand\n";
-      if ($contig eq $this_contig) {
-          if ($this_end < $end) {
-              $operation = 'prepend';
-              my $tmp_feature = splice(@feat, $fcount - 1, 1);
-              my $subsequence = $seq->trunc($this_start, $this_end);
-              if ($this_strand eq '-1') {
-                  $subsequence = $subsequence->revcom();
-              }
-              my $translation = $subsequence->translate->seq();
+Given a pile of SeqFeatures, write out the individual sequences
+from it.  This will ideally write out a .faa of amino acids,
+.ffn of the CDS nucleotides, and a .tsv summarizing them.
 
-              my @spacer = $f->get_tag_values('rbs_spacer');
-              my @rbs = $f->get_tag_values('rbs_motif');
-              my @uscore = $f->get_tag_values('uscore');
-              my @tscore = $f->get_tag_values('tscore');
-              my @sscore = $f->get_tag_values('sscore');
-              my @rscore = $f->get_tag_values('rscore');
-              my @cscore = $f->get_tag_values('cscore');
-              my @start_type = $f->get_tag_values('start_type');
-              my $score_string = qq"rbs:$rbs[0] spacer:$spacer[0] start:$start_type[0] c:$cscore[0] r:$rscore[0] s:$sscore[0] t:$tscore[0] u:$uscore[0]";
-              $returned_feature = Bio::SeqFeature::Generic->new(
-                  -start => $this_start,
-                  -end => $this_end,
-                  -strand => $this_strand,
-                  -primary => 'CDS',
-                  -phase => $this_phase,
-                  -source_tag => $args{source},
-                  -display_name => $formatted_orf,
-                  -score => $f->score,
-                  -tag => { locus_tag => $formatted_orf,
-                            protein_id => qq"$args{source}:${formatted_orf}",
-                            product => 'hypothetical protein',
-                            translation => $translation,
-                            inference => 'ab initio prediction:prodigal',
-                            transl_table => 11,
-                            $annotation_tag => $score_string,
-                  },);
-              $returned_feature->attach_seq($seq);
-              $returned_feature->seq_id($source_seq->seq_id);
-              ## And get out of this loop.
-              last THESE;
-          } elsif (($this_end == $end && $this_strand eq $strand && $this_start eq $start) ||
-                   ($this_end == $end && $this_strand eq $strand)) {
-              ## Remove the feature to be returned from the feature array.
-              $operation = 'merge';
-              my $tmp_feature = splice(@feat, $fcount - 1, 1);
-              my $subsequence = $seq->trunc($this_start, $this_end);
-              if ($this_strand eq '-1') {
-                  $subsequence = $subsequence->revcom();
-              }
-              my $translation = $subsequence->translate->seq();
-
-              my @spacer = $f->get_tag_values('rbs_spacer');
-              my @rbs = $f->get_tag_values('rbs_motif');
-              my @uscore = $f->get_tag_values('uscore');
-              my @tscore = $f->get_tag_values('tscore');
-              my @sscore = $f->get_tag_values('sscore');
-              my @rscore = $f->get_tag_values('rscore');
-              my @cscore = $f->get_tag_values('cscore');
-              my @start_type = $f->get_tag_values('start_type');
-              my $score_string = qq"rbs:$rbs[0] spacer:$spacer[0] start:$start_type[0] c:$cscore[0] r:$rscore[0] s:$sscore[0] t:$tscore[0] u:$uscore[0]";
-              $returned_feature = Bio::SeqFeature::Generic->new(
-                  -start => $this_start,
-                  -end => $this_end,
-                  -strand => $this_strand,
-                  -primary => 'CDS',
-                  -phase => $this_phase,
-                  -source_tag => $args{source},
-                  -display_name => $formatted_orf,
-                  -score => $f->score,
-                  -tag => { locus_tag => $formatted_orf,
-                            protein_id => qq"$args{source}:${formatted_orf}",
-                            product => 'hypothetical protein',
-                            translation => $translation,
-                            inference => 'ab initio prediction:prodigal',
-                            transl_table => 11,
-                            $annotation_tag => $score_string,
-                  },);
-              $returned_feature->attach_seq($seq);
-              $returned_feature->seq_id($source_seq->seq_id);
-              ## And get out of this loop.
-              last THESE;
-          }
-      } else {
-          next THESE;
-      }
-  } ## End iterating over the array to destroy.
-
-    ## We should get here only through a last or if we ran out of features.
-    my $ret;
-    if (defined($returned_feature)) {
-        $ret = {
-            operation => $operation,
-            number => $number,
-            feature => $returned_feature,
-            remaining => \@feat,
-        };
-    } else {
-        $ret = {
-            operation => 'none',
-            remaining => \@feat,
-        };
-    }
-    return($ret);
-}
-
-sub Predict_to_Features {
-    my %args = @_;
-    my $glimmer = $args{in};
-    my $glimmer_in = FileHandle->new("less ${glimmer} |");
-    my $contig_id;
-    my $fixed_id;
-    my @glimmer_features = ();
-  ENTRIES: while (my $line = <$glimmer_in>) {
-      chomp $line;
-      if ($line =~ /^>/) {
-          ## Then this tells us the contig
-          $contig_id = $line;
-          $fixed_id = Remove_Contig_Cruft($contig_id);
-          next ENTRIES;
-      }
-      ## Example prediction
-      ## orf00001   109351       25  +2    12.06
-      my ($orf_id, $start, $end, $strand_frame, $score) = split(/\s+/, $line);
-      my ($str, $frame) = split(//, $strand_frame);
-      my $strand;
-      if ($str eq '+') {
-          $strand = '1';
-      } elsif ($str eq '-') {
-          $strand = '-1';
-      } else {
-          $strand = '0';
-      }
-
-      my $start_phase = $frame;
-      $start_phase =~ s/^.{1}(\d)$/$1/g;
-      my $phase = $start_phase - 1;
-      my $fivep = $start;
-      my $threep = $end;
-      if ($strand eq '-1') {
-          $fivep = $end;
-          $threep = $start;
-      }
-      ##my $feature = Bio::SeqFeature::Lite->new(
-      ##    -seq_id => $fixed_id,
-      ##    -name => $orf_id,
-      ##    -start => $start,
-      ##    -end => $end,
-      ##    -score => $score,
-      ##    -phase => $phase,
-      ##    -strand => $strand,
-      ##    -type => 'CDS',);
-      my $feature = Bio::SeqFeature::Generic->new(
-          -primary_tag => 'CDS',
-          -display_name => $orf_id,
-          -seq_id => $fixed_id,
-          -start => $fivep,
-          -end => $threep,
-          -strand => $strand,
-          -score => $score,
-          -frame => $phase,
-          -tag => {
-              locus_tag => $orf_id,
-              transl_table => 11, });
-      $feature->strand($strand);
-      push(@glimmer_features, $feature);
-  } ## End iterating over every line of the glimmer3 output.
-    $glimmer_in->close();
-    return(@glimmer_features);
-}
-
-sub Remove_Contig_Cruft {
-    my $contig_id = shift;
-    ## Take into account the possible contig lines
-    ## >gnl|Prokka|EPr2_1 [gcode=11] [organism=Phage species] [strain=strain]
-    ## vs.
-    ## >gnl|Prokka|EPr2_1
-    ## vs
-    ## >EPr2_1
-    ## Get rid of the ^>
-    $contig_id =~ s/^>//g;
-    if ($contig_id =~ /\[/) {  ## Then it is the long annoying one.
-        ## And the stuff after the whitespace
-        $contig_id =~ s/^(\S+)?\s+.*$/$1/g;
-        ## Then pull out anything left after the last |
-        $contig_id =~ s/^(.*\|)(\w+)\s*$/$2/g;
-    } elsif ($contig_id =~ /\|/) {
-        ## grab anything after the last |
-        $contig_id =~ s/^(.*\|)?(\S+)\s*$/$2/g;
-    } else {
-        ## Just drop the >
-        $contig_id =~ s/^>//g;
-    }
-    return($contig_id);
-}
-
-sub Write_Fsa_from_SeqFeature_Generic {
-    my %args = @_;
-    my $id_prefix = 'gnl|Phokka|';
-    if (defined($args{id_prefix})) {
-        $id_prefix = $args{id_prefix};
-    }
-    my @in = @{$args{input_seq}};
-    my $out = Bio::SeqIO->new(-file => qq">$args{output_fsa}",
-                              -format => 'Fasta');
-    my $written = 0;
-    my @seq_objects = ();
-    for my $s (@in) {
-        $written++;
-        my $id = $s->seq_id;
-        ## my $new_id = qq"${id_prefix}${start_id}";
-        my $entire_sequence = $s->entire_seq();
-        my $sequence_string = $entire_sequence->seq();
-        ## my $seq_obj = Bio::Seq->new(-display_id => $new_id,
-        my $seq_obj = Bio::Seq->new(-display_id => $id,
-                                    -seq => $sequence_string);
-        $out->write_seq($seq_obj);
-        push(@seq_objects, $seq_obj);
-    }
-    return(\@seq_objects);
-}
-
+=cut
 sub Write_CDS_from_SeqFeatures {
     my %args = @_;
     ## The full sequences
@@ -1044,6 +906,155 @@ sub Write_CDS_from_SeqFeatures {
     return($written);
 }
 
+=head2 C<Write_Fsa_from_SeqFeature_Generic>
+
+Given an array of SeqFeature::Generic's, write out a .fsa
+assembly file.
+
+=cut
+sub Write_Fsa_from_SeqFeature_Generic {
+    my %args = @_;
+    my $id_prefix = 'gnl|Phokka|';
+    if (defined($args{id_prefix})) {
+        $id_prefix = $args{id_prefix};
+    }
+    my @in = @{$args{input_seq}};
+    my $out = Bio::SeqIO->new(-file => qq">$args{output_fsa}",
+                              -format => 'Fasta');
+    my $written = 0;
+    my @seq_objects = ();
+    for my $s (@in) {
+        $written++;
+        my $id = $s->seq_id;
+        ## my $new_id = qq"${id_prefix}${start_id}";
+        my $entire_sequence = $s->entire_seq();
+        my $sequence_string = $entire_sequence->seq();
+        ## my $seq_obj = Bio::Seq->new(-display_id => $new_id,
+        my $seq_obj = Bio::Seq->new(-display_id => $id,
+                                    -seq => $sequence_string);
+        $out->write_seq($seq_obj);
+        push(@seq_objects, $seq_obj);
+    }
+    return(\@seq_objects);
+}
+
+=head2 C<Write_Gbk>
+
+This function is a little bit of a misnomer, it does not actually
+write a Gbk file, but instead takes a .tbl file from Write_Tbl()
+and runs tbl2asn(1) on it; invoking a little logic on the way
+to hopefully make sure that the final result is sane.
+
+=cut
+sub Write_Gbk {
+    my %args = @_;
+    $args{contigs} = 1 if (!defined($args{contigs}));
+    my $run_sed = 1;
+    $run_sed = $args{sed} if (defined($args{sed}));
+
+    my $tbl2asn_m_option = '-M n';
+    if ($args{contigs} > 10_000) {
+        $tbl2asn_m_option = '-M b';
+    }
+    my $log_fh = *STDOUT;
+    $log_fh = $args{log_fh} if (defined($args{log_fh}));
+    my $outdir = '.';
+    my $accver = '1';
+    my $EXE = 'slightly modified prokka';
+    my $VERSION = '1.14.6';
+    my $URL = 'https://github.com/tseemann/prokka';
+    print $log_fh "Inputs for tbl2asn: $args{output_fsa}, $args{input_tbl}";
+    my $sbt_arg = '';
+    if (defined($args{sbt})) {
+        print $log_fh " $args{sbt}\n";
+        $sbt_arg = qq"-t $args{sbt} ";
+    } else {
+        print $log_fh "\n";
+    }
+    print $log_fh qq"Outputs from tbl2asn: $args{output_gbk}.\n";
+    my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL";
+    if (defined($args{taxonomy})) {
+        my $taxonomy_information = $args{taxonomy};
+        $tbl2asn_comment .= qq"; Most similar taxon to this strain: $taxonomy_information->{taxon}";
+    }
+    my $default_args = '-V b -c f -S F -a r10k -l paired-ends ';
+    if (defined($args{tbl2asn_args})) {
+        $default_args = $args{tbl2asn_args};
+    }
+    my $out_basedir = dirname($args{output_gbk});
+    my $out_basefile = basename($args{output_gbk}, ('.gbk'));
+    my $stderr_file = qq"${out_basedir}/${out_basefile}.stderr";
+    my $error_file = qq"${out_basedir}/${out_basefile}.err";
+    my $stdout_file = qq"${out_basedir}/${out_basefile}.stdout";
+    my $tbl_command = qq"tbl2asn ${default_args} ${tbl2asn_m_option} \\
+  -N ${accver} -y '${tbl2asn_comment}' \\
+  -Z ${error_file} ${sbt_arg} -i $args{output_fsa} \\
+  1>${stdout_file} 2>${stderr_file}
+";
+    print $log_fh qq"Running ${tbl_command}\n";
+    my $tbl2asn_result = qx"${tbl_command}";
+    my $sed_result = undef;
+    if ($run_sed) {
+        my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' \\
+  ${out_basedir}/${out_basefile}.gbf | \\
+  sed 's/product=\"_/product=\"/g' > $args{output_gbk}";
+        print $log_fh qq"Running ${sed_command}\n";
+        $sed_result = qx"${sed_command}";
+    } else {
+        print $log_fh qq"Not running sed, copying file.\n";
+        $sed_result = cp(qq"${out_basedir}/${out_basefile}.gbf", $args{output_gbk});
+    }
+    my $results = [$tbl2asn_result, $sed_result];
+    return($results);
+}
+
+=head2 C<Write_Gff_from_SeqFeatures>
+
+Given an array of SeqFeatures, write out a hopefully useful .gff file.
+
+=cut
+sub Write_Gff_from_SeqFeatures {
+    my %args = @_;
+    my @in = @{$args{input_features}};
+    use Bio::Tools::GFF;
+    my $gff_out = FileHandle->new(">$args{output_gff}");
+    my $gffio = Bio::Tools::GFF->new(-noparse => 1, -gff_version => 3);
+    my $written = 0;
+    for my $s (@in) {
+        ## Standardize the feature set
+        my $product = 'hypothetical protein';
+        if ($s->has_tag('product')) {
+            my @products = $s->get_tag_values('product');
+            $product = $products[0];
+        }
+        my $inference = 'ab initio prediction';
+        if ($s->has_tag('inference')) {
+            my @inferences = $s->get_tag_values('inference');
+            $inference = $inferences[0];
+        }
+
+        my $standardized = Bio::SeqFeature::Generic->new(
+            -primary_tag => $s->primary_tag,
+            -display_name => $s->display_name,
+            -seq_id => $s->seq_id,
+            -start => $s->start,
+            -end => $s->end,
+            -strand => $s->strand,
+            -score => $s->score,
+            -tag => {
+                locus_tag => $s->display_name,
+                transl_table => 11,
+                inference => $inference,
+                product => $product,
+            });
+        my $gff_string = $gffio->gff_string($standardized);
+        print $gff_out "${gff_string}\n";
+        $written++;
+    }
+    $gff_out->close();
+    return($written);
+}
+
 =head2 C<Write_Tbl>
 
 This is basically just stealing a small piece of code from Torsten
@@ -1116,110 +1127,6 @@ sub Write_Tbl_from_SeqFeatures {
     }
 }
 
-sub Write_Gbk {
-    my %args = @_;
-    $args{contigs} = 1 if (!defined($args{contigs}));
-    my $run_sed = 1;
-    $run_sed = $args{sed} if (defined($args{sed}));
-
-    my $tbl2asn_m_option = '-M n';
-    if ($args{contigs} > 10_000) {
-        $tbl2asn_m_option = '-M b';
-    }
-    my $log_fh = *STDOUT;
-    $log_fh = $args{log_fh} if (defined($args{log_fh}));
-    my $outdir = '.';
-    my $accver = '1';
-    my $EXE = 'slightly modified prokka';
-    my $VERSION = '1.14.6';
-    my $URL = 'https://github.com/tseemann/prokka';
-    print $log_fh "Inputs for tbl2asn: $args{output_fsa}, $args{input_tbl}";
-    my $sbt_arg = '';
-    if (defined($args{sbt})) {
-        print $log_fh " $args{sbt}\n";
-        $sbt_arg = qq"-t $args{sbt} ";
-    } else {
-        print $log_fh "\n";
-    }
-    print $log_fh qq"Outputs from tbl2asn: $args{output_gbk}.\n";
-    my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL";
-    if (defined($args{taxonomy})) {
-        my $taxonomy_information = $args{taxonomy};
-        $tbl2asn_comment .= qq"; Most similar taxon to this strain: $taxonomy_information->{taxon}";
-    }
-    my $default_args = '-V b -c f -S F -a r10k -l paired-ends ';
-    if (defined($args{tbl2asn_args})) {
-        $default_args = $args{tbl2asn_args};
-    }
-    my $out_basedir = dirname($args{output_gbk});
-    my $out_basefile = basename($args{output_gbk}, ('.gbk'));
-    my $stderr_file = qq"${out_basedir}/${out_basefile}.stderr";
-    my $error_file = qq"${out_basedir}/${out_basefile}.err";
-    my $stdout_file = qq"${out_basedir}/${out_basefile}.stdout";
-    my $tbl_command = qq"tbl2asn ${default_args} ${tbl2asn_m_option} \\
-  -N ${accver} -y '${tbl2asn_comment}' \\
-  -Z ${error_file} ${sbt_arg} -i $args{output_fsa} \\
-  1>${stdout_file} 2>${stderr_file}
-";
-    print $log_fh qq"Running ${tbl_command}\n";
-    my $tbl2asn_result = qx"${tbl_command}";
-    my $sed_result = undef;
-    if ($run_sed) {
-        my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' \\
-  ${out_basedir}/${out_basefile}.gbf | \\
-  sed 's/product=\"_/product=\"/g' > $args{output_gbk}";
-        print $log_fh qq"Running ${sed_command}\n";
-        $sed_result = qx"${sed_command}";
-    } else {
-        print $log_fh qq"Not running sed, copying file.\n";
-        $sed_result = cp(qq"${out_basedir}/${out_basefile}.gbf", $args{output_gbk});
-    }
-    my $results = [$tbl2asn_result, $sed_result];
-    return($results);
-}
-
-sub Write_Gff_from_SeqFeatures {
-    my %args = @_;
-    my @in = @{$args{input_features}};
-    use Bio::Tools::GFF;
-    my $gff_out = FileHandle->new(">$args{output_gff}");
-    my $gffio = Bio::Tools::GFF->new(-noparse => 1, -gff_version => 3);
-    my $written = 0;
-    for my $s (@in) {
-        ## Standardize the feature set
-        my $product = 'hypothetical protein';
-        if ($s->has_tag('product')) {
-            my @products = $s->get_tag_values('product');
-            $product = $products[0];
-        }
-        my $inference = 'ab initio prediction';
-        if ($s->has_tag('inference')) {
-            my @inferences = $s->get_tag_values('inference');
-            $inference = $inferences[0];
-        }
-
-        my $standardized = Bio::SeqFeature::Generic->new(
-            -primary_tag => $s->primary_tag,
-            -display_name => $s->display_name,
-            -seq_id => $s->seq_id,
-            -start => $s->start,
-            -end => $s->end,
-            -strand => $s->strand,
-            -score => $s->score,
-            -tag => {
-                locus_tag => $s->display_name,
-                transl_table => 11,
-                inference => $inference,
-                product => $product,
-            });
-        my $gff_string = $gffio->gff_string($standardized);
-        print $gff_out "${gff_string}\n";
-        $written++;
-    }
-    $gff_out->close();
-    return($written);
-}
-
 =head2 C<TAG>
 
 I just copy/pasted this outright from prokka so that the table writer
@@ -1234,37 +1141,14 @@ sub TAG {
   return ($f->get_tag_values($tag))[0];
 }
 
-sub Read_Prokka_Gbk_to_SeqFeatures {
-    my %args = @_;
-    my $prokka_in = FileHandle->new("less $args{input} |");
-    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $prokka_in);
-    my (@prokka_sequences, @prokka_features, @sequence_ids);
-    while (my $seq = $seqio->next_seq) {
-        push(@prokka_sequences, $seq);
-        my $seq_id = $seq->id;
-        push(@sequence_ids, $seq_id);
-        my @feature_list = $seq->get_SeqFeatures();
-        for my $f (@feature_list) {
-            push(@prokka_features, $f);
-        }
-    } ## End grabbing prokka sequences
-    $prokka_in->close();
-    return(\@prokka_features, \@prokka_sequences, \@sequence_ids);
-}
-
-sub Read_Prodigal_GFF_to_SeqFeatures {
-    my %args = @_;
-    my $prodigal_in = FileHandle->new("less $args{input} |");
-    my $prodigal_io = Bio::FeatureIO->new(-format => 'gff', -fh => $prodigal_in);
-    my @prodigal_features = ();
-    while (my $feature = $prodigal_io->next_feature()) {
-        my $contig_id = $feature->seq_id;
-        my $fixed_id = Remove_Contig_Cruft($contig_id);
-        my $reset_contig = $feature->seq_id($fixed_id);
-        push(@prodigal_features, $feature);
-    }
-    $prodigal_in->close();
-    return(\@prodigal_features);
-}
-
 1;
+
+=head1 AUTHOR - atb
+
+Email  <abelew@gmail.com>
+
+=head1 SEE ALSO
+
+tbl2asn(1)  Bio::SeqFeature::Generic  Bio::Tools::GFF
+
+=cut

@@ -142,7 +142,7 @@ sub Annotate_Assembly {
         jdepends => $interpro->{job_id},);
     sleep(0.2);
 
-        $prefix = sprintf("%02d", ($prefix + 1));
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning cgview.\n";
     my $cgview = $class->Bio::Adventure::Visualization::CGView(
         input => $merge->{output_gbk},
@@ -166,56 +166,345 @@ sub Annotate_Assembly {
     return($ret)
 }
 
+sub Annotate_Phage {
+    my ($class, %args) = @_;
+    print "This annotation pipeline starts with the output of unicycler.\n";
+    my $options = $class->Get_Vars(
+        args => \%args,);
+
+    my $prefix = sprintf("%02d", 8);
+    my $final_locustag = basename(cwd());
+    my $assembly_output = qq"outputs/07unicycler/${final_locustag}_final_assembly.fasta";
+    my $filtered_reads = qq"outputs/05filter_kraken_host/r1_host_filtered.fastq.xz:outputs/05filter_kraken_host/r2_host_filtered.fastq.xz";
+    my $last_job;
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nDepth filtering initial assembly.\n";
+    my $depth_filtered = $class->Bio::Adventure::Assembly::Filter_Depth(
+        jdepends => $last_job,
+        input => $assembly_output,
+        jprefix => $prefix,
+        jname => 'depth_filter',);
+    $last_job = $depth_filtered->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        jdepends => $last_job,
+        input => $depth_filtered->{output},
+        jprefix => $prefix,
+        jname => 'phastaf',);
+    $last_job = $phastaf->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning virus ICTV classifier.\n";
+    my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
+        jdepends => $last_job,
+        input => $depth_filtered->{output},
+        jprefix => $prefix,
+        jname => 'ictv',);
+    $last_job = $ictv->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSetting the Watson strand to the one with the most ORFs.\n";
+    my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
+        jdepends => $last_job,
+        input => $depth_filtered->{output},
+        jprefix => $prefix,
+        jname => 'watsonplus',);
+    $last_job = $watsonplus->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nUsing Phageterm to reorient the assembly to the terminii.\n";
+    my $phageterm = $class->Bio::Adventure::Phage::Phageterm(
+        jdepends => $last_job,
+        input => $filtered_reads,
+        jprefix => $prefix,
+        jname => 'phageterm',
+        library => $watsonplus->{output},);
+    $last_job = $phageterm->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nPerforming reordering by putative terminase if phageterm failed.\n";
+    my $termreorder = $class->Bio::Adventure::Phage::Terminase_ORF_Reorder(
+        jdepends => $last_job,
+        fasta_tool => 'fastx36',
+        input => $phageterm->{output},
+        jprefix => $prefix,
+        jname => 'reorder',
+        library => 'terminase',
+        species => 'phages',
+        test_file => $phageterm->{test_file},);
+    $last_job = $termreorder->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nPerforming initial prokka annotation.\n";
+    my $prokka = $class->Bio::Adventure::Annotation::Prokka(
+        jdepends => $last_job,
+        input => $termreorder->{output},
+        jprefix => $prefix,
+        jname => 'prokka',
+        locus_tag => $final_locustag,);
+    $last_job = $prokka->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning prodigal to get RBSes.\n";
+    my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+        jdepends => $last_job,
+        ## Use output_assembly to avoid having too much clutter on the sequence ID line.
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,);
+    $last_job = $prodigal->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning glimmer for less stringent ORFs.\n";
+    my $glimmer = $class->Bio::Adventure::Annotation::Glimmer_Single(
+        jdepends => $last_job,
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,);
+    $last_job = $glimmer->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phanotate.\n";
+    my $phanotate = $class->Bio::Adventure::Phage::Phanotate(
+        jdepends => $last_job,
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,);
+    $last_job = $phanotate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nMerging the CDS predictions and writing an initial gbk file.\n";
+    my $cds_merge = $class->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions(
+        jdepends => $last_job,
+        input => $prokka->{output_genbank},
+        input_glimmer => $glimmer->{output},
+        input_phanotate => $phanotate->{output},
+        input_prodigal => $prodigal->{output_gff},
+        jprefix => $prefix);
+    $last_job = $cds_merge->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Jellyfish on the assembly.\n";
+    my $jelly = $class->Bio::Adventure::Count::Jellyfish(
+        jdepends => $last_job,
+        input => $cds_merge->{output_fsa},
+        jprefix => $prefix,
+        jname => 'jelly',);
+    $last_job = $jelly->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
+    my $aragorn = $class->Bio::Adventure::Annotation::Aragorn(
+        jdepends => $last_job,
+        input => $cds_merge->{output_fsa},
+        jprefix => $prefix,
+        jname => 'aragorn',);
+    $last_job = $aragorn->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nInvoking trinotate.\n";
+    my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
+        jdepends => $last_job,
+        input => $cds_merge->{output_cds},
+        jprefix => $prefix,
+        jname => 'trinotate',
+        config => 'phage.txt',);
+    $last_job = $trinotate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSearching for resistance genes with abricate.\n";
+    my $abricate = $class->Bio::Adventure::Resistance::Abricate(
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'abricate',
+        input => $cds_merge->{output_cds},);
+    $last_job = $abricate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning interproscan.\n";
+    my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'interproscan',
+        input => $cds_merge->{output_faa},);
+    $last_job = $interpro->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nMerging annotation files.\n";
+    my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
+        jdepends => $last_job,
+        input_fsa => $cds_merge->{output_fsa},
+        input_genbank => $cds_merge->{output_gbk},
+        input_tsv => $cds_merge->{output_tsv},
+        input_abricate => $abricate->{output},
+        input_aragorn => $aragorn->{output},
+        input_classifier => $ictv->{output},
+        input_interpro => $interpro->{output_tsv},
+        input_phageterm => $phageterm->{test_file},
+        input_prodigal => $prodigal->{output},
+        input_trinotate => $trinotate->{output},
+        jprefix => $prefix,
+        jname => 'mergeannot',);
+    $last_job = $merge->{job_id};
+    sleep(0.2);
+
+    ## An extra invocation of merge_annotations which will not modify the final gbk file.
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nMerging annotation files a second time.\n";
+    my $merge2 = $class->Bio::Adventure::Metadata::Merge_Annotations(
+        jdepends => $last_job,
+        input_fsa => $cds_merge->{output_fsa},
+        input_genbank => $cds_merge->{output_gbk},
+        input_tsv => $cds_merge->{output_tsv},
+        input_abricate => $abricate->{output},
+        input_aragorn => $aragorn->{output},
+        input_classifier => $ictv->{output},
+        input_interpro => $interpro->{output_tsv},
+        input_phageterm => $phageterm->{test_file},
+        input_prodigal => $prodigal->{output},
+        input_trinotate => $trinotate->{output},
+        jprefix => $prefix,
+        jname => 'mergeannot2',
+        keep_genes => 0,
+        locus_tag => 0,
+        evalue => undef,);
+    sleep(0.2);
+    $last_job = $merge2->{job_id};
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning cgview.\n";
+    my $cgview = $class->Bio::Adventure::Visualization::CGView(
+        jdepends => $last_job,
+        jprefix => $prefix,
+        input => $merge->{output_gbk},);
+    $last_job = $cgview->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Vienna RNAfold on the assembly.\n";
+    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+        jdepends => $last_job,
+        input => $merge2->{output_gbk},
+        jprefix => $prefix,
+        jname => 'vienna',);
+    $last_job = $cds_merge->{job_id};
+    sleep(0.2);
+
+}
+
 sub Riboseq {
     my ($class, %args) = @_;
-    my $fastqc_job = Bio::Adventure::QA::Fastqc($class, %args);
-    my $cutadapt_job = Bio::Adventure::Trim::Cutadapt($class, %args);
-    $args{jdepends} = $cutadapt_job->{job_id};
-    my $biopieces = Bio::Adventure::QA::Biopieces_Graph($class, %args);
-    my $rrna_job = Bio::Adventure::Map::Bowtie_RRNA($class, %args);
-    $args{jdepends} = $rrna_job->{job_id};
-    my $bt_jobs = Bio::Adventure::Map::Bowtie($class, %args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species']);
+    my $prefix = sprintf("%02d", 0);
+    my $last_job;
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning FastQC.\n";
+    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
+        input => $options->{input},
+        jprefix => $prefix,
+        jname => 'fastqc',);
+    $last_job = $fastqc->{job_id};
+    sleep(0.2);
+
+    print "\nRunning cutadapt.\n";
+    my $cutadapt = $class->Bio::Adventure::Trim::Cutadap(
+        input => $options->{input},
+        task => 'riboseq',
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'cutadapt',);
+    $last_job = $cutadapt->{job_id};
+    sleep(0.2);
+
+    print "\nRunning Biopieces.\n";
+    my $pieces = $class->Bio::Adventure::QA::Biopieces_Graph(
+        input => $cutadapt->{output},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'biopieces',);
+    $last_job = $pieces->{job_id};
+    sleep(0.2);
+
+    print "\nFiltering rRNA reads.\n";
+    my $rrna_filter = $class->Bio::Adventure::Map::Bowtie_RRNA(
+        input => $cutadapt->{output},
+        species => $options->{species},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'rrna_filter',);
+    $last_job = $rrna_filter->{job_id};
+    sleep(0.2);
+
+    print "\nMapping remaining reads.\n";
+    my $map_reads = $class->Bio::Adventure::Map::Bowtie(
+        input => $rrna_filter->{output},
+        species => $options->{species},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'map_reads',);
+    $last_job = $map_reads->{job_id};
+    sleep(0.2);
+
     my $ret = {
-        fastqc => $fastqc_job,
-        cutadapt => $cutadapt_job,
-        biopieces => $biopieces,
-        rrna => $rrna_job,
-        bt => $bt_jobs};
+        fastqc => $fastqc,
+        cutadapt => $cutadapt,
+        biopieces => $pieces,
+        rrna => $rrna_filter,
+        bt => $map_reads};
     return($ret);
 }
 
 sub Bowtie {
     my ($class, %args) = @_;
     $args{aligner} = 'bowtie';
-    my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
+    my $rnaseq_jobs = $class->RNAseq(%args);
     return($rnaseq_jobs);
 }
 
 sub Bowtie2 {
     my ($class, %args) = @_;
     $args{aligner} = 'bowtie2';
-    my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
+    my $rnaseq_jobs = $class->RNAseq(%args);
     return($rnaseq_jobs);
 }
 
 sub BWA {
     my ($class, %args) = @_;
     $args{aligner} = 'bwa';
-    my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
+    my $rnaseq_jobs = $class->RNAseq(%args);
     return($rnaseq_jobs);
 }
 
 sub Hisat {
     my ($class, %args) = @_;
     $args{aligner} = 'hisat';
-    my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
+    my $rnaseq_jobs = $class->RNAseq(%args);
     return($rnaseq_jobs);
 }
 
 sub Kallisto {
     my ($class, %args) = @_;
     $args{aligner} = 'kallisto';
-    my $rnaseq_jobs = $class->Pipeline_RNAseq(%args);
+    my $rnaseq_jobs = $class->RNAseq(%args);
     return($rnaseq_jobs);
 }
 
@@ -297,18 +586,53 @@ sub RNAseq {
 
 sub TNseq {
     my ($class, %args) = @_;
-    my $fastqc_job = Bio::Adventure::QA::Fastqc($class, %args);
-    $args{type} = 'tnseq';
-    my $cutadapt_job = Bio::Adventure::Trim::Cutadapt($class, %args);
-    $args{jdepends} = $cutadapt_job->{job_id};
-    my $biopieces_job = Bio::Adventure::QA::Biopieces_Graph($class, %args);
-    my $bt_jobs = Bio::Adventure::Map::Bowtie($class, %args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species']);
+    my $prefix = sprintf("%02d", 0);
+    my $last_job;
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning FastQC.\n";
+    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
+        input => $options->{input},
+        jprefix => $prefix,
+        jname => 'fastqc',);
+    $last_job = $fastqc->{job_id};
+    sleep(0.2);
+
+    print "\nRunning Cutadapt with TNSeq adapters.\n";
+    my $cutadapt = $class->Bio::Adventure::Trim::Cutadapt(
+        input => $options->{input},
+        task => 'tnseq',
+        jprefix => $prefix,
+        jname => 'cutadapt',);
+    $last_job = $cutadapt->{job_id};
+    sleep(0.2);
+
+    print "\nRunning Biopieces.\n";
+    my $pieces = $class->Bio::Adventure::QA::Biopieces_Graph(
+        input => $cutadapt->{output},
+        jprefix => $prefix,
+        jname => 'biopieces',);
+    $last_job = $pieces->{job_id};
+    sleep(0.2);
+
+    print "\nMapping remaining reads.\n";
+    my $map_reads = $class->Bio::Adventure::Map::Bowtie(
+        input => $cutadapt->{output},
+        species => $options->{species},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'map_reads',);
+    $last_job = $map_reads->{job_id};
+    sleep(0.2);
+
     my $ret = {
-        fastqc => $fastqc_job,
-        cutadapt => $cutadapt_job,
-        biopieces => $biopieces_job,
-        bt => $bt_jobs,
-    };
+        fastqc => $fastqc,
+        cutadapt => $cutadapt,
+        biopieces => $pieces,
+        bt => $map_reads, };
     return($ret);
 }
 
@@ -496,7 +820,6 @@ sub Phage_Assemble {
     $last_job = $filter->{job_id};
     sleep(0.2);
 
-    ## 05
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nClassifying sequences with Kraken using the viral database.\n";
     my $kraken = $class->Bio::Adventure::Annotation::Kraken(
@@ -528,7 +851,6 @@ sub Phage_Assemble {
     $last_job = $depth_filtered->{job_id};
     sleep(0.2);
 
-    ## 08
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
@@ -549,7 +871,6 @@ sub Phage_Assemble {
     $last_job = $ictv->{job_id};
     sleep(0.2);
 
-    ## 10
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Watson strand to the one with the most ORFs.\n";
     my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
@@ -616,11 +937,21 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning phanotate.\n";
+    my $phanotate = $class->Bio::Adventure::Phage::Phanotate(
+        jdepends => $last_job,
+        input => $prokka->{output_assembly},
+        jprefix => $prefix,);
+    $last_job = $phanotate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging the CDS predictions and writing an initial gbk file.\n";
     my $cds_merge = $class->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions(
         jdepends => $last_job,
         input => $prokka->{output_genbank},
         input_glimmer => $glimmer->{output},
+        input_phanotate => $phanotate->{output},
         input_prodigal => $prodigal->{output_gff},
         jprefix => $prefix);
     $last_job = $cds_merge->{job_id};
@@ -646,7 +977,6 @@ sub Phage_Assemble {
     $last_job = $aragorn->{job_id};
     sleep(0.2);
 
-    ## 15
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
@@ -658,7 +988,6 @@ sub Phage_Assemble {
     $last_job = $trinotate->{job_id};
     sleep(0.2);
 
-    ## 16
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSearching for resistance genes with abricate.\n";
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
@@ -669,7 +998,6 @@ sub Phage_Assemble {
     $last_job = $abricate->{job_id};
     sleep(0.2);
 
-    ## 17
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
@@ -699,7 +1027,6 @@ sub Phage_Assemble {
     $last_job = $merge->{job_id};
     sleep(0.2);
 
-    ## 21
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files a second time.\n";
@@ -717,6 +1044,8 @@ sub Phage_Assemble {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot2',
+        keep_genes => 0,
+        locus_tag => 0,
         evalue => undef,);
     sleep(0.2);
     $last_job = $merge2->{job_id};
@@ -728,6 +1057,16 @@ sub Phage_Assemble {
         jprefix => $prefix,
         input => $merge->{output_gbk},);
     $last_job = $cgview->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Vienna RNAfold on the assembly.\n";
+    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+        jdepends => $last_job,
+        input => $cds_merge->{output},
+        jprefix => $prefix,
+        jname => 'vienna',);
+    $last_job = $cds_merge->{job_id};
     sleep(0.2);
 
     my $ret = {
