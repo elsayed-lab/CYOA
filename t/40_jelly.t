@@ -19,4 +19,5 @@ if (!-r 'genome/phix.fasta') {
 }
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 my $jelly = $cyoa->Bio::Adventure::Count::Jellyfish(
-    input => $input_fasta);
+    input => $input_fasta,
+    jprefix => 40,);

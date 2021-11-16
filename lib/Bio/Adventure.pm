@@ -1302,7 +1302,6 @@ sub Get_Vars {
     return(\%returned_vars);
 }
 
-
 =item C<Set_Vars>
 
   Handle the peculiar mix of instance options held in $class->{options},

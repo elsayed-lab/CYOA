@@ -364,7 +364,9 @@ sub Split_Align_Fasta {
     if ($options->{pbs}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
+        ##$class->{num_per_split} = $num_per_split;
         $options = $class->Set_Vars(workdir => $outdir);
+        ##$class->{workdir} = $outdir;
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             %args,
@@ -385,7 +387,9 @@ sub Split_Align_Fasta {
         $options->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
+        ##$class->{num_per_split} = $num_per_split;
         $options = $class->Set_Vars(workdir => $outdir);
+        ##$class->{workdir} = $outdir;
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             workdir => $outdir,
             %args);

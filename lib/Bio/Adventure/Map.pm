@@ -80,7 +80,7 @@ sub Bowtie {
         foreach my $sp (@species_lst) {
             print "Invoking bowtie on ${sp}\n";
             $class->{species} = $sp;
-            my $result = Bio::Adventure::Map::Bowtie($class, %{$options});
+            my $result = $class->Bio::Adventure::Map::Bowtie(%{$options});
             push (@result_lst, $result);
         }
         $options->{species} = $start_species;
@@ -107,14 +107,15 @@ sub Bowtie {
     }
 
     my $jname = qq"bt${bt_type}_${species}";
-    ##$jname = $options->{jname} if ($options->{jname});
+    ## $jname = $options->{jname} if ($options->{jname});
     my $libtype = $options->{libtype};
+
     my $count = $options->{count};
     my $bt_dir = qq"outputs/bowtie_${species}";
     $bt_dir = $options->{bt_dir} if ($options->{bt_dir});
 
     ## Check that the indexes exist
-    my $bt_reflib = "$options->{libdir}/${libtype}/indexes/${species}";
+    my $bt_reflib = qq"$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
     my $current_prefix = 10;
     if (defined($options->{jprefix})) {
@@ -122,7 +123,8 @@ sub Bowtie {
     }
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
-        $options = $class->Set_Vars(bt1_indexjobs => 1);
+        $class->{bt1_indexjobs} = 1;
+        ## $options = $class->Set_Vars(bt1_indexjobs => 1);
         my $genome_input = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
         $index_job = $class->Bio::Adventure::Index::BT1_Index(
             input => $genome_input,
@@ -273,8 +275,6 @@ modules(bowtie2)
 =cut
 sub Bowtie2 {
     my ($class, %args) = @_;
-    my $check = which('bowtie2-build');
-    die("Could not find bowtie2 in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],
@@ -284,6 +284,10 @@ sub Bowtie2 {
         jmem => 28,
         jprefix => 20,
         modules => ['bowtie2']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('bowtie2-build');
+    die("Could not find bowtie2 in your PATH.") unless($check);
+
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -438,6 +442,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
             $bt2_job->{htseq} = $htmulti;
         }
     }
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+        action => 'unload',);
     return($bt2_job);
 }
 
@@ -557,7 +563,7 @@ sub BWA {
         foreach my $sp (@species_lst) {
             print "Invoking bwa on ${sp}\n";
             $options->{species} = $sp;
-            my $result = Bio::Adventure::Map::BWA($class, %{$options});
+            my $result = $class->Bio::Adventure::Map::BWA(%{$options});
             push (@result_lst, $result);
         }
         $options->{species} = $start_species;
@@ -586,7 +592,7 @@ sub BWA {
     $jname = $options->{jname} if ($options->{jname});
     my $libtype = $options->{libtype};
 
-    my $bwa_dir = qq"outputs/bwa_$options->{species}";
+    my $bwa_dir = qq"outputs/$options->{jprefix}bwa_$options->{species}";
     $bwa_dir = $options->{bwa_dir} if ($options->{bwa_dir});
 
     my $uncompress_jobid = undef;

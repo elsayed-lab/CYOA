@@ -32,13 +32,25 @@ if (!-r 'genome/phix.gff') {
 
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 
+my $index = $cyoa->Bio::Adventure::Index::BWA_Index(
+    input => $phix_fasta,
+    libdir => '.',
+    species => 'phix');
+## Check that the indexes were created:
+ok(-f $index->{output_sa}, "The .sa index file was created: $index->{output_sa}");
+ok(-f $index->{output_pac}, "The .sa index file was created: $index->{output_pac}");
+ok(-f $index->{output_bwt}, "The .sa index file was created: $index->{output_bwt}");
+ok(-f $index->{output_ann}, "The .sa index file was created: $index->{output_ann}");
+ok(-f $index->{output_amb}, "The .sa index file was created: $index->{output_amb}");
+ok(-f $index->{output_fa}, "The .sa index file was created: $index->{output_fa}");
+
 my $bwa = $cyoa->Bio::Adventure::Map::BWA(
     htseq_id => 'gene_id',
     htseq_type => 'gene',
     input => qq'test_forward.fastq.gz',
+    jprefix => 25,
     libdir => '.',
     species => 'phix',);
-
 ok($bwa, 'Run Bwa.');
 
 ## Some files of interest:
@@ -48,6 +60,8 @@ my $reporter_sam = $bwa->{reporter}->{output};
 my $aln_out = $bwa->{aln}->{output}; ## sai file
 my $stats_out = $bwa->{stats}->{output};
 my $aln_bam = $bwa->{samtools_aln}->{output};
+use Data::Dumper;
+print Dumper $bwa;
 ok(-f $htseq_mem, "htseq output from the mem alignment was created: ${htseq_mem}");
 ok(-f $htseq_aln, "htseq output from the aln alignment was created: ${htseq_aln}");
 ok(-f $aln_out, "The .sai output from bwa was created: ${aln_out}");

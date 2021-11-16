@@ -36,7 +36,7 @@ my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(
     input => qq"test_forward.fastq.gz",
     htseq_id => 'ID',
     htseq_type => 'CDS',
-    libdir => 'share',
+    libdir => '.',
     species => 'phix_3N',
     vcf_cutoff => 1,);
 

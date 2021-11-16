@@ -510,8 +510,9 @@ blastp is normal protein/protein.
         ## If we don't have pbs, force the number of jobs to 1.
         print "Not using the cluster.\n";
         $options = $class->Set_Vars(align_jobs => 1);
+        ## $class->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split();
-        ## $options = $class->Set_Vars(num_per_split => $num_per_split);
+        $options = $class->Set_Vars(num_per_split => $num_per_split);
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             num_per_split => $num_per_split);
         my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(

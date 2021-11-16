@@ -50,7 +50,8 @@ sub BT1_Index {
     }
 
     my $jstring = qq!bowtie-build $options->{input} \\
-  $options->{libdir}/$options->{libtype}/indexes/${species}
+  $options->{libdir}/$options->{libtype}/indexes/${species} \\
+  2>bt1_index.stderr 1>bt1_index.stdout
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
@@ -95,7 +96,8 @@ sub BT2_Index {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
     my $jstring = qq!bowtie2-build $options->{input} \\
-  $options->{libdir}/${libtype}/indexes/${species}
+  $options->{libdir}/${libtype}/indexes/${species} \\
+  2>bt2_index.stderr 1>bt2_index.stdout
 !;
     my $comment = qq!## Generating bowtie2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
@@ -135,6 +137,14 @@ bwa index ${species}.fa \\
   1>bwa_index.out
 cd \$start
 !;
+    my $basedir = qq"$options->{libdir}/$options->{libtype}/indexes";
+    my $index_sa = qq"${basedir}/${species}.fa.sa";
+    my $index_pac = qq"${basedir}/${species}.fa.pac";
+    my $index_bwt = qq"${basedir}/${species}.fa.bwt";
+    my $index_ann = qq"${basedir}/${species}.fa.ann";
+    my $index_amb = qq"${basedir}/${species}.fa.amb";
+    my $index_fa = qq"${basedir}/${species}.fa";
+
     my $comment = qq!## Generating bwa indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
     my $bwa_index = $class->Submit(
         comment => $comment,
@@ -143,6 +153,12 @@ cd \$start
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
+        output_sa => $index_sa,
+        output_pac => $index_pac,
+        output_bwt => $index_bwt,
+        output_ann => $index_ann,
+        output_amb => $index_amb,
+        output_fa => $index_fa,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($bwa_index);
@@ -299,7 +315,8 @@ sub Hisat2_Index {
     }
     my $jstring = qq!
 hisat2-build $options->{input} \\
-  $options->{libdir}/${libtype}/indexes/${species}
+  $options->{libdir}/${libtype}/indexes/${species} \\
+  2>hisat2_index.stderr 1>hisat2_index.stdout
 !;
     my $comment = qq!## Generating hisat2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
@@ -337,7 +354,8 @@ sub Kallisto_Index {
     my $input = File::Spec->rel2abs($options->{input});
     my $jstring = qq!
 kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
-  ${input}
+  ${input} \\
+  2>kallisto_index.stderr 1>kallisto_index.stdout
 !;
     my $comment = qq!## Generating kallisto indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
     my $ka_index = $class->Submit(
@@ -440,9 +458,14 @@ less ${species_file} | grep '^>' | sed 's/^>//g' > ${decoy_location}.txt
 !;
         $index_input = $decoy_location;
         $index_string = qq!
-salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
+salmon index \\
+  -t ${index_input} \\
+  -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index \\
+!;
         $jstring = qq!${decoy_copy_string}
-${index_string} --decoys ${decoy_location}.txt
+${index_string} \\
+  --decoys ${decoy_location}.txt \\
+  2>salmon_index.stderr 1>salmon_index.stdout
 !;
     } else {
         warn("This function would prefer to make a decoy aware index set which requires the full genome.");

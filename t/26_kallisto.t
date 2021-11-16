@@ -41,16 +41,19 @@ my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
     input => $phix_genome, gff => $phix_annot, libdir => '.');
 ok($gff2fasta, 'Run gff2fasta.');
 
-my $index = $cyoa->Bio::Adventure::Map::Kallisto_Index(
+my $index = $cyoa->Bio::Adventure::Index::Kallisto_Index(
     input => $phix_transcripts,
     species => 'phix');
-my $kallisto_file = 'outputs/46kallisto_phix/abundance.tsv';
 my $kallisto = $cyoa->Bio::Adventure::Map::Kallisto(
     input => 'test_forward.fastq.gz',
+    jprefix => '26',
     libdir => '.',
     species => 'phix',);
 ok($kallisto, 'Run Kallisto');
-ok(-f $kallisto_file, 'The kallisto abundance.tsv file was created.');
+
+##my $kallisto_file = 'outputs/46kallisto_phix/abundance.tsv';
+my $kallisto_file = $kallisto->{output};
+ok(-f $kallisto_file, qq"The kallisto otuput file was created: ${kallisto_file}.");
 
 $expected = qq"target_id\tlength\teff_length\test_counts\ttpm
 NC_001422_phiX174p01_1\t1406\t1125.2\t8.50998\t189149
