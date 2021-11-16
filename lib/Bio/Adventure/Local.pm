@@ -62,13 +62,13 @@ print \$out "###Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
-        if ($options->{option_file}) {
-            $perl_start .= qq!
-use Storable qw "freeze thaw store retrieve";
-my \$options = retrieve('$options->{option_file}');
-\$h->{options} = \$options;
-!;
-}
+##        if ($options->{option_file}) {
+##            $perl_start .= qq!
+##use Storable qw "freeze thaw store retrieve";
+##my \$options = retrieve('$options->{option_file}');
+##\$h->{options} = \$options;
+##!;
+##}
         my $perl_end = qq!
 ## The following lines give status codes and some logging
 my \$jobid = "";
