@@ -172,7 +172,7 @@ sub Annotate_Phage {
     my $options = $class->Get_Vars(
         args => \%args,);
 
-    my $prefix = sprintf("%02d", 8);
+    my $prefix = sprintf("%02d", 7);
     my $final_locustag = basename(cwd());
     my $assembly_output = qq"outputs/07unicycler/${final_locustag}_final_assembly.fasta";
     my $filtered_reads = qq"outputs/05filter_kraken_host/r1_host_filtered.fastq.xz:outputs/05filter_kraken_host/r2_host_filtered.fastq.xz";

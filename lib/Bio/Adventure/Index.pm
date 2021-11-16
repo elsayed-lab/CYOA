@@ -8,6 +8,7 @@ extends 'Bio::Adventure';
 
 use File::Basename;
 use File::Copy qw"cp";
+use File::Path qw"make_path";
 use File::Spec;
 use File::Which qw"which";
 

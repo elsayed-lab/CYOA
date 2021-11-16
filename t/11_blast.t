@@ -39,7 +39,7 @@ if (!-r $cds_local) {
 
 ## Perform a check to see if the desired blast library exists,
 ## create it if it does not.
-my $phix_library = $cyoa->Bio::Adventure::Align_Blast::Check_Blastdb(
+my $phix_library = $cyoa->Bio::Adventure::Index::Check_Blastdb(
     input => $phix_local, type => 'nucl');
 ok($phix_library, 'Run Check_Blastdb()');
 ok($phix_library eq 'blastdb/phix', 'The database name is "phix".');

@@ -221,7 +221,7 @@ sub Get_Kraken_Host {
 
         print $out "Writing a new host_species.txt file with: ${accession}.\n";
         my $host = FileHandle->new(">host_species.txt");
-        print $host $accession;
+        print $host qq"${accession}\n";
         $host->close();
         $host_species = $accession;
 
