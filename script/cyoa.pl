@@ -50,8 +50,8 @@ if (!defined($overrides->{task})) {
     $cyoa = Iterate($cyoa, task => $overrides->{task});
 } else {
     ## If both task and method are defined, run whatever is requested.
-    $cyoa = $cyoa->Run_Method(task => $overrides->{task},
-                              method => $overrides->{method});
+    $cyoa = Run_Method($cyoa, task => $overrides->{task},
+                       method => $overrides->{method});
 }
 
 =head2 C<Main>
@@ -158,7 +158,7 @@ sub Run_Method {
         }
         my $class_copy = $class;
         foreach my $d (@dirs) {
-            sleep(2);
+            sleep(1);
             chdir($d);
             $process = $job->($class_copy, type => $type, interactive => $args{interactive}, %args);
             chdir($start_dir);

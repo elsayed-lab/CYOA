@@ -407,8 +407,13 @@ $VERSION = '20151101';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
-$ENV{LESSOPEN} = '| lesspipe %s';
-$ENV{LESS} = '--buffers 0';
+
+if (!defined($ENV{LESSOPEN})) {
+    $ENV{LESSOPEN} = '| lesspipe %s';
+}
+if (!defined($ENV{LESS})) {
+    $ENV{LESS} = '--buffers 0';
+}
 
 =over
 
