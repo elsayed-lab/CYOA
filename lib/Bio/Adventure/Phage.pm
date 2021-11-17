@@ -1068,7 +1068,7 @@ sub Terminase_ORF_Reorder {
     my $prodigal_outname = 'prodigal';
     my $prodigal_cds = qq"${output_dir}/${prodigal_outname}_cds.fasta";
 
-    my $term_prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+    my $term_prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
         gcode => $options->{gcode},
         input => $options->{input},
         jdepends => $options->{jdepends},

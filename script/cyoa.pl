@@ -42,6 +42,9 @@ our $cyoa = new Bio::Adventure;
 ## Then a second-level method to perform therein,
 ## which will provide a match to the appropriate function
 my $overrides = $cyoa->{variable_getopt_overrides};
+if (defined($overrides->{help})) {
+    my $helped = $cyoa->Help();
+}
 if (!defined($overrides->{task})) {
     ## If task is not defined, then we need to run Main()
     $cyoa = Main($cyoa);
