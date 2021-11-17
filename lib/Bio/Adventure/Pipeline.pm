@@ -103,7 +103,7 @@ sub Annotate_Assembly {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
-    my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+    my $prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
         input => $prokka->{output_fsa},
         jdepends => $prokka->{job_id},
         jprefix => $prefix);
@@ -256,7 +256,7 @@ sub Annotate_Phage {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
-    my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+    my $prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
         jdepends => $last_job,
         ## Use output_assembly to avoid having too much clutter on the sequence ID line.
         input => $prokka->{output_assembly},
@@ -266,7 +266,7 @@ sub Annotate_Phage {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning glimmer for less stringent ORFs.\n";
-    my $glimmer = $class->Bio::Adventure::Annotation::Glimmer_Single(
+    my $glimmer = $class->Bio::Adventure::Feature_Prediction::Glimmer_Single(
         jdepends => $last_job,
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
@@ -275,7 +275,7 @@ sub Annotate_Phage {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phanotate.\n";
-    my $phanotate = $class->Bio::Adventure::Phage::Phanotate(
+    my $phanotate = $class->Bio::Adventure::Feature_Prediction::Phanotate(
         jdepends => $last_job,
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
@@ -306,7 +306,7 @@ sub Annotate_Phage {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
-    my $aragorn = $class->Bio::Adventure::Annotation::Aragorn(
+    my $aragorn = $class->Bio::Adventure::Feature_Prediction::Aragorn(
         jdepends => $last_job,
         input => $cds_merge->{output_fsa},
         jprefix => $prefix,
@@ -919,7 +919,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
-    my $prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+    my $prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
         jdepends => $last_job,
         ## Use output_assembly to avoid having too much clutter on the sequence ID line.
         input => $prokka->{output_assembly},
@@ -929,7 +929,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning glimmer for less stringent ORFs.\n";
-    my $glimmer = $class->Bio::Adventure::Annotation::Glimmer_Single(
+    my $glimmer = $class->Bio::Adventure::Feature_Prediction::Glimmer_Single(
         jdepends => $last_job,
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
@@ -938,7 +938,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phanotate.\n";
-    my $phanotate = $class->Bio::Adventure::Phage::Phanotate(
+    my $phanotate = $class->Bio::Adventure::Feature_Prediction::Phanotate(
         jdepends => $last_job,
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
@@ -969,7 +969,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
-    my $aragorn = $class->Bio::Adventure::Annotation::Aragorn(
+    my $aragorn = $class->Bio::Adventure::Feature_Prediction::Aragorn(
         jdepends => $last_job,
         input => $cds_merge->{output_fsa},
         jprefix => $prefix,
@@ -1068,6 +1068,20 @@ sub Phage_Assemble {
         jname => 'vienna',);
     $last_job = $cds_merge->{job_id};
     sleep(0.2);
+
+##    $prefix = sprintf("%02d", ($prefix + 1));
+##    print "\nCollecting output files.\n";
+##    my $collect = $class->Bio::Adventure::Assembly::Collect_Assembly(
+##        jdepends => $last_job,
+##        input_fsa => $merge->{output_fsa},
+##        input => $merge->{output_gbk},
+##        input_genbank => $merge2->{output_gbk},
+##        input_tsv => $merge->{output_tsv},
+##        output => qq"$cds_merge->{output_xlsx}:$cds_merge->{output_faa}:$cds_merge->{output_genome}",
+##        jprefix => $prefix,
+##        jname => 'collect',);
+##    $last_job = $collect->{job_id};
+##    sleep(0.2);
 
     my $ret = {
         trim => $trim,

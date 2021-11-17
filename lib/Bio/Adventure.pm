@@ -35,15 +35,13 @@ use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
 
-## Some things which are not currently in use:
-## use Archive::Extract; ## When I was opening tarballs
-## use Bio::DB::Sam;  ## For reading bamfiles
-## use JSON -convert_blessed_universally;  ## Intended for use instead of Storable
-## use Data::Dumper;  ## Often used for testing data structures
+use Bio::Adventure::Slurm;
+use Bio::Adventure::Local;
 
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 use Bio::Adventure::Align_Fasta;
+use Bio::Adventure::Feature_Prediction;
 use Bio::Adventure::Annotation;
 use Bio::Adventure::Annotation_Genbank;
 use Bio::Adventure::Assembly;
@@ -53,12 +51,11 @@ use Bio::Adventure::Compress;
 use Bio::Adventure::Convert;
 use Bio::Adventure::Feature_Prediction;
 use Bio::Adventure::Index;
-use Bio::Adventure::Local;
+
 use Bio::Adventure::Map;
 use Bio::Adventure::Metadata;
 use Bio::Adventure::Phage;
 use Bio::Adventure::Phylogeny;
-use Bio::Adventure::Pipeline;
 use Bio::Adventure::PopGen;
 use Bio::Adventure::Prepare;
 use Bio::Adventure::Resistance;
@@ -66,12 +63,13 @@ use Bio::Adventure::Riboseq;
 use Bio::Adventure::QA;
 use Bio::Adventure::SeqMisc;
 use Bio::Adventure::Structure;
-use Bio::Adventure::Slurm;
+
 use Bio::Adventure::SNP;
 use Bio::Adventure::TNSeq;
 use Bio::Adventure::Torque;
 use Bio::Adventure::Trim;
 use Bio::Adventure::Visualization;
+use Bio::Adventure::Pipeline;
 
 =head1 NAME
 

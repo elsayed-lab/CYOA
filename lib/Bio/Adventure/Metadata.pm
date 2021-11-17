@@ -65,13 +65,17 @@ sub Generate_Samplesheet {
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
-
+    my $output_filename = basename($options->{input}, ('.xlsx', '.tsv', '.csv'));
+    my $output_dir = dirname($options->{input});
+    my $output_file = qq"${output_dir}/${output_filename}_modified.xlsx";
     my $jstring = qq!
-
+library(hpgltools)
+meta_written <- gather_preprocessing_metadata("$options->{input}")
 !;
     my $sample_sheet = $class->Submit(
         jstring => $jstring,
         language => 'R',
+        output => $output_file,
         shell => '/usr/bin/env Rscript',);
     return($sample_sheet);
 }

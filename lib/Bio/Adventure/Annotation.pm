@@ -721,7 +721,7 @@ sub Watson_Plus {
     my $job_name = 'watsonplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
     make_path($output_dir);
-    my $watson_prodigal = $class->Bio::Adventure::Annotation::Prodigal(
+    my $watson_prodigal = Bio::Adventure::Feature_Prediction::Prodigal($class,
         gcode => '11',
         input => $options->{input},
         jdepends => $options->{jdepends},
@@ -739,7 +739,7 @@ sub Watson_Plus {
 ";
     my $jstring = qq!
 use Bio::Adventure::Annotation;
-\$result = Bio::Adventure::Annotation::Watson_Rewrite(\$h,
+\$result = \$h->Bio::Adventure::Annotation::Watson_Rewrite(
   gff => '${input_gff}',
   input => '$options->{input}',
   jdepends => '$options->{jdepends}',
