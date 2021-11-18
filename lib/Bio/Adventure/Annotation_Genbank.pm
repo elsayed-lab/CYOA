@@ -896,10 +896,15 @@ sub Write_CDS_from_SeqFeatures {
      ## $aa_sequence_string
      ##my @all_tags = $in->get_all_tags;
      ##print Dumper @all_tags;
-     my @notes = $in->get_tag_values('note');
-     my $note = $notes[0];
-     $note =~ s/^cds_prediction:\s+//g;
-     my $tsv_line = qq"${name}\t${contig}\t${type}\t${source}\t${start}\t${end}\t${strand}\t${note}\t$aa_sequence_string\n";
+     my @notes;
+     my $note;
+     if ($in->has_tag('note')) {
+         @notes = $in->get_tag_values('note');
+         $note = $notes[0];
+         $note =~ s/^cds_prediction:\s+//g;
+     }
+
+     my $tsv_line = qq"${name}\t${contig}\t${type}\t${source}\t${start}\t${end}\t${strand}\t${note}\t${aa_sequence_string}\n";
      print $out_tsv $tsv_line;
  }
     $out_tsv->close();
