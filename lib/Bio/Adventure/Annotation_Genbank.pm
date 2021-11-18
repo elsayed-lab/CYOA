@@ -665,6 +665,7 @@ sub Rename_Features {
         $keyed_assembly{$key} = $a;
     }
 
+    my %orfs_by_contig = ();
     my @renamed = ();
   RENAME: for my $n (@features) {
       if ($n->primary_tag eq 'source') {
@@ -678,7 +679,7 @@ sub Rename_Features {
       my $start = $n->start;
       my $end = $n->end;
       my $strand = $n->strand;
-
+      $orfs_by_contig{$display_name} = $contig_id;
       ## Handle the weird corner case of features which bridge the origin here:
       ## I think these are happening only when phageterm reorients the genome to a
       ## DTR and prodigal/glimmer picks up an ORF which ends at the beginning of
@@ -742,9 +743,14 @@ sub Rename_Features {
               next FEATLOOP;
           }
 
+          my $this_id = $f->display_name;
+          my $this_contig_id = $orfs_by_contig{$this_id};
+          ## my $start = $f->start;
+          ## my $end = $f->end;
+          ## print "TESTME: Going to set $this_id to $this_contig_id with $start and $end\n";
           my $gene = Bio::SeqFeature::Generic->new(
               -primary_tag => 'gene',
-              -seq_id => $contig_id,
+              -seq_id => $this_contig_id,
               -display_name => $f->display_name,
               -start => $f->start,
               -strand => $f->strand,
@@ -1072,7 +1078,12 @@ sub Write_Tbl_from_SeqFeatures {
     my $file = $args{tbl_file};
     my $taxonomy_information = $args{taxonomy_information};
     my @seq = @{$args{sequences}};
+
     my @features = @{$args{features}};
+
+    ##use Data::Dumper;
+    ##print Dumper @features;
+
     my $tbl_fh = FileHandle->new(">${file}");
     my $hypothetical_string = 'hypothetical protein';
     ## Ok, so it turns out that Torsten uses %seq, @seq, and $seq separately in prokka.
@@ -1084,9 +1095,18 @@ sub Write_Tbl_from_SeqFeatures {
     ## While I definitely like the idea of filling a hash with the various feature information,
     ## naming it %seq when you already have @seq and $seq is a bit insane and confusing.
 
-    for my $sid (@seq) {
+    my %contig_to_orf = ();
+    for my $j (@features) {
+        my $orf_id = $j->display_name;
+        my $contig_id = $j->seq_id;
+        $contig_to_orf{$orf_id} = $contig_id;
+    }
+
+    OUTERSEQ: for my $sid (@seq) {
         print $tbl_fh ">Feature ${sid}\n";
-        for my $f (@features) {
+        INNERFEATURE: for my $f (@features) {
+            my $feature_name = $f->display_name;
+            next INNERFEATURE unless ($contig_to_orf{$feature_name} eq $sid);
             if ($f->primary_tag eq 'source') {
                 $f->strand(1);
                 if (defined($taxonomy_information)) {

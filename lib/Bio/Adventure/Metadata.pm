@@ -594,7 +594,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         for my $ara (@{$aragorn_features}) {
             unshift(@feature_list, $ara);
         }
-
+        ##use Data::Dumper;
+        ##print Dumper @feature_list;
         FEATURES: for my $feat (@feature_list) {
             my $contig = $feat->seq_id(); ## The contig ID
             my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
@@ -614,7 +615,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 my @loci = $feat->get_tag_values('locus_tag');
                 $locus = $loci[0];
                 my $new_info = $merged_data->{$locus};
-
+                ## print "TESTME: $contig $locus\n";
                 ## Pull out some sequence information to send back to $merged_data
                 $merged_data->{$locus}->{start} = $feat->start;
                 $merged_data->{$locus}->{end} = $feat->end;
@@ -937,8 +938,17 @@ sub Merge_Classifier {
       my @wanted_levels = split(/,/, $args{wanted_levels});
       my ($domain, $phylum, $class, $order,
           $family, $genus, $species, $rest) = split(/\s+/, $row->{taxon});
+      my %tmp = (domain => $domain,
+                 phylum => $phylum,
+                 class => $class,
+                 order => $order,
+                 family => $family,
+                 genus => $genus,
+                 species => $species,
+                 rest => $rest);
       for my $wanted (@wanted_levels) {
-          $default_values->{$wanted} = ${$wanted};
+          my $value = $tmp{$wanted};
+          $default_values->{$wanted} = $value;
       }
   }
     close $classifier_fh;
