@@ -912,50 +912,52 @@ sub Merge_Classifier {
         user_comment => 'Phage genome with no detected similar taxonomy.',
     };
 
-    my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
-    open(my $classifier_fh, "<:encoding(utf8)", $args{input});
-    my $input_header = $input_tsv->getline($classifier_fh);
-    $input_tsv->column_names($input_header);
-    my $rows_read = 0;
-  ROWS: while (my $row = $input_tsv->getline_hr($classifier_fh)) {
-      ## Just read the first row.
-      if ($rows_read > 0) {
-          last ROWS;
-      }
-      $rows_read++;
+    if ($args{input}) {
+        my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
+        open(my $classifier_fh, "<:encoding(utf8)", $args{input});
+        my $input_header = $input_tsv->getline($classifier_fh);
+        $input_tsv->column_names($input_header);
+        my $rows_read = 0;
+      ROWS: while (my $row = $input_tsv->getline_hr($classifier_fh)) {
+          ## Just read the first row.
+          if ($rows_read > 0) {
+              last ROWS;
+          }
+          $rows_read++;
 
-      ## Here is a taxon entry provided by the ICTV classifier:
-      ## Duplodnaviria Heunggongvirae Uroviricota Caudoviricetes Caudovirales Myoviridae Hadassahvirus Acinetobacter virus PhT2
-      ## domain        phylum         class       order          family       genus      species       dunno
-      ## Look at dunno in the previous line, it is highly likely that I got confused about the level names
-      my @wanted_columns = ('taxon', 'hit_length', 'hit_accession', 'hit_description',
-                            'hit_bit', 'hit_sig', 'hit_score');
-      for my $colname (@wanted_columns) {
-          ## Check that we already filled this data point
-          $default_values->{$colname} = $row->{$colname};
+          ## Here is a taxon entry provided by the ICTV classifier:
+          ## Duplodnaviria Heunggongvirae Uroviricota Caudoviricetes Caudovirales Myoviridae Hadassahvirus Acinetobacter virus PhT2
+          ## domain        phylum         class       order          family       genus      species       dunno
+          ## Look at dunno in the previous line, it is highly likely that I got confused about the level names
+          my @wanted_columns = ('taxon', 'hit_length', 'hit_accession', 'hit_description',
+                                'hit_bit', 'hit_sig', 'hit_score');
+          for my $colname (@wanted_columns) {
+              ## Check that we already filled this data point
+              $default_values->{$colname} = $row->{$colname};
+          }
+          ## Now add columns for the set of wanted taxonomy levels
+          my @wanted_levels = split(/,/, $args{wanted_levels});
+          my ($domain, $phylum, $class, $order,
+              $family, $genus, $species, $rest) = split(/\s+/, $row->{taxon});
+          my %tmp = (domain => $domain,
+                     phylum => $phylum,
+                     class => $class,
+                     order => $order,
+                     family => $family,
+                     genus => $genus,
+                     species => $species,
+                     rest => $rest);
+          for my $wanted (@wanted_levels) {
+              my $value = $tmp{$wanted};
+              $default_values->{$wanted} = $value;
+          }
       }
-      ## Now add columns for the set of wanted taxonomy levels
-      my @wanted_levels = split(/,/, $args{wanted_levels});
-      my ($domain, $phylum, $class, $order,
-          $family, $genus, $species, $rest) = split(/\s+/, $row->{taxon});
-      my %tmp = (domain => $domain,
-                 phylum => $phylum,
-                 class => $class,
-                 order => $order,
-                 family => $family,
-                 genus => $genus,
-                 species => $species,
-                 rest => $rest);
-      for my $wanted (@wanted_levels) {
-          my $value = $tmp{$wanted};
-          $default_values->{$wanted} = $value;
-      }
-  }
-    close $classifier_fh;
-    if ($default_values->{taxon} ne 'Unknown taxonomy.') {
-        my $comment_string =  qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{hit_description}, accession: $default_values->{hit_accession}, significance: $default_values->{hit_bit}, hit length: $default_values->{hit_length}, hit score: $default_values->{hit_score}";
-        $default_values->{user_comment} = $comment_string;
-    }
+        close $classifier_fh;
+        if ($default_values->{taxon} ne 'Unknown taxonomy.') {
+            my $comment_string =  qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{hit_description}, accession: $default_values->{hit_accession}, significance: $default_values->{hit_bit}, hit length: $default_values->{hit_length}, hit score: $default_values->{hit_score}";
+            $default_values->{user_comment} = $comment_string;
+        }
+    } ## End checking that a taxonomy file was provided.
     my $tt = Template->new({
         ABSOLUTE => 1,});
     my $written = $tt->process($template, $default_values, $output) or print $tt->error(), "\n";

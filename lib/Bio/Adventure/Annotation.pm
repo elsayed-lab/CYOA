@@ -193,7 +193,7 @@ sub Prokka {
     } else {
         $locus_tag = basename($input_name, ('.fasta'));
     }
-    my $output_dir = qq"outputs/$options->{jprefix}prokka_${input_name}";
+    my $output_dir = qq"outputs/$options->{jprefix}prokka";
     my $comment = qq!## This is a script to run prokka.
 !;
 
@@ -652,7 +652,8 @@ sub Trinotate {
     my $input_full = $input_paths->{fullpath};
     my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa'));
     $output_name = qq"${output_name}.tsv";
-    my $output_dir = qq"outputs/$options->{jprefix}trinotate_$input_paths->{dirname}";
+    my $output_dir = qq"outputs/$options->{jprefix}trinotate";
+    $output_dir .= qq"$input_paths->{dirname}" if (defined($input_paths->{dirname}));
     my $comment = qq!## This is a trinotate submission script
 !;
     my $jstring = qq!mkdir -p ${output_dir}

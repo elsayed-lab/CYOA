@@ -797,6 +797,7 @@ sub Get_Menus {
                 '(phageterm): Invoke phageterm to search for terminal repeats.' => \&Bio::Adventure::Annotation::Phageterm,
                 '(phastaf): Search for phage regions in arbitrary assemblies.' => \&Bio::Adventure::Phage::Phastaf,
                 '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
+                '(caical): Calculate codon adaptation index of a phage vs. some host.' => \&Bio::Adventure::Phage::Caical,
             },
         },
         Phylogeny => {
@@ -955,6 +956,7 @@ sub Get_TODOs {
         "bt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie2'},
         "btmulti+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT_Multi'},
         "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
+        "caical+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Caical'},
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},

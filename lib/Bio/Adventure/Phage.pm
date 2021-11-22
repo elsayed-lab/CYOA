@@ -553,6 +553,153 @@ Writing filtered results to $options->{output}.
     return($result_data);
 }
 
+sub Caical {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jprefix => '80',
+        modules => ['caical']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('caical');
+    die("Could not find caical in your PATH.") unless($check);
+    my $index = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+    if (!-r $index) {
+        my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
+            species => $options->{species});
+    }
+    my $test = ref($options->{suffixes});
+    my @suffixes = split(/,/, $options->{suffixes});
+    my $out_base = basename($options->{input}, @suffixes);
+    my $jname = qq"${out_base}_vs_$options->{species}";
+    my $output_dir = qq"outputs/$options->{jprefix}${jname}";
+    make_path($output_dir);
+    my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
+    my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
+    my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
+    my $stderr = qq"${output_dir}/${out_base}.stderr";
+    my $stdout = qq"${output_dir}/${out_base}.stdout";
+    my $jstring = qq?mkdir -p ${output_dir}
+caical -g 11 \\
+  -f $options->{input} \\
+  -h ${index} \\
+  -o1 ${output_cai} \\
+  -o2 ${random_sequences} \\
+  -o3 ${expected_cai} \\
+  2>${stderr} 1>${stdout}
+?;
+
+    my $job = $class->Submit(
+        output => $output_cai,
+        output_random => $random_sequences,
+        output_expected => $expected_cai,
+        jdepends => $options->{jdepends},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload',);
+    return($job);
+}
+
+=head2 C<Make_Codon_Table>
+
+Given a reference assembly, print out a codon table for use with a codon adapatation calculator.
+I wrote a little piece of code which works from a fasta/gff pair, but currently it is dumb.
+
+=cut
+sub Make_Codon_Table {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species'],
+        jprefix => '80',);
+    my $out_table = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+
+    ## I have a few suffixes for writing genbank files.
+    my @potential_suffixes = ('gbff', 'gbk', 'gbf', 'gb', 'genbank');
+    my @compressions = ('gz', 'xz', 'bz2');
+    my $in_gbff = '';
+    POTENTIAL: for my $potential (@potential_suffixes) {
+        my $start = qq"$options->{libdir}/$options->{libtype}/$options->{species}.${potential}";
+        if (-r $start) {
+            $in_gbff = $start;
+            last POTENTIAL;
+        }
+        for my $c (@compressions) {
+            my $comp_test = qq"${start}.${c}";
+            if (-r $comp_test) {
+                $in_gbff = $comp_test;
+                last POTENTIAL;
+            }
+        }
+    }
+    ## The table already exists, move on -- or maybe I should have it overwrite?
+    if (-r $out_table) {
+        return(1);
+    }
+
+    ## This is a little dumb, but an easy way to think through writing out the table.
+    ## E.g. I will do a for(for(for())) over these to get the 64 codons.
+    my @first = ('T', 'C', 'A', 'G');
+    my @second = ('T', 'C', 'A', 'G');
+    my @third = ('T', 'C', 'A', 'G');
+
+    ## Set up the pieces which will hold the data of interest.
+    my $total_codons = 0;
+    my %codon_counts = ();
+    my $in = FileHandle->new("less ${in_gbff} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $seq_count = 0;
+  SEQ: while (my $seq = $seqio->next_seq) {
+      $seq_count++;
+      ## print "Starting sequence $seq_count\n";
+      my @feature_list = $seq->get_SeqFeatures();
+      my $f_count = 0;
+    FEAT: for my $f (@feature_list) {
+        next FEAT unless ($f->primary_tag eq 'CDS');
+        $f_count++;
+        ## print "Feature: $f_count\n";
+        my $sequence_string = $f->seq->seq;
+        my $trans = $f->seq->translate->seq;
+        my @seq_str = split(//, $sequence_string);
+        my @tr_str = split(//, $trans);
+      CHOMP: while (scalar(@tr_str) > 0) {
+          my $amino = shift @tr_str;
+          my $nt1 = shift @seq_str;
+          my $nt2 = shift @seq_str;
+          my $nt3 = shift @seq_str;
+          my $codon = qq"${nt1}${nt2}${nt3}";
+          if (defined($codon_counts{$codon})) {
+              $codon_counts{$codon}++;
+          } else {
+              $codon_counts{$codon} = 1;
+          }
+          $total_codons++;
+      } ## Done pulling apart the sequence arrays.
+        ## print "TESTME: $sequence_string\n$trans\n\n\n";
+    } ## Iterating over the features in this sequence.
+  } ## End going through the sequences of the assembly.
+    $in->close();
+
+    my $divisor = 1000.0 / $total_codons;
+    my $table = FileHandle->new(">${out_table}");
+    for my $f (@first) {
+        for my $s (@second) {
+            my $string = '';
+            for my $t (@third) {
+                my $codon = qq"${f}${s}${t}";
+                my $per_thousand = sprintf("%.1f", $codon_counts{$codon} * $divisor);
+                $string .= qq"${codon} ${per_thousand}($codon_counts{$codon})   ";
+
+            }
+            print $table qq"${string}\n";
+        }
+        print $table "\n";
+    }
+    $table->close();
+}
+
 =head2 C<Phageterm>
 
 Use phageterm on a viral assembly to look for terminal repeat
@@ -704,7 +851,8 @@ sub Phastaf {
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
-    my $output_dir = qq"outputs/$options->{jprefix}phastaf_$input_paths->{dirname}";
+    my $output_dir = qq"outputs/$options->{jprefix}phastaf";
+    $output_dir .= "_$input_paths->{dirname}" if (defined($input_paths->{dirname}));
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
