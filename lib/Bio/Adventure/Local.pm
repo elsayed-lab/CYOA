@@ -37,12 +37,16 @@ sub Submit {
     my ($class, $parent, %args) = @_;
     my $options = $parent->Get_Vars(
         args => \%args,
-        jprefix => '10',
+        jprefix => '',
         jname => 'unknown');
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
     my $bash_log = qq"$options->{logdir}/outputs/$options->{jname}.out";
+    if (!defined($options->{jprefix})) {
+        print "TESTME: JPREFIX WAS NOT DEFINED?\n";
+    }
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
+    print STDERR "TESTME: $script_file\n";
     my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");

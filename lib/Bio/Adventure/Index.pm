@@ -86,6 +86,7 @@ sub BT2_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jprefix => '',
         modules => ['bowtie2'],);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libdir});
@@ -122,6 +123,7 @@ sub BWA_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jprefix => '',
         modules => ['bwa'],);
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fa";
@@ -149,7 +151,7 @@ cd \$start
     my $bwa_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "bwaidx",
+        jname => qq"$options->{jprefix}bwaidx",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
