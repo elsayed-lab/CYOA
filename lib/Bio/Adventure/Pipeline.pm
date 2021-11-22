@@ -38,130 +38,137 @@ sub Annotate_Assembly {
     my $prefix = sprintf("%02d", 10);
     my $final_locustag = basename(cwd());
     my $filtered_dir = dirname($options->{input});
+    my $last_job = '';
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
         input => $options->{input},
-        jprefix => $prefix,
-        jname => 'phastaf',);
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning virus ICTV classifier.\n";
-    my $ictv = $class->Bio::Adventure::Phage::Blast_Classify(
-        input => $options->{input},
-        jprefix => $prefix,
-        jname => 'ictv',);
+        jname => 'phastaf',
+        jprefix => $prefix,);
+    $last_job = $phastaf->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
         input => $options->{input},
-        jprefix => $prefix,
+        locus_tag => $final_locustag,
+        jdepends => $last_job,
         jname => 'prokka',
-        locus_tag => $final_locustag,);
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning Jellyfish on the assembly.\n";
-    my $jelly = $class->Bio::Adventure::Count::Jellyfish(
-        jdepends => $prokka->{job_id},
-        input => $prokka->{output_assembly},
-        jprefix => $prefix,
-        jname => 'jelly',);
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nInvoking trinotate.\n";
-    my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
-        jdepends => $prokka->{job_id},
-        input => $prokka->{output},
-        jprefix => $prefix,
-        jname => 'trinotate',
-        config => 'phage.txt',);
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSearching for resistance genes with abricate.\n";
-    my $abricate = $class->Bio::Adventure::Resistance::Abricate(
-        jprefix => $prefix,
-        jname => 'abricate',
-        input => $prokka->{output},
-        jdepends => $prokka->{job_id},);
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning interproscan.\n";
-    my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
-        jprefix => $prefix,
-        jname => 'interproscan',
-        input => $prokka->{output_peptide},
-        jdepends => $prokka->{job_id},);
+        jprefix => $prefix,);
+    $last_job = $prokka->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
     my $prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
-        input => $prokka->{output_fsa},
-        jdepends => $prokka->{job_id},
-        jprefix => $prefix);
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jprefix => $prefix,);
+    $last_job = $prodigal->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Jellyfish on the assembly.\n";
+    my $jelly = $class->Bio::Adventure::Count::Jellyfish(
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'jelly',
+        jprefix => $prefix,);
+    $last_job = $jelly->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
+    my $aragorn = $class->Bio::Adventure::Feature_Prediction::Aragorn(
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'aragorn',
+        jprefix => $prefix,);
+    $last_job = $aragorn->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nInvoking trinotate.\n";
+    my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
+        input => $prokka->{output_cds},
+        jdepends => $last_job,
+        jname => 'trinotate',
+        jprefix => $prefix,);
+    $last_job = $trinotate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSearching for resistance genes with abricate.\n";
+    my $abricate = $class->Bio::Adventure::Resistance::Abricate(
+        input => $prokka->{output_cds},
+        jdepends => $last_job,
+        jname => 'abricate',
+        jprefix => $prefix,);
+    $last_job = $abricate->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning interproscan.\n";
+    my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
+        input => $prokka->{output_peptide},
+        jdepends => $last_job,
+        jname => 'interproscan',
+        jprefix => $prefix,);
+    $last_job = $interpro->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
-        input_fsa => $prokka->{output_fsa},
-        input_genbank => $prokka->{output_genbank},
-        input_prokka_gff => $prokka->{output_gff},
-        input_abricate => $abricate->{output},
-        input_interpro => $interpro->{output_tsv},
-        input_prodigal => $prodigal->{output},
-        input_trinotate => $trinotate->{output},
-        jprefix => $prefix,
-        jname => 'mergeannot',
-        jdepends => $interpro->{job_id},);
-    sleep(0.2);
-
-    ## An extra invocation of merge_annotations which will not modify the final gbk file.
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nMerging annotation files a second time.\n";
-    my $merge2 = $class->Bio::Adventure::Metadata::Merge_Annotations(
-        input_fsa => $prokka->{output_fsa},
-        input_genbank => $prokka->{output_genbank},
-        input_prokka_gff => $prokka->{output_gff},
-        input_abricate => $abricate->{output},
-        input_interpro => $interpro->{output_tsv},
-        input_prodigal => $prodigal->{output},
-        input_trinotate => $trinotate->{output},
-        jprefix => $prefix,
-        jnice => '1000',
-        jname => 'mergeannot2',
         evalue => undef,
-        jdepends => $interpro->{job_id},);
+        input_fsa => $prokka->{output_assembly},
+        input_genbank => $prokka->{output_genbank},
+        input_tsv => $prokka->{output_tsv},
+        input_abricate => $abricate->{output},
+        input_aragorn => $aragorn->{output},
+        input_classifier => '',
+        input_interpro => $interpro->{output_tsv},
+        input_prodigal => $prodigal->{output},
+        input_trinotate => $trinotate->{output},
+        jdepends => $last_job,
+        jname => 'mergeannot',
+        jprefix => $prefix,);
+    $last_job = $merge->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning cgview.\n";
     my $cgview = $class->Bio::Adventure::Visualization::CGView(
         input => $merge->{output_gbk},
-        jdepends => $merge->{job_id},
+        jdepends => $last_job,
         jprefix => $prefix);
+    $last_job = $cgview->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning Vienna RNAfold on the assembly.\n";
+    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'vienna',
+        jprefix => $prefix,);
+    $last_job = $vienna->{job_id};
     sleep(0.2);
 
     my $ret = {
         phastaf => $phastaf,
-        ictv => $ictv,
         prokka => $prokka,
+        prodigal => $prodigal,
         jellyfish => $jelly,
+        aragorn => $aragorn,
         trinotate => $trinotate,
         abricate => $abricate,
         interproscan => $interpro,
-        prodigal => $prodigal,
+        merge => $merge,
         cgview => $cgview,
-        merge_qualities => $merge,
-        merge_unmodified => $merge2,
+        vienna => $vienna,
     };
     return($ret)
 }
@@ -1066,7 +1073,7 @@ sub Phage_Assemble {
         input => $cds_merge->{output},
         jprefix => $prefix,
         jname => 'vienna',);
-    $last_job = $cds_merge->{job_id};
+    $last_job = $vienna->{job_id};
     sleep(0.2);
 
 ##    $prefix = sprintf("%02d", ($prefix + 1));
