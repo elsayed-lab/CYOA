@@ -178,6 +178,7 @@ sub Merge_CDS_Predictions {
         input_glimmer => '',
         input_phanotate => '',
         input_prodigal => '',
+        jmem => 8,
         jprefix => '19',
         primary_key => 'locus_tag',);
 
@@ -236,6 +237,7 @@ use Bio::Adventure::Annotation;
         input_phanotate => $options->{input_phanotate},
         input_prodigal => $options->{input_prodigal},
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => 'merge_orfs',
         jprefix => $options->{jprefix},
         jstring => $jstring,

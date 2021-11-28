@@ -37,6 +37,7 @@ sub Aragorn {
         args => \%args,
         required => ['input'],
         modules => ['aragorn'],
+        jmem => 8,
         jprefix => 21,
         species => undef,
         arbitrary => ' -rp -fasta -w -m -t ',);
@@ -62,7 +63,7 @@ sub Aragorn {
         jname => "aragorn_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 24,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/aragorn.txt",
         prescript => $options->{prescript},
@@ -84,6 +85,7 @@ sub Glimmer {
         args => \%args,
         required => ['input'],
         modules => ['glimmer'],
+        jmem => 8,
         jprefix => '16',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('glimmer3');
@@ -131,7 +133,7 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
         jname => "glimmer_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 24,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/${job_name}_glimmer.out",
         prescript => $options->{prescript},
@@ -157,6 +159,7 @@ sub Glimmer_Single {
         overlap => 20,
         minlength => 45,
         threshold => 30,
+        jmem => 8,
         jprefix => '16',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('glimmer3');
@@ -185,6 +188,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
     my $glimmer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => "glimmer_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -212,8 +216,9 @@ sub Phanotate {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['phanotate'],
-        jprefix => '17',);
+        jmem => 6,
+        jprefix => '17',
+        modules => ['phanotate'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phanotate.py');
     die("Could not find glimmer in your PATH.") unless($check);
@@ -231,10 +236,10 @@ xz -9e -f ${output_file}
     my $phanotate = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => "phanotate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 6,
         modules => $options->{modules},
         output => qq"${output_file}.xz",
         prescript => $options->{prescript},
@@ -260,6 +265,7 @@ sub Prodigal {
         species => undef,
         gcode => '11',
         output_dir => undef,
+        jmem => 8,
         jprefix => '17',
         modules => ['prodigal'],
         prodigal_outname => undef,);
@@ -329,7 +335,7 @@ prodigal ${train_string} \\
         cpus => 1,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jmem => 24,
+        jmem => $options->{jmem},
         jname => "prodigal_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => "workstation",
@@ -364,6 +370,7 @@ sub Train_Prodigal {
         args => \%args,
         required => ['input', 'species'],
         gcode => '11',
+        jmem => 8,
         modules => ['prodigal'],);
     my $job_name = $class->Get_Job_Name();
     my $kingdom_string = '';
@@ -384,7 +391,7 @@ prodigal -i $options->{input} \\
         jname => "prodigal_training_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 24,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
@@ -405,6 +412,7 @@ sub tRNAScan {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jmem => 6,
         modules => ['trnascan'],
         species => undef,
         arbitrary => ' -G ',);
@@ -427,7 +435,7 @@ sub tRNAScan {
         jname => "trnascan_${job_name}",
         jprefix => "64",
         jstring => $jstring,
-        jmem => 24,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/trnascan.txt",
         prescript => $options->{prescript},

@@ -23,6 +23,16 @@ use File::ShareDir qw":ALL";
 Invoke cgview on an input genbank file in order to create a pretty
 picture of the genome.
 
+cgview has a few options which are of interest:
+
+linear: distinguish between a linear and circular genome. (linear)
+reading_frame: Show the reading frames (true)
+orfs: Print the ORFs (true)
+feature_labels: Print the features (true)
+gene_labels: Print the genes. (false)
+
+This invocation of cgview has it print both a svg and png copy of the sequence.
+
 =cut
 sub CGView {
     my ($class, %args) = @_;
@@ -32,9 +42,10 @@ sub CGView {
         modules => ['cgview'],
         jprefix => '16',
         linear => 1,
-        reading_frame => 0,
+        reading_frame => 1,
         gene_labels => 0,
-        feature_labels => 0,
+        feature_labels => 1,
+        orfs => 1,
         imagemap => 0,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('cgview');
@@ -59,7 +70,10 @@ sub CGView {
         $option_string .= "-linear T ";
     }
     if ($options->{reading_frame}) {
-        $option_string .= "-reading_frame T -orfs T ";
+        $option_string .= "-reading_frame T ";
+    }
+    if ($options->{orfs}) {
+        $option_string .= " -orfs T ";
     }
     if ($options->{feature_labels}) {
         $option_string .= "-feature_labels T ";

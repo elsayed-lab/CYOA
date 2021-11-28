@@ -25,6 +25,7 @@ sub RhoTermPredict {
         args => \%args,
         required => ['input',],
         modules => ['rhotermpredict'],
+        jmem => 12,
         jprefix => '51',
         );
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -43,6 +44,7 @@ echo $input_paths->{filename} | RhoTermPredict_algorithm.py
 
     my $rhoterm = $class->Submit(
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => 'rhotermpredict',
         jprefix => $options->{jprefix},
         jstring => $jstring,

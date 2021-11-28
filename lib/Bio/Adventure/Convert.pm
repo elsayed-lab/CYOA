@@ -330,7 +330,7 @@ sub Gff2Fasta {
     my $annotation_in = Bio::Tools::GFF->new(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
     my $features_read = 0;
-  LOOP: while(my $feature = $annotation_in->next_feature()) {
+  LOOP: while (my $feature = $annotation_in->next_feature()) {
       $features_read++;
       next LOOP unless ($feature->{_primary_tag} eq $feature_type);
       my $location = $feature->{_location};
@@ -602,6 +602,7 @@ sub Samtools {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
+        jmem => 12,
         jname => 'sam',
         jprefix => '',
         paired => 1,
@@ -664,7 +665,7 @@ bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        jmem => '28',
+        jmem => $options->{jmem},
         jname => $jobname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',

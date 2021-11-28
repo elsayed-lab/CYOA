@@ -37,6 +37,8 @@ sub Interproscan {
         args => \%args,
         required => ['input'],
         jprefix => '21',
+        jmem => 8,
+        cpus => 4,
         modules => ['interproscan'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('interproscan.sh');
@@ -74,7 +76,7 @@ cd \${start}
         jname => "interproscan_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 80,
+        jmem => 16,
         modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_dirname}.faa.gff3",
@@ -600,6 +602,7 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
 !;
     my $transdecoder = $class->Submit(
         comment => $comment,
+        jmem => 4,
         jname => "transdecoder_${job_name}",
         jprefix => "47",
         jstring => $jstring,
@@ -754,6 +757,7 @@ use Bio::Adventure::Annotation;
         gff => $options->{gff},
         input => $options->{input},
         jdepends => $options->{jdepends},
+        jmem => 8,
         jname => $options->{jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
