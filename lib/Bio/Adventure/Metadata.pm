@@ -1267,7 +1267,6 @@ sub BT2_Stats {
     my $options = $class->Get_Vars(args => \%args,
         required => ['input']);
     my $bt_input = $options->{input};
-    my $bt_type = $options->{bt_type};
     my $jname = "bt2_stats";
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
@@ -1289,7 +1288,7 @@ sampled_tmp=\$(grep " aligned >1 times" "${bt_input}" | awk '{print \$1}' | sed 
 sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
 rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$options->{jbasename},${bt_type},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
+stat_string=\$(printf "$options->{jbasename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
 echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,

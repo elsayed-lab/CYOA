@@ -402,18 +402,18 @@ sub Jellyfish {
     my $count = 0;
     my $ret;
     if (scalar(@kmer_array) > 1) {
-        for my $k (@kmer_array) {
-            $count++;
-            my $job = $class->Bio::Adventure::Count::Jellyfish(
-                %args,
-                input => $options->{input},
-                length => $k);
-            if ($count == 1) {
-                $ret = $job;
-            } else {
-                $ret->{$count} = $job;
-            }
-        }
+      KMERARR: for my $k (@kmer_array) {
+          my $job = $class->Bio::Adventure::Count::Jellyfish(
+              %args,
+              input => $options->{input},
+              length => $k);
+          if ($count == 0) {
+              $ret = $job;
+          } else {
+              $ret->{$count} = $job;
+          }
+          $count++;
+      }
         return($ret);
     }
 

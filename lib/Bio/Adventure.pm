@@ -986,13 +986,13 @@ sub Get_TODOs {
         "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::Count::HT_Multi'},
         "htseq+" => \$todo_list->{todo}{'Bio::Adventure::Count::HTSeq'},
-        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2_Index'},
-        "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT1_Index'},
-        "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT2_Index'},
-        "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA_Index'},
-        "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto_Index'},
-        "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM_Index'},
-        "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon_Index'},
+        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Index::Hisat2_Index'},
+        "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::Index::BT1_Index'},
+        "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::Index::BT2_Index'},
+        "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::Index::BWA_Index'},
+        "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Index::Kallisto_Index'},
+        "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Index::RSEM_Index'},
+        "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Index::Salmon_Index'},
         "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
         "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
@@ -1383,6 +1383,7 @@ sub Module_Loader {
     if ($action eq 'unload') {
         @mod_lst = reverse(@mod_lst);
     }
+    my @messages = ();
     foreach $mod (@mod_lst) {
         if ($args{verbose}) {
             print "(Un)loading $mod\n";
@@ -1396,7 +1397,9 @@ sub Module_Loader {
                     $test = Env::Modulecmd::unload($mod);
                 }
             } catch ($e) {
-                print "There was an error loading ${mod}, ${e}\n";
+                ## print "There was an error loading ${mod}, ${e}\n";
+                my $message = qq"There was an error loading ${mod}: ${e}";
+                push(@messages, $message);
             };
         };
         $count++;

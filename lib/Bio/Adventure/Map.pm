@@ -405,9 +405,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
         jname => "bt2st_${suffix_name}",
-        jprefix => $options->{jprefix} + 3,
-        ## trim_input => ${trim_output_file},
-        );
+        jprefix => $options->{jprefix} + 3,);
     $bt2_job->{stats} = $stats;
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,

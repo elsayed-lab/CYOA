@@ -47,7 +47,7 @@ sub Align_SNP_Search {
         htseq_type => "exon",
         input => $query,
         species => $options->{species},);
-    my $bamfile = $bt2_job->{samtools}->{job_output};
+    my $bamfile = $bt2_job->{samtools}->{output};
     print "About to start SNP search of $bamfile against $options->{species}\n";
     my $search = $class->Bio::Adventure::SNP::SNP_Search(
         gff_tag => $options->{htseq_id},

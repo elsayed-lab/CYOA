@@ -308,11 +308,11 @@ sub Run_Parse_Blast {
     my $check = which('blastp');
     die("Could not find blast in your PATH.") unless($check);
     my $query = $options->{input};
-    print STDERR qq"Please note that this function calls blastall
-separately for every sequence in the database.  As a result it is
-not recommended fo use with large sequence libraries.  Instead use
-the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
-followed by 'Parse_Blast()' which does these steps separately.";
+##    print STDERR qq"Please note that this function calls blastall
+##separately for every sequence in the database.  As a result it is
+##not recommended fo use with large sequence libraries.  Instead use
+##the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
+##followed by 'Parse_Blast()' which does these steps separately.";
     my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     my $library = $options->{library};
     my $number_hits = 0;
