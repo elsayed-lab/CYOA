@@ -44,13 +44,13 @@ ok($gff2fasta, 'Run gff2fasta.');
 my $index = $cyoa->Bio::Adventure::Index::Salmon_Index(
     input => $phix_transcripts,
     species => 'phix');
-my $salmon_file = 'outputs/45salmon_phix/quant.sf';
 my $salmon = $cyoa->Bio::Adventure::Map::Salmon(
     input => 'test_forward.fastq.gz',
     libdir => '.',
     jprefix => 24,
     species => 'phix',);
 ok($salmon, 'Run salmon');
+my $salmon_file = $salmon->{output};
 ok(-f $salmon_file, 'The salmon quant.sf file was created.');
 
 my $stats_file = $salmon->{stats}->{output};

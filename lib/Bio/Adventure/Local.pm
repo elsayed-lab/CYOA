@@ -37,7 +37,7 @@ sub Submit {
     my ($class, $parent, %args) = @_;
     my $options = $parent->Get_Vars(
         args => \%args,
-        jprefix => '10',
+        jprefix => '',
         jname => 'unknown');
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args

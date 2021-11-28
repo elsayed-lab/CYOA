@@ -361,7 +361,6 @@ sub Bowtie2 {
     my $error_file = qq"${bt_dir}/$options->{jbasename}.err";
     my $comment = qq!## This is a bowtie2 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt2_args}.
-## This jobs depended on: $options->{jdepends}
 !;
     my $aligned_filename = qq"${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq";

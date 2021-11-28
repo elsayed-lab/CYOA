@@ -60,8 +60,6 @@ my $reporter_sam = $bwa->{reporter}->{output};
 my $aln_out = $bwa->{aln}->{output}; ## sai file
 my $stats_out = $bwa->{stats}->{output};
 my $aln_bam = $bwa->{samtools_aln}->{output};
-use Data::Dumper;
-print Dumper $bwa;
 ok(-f $htseq_mem, "htseq output from the mem alignment was created: ${htseq_mem}");
 ok(-f $htseq_aln, "htseq output from the aln alignment was created: ${htseq_aln}");
 ok(-f $aln_out, "The .sai output from bwa was created: ${aln_out}");

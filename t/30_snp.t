@@ -32,12 +32,15 @@ if (!-r 'genome/phix.gff') {
 
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 
+my $index = $cyoa->Bio::Adventure::Index::BT2_Index(input => $phix_fasta,
+                                                    libdir => '.', species => 'phix');
+
 my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(
     input => qq"test_forward.fastq.gz",
     htseq_id => 'ID',
     htseq_type => 'CDS',
     libdir => '.',
-    species => 'phix_3N',
+    species => 'phix',
     vcf_cutoff => 1,);
 
 ok($variant, 'Ran variant search.');
