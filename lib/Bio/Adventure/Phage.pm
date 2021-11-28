@@ -31,38 +31,61 @@ Extract the direct-terminal-repeats from a phageterm run.
 =cut
 sub Get_DTR {
     my ($class, %args) = @_;
-    unless (-r $args{input}) {
-        return(undef);
-    }
+    my $input_fsa = $args{input_fsa};
+    my $input_dtr = $args{input_dtr};
+    my $log_fh = $args{log_fh};
+    my $dtr_type_file = $input_dtr;
+    $dtr_type_file =~ s/_dtr\.fasta/_nrt\.txt/g;
+    return(undef) unless (-r $args{input_fsa});
+    return(undef) unless (-r $args{input_dtr});
+    return(undef) unless (-f $dtr_type_file);
 
-    my $input_genome = Bio::SeqIO->new(-file => $args{input}, -format => 'Fasta');
-    my $sequence = '';
-    my $length = 0;
-    my $id = '';
-    ## I think there are usually 2 entries in these files, one for each of the methods
-    ## phageterm uses to look for a repeat, but afaik they end up the same.
-    my %dtr_features = ();
-  INPUT: while (my $genome_seq = $input_genome->next_seq()) {
-      next INPUT unless(defined($genome_seq->id));
-      $id = $genome_seq->id;
-      $sequence = $genome_seq->seq;
-      $length = $genome_seq->length;
-      my $dtr_feature = Bio::SeqFeature::Generic->new(
-          -primary => 'misc_feature',
-          -seq_id => $id,
-          -source => 'PhageTerm',
-          -start => 1,
-          -end => $length,
-          -strand => +1,
-          -score => undef,
-          -frame => 0,
-          -tag => {
-              'product' => 'Direct Terminal Repeat',
-              'inference' => 'COORDINATES:profile:PhageTerm',
-          },);
-      $dtr_features{$id} = $dtr_feature;
+    my $dtr_type_read = FileHandle->new("<${dtr_type_file}");
+    my $dtr_type = '';
+    while (my $line = <$dtr_type_read>) {
+        chomp $line;
+        $dtr_type = $line;
+    }
+    $dtr_type_read->close();
+    print $log_fh "Got DTR type: ${dtr_type}.\n";
+
+    my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
+    my $dtr_sequence = '';
+    my $dtr_length = 0;
+    my $dtr_id = '';
+  DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
+      next DTR unless(defined($dtr_seq->id));
+      $dtr_id = $dtr_seq->id;
+      $dtr_sequence = $dtr_seq->seq;
+      $dtr_length = $dtr_seq->length;
   }
-    return(%dtr_features);
+
+    my @dtr_features = ();
+    my $fsa_read = Bio::SeqIO->new(-file => $input_fsa, -format => 'Fasta');
+  FSA: while (my $genome_seq = $fsa_read->next_seq()) {
+      my $contig_sequence = $genome_seq->seq;
+      my $contig_id = $genome_seq->id;
+    DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
+        my $dtr_end = pos($contig_sequence);
+        my $dtr_start = $dtr_end - ($dtr_length - 1);
+        my $dtr_feature = Bio::SeqFeature::Generic->new(
+            -primary => 'misc_feature',
+            -seq_id => $contig_id,
+            -source => 'PhageTerm',
+            -start => $dtr_start,
+            -end => $dtr_end,
+            -strand => +1,
+            -score => undef,
+            -frame => 0,
+            -tag => {
+                'product' => 'Direct Terminal Repeat',
+                'inference' => 'COORDINATES:profile:PhageTerm',
+                'note' => qq"DTR type: ${dtr_type}",
+            },);
+        push(@dtr_features, $dtr_feature);
+    } ## End matching on this contig
+  } ## End iterating over teh contigs
+    return(\@dtr_features);
 }
 
 =head2 C<Filter_Host_Kraken
@@ -74,6 +97,7 @@ sub Filter_Host_Kraken {
         args => \%args,
         required => ['input', 'input_fastq'],
         jdepends => '',
+        jmem => 8,
         jprefix => '06',);
     my $comment = qq"## Use kraken results to choose a host species to filter against.\n";
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
@@ -100,6 +124,7 @@ Bio::Adventure::Phage::Get_Kraken_Host(\$h,
         input_fastq => $options->{input_fastq},
         output => $output_files,
         output_dir => $output_dir,
+        jmem => $options->{jmem},
         jname => 'hostfilter',
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -327,6 +352,7 @@ sub Classify_Phage {
         required => ['input'],
         evalue => 0.01,
         blast_tool => 'tblastx',
+        jmem => 12,
         jprefix => '18',
         library => 'ictv',
         modules => ['blastdb', 'blast'],
@@ -364,6 +390,7 @@ Bio::Adventure::Phage::Blast_Classify(\$h,
         blast_tool => $options->{blast_tool},
         evalue => $options->{evalue},
         input => $options->{input},
+        jmem => $options->{jmem},
         jname => 'classify_ictv',
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -558,6 +585,7 @@ sub Caical {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
+        jmem => 4,
         jprefix => '80',
         modules => ['caical']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -594,6 +622,7 @@ caical -g 11 \\
         output_random => $random_sequences,
         output_expected => $expected_cai,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,);
@@ -682,6 +711,10 @@ sub Make_Codon_Table {
   } ## End going through the sequences of the assembly.
     $in->close();
 
+    if ($total_codons == 0) {
+        print "This failed: $options->{species}\n";
+        return(undef);
+    }
     my $divisor = 1000.0 / $total_codons;
     my $table = FileHandle->new(">${out_table}");
     for my $f (@first) {
@@ -714,6 +747,205 @@ sub Phageterm {
         required => ['input', 'library'],
         cpus => '8',
         modules => ['phageterm'],
+        jmem => 12,
+        jprefix => '14',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('PhageTerm.py');
+    die("Could not find phageterm in your PATH.") unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+    my $assembly_relative = $options->{library};
+    my $assembly_full = abs_path($options->{library});
+    my $assembly_name = basename(dirname($options->{library}));
+    my $output_dir = qq"outputs/$options->{jprefix}phageterm";
+    if ($assembly_name ne '.' || !defined($assembly_name)) {
+        $output_dir .= qq"_${assembly_name}";
+    }
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+
+    my $comment = qq!## This is a script to run phageterm.
+## Phageterm has some peculiarities which require one to be
+## extra careful when running it.
+!;
+    my $test_file = qq"${output_dir}/${cwd_name}_direct-term-repeats.fasta";
+    my $cwd_test_file = basename($test_file);
+    my $output_file = qq"${output_dir}/phageterm_final_assembly.fasta";
+    my $dtr_type_file = qq"${output_dir}/phageterm_final_nrt.txt";
+    my $dtr_sequence_file = qq"${output_dir}/phageterm_final_dtr.fasta";
+    my $dtr_test_file = qq"${output_dir}/phageterm_final_nodtr.txt";
+    my $jstring = qq?
+use Bio::Adventure::Phage;
+\$h->Bio::Adventure::Phage::Phageterm_Worker(
+  input => '$options->{input}',
+  library => '$options->{library}',
+  jname => 'phageterm_${job_name}',
+  output_dir => '${output_dir}',
+  output => '${output_file}',
+);
+?;
+    my $phageterm_run = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        output => $output_file,
+        output_type => $dtr_type_file,
+        output_dtr => $dtr_sequence_file,
+        test_file => $dtr_test_file,
+        shell => 'usr/bin/env perl',
+        language => 'perl',
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => 'phageterm',
+        jstring => $jstring,);
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
+    return($phageterm_run);
+}
+
+sub Phageterm_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'library'],
+        output_dir => '.',
+        output => 'final_sequence.fasta',
+        jprefix => '19',
+        modules => ['phageterm']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    ## I am going to use this function to make it easier for phageterm
+    ## to run without shenanigans.  In order to accomplish this, I will
+    ## make a separate run for each contig of the assembly, run it on them
+    ## individually, interpret the results, and make a final assembly.
+    my $workdir = $options->{output_dir};
+    if (-d $workdir) {
+        qx"rm -f ${workdir}/*";
+    } else {
+        my $made = make_path($workdir);
+    }
+    my $phage_log = FileHandle->new(">${workdir}/phageterm_worker.log");
+    my $read_string = '';
+    ## Step1: Decompress the reads so phageterm doesn't cry.
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        ## I think abs_path only works on things which already exist.
+        ## Which is a problem if we are running this in the middle of a pipeline
+        my $in_dir = dirname($in[0]);
+        my $prefix = abs_path($in_dir);
+        my $r1_dirname = dirname($in[0]);
+        my $r2_dirname = dirname($in[1]);
+        my $r1_filename = basename($in[0]);
+        my $r2_filename = basename($in[1]);
+        my $r1_filebase = basename($r1_filename, ('.xz', '.gz', '.bz2'));
+        my $r2_filebase = basename($r2_filename, ('.xz', '.gz', '.bz2'));
+        my $decompressed_r1 = qx"less $in[0] > ${workdir}/r1.fastq";
+        my $decompressed_r2 = qx"less $in[1] > ${workdir}/r2.fastq";
+        print $phage_log "Copied reads to ${workdir} as r1.fastq and r2.fastq.\n";
+        $read_string = 'r1.fastq r2.fastq';
+    } else {
+        my $r1_filename = basename($options->{input});
+        my $r1_dirname = dirname($options->{input});
+        my $r1 = abs_path($options->{input});
+        my $r1_filebase = basename($r1_filename, ('.xz', '.gz', '.bz2'));
+        my $decompressed = qx"less $options->{input} > ${workdir}/r1.fastq";
+        print $phage_log "Copied reads to ${workdir} as r1.fastq.\n";
+        $read_string = 'r1.fastq';
+    }
+    ## At this point we have the reads, so grab the assembly and split it up into individual sequences/file.
+    my $in_assembly = Bio::SeqIO->new(-file => qq"<$options->{library}",
+                                      -format => 'Fasta');
+    print $phage_log "Separating contigs from assembly.\n";
+    my $contig_number = 0;
+  CONTIGS: while (my $contig = $in_assembly->next_seq()) {
+      $contig_number++;
+      my $id = $contig->id;
+      my $contig_name = qq"contig${contig_number}";
+      my $out_cwd_file = qq"${contig_name}.fasta";
+      my $out_file = qq"${workdir}/${out_cwd_file}";
+      my $out_contig = Bio::SeqIO->new(-file => ">${out_file}",
+                                       -format => 'Fasta');
+      print $phage_log "Extracted contig ${contig_number} as ${out_file}.\n";
+      $out_contig->write_seq($contig);
+      ## Now that we have the individual contigs separated, run phageterm on them.
+      print $phage_log "Running phageterm on the individual contig.\n";
+      my $job_string = qq"cd ${workdir} && \\
+PhageTerm.py -f ${read_string} \\
+  -r ${out_cwd_file} --nrt --report_title ${contig_name} \\
+  2>${contig_name}.stderr 1>${contig_name}.stdout && \\
+  mv nrt.txt ${contig_name}_nrt.txt";
+      my $running_job = qx"${job_string}";
+  }
+    ## Now that we have run phageterm on each contig
+    ## Go back over them and find which (if any) have
+    ## a DTR and put the first one on the front of the assembly.
+    print $phage_log "Looking through phageterm results for the first DTR.\n";
+    my $dtr_contig = '0';
+  DTR_HUNT: for my $num (1 .. $contig_number) {
+      ## There are two conditions required for a good DTR:
+      ## 1.  a direct-term-repeats.fasta file
+      ## 2.  a rewritten genome file, which on occasion is unfortunately empty.
+      my $test_dtr = qq"${workdir}/contig${num}_direct-term-repeats.fasta";
+      my $test_genome = qq"${workdir}/contig${num}_sequence.fasta";
+      my $test_lines = qx"wc -l ${test_genome} | awk '{print \$1}'";
+      ## If we find the dtr file, take note of the contig and break out.
+      print $phage_log "Looking for ${test_dtr} and counting lines of ${test_genome} which is ${test_lines}\n";
+      if (-r $test_genome and $test_lines > 2) {
+          print $phage_log "Using contig $num as the DTR containing contig.\n";
+          $dtr_contig = $num;
+          last DTR_HUNT;
+      }
+  } ## End the DTR hunt
+
+    ## Last step, if we found a dtr, rewrite the assembly with it as the first contig
+    ## But first, handle the case where there is no DTR.
+    if ($dtr_contig eq '0') {
+        print $phage_log "No DTR was observed, copying the input to the phageterm output file.\n";
+        my $copied = qx"cp $options->{library} ${workdir}/phageterm_final_assembly.fasta && \\
+  echo 'no dtr' > ${workdir}/phageterm_final_nodtr.txt";
+    } else {
+        ## Otherwise, put the DTR as the first contig and copy the rest
+        print $phage_log "A DTR was found, writing to the phageterm output file.\n";
+        my $out_assembly = Bio::SeqIO->new(-file => qq">${workdir}/phageterm_final_assembly.fasta",
+                                           -format => 'Fasta');
+        print $phage_log "Writing the first output assembly entry: ${workdir}/contig${dtr_contig}_sequence.fasta.\n";
+        my $in_assembly = Bio::SeqIO->new(-file => qq"<${workdir}/contig${dtr_contig}_sequence.fasta",
+                                          -format => 'Fasta');
+        while (my $sequence = $in_assembly->next_seq()) {
+            $out_assembly->write_seq($sequence);
+        }
+        ## For the rest of the contigs, copy the unmodified sequences to the final assembly.
+        print $phage_log "Writing all other contigs to the final assembly.\n";
+      CONTIG_LOOP: for my $num (1 .. $contig_number) {
+          next CONTIG_LOOP if ($num eq $dtr_contig);
+          print $phage_log "Writing contig ${num} to the final assembly.\n";
+          my $last_contig = Bio::SeqIO->new(-file => qq"<${workdir}/contig${num}.fasta",
+                                            -format => 'Fasta');
+          while (my $seq = $last_contig->next_seq()) {
+              $out_assembly->write_seq($seq);
+          }
+        } ## End the contig loop
+        ## Now lets copy the DTR and nrt files
+        print $phage_log "Copying the dtr from contig ${dtr_contig} to phageterm_final_dtr.fasta.\n";
+        my $dtr_copy = qx"cp ${workdir}/contig${dtr_contig}_direct-term-repeats.fasta ${workdir}/phageterm_final_dtr.fasta";
+        print $phage_log "Copying the NRT file from ${dtr_contig} to phageterm_final_nrt.txt.\n";
+        my $ntr_copy = qx"cp ${workdir}/contig${dtr_contig}_nrt.txt ${workdir}/phageterm_final_nrt.txt";
+  } ## End when we do find a DTR
+    print $phage_log "Deleting the uncompressed input files.\n";
+    my $delete_crap = qx"rm -f ${workdir}/r1.fastq ${workdir}/r2.fastq ${workdir}/contig*.fasta 2>/dev/null 1>/dev/null";
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+        action => 'unload');
+}
+
+sub Phageterm_old {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'library'],
+        cpus => '8',
+        modules => ['phageterm'],
+        jmem => 18,
         jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
@@ -782,9 +1014,8 @@ ${uncompress_string}
 PhageTerm.py ${input_string} \\
   -r \${start}/${assembly_relative} \\
   -c $options->{cpus} \\
-  --report_title ${cwd_name} \\
+  --report_title ${cwd_name} --nrt \\
   2>phageterm.err 1>phageterm.out
-sleep 5
 
 ${delete_string}
 ln -s \${start}/${assembly_relative} ${cwd_name}_original_sequence.fasta
@@ -818,7 +1049,7 @@ cd \${start}
         jname => "phageterm_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 24,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
@@ -842,8 +1073,8 @@ sub Phastaf {
         required => ['input'],
         cpus => '8',
         modules => ['phastaf'],
-        jprefix => '14',
-        );
+        jmem => 12,
+        jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phastaf');
     die("Could not find phastaf in your PATH.") unless($check);
@@ -875,7 +1106,7 @@ phastaf --force --outdir ${output_dir} \\
         jname => "phastaf_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 12,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
@@ -885,12 +1116,99 @@ phastaf --force --outdir ${output_dir} \\
     return($phastaf);
 }
 
-=head2 C<Search_Reorder>
+=head2 C<Terminase_Reorder>
+
+Reorder an assembly so that a terminase gene is at the beginning.
+This will take an arbitrary assembly file, invoke prodigal on it to get ORFs,
+pass them to Reorder_Search (above), and copy the assembly to a new file
+with the most likely terminase sequence at the beginning.
+
+=cut
+sub Terminase_ORF_Reorder {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        evalue => 0.01,
+        fasta_tool => 'fastx36',
+        gcode => '11',
+        library => 'terminase',
+        jmem => 8,
+        jprefix => '15',
+        species => 'phages',
+        modules => ['fasta', 'blast', 'blastdb'],
+        test_file => 'direct-term-repeats.fasta',);
+
+    my $input_dir = basename(dirname($options->{input}));
+    my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
+    my $final_output = qq"${output_dir}/final_assembly.fasta";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+    my $paths = $class->Get_Paths($final_output);
+
+    my $prodigal_outname = 'prodigal';
+    my $prodigal_cds = qq"${output_dir}/${prodigal_outname}_cds.fasta";
+
+    my $term_prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
+        gcode => $options->{gcode},
+        input => $options->{input},
+        jdepends => $options->{jdepends},
+        jprefix => $options->{jprefix},
+        output_dir => $output_dir,
+        prodigal_outname => $prodigal_outname,
+        species => $options->{species},);
+    ## Once that is finished running, we should have files:
+    ## 'translated.fasta' and 'cds.fasta' which we can use to go terminase hunting.
+    ## I am duplicating a bunch of options here, that might be dumb.
+    $options->{jdepends} = $term_prodigal->{job_id};
+    my $comment = qq"## This should use the predicted prodigal ORFs to search against a
+## local terminase sequence database.  Then for each contig, move the best
+## terminase hit to the front of the sequence.\n";
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
+  comment => '$comment',
+  evalue => '$options->{evalue}',
+  fasta_tool => '$options->{fasta_tool}',
+  input => '$options->{input}',
+  jdepends => '$options->{jdepends}',
+  jname => 'terminase_reorder',
+  jprefix => '$options->{jprefix}',
+  library => '$options->{library}',
+  query => '${prodigal_cds}',
+  output => '${final_output}',
+  output_dir => '${output_dir}',
+  test_file => '$options->{test_file}',);
+!;
+    my $tjob = $class->Submit(
+        jdepends => $options->{jdepends},
+        evalue => $options->{evalue},
+        fasta_tool => 'fastx36',
+        input => $options->{input},
+        jmem => $options->{jmem},
+        jname => 'terminase_reorder',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        library => $options->{library},
+        modules => $options->{modules},
+        query => $prodigal_cds,
+        output => $final_output,
+        output_dir => $output_dir,
+        shell => '/usr/bin/env perl',
+        test_file => $options->{test_file},);
+    $tjob->{prodigal_job} = $term_prodigal;
+    return($tjob);
+}
+
+=head2 C<Terminase_ORF_Reorder_Worker>
 
 Reorder an assembly from the result of a blast(or presumbly other) search.
 
 =cut
-sub Search_Reorder {
+sub Terminase_ORF_Reorder_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -901,8 +1219,7 @@ sub Search_Reorder {
         library => 'terminase',
         modules => ['fasta', 'blast', 'blastdb'],
         output_file => 'final_assembly.fasta',
-        test_file => '',
-        );
+        test_file => '',);
 
     my $output_dir = dirname($options->{output});
     my $log = FileHandle->new(">${output_dir}/reorder.log");
@@ -921,10 +1238,12 @@ sub Search_Reorder {
     }
     print $log "Testing for $options->{test_file}\n";
     if (-r $options->{test_file}) {
+        print $log "The test file exists, reorder the genome to the terminase.\n";
+    } else {
         my $full_input = abs_path($options->{input});
         my $pwd = getcwd();
         my $full_new = qq"${pwd}/${new_filename}";
-        print $log "The test file exists, do not reorder the genome.
+        print $log "The test file does not exist, do not reorder the genome to the terminase.
 Symlinking ${full_input} to ${full_new} and stopping.\n";
         if (-f $full_new or -l $full_new) {
             my $unlink_lst = ($full_new);
@@ -938,9 +1257,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
             my $linked = qx"ln -s ${full_input} ${full_new}";
         }
         return($full_new);
-    } else {
-        print $log "The test file does not exist, performing terminase search.\n";
-    }
+    } ## End checking for the test file.
 
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('fastx36');
@@ -1181,91 +1498,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
                                     action => 'unload');
     $log->close();
     return($result_data);
-}
-
-=head2 C<Terminase_Reorder>
-
-Reorder an assembly so that a terminase gene is at the beginning.
-This will take an arbitrary assembly file, invoke prodigal on it to get ORFs,
-pass them to Reorder_Search (above), and copy the assembly to a new file
-with the most likely terminase sequence at the beginning.
-
-=cut
-sub Terminase_ORF_Reorder {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        evalue => 0.01,
-        fasta_tool => 'fastx36',
-        gcode => '11',
-        jprefix => '15',
-        library => 'terminase',
-        modules => ['fasta', 'blast', 'blastdb'],
-        species => 'phages',
-        test_file => 'direct-term-repeats.fasta',);
-
-    my $input_dir = basename(dirname($options->{input}));
-    my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
-    my $final_output = qq"${output_dir}/final_assembly.fasta";
-    if (-d $output_dir) {
-        my $removed = rmtree($output_dir);
-    }
-    my $paths = $class->Get_Paths($final_output);
-
-    my $prodigal_outname = 'prodigal';
-    my $prodigal_cds = qq"${output_dir}/${prodigal_outname}_cds.fasta";
-
-    my $term_prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
-        gcode => $options->{gcode},
-        input => $options->{input},
-        jdepends => $options->{jdepends},
-        jprefix => $options->{jprefix},
-        output_dir => $output_dir,
-        prodigal_outname => $prodigal_outname,
-        species => $options->{species},);
-    ## Once that is finished running, we should have files:
-    ## 'translated.fasta' and 'cds.fasta' which we can use to go terminase hunting.
-    ## I am duplicating a bunch of options here, that might be dumb.
-    $options->{jdepends} = $term_prodigal->{job_id};
-    my $comment = qq"## This should use the predicted prodigal ORFs to search against a
-## local terminase sequence database.  Then for each contig, move the best
-## terminase hit to the front of the sequence.\n";
-    my $jstring = qq!
-use Bio::Adventure;
-use Bio::Adventure::Phage;
-Bio::Adventure::Phage::Search_Reorder(\$h,
-  comment => '$comment',
-  evalue => '$options->{evalue}',
-  fasta_tool => '$options->{fasta_tool}',
-  input => '$options->{input}',
-  jdepends => '$options->{jdepends}',
-  jname => 'terminase_reorder',
-  jprefix => '$options->{jprefix}',
-  library => '$options->{library}',
-  query => '${prodigal_cds}',
-  output => '${final_output}',
-  output_dir => '${output_dir}',
-  test_file => '$options->{test_file}',);
-!;
-    my $tjob = $class->Submit(
-        jdepends => $options->{jdepends},
-        evalue => $options->{evalue},
-        fasta_tool => 'fastx36',
-        input => $options->{input},
-        jname => 'terminase_reorder',
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        language => 'perl',
-        library => $options->{library},
-        modules => $options->{modules},
-        query => $prodigal_cds,
-        output => $final_output,
-        output_dir => $output_dir,
-        shell => '/usr/bin/env perl',
-        test_file => $options->{test_file},);
-    $tjob->{prodigal_job} = $term_prodigal;
-    return($tjob);
 }
 
 1;

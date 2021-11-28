@@ -457,6 +457,7 @@ sub BUILD {
         $defaults{$k} = $class->{$k};
     }
 
+    ## Initially assume we are not using a cluster, then search for a couple of known types.
     if (defined($class->{cluster})) {
         if (!$class->{cluster}) {
             $class->{sbatch_path} = 0;
@@ -608,6 +609,12 @@ sub Get_Paths {
     return($final);
 }
 
+=head2 C<Get_Term>
+
+Used to get a useful interactive terminal when more options are required.
+Ideally, this should get us a terminal with tab completion.
+
+=cut
 sub Get_Term {
     my $term = Term::ReadLine->new('>');
     my $attribs = $term->Attribs;
@@ -618,6 +625,12 @@ sub Get_Term {
     return($term);
 }
 
+=head2 C<Check_Input>
+
+Given a set of inputs, do a little checking to try to ensure that they are
+usable.
+
+=cut
 sub Check_Input {
     my ($class, %args) = @_;
     my $file_list;
@@ -652,23 +665,20 @@ sub Check_Input {
     return($found);
 }
 
-sub Get_Basename {
-    my ($class, $string) = @_;
-    my ($in1, $in2) = "";
-    if ($string =~ /:/) {
-        ($in1, $in2) = split(/:/, $string);
-    } else {
-        $in1 = $string;
-    }
-    $in1 = basename($in1, $class->{options}->{suffixes});
-    $in1 = basename($in1, $class->{options}->{suffixes});
-    return($in1);
-}
-
 =head2 C<Get_Menus>
 
 This is responsible for printing out the cyoa menus and connecting the
 various options to the functions in the package.
+
+The top-level of the hash is the set of tasks, so stuff like sequence alignment,
+mapping, indexing, conversion, counting, etc.
+
+There are a few keys inside each of these; the names are the option which may be used
+with --task to differentiate between contexts (e.g. if one wishes to use mapping
+options specific for tnseq vs. snps, for example).  The message is just silly.
+Finally, the choices are a set of strings which point to a function.
+Choosing the number associated with the string will therefore lead to the
+invocation of that function.
 
 =cut
 sub Get_Menus {
@@ -709,6 +719,7 @@ sub Get_Menus {
             message => 'The wise man fears the wrath of a gentle heart. Go to page 314159.',
             choices => {
                 '(abyss): Run abyss to create a new assembly.' => \&Bio::Adventure::Assembly::Abyss,
+                '(assemblycoverage): Calculate Assembly coverage across contigs.' => \&Bio::Adventure::Assembly::Assembly_Coverage,
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
                 '(filterdepth): Filter contigs based on sequencing depth.' => \&Bio::Adventure::Assembly::Filter_Depth,
                 '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
@@ -794,7 +805,7 @@ sub Get_Menus {
             choices => {
                 '(filterkraken): Filter out host sequences using a kraken report.' => \&Bio::Adventure::Phage::Filter_Host_Kraken,
                 '(classifyphage): Use ICTV data to classify a phage assembly.' => \&Bio::Adventure::Phage::Classify_Phage,
-                '(phageterm): Invoke phageterm to search for terminal repeats.' => \&Bio::Adventure::Annotation::Phageterm,
+                '(phageterm): Invoke phageterm to search for terminal repeats.' => \&Bio::Adventure::Phage::Phageterm,
                 '(phastaf): Search for phage regions in arbitrary assemblies.' => \&Bio::Adventure::Phage::Phastaf,
                 '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
                 '(caical): Calculate codon adaptation index of a phage vs. some host.' => \&Bio::Adventure::Phage::Caical,
@@ -934,7 +945,13 @@ sub Get_Job_Name {
 =head2 C<Get_TODOs>
 
 The keys of possible_todos provide the GetOpt::Long options required
-to figure out if the user is requesting the various functions.
+to figure out if the user is requesting the various functions.  When
+using GetOpt::Long, if an options has a '+' suffix, its value is
+incremented by one when it is set without a following argument.  Thus
+doing --abricate will set the
+todo_list{todo}{Bio::Adventure::Resistance::Abricate} value from 0 to 1.
+The cyoa script will then iterate over the todo hash and look for
+anything with a positive value and run its associated function.
 
 =cut
 sub Get_TODOs {
@@ -946,6 +963,7 @@ sub Get_TODOs {
         "angsdfilter+" => \$todo_list->{todo}{'Bio::Adventure::PopGen::Angsd_Filter'},
         "annotatephage+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Phage'},
         "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Aragorn'},
+        "assemblycoverage+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Assembly_Coverage'},
         "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
         "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
         "blastparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Blast_Parse'},
@@ -1002,7 +1020,7 @@ sub Get_TODOs {
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
         "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annot_Prodigal'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
-        "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Phageterm'},
+        "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phageterm'},
         "phanotate+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Phanotate'},
         "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
         "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Prodigal'},

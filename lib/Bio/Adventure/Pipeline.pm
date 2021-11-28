@@ -239,14 +239,14 @@ sub Annotate_Phage {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming reordering by putative terminase if phageterm failed.\n";
     my $termreorder = $class->Bio::Adventure::Phage::Terminase_ORF_Reorder(
-        jdepends => $last_job,
         fasta_tool => 'fastx36',
         input => $phageterm->{output},
-        jprefix => $prefix,
-        jname => 'reorder',
         library => 'terminase',
         species => 'phages',
-        test_file => $phageterm->{test_file},);
+        test_file => $phageterm->{test_file},
+        jprefix => $prefix,
+        jname => 'reorder',
+        jdepends => $last_job,);
     $last_job = $termreorder->{job_id};
     sleep(0.2);
 
@@ -363,7 +363,7 @@ sub Annotate_Phage {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{test_file},
+        input_phageterm => $phageterm->{output_dtr},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
@@ -383,7 +383,7 @@ sub Annotate_Phage {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{test_file},
+        input_phageterm => $phageterm->{output_dtr},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
@@ -849,6 +849,17 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nCreating initial assembly with Unicycler.\n";
+    my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
+        jdepends => $last_job,
+        input => $filter->{output},
+        library => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'coverage',);
+    $last_job = $coverage->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nDepth filtering initial assembly.\n";
     my $depth_filtered = $class->Bio::Adventure::Assembly::Filter_Depth(
         jdepends => $last_job,
@@ -1026,7 +1037,7 @@ sub Phage_Assemble {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{test_file},
+        input_phageterm => $phageterm->{output_dtr},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
@@ -1046,7 +1057,7 @@ sub Phage_Assemble {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{test_file},
+        input_phageterm => $phageterm->{output_dtr},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,

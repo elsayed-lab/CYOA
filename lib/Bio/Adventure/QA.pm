@@ -35,6 +35,7 @@ sub Biopieces_Graph {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jmem => 8,
         jprefix => '02',
         modules => ['biopieces'],);
     my $input = $options->{input};
@@ -65,6 +66,7 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
                 comment => $comment,
                 input => $in,
                 jdepends => $options->{jdepends},
+                jmem => $options->{jmem},
                 jname => qq"${jname}_${in}",
                 jprefix => $options->{jprefix},
                 jqueue => 'long',
@@ -92,6 +94,7 @@ less ${input} | read_fastq -i - -e base_33 |\\
             comment => $comment,
             input => $input,
             jdepends => $options->{jdepends},
+            jmem => $options->{jmem},
             jname => 'biop',
             jprefix => $options->{jprefix},
             jstring => $jstring,
@@ -209,6 +212,7 @@ sub Fastqc_Single {
         args => \%args,
         required => ['input'],
         filtered => 'unfiltered',
+        jmem => 8,
         jprefix => '01',
         modules => ['fastqc'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -243,6 +247,7 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     my $fqc = $class->Submit(
         comment => $comment,
         cpus => 8,
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',

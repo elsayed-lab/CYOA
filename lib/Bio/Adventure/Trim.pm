@@ -43,7 +43,8 @@ sub Cutadapt {
         modules => ['cutadapt'],
         left => undef,
         right => undef,
-        either => undef,);
+        either => undef,
+        jmem => 12,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -117,6 +118,7 @@ xz -9e -f ${out_dir}/${basename}_untrimmed.${out_suffix}
     my $cutadapt = $class->Submit(
         comment => $comment,
         input => $input,
+        jmem => $options->{jmem},
         jname => qq"ca_${job_name}",
         jprefix => '07',
         jqueue => 'workstation',
@@ -149,6 +151,7 @@ sub Racer {
         args => \%args,
         length => 1000000,
         required => ['input', ],
+        jmem => 24,
         jprefix => '10',
         modules => ['hitec'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -194,7 +197,7 @@ xz -9e -f ${output}
         cpus => 4,
         input => $input,
         jdepends => $options->{jdepends},
-        jmem => 30,
+        jmem => $options->{jmem},
         jname => "racer_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
@@ -245,6 +248,7 @@ sub Trimomatic_Pairwise {
         args => \%args,
         required => ['input',],
         quality => '20',
+        jmem => 24,
         modules => ['trimomatic'],);
 
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
@@ -352,7 +356,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
         comment => $comment,
         cpus => 3,
         input => $input,
-        jmem => 40,
+        jmem => $options->{jmem},
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
@@ -387,6 +391,7 @@ sub Trimomatic_Single {
         args => \%args,
         required => ['input',],
         modules => ['trimomatic',],
+        jmem => 12,
         jprefix => '05',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $exe = undef;
@@ -434,6 +439,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,
+        jmem => $options->{jmem},
         jname => "trim_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,

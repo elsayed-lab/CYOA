@@ -47,8 +47,9 @@ sub Make_Fasta_Job {
     my $options = $class->Get_Vars(
         args => \%args,
         fasta_tool => 'ggsearch36',
-        jdepends => '',
         split => 0,
+        jdepends => '',
+        jmem => 8,
         modules => ['fasta'],
         output_type => undef,);
     my $dep = $options->{jdepends};
@@ -86,6 +87,7 @@ cd $options->{basedir}
         comment => $comment,
         depends_type => 'array',
         jdepends => $dep,
+        jmem => $options->{jmem},
         jname => 'fasta_multi',
         jstring => $jstring,
         jprefix => "91",
@@ -354,6 +356,7 @@ sub Split_Align_Fasta {
         align_parse => 0,
         num_dirs => 0,
         best_only => 0,
+        jmem => 8,
         modules => ['fasta']);
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
@@ -414,6 +417,7 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     my $parse_job = $class->Submit(
         comment => $comment_string,
         jdepends => $concat_job->{job_id},
+        jmem => $options->{jmem},
         jname => "parse_search",
         jstring => $jstring,
         jprefix => "93",

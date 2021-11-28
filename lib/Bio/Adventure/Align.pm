@@ -43,7 +43,9 @@ concatenates all the output files into one compressed file .
 =cut
 sub Concatenate_Searches {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jmem => 8,);
     my $workdir = $options->{workdir};
     my $finished = 0;
     my $output = qq"${workdir}/split_search.txt";
@@ -58,6 +60,7 @@ rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${
         depends_type => 'array',
         jdepends => $options->{jdepends},
         jname => "concat",
+        jmem => $options->{jmem},
         jstring => $jstring,
         jprefix => $options->{jprefix},
         output => qq"${output}",

@@ -45,6 +45,7 @@ sub Abyss {
         args => \%args,
         required => ['input'],
         k => 41,
+        jmem => 12,
         modules => ['abyss'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abyss-pe');
@@ -88,7 +89,7 @@ cd \${start}
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 30,
+        jmem => $option->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
@@ -99,11 +100,17 @@ cd \${start}
     return($abyss);
 }
 
+=head2 C<Assembly_Coverage>
+
+Use hisat2 and bbmap's pileup script to calculate coverate on a per-contig basis.
+
+=cut
 sub Assembly_Coverage {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         ## input is the corrected/filtered reads, library is the assembly
+        jmem => 12,
         jprefix => 14,
         required => ['input', 'library'],
         modules => ['hisat', 'bbmap'],
@@ -119,10 +126,10 @@ sub Assembly_Coverage {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         my $r1 = abs_path($in[0]);
         my $r2 = abs_path($in[1]);
-        $input_string = qq"-1 ${r1} -2 ${r2} ";
+        $input_string = qq" -1 <(less ${r1}) -2 <(less ${r2}) ";
     } else {
         my $r1 = abs_path($options->{input});
-        $input_string = qq"-1 ${r1} ";
+        $input_string = qq"-1 <(less ${r1}) ";
     }
     my $comment = qq!## This is a script to remap the reads against an assembly
 and calculate the coverage by contig.
@@ -132,24 +139,33 @@ mkdir -p ${output_dir}
 hisat2-build $options->{library} ${output_dir}/coverage_test
 hisat2 -x ${output_dir}/coverage_test -q \\
   ${input_string} -S ${output_dir}/coverage.sam \\
-  2>coverage_hisat.err 1>coverage_hisat.out
-pileup.sh in=${output_dir}/coverage.sam out=${output_dir}/coverage.txt overwrite=true
+  2>${output_dir}/coverage_hisat.err 1>${output_dir}/coverage_hisat.out
+pileup.sh in=${output_dir}/coverage.sam \\
+  out=${output_dir}/coverage.tsv \\
+  basecov=${output_dir}/base_coverage.tsv \\
+  covwindow=100 \\
+  k=19 \\
+  overwrite=true \\
+  2>${output_dir}/pileup.err 1>${output_dir}/pileup.out
 samtools view -u -t $options->{library} \\
   -S ${output_dir}/coverage.sam -o ${output_dir}/coverage.bam \\
-  2>coverage_samtools.err 1>coverage_samtools.out
+  2>${output_dir}/coverage_samtools.err 1>${output_dir}/coverage_samtools.out
 rm ${output_dir}/coverage.sam
-samtools sort -l 9 ${output_dir}/coverage.bam -o ${output_dir}/coverage_sorted.bam
+samtools sort -l 9 ${output_dir}/coverage.bam \\
+  -o ${output_dir}/coverage_sorted.bam \\
+  2>>${output_dir}/coverage_samtools.err 1>>${output_dir}/coverage_samtools.out
 mv ${output_dir}/coverage_sorted.bam ${output_dir}/coverage.bam
-samtools index ${output_dir}/coverage.bam
+samtools index ${output_dir}/coverage.bam \\
+  2>>${output_dir}/coverage_samtools.err 1>>${output_dir}/coverage_samtools.out
 !;
     my $coverage = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"coverage_${job_name}",
-        jprefix => '46',
+        jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => $options->{jprefix},
+        jmem => $options->{jmem},
         jqueue => 'workstation',
         jwalltime => '4:00:00',
         modules => $options->{modules},
@@ -176,6 +192,7 @@ sub Collect_Assembly {
         input_genbank => '',
         input_tsv => '',
         output => '',
+        jmem => 2,
         jprefix => 81,
         jname => 'collect',);
     my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
@@ -197,7 +214,7 @@ cp $options->{input_tsv} ${output_dir}
         jname => $options->{jname},
         jstring => $jstring,
         jprefix => $options->{jprefix},
-        jmem => 2,
+        jmem => $options->{jmem},
         output => $output_dir,);
     return($collect);
 }
@@ -292,6 +309,7 @@ sub Filter_Depth {
         args => \%args,
         required => ['input'],
         coverage => 0.2,  ## The ratio of each sequence's coverage / the maximum coverage observed.
+        jmem => 4,
         jprefix => '13',
         output => 'final_assembly.fasta',
         );
@@ -316,6 +334,7 @@ Bio::Adventure::Assembly::Do_Filter_Depth(\$h,
     my $depth_filtered = $class->Submit(
         jdepends => $options->{jdepends},
         comment => $comment,
+        jmem => $options->{jmem},
         jname => qq"filter_depth_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
@@ -341,6 +360,7 @@ sub Shovill {
         args => \%args,
         required => ['input'],
         depth => 40,
+        jmem => 12,
         jprefix => '13',
         arbitrary => '',
         modules => ['shovill',]);
@@ -380,7 +400,7 @@ fi
         jname => qq"shovill_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 30,
+        jmem => $options->{jmem},
         jqueue => 'workstation',
         modules => $options->{modules},
         output => qq"${output_dir}/final_assembly.fasta",
@@ -414,9 +434,10 @@ sub Trinity {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         contig_length => 600,
-        modules => ['trinity'],
-        required => ['input'],);
+        jmem => 80,
+        modules => ['trinity'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('Trinity');
     die("Could not find trinity in your PATH.") unless($check);
@@ -447,7 +468,7 @@ sub Trinity {
         jname => "$options->{jprefix}trin_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 96,
+        jmem => $options->{jmem},
         jqueue => 'large',
         modules => $options->{modules},
         output => qq"${output_dir}/Trinity.xls",
@@ -490,6 +511,7 @@ sub Trinity_Post {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jmem => 24,
         jname => "trin_rsem",
         modules => ['rsem'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -545,7 +567,7 @@ cd \${start}
         comment => $comment,
         input => $options->{input},
         jdepends => $options->{jdepends},
-        jmem => 90,
+        jmem => $options->{jmem},
         jname => "$options->{jprefix}trinpost_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'large',
@@ -570,11 +592,12 @@ sub Unicycler {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        depth => 20,
-        jprefix => '13',
-        mode => 'bold',
-        min_length => 1000,
         arbitrary => '',
+        depth => 20,
+        min_length => 1000,
+        mode => 'bold',
+        jmem => 24,
+        jprefix => '13',
         modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
@@ -615,7 +638,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         jdepends => $options->{jdepends},
         cpus => 6,
         comment => $comment,
-        jmem => 30,
+        jmem => $options->{jmem},
         jname => qq"unicycler_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
@@ -653,6 +676,7 @@ sub Velvet {
     my $options = $class->Get_Vars(
         args => \%args,
         kmer => 31,
+        jmem => 24,
         required => ['input', 'species'],
         modules => ['velvet'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -694,7 +718,7 @@ sub Velvet {
         jname => qq"velveth_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => '30',
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},

@@ -67,6 +67,7 @@ sub Bowtie {
         libtype => 'genome',
         htseq_type => 'gene',
         htseq_id => 'ID',
+        jmem => 12,
         jprefix => '10',
         modules => ['bowtie1'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -161,6 +162,7 @@ bowtie \\
         comment => $comment,
         input => $bt_input,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -548,6 +550,7 @@ sub BWA {
         libtype => 'genome',
         htseq_type => 'gene',
         htseq_id => 'ID',
+        jmem => 24,
         jprefix => 30,
         modules => ['bwa'],);
     my $check = which('bwa');
@@ -666,7 +669,7 @@ bwa aln ${aln_args} \\
         output => $mem_sam,
         jprefix => $options->{jprefix},
         jstring => $mem_string,
-        jmem => '36',
+        jmem => $options->{jmem},
         modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
@@ -689,7 +692,7 @@ bwa aln ${aln_args} \\
         output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
         jprefix => $options->{jprefix} + 2,
         jstring => $aln_string,
-        jmem => '36',
+        jmem => $options->{jmem},
         modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
@@ -705,7 +708,7 @@ bwa aln ${aln_args} \\
         output => $aln_sam,
         jprefix => $options->{jprefix} + 3,
         jstring => $reporter_string,
-        jmem => '36',
+        jmem => $options->{jmem},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',);
@@ -764,6 +767,7 @@ sub Hisat2 {
         htseq_type => 'gene',
         htseq_id => 'ID',
         count => 1,
+        jmem => 24,
         jprefix => '40',
         libtype => 'genome',
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
@@ -896,7 +900,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jname => $hisat_name,
         jstring => $jstring,
         jprefix => $options->{jprefix},
-        jmem => 48,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         paired => $paired,
         output => $sam_filename,
@@ -993,6 +997,7 @@ sub Kallisto {
     my $options = $class->Get_Vars(
         args => \%args,
         modules => ['kallisto'],
+        jmem => 24,
         jprefix => '46',
         required => ['species', 'input'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -1092,7 +1097,7 @@ kallisto quant ${ka_args} \\
         jname => qq"${jname}",
         jprefix => '30',
         jstring => $jstring,
-        jmem => 30,
+        jmem => $options->{jmem},
         output => qq"${outdir}/abundance.tsv",
         count => qq"${outdir}/${input_name}_abundance.count",
         prescript => $args{prescript},
@@ -1114,6 +1119,7 @@ sub RSEM {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
+        jmem => 24,
         modules => ['rsem'],);
 
     if ($options->{species} =~ /\:/) {
@@ -1179,7 +1185,7 @@ sub RSEM {
         jdepends => $options->{jdepends},
         jstring => $jstring,
         jprefix => "28",
-        mem => 24,
+        mem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
@@ -1197,8 +1203,9 @@ sub Salmon {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jprefix => '45',
         required => ['species', 'input'],
+        jmem => 24,
+        jprefix => '45',
         modules => ['salmon'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('salmon');
@@ -1270,7 +1277,7 @@ salmon quant -i ${sa_reflib} \\
         jname => qq"${jname}",
         jprefix => '30',
         jstring => $jstring,
-        jmem => 48,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${outdir}/quant.sf",
         prescript => $args{prescript},
@@ -1298,6 +1305,7 @@ sub STAR {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species','input'],
+        jmem => 48,
         modules => ['star'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1384,7 +1392,7 @@ STAR \\
         jname => qq"${jname}",
         jprefix => '33',
         jstring => $jstring,
-        jmem => 96,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         prescript => $args{prescript},
         postscript => $args{postscript},

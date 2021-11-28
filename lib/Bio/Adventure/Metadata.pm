@@ -57,6 +57,7 @@ sub Generate_Samplesheet {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jmem => 12,
         modules => ['R']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('R');
@@ -76,6 +77,7 @@ meta_written <- gather_preprocessing_metadata("$options->{input}")
         jstring => $jstring,
         language => 'R',
         output => $output_file,
+        jmem => $options->{jmem},
         shell => '/usr/bin/env Rscript',);
     return($sample_sheet);
 }
@@ -229,6 +231,7 @@ sub Kraken_Best_Hit {
         args => \%args,
         required => ['input'],
         library => 'viral',
+        jmem => 64,
         jprefix => '11',
         modules => ['kraken'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -262,7 +265,7 @@ sub Kraken_Best_Hit {
         jname => "kraken_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 96,
+        jmem => $options->{jmem},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'large',
@@ -294,14 +297,15 @@ sub Merge_Annotations {
         input_phageterm => '',
         input_prodigal => '',
         input_trinotate => '',
-        jprefix => '15',
         evalue => '1e-10',
         keep_genes => 1,
         locus_tag => 1,
         primary_key => 'locus_tag',
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
-        product_signalp => 'trinity_SignalP',);
+        product_signalp => 'trinity_SignalP',
+        jmem => 12,
+        jprefix => '15',);
 
    my $output_name = basename($options->{input_fsa}, ('.fsa'));
    my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
@@ -344,6 +348,7 @@ use Bio::Adventure::Annotation;
        input_trinotate => $options->{input_trinotate},
        jdepends => $options->{jdepends},
        jname => 'merge_annotations',
+       jmem => $options->{jmem},
        jprefix => $options->{jprefix},
        jstring => $jstring,
        language => 'perl',
@@ -539,11 +544,13 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         print $log_fh "Not including abricate annotations.\n";
     }
 
-    my %dtr_features = ();
+    my $dtr_features;
     if ($options->{input_phageterm} && -r $options->{input_phageterm}) {
     ## Pull the direct-terminal-repeats from phageterm if they exist.
-        %dtr_features = $class->Bio::Adventure::Phage::Get_DTR(
-            input => $options->{input_phageterm});
+        $dtr_features = $class->Bio::Adventure::Phage::Get_DTR(
+            input_dtr => $options->{input_phageterm},
+            input_fsa => $options->{input_fsa},
+            log_fh => $log_fh);
         print $log_fh "Adding phageterm DTRs.\n";
     } else {
         print $log_fh "Not adding phageterm DTRs.\n";
@@ -588,8 +595,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         $seq_count++;
         my @feature_list = $seq->get_SeqFeatures();
         ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
-        for my $d (keys %dtr_features) {
-            unshift(@feature_list, $dtr_features{$d});
+        for my $d (@{$dtr_features}) {
+            unshift(@feature_list, $d);
         }
         for my $ara (@{$aragorn_features}) {
             unshift(@feature_list, $ara);
@@ -1212,6 +1219,7 @@ sub BT1_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        jmem => 1,
         required => ['input']);
     my $bt_input = $options->{input};
     my $bt_type = "";
@@ -1248,6 +1256,7 @@ echo "\$stat_string" >> ${stat_output}!;
         comment => $comment,
         input => $bt_input,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -1264,7 +1273,9 @@ Collects alignment statistics from bowtie2.  It is mostly a copy/paste from BT1_
 =cut
 sub BT2_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args,
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jmem => 1,
         required => ['input']);
     my $bt_input = $options->{input};
     my $jname = "bt2_stats";
@@ -1293,6 +1304,7 @@ echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $bt_input,
+        jmem => $options->{jmem},
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
@@ -1310,7 +1322,9 @@ Collect some alignment statistics from bwa.
 =cut
 sub BWA_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args
+        jmem => 1,);
     my $aln_input = $options->{aln_output};
     $aln_input = qq"${aln_input}.stats";
     my $mem_input = $options->{mem_output};
@@ -1346,6 +1360,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         comment => $comment,
         input => $aln_input,
         depends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
@@ -1366,6 +1381,7 @@ sub Fastqc_Stats {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jmem => 1,
         jname => 'fqcst',
         paired => 1,);
     ## Dereferencing the options to keep a safe copy.
@@ -1414,7 +1430,7 @@ echo "\$stat_string" >> ${stat_output}
         cpus => 1,
         input => $input_file,
         jdepends => $options->{jdepends},
-        jmem => 1,
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
@@ -1435,6 +1451,7 @@ sub HT2_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        jmem => 1,
         output_dir => 'outputs',);
     my $ht_input = $options->{ht_input};
     my $jname = "ht2_stats";
@@ -1463,13 +1480,13 @@ echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $ht_input,
+        output => $output,
+        cpus => 1,
+        jmem => $options->{jmem},
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        output => $output,
-        cpus => 1,
-        jmem => 1,
         jqueue => 'throughput',);
     return($stats);
 }
@@ -1481,7 +1498,9 @@ Collect some summary statistics from a salmon run.
 =cut
 sub Salmon_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jmem => 1,);
     my $jname = "stats";
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
@@ -1508,6 +1527,7 @@ echo "\$stat_string" >> "${output}"!;
         comment => $comment,
         cpus => 1,
         input => $options->{input},
+        jmem => $options->{jmem},
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $args{jprefix},
@@ -1526,7 +1546,9 @@ generated by a tophat run.
 =cut
 sub Tophat_Stats {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jmem => 1,);
     my $accepted_input = $options->{accepted_input};
     my $accepted_output = qq"${accepted_input}.stats";
     my $unaccepted_input = $options->{unaccepted_input};
@@ -1567,6 +1589,7 @@ echo "\$stat_string" >> "${output}"!;
         comment => $comment,
         cpus => 1,
         input => $accepted_input,
+        jmem => $options->{jmem},
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $args{jprefix},
@@ -1586,6 +1609,7 @@ sub Trimomatic_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        jmem => 1,
         output_dir => 'outputs',
     );
     ## Dereferencing the options to keep a safe copy.
@@ -1636,6 +1660,7 @@ echo "\$stat_string" >> ${stat_output}
         cpus => 1,
         input => $input_file,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,

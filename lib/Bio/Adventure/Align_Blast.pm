@@ -49,8 +49,9 @@ sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jdepends => '',
         blast_format => 5,
+        jdepends => '',
+        jmem => 24,
         modules => ['blastdb', 'blast']);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
@@ -101,7 +102,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jname => 'blast_multi',
         jdepends => $dep,
         jstring => $jstring,
-        jmem => 32,
+        jmem => $options->{jmem},
         modules => $options->{modules},
         array_string => $array_string,);
     return($blast_jobs);
@@ -126,7 +127,7 @@ sub Merge_Parse_Blast {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['output'],
-    );
+        jmem => 8,);
     my $concat = $class->Bio::Adventure::Align::Concatenate_Searches();
     my $input = $options->{output};
     my $jstring = qq!
@@ -138,6 +139,7 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
 !;
     my $parse = $class->Submit(
         jdepends => $concat->{job_id},
+        jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',
@@ -462,6 +464,7 @@ sub Split_Align_Blast {
         num_dirs => 0,
         best_only => 0,
         interactive => 0,
+        jmem => 8,
         modules => ['blast', 'blastdb'],);
     ## This might be wrong (tblastx)
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -535,6 +538,7 @@ Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type =>
     my $parse_job = $class->Submit(
         comment => $comment_string,
         jdepends => $concat_job->{job_id},
+        jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',);
