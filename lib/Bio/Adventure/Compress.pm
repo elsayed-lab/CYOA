@@ -35,7 +35,8 @@ sub Recompress {
         comment => '## Recompressing files.',
         jname => 'xz',
         jmem => 8,
-        jqueue => 'long',);
+        jqueue => 'long',
+        jwalltime => '12:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
 
     my $jstring = "";
@@ -61,6 +62,7 @@ less ${in_full} | \\
         jmem => $options->{jmem},
         jname => $options->{jname},
         jstring => $jstring,
+        jwalltime => $options->{jwalltime},
         output => $output_string,);
     return($compression);
 }

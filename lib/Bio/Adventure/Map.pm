@@ -182,6 +182,7 @@ bowtie \\
         jdepends => $bt_job->{job_id},
         jname => "xzun",
         jprefix => $options->{jprefix} + 1,
+        jwalltime => '24:00:00',
         input => $compress_files,);
     $bt_job->{compression} = $comp;
 

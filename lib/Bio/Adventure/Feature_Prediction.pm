@@ -395,7 +395,7 @@ sub RhoTermPredict {
     my $jstring = qq?mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-cp $options->{$input} .
+cp $options->{input} .
 echo $input_paths->{filename} | RhoTermPredict_algorithm.py
 
 ?;
