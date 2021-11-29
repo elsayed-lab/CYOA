@@ -30,6 +30,11 @@ use Text::CSV_XS::TSV;
 Use aragorn to search for tRNA genes in a sequence database.  By
 default this will explictly search for tmRNA as well.
 
+One thing which fascinates me about tRNA genes: mitochondrial tRNA
+genes have introns.  In addition, mtRNA genes are in the introns of
+other genes; and in that context have regulatory effects.  So its like
+an island on a lake with an island in a pond.
+
 =cut
 sub Aragorn {
     my ($class, %args) = @_;
@@ -77,6 +82,11 @@ sub Aragorn {
 =head2 C<Glimmer>
 
 Use glimmer in two passes to search for ORFs in a sequence database.
+
+The script template which follows was annoyingly brittle, so I instead
+rewrote it as a short perl script which has some error handling and
+captures each step in a separate function in the hopes that the
+outputs will be clearer and easier to follow.
 
 =cut
 sub Glimmer {
@@ -146,7 +156,10 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
 
 =head2 C<Glimmer_Single
 
-Run glimmer in a single pass instead of the two passes as per the paper.
+Run glimmer in a single pass instead of the two passes as per the
+paper.  I am somewhat against running glimmer like this, it does not
+take much time to use glimmer's training functions; but some assembly
+methods explicitly run it in a single-pass fashion.
 
 =cut
 sub Glimmer_Single {
@@ -208,7 +221,13 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
 
 =head2 C<Phanotate>
 
-Invoke phanotate on a viral assembly to search for ORFs.
+Phanotate is a cousin to glimmer/prodigal, but with some assumptions
+built in regarding the packing of viral/phage ORFs.  It therefore
+results in a higher number of very closely packed ORFs, with some
+increased risk of spurious calls.
+
+This function invokes phanotate on a viral assembly to search for
+ORFs.
 
 =cut
 sub Phanotate {
@@ -354,6 +373,45 @@ prodigal ${train_string} \\
     return($prodigal);
 }
 
+=head2 C<Rho_Terminase_Predict>
+
+Use the rho terminase prediction tool to hunt for rho.
+
+=cut
+sub RhoTermPredict {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input',],
+        modules => ['rhotermpredict'],
+        jmem => 12,
+        jprefix => '51',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $input_paths = $class->Get_Paths($options->{input});
+    my $input_full = $input_paths->{fullpath};
+    my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_$input_paths->{dirname}";
+    my $output_file = qq"${output_dir}/predictions_coordinates_seqname.csv";
+    my $info_file = qq"${output_dir}/info_about_predictions_seqname.csv";
+    my $jstring = qq?mkdir -p ${output_dir}
+start=\$(pwd)
+cd ${output_dir}
+cp $options->{$input} .
+echo $input_paths->{filename} | RhoTermPredict_algorithm.py
+
+?;
+
+    my $rhoterm = $class->Submit(
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => 'rhotermpredict',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        modules => $options->{modules},
+        output_file => $output_file,
+        output_info => $info_file,);
+    return($rhoterm);
+}
+
 =head2 C<Train_Prodigal>
 
 Some assemblies I have been performing are on sets of sequence which
@@ -402,7 +460,9 @@ prodigal -i $options->{input} \\
 
 =head2 C<tRNAScan>
 
-Alternative to aragorn.  Search for tRNAs!
+Alternative to aragorn.  Search for tRNAs!  Having spent a little time
+poking at the two methods, it may prove worth while to employ them
+both.
 
 =cut
 sub tRNAScan {

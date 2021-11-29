@@ -1323,7 +1323,7 @@ Collect some alignment statistics from bwa.
 sub BWA_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
-        args => \%args
+        args => \%args,
         jmem => 1,);
     my $aln_input = $options->{aln_output};
     $aln_input = qq"${aln_input}.stats";

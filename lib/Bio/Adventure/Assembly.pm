@@ -89,7 +89,7 @@ cd \${start}
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => $option->{jmem},
+        jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},

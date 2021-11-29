@@ -41,7 +41,6 @@ use Bio::Adventure::Local;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 use Bio::Adventure::Align_Fasta;
-use Bio::Adventure::Feature_Prediction;
 use Bio::Adventure::Annotation;
 use Bio::Adventure::Annotation_Genbank;
 use Bio::Adventure::Assembly;
@@ -440,6 +439,10 @@ This is the main CYOA constructor.  It takes up the variables at the
 top of Adventure.pm along with any arguments pulled in from @ARGV and
 incorporates them into the class.
 
+Most of the logic in it is working toward setting up GetOpt::Long
+options.  Thus, if there is confusion about what is happening, that is
+the first place to look.
+
 =cut
 sub BUILD {
     my ($class, $args) = @_;
@@ -557,7 +560,8 @@ sub BUILD {
 =head2 C<Get_Paths>
 
 Given a file/directory name, provide a set of paths which will
-hopefully prove useful for the various functions in CYOA.
+hopefully prove useful for the various functions in CYOA.  I think
+this function is a good candidate for replacing Check_Input() below.
 
 =cut
 sub Get_Paths {
@@ -627,8 +631,11 @@ sub Get_Term {
 
 =head2 C<Check_Input>
 
-Given a set of inputs, do a little checking to try to ensure that they are
-usable.
+Given a set of inputs, do a little checking to try to ensure that they
+are usable.
+
+This function is not used in many places and may need culling.  Either
+that or it should be improved a little and propagated.
 
 =cut
 sub Check_Input {
@@ -923,7 +930,9 @@ sub Get_Menus {
 
 =head2 C<Get_Job_Name>
 
-This attempts to make a reasonable job name given a filename or cwd().
+This attempts to make a reasonable job name given a filename or
+cwd().  In practice it just strips off the suffixes from the input
+file(s) and uses that.
 
 =cut
 sub Get_Job_Name {
