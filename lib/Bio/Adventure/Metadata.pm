@@ -85,6 +85,23 @@ meta_written <- gather_preprocessing_metadata("$options->{input}")
 =head2 C<Get_Aragorn>
 
 Extract the tRNA annotations from a file produced by aragorn.
+Aragorn's output is a peculiar text file.  Here is an example tRNA annotation from it:
+
+>1 length=40082 depth=1.00x circular=true
+9 genes found
+1   mtRNA-His*                c[6852,6905]      21      (gtg)
+>D-loop mtRNA-His(gtg) c[6852,6905]
+tggtctgtttaaccttagctgtgaactcgtccttctgttcttcagtcaga
+ccac
+2   mtRNA-Thr*               [15812,15870]      29      (ggt)
+>mtRNA-Thr(ggt) [15812,15870]
+tcggcgttacagagggtctggaagctgtggtagagcttgtctttaagaaa
+ggtattgtt
+
+In this group, the first line is the contig containing the putative
+m/t/mt/tm RNA genes which follow.  The next line defines the gene
+with a number, name, position, score, and anticodon.  The final three
+lines are a fasta entry with the same information and the sequence.
 
 =cut
 sub Get_Aragorn {
@@ -136,7 +153,6 @@ sub Get_Aragorn {
           if ($complement eq 'c') {
               $strand = '-1';
           }
-          ## print "TESTME AFTER COMP: $strand\n";
 
           $start =~ s/^\w*\[(\d+)$/$1/g;
           ## print "TESTME POST: $start\n";
