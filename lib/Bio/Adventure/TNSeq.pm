@@ -9,7 +9,7 @@ extends 'Bio::Adventure';
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
-use Cwd qw"abs_path getcwd";
+use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use FileHandle;
 use File::Find;
@@ -28,6 +28,55 @@ wrote while working on mgas 5448 tnseq data.  They have not been
 incorporated into the general Bio::Adventure.pm scheme yet.
 
 =head1 METHODS
+
+=head2 C<Essentiality_TAs>
+
+=cut
+sub Essentiality_TAs {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        htseq_type => 'gene',
+        htseq_id => 'locus_tag',
+        jmem => 8,
+        jprefix => '40',
+        output => '',);
+    my $job_name = $class->Get_Job_Name();
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/essentiality_$options->{species}";
+    my $output_log = qq"${output_dir}/count_ta.log";
+    my $output = qq"${output_dir}/${outname}-v0M1_tas.txt";
+    my $comment = qq!## This is a submission script to count TAs for essentiality.
+!;
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::TNSeq;
+Bio::Adventure::TNSeq::Essentiality_TAs_Worker(\$h,
+  comment => '${comment}',
+  input => '$options->{input}',
+  species => '$options->{species}',
+  htseq_type => '$options->{htseq_type}',
+  htseq_id => '$options->{htseq_id}',
+  output_dir => '${output_dir}',
+  output => '${output}',);
+!;
+    my $ta_counter = $class->Submit(
+        jdepends => $options->{jdepends},
+        comment => $comment,
+        jmem => $options->{jmem},
+        jname => qq"count_ta_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        language => 'perl',
+        output => $output,
+        output_log => $output_log,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        shell => '/usr/bin/env perl',);
+    return($ta_counter);
+}
 
 =head2 C<Sort_Indexes>
 
@@ -407,7 +456,7 @@ sub Read_Indexes {
     return($indexes);
 }
 
-=head2 C<Essentiality_TAs>
+=head2 C<Essentiality_TAs_Worker>
 
 This will read the $args{bam} bam file and look for reads which
 start/end with TA in the orientation expected for a successful
@@ -428,9 +477,11 @@ essentiality_tas -f genome.fasta -o output.txt -n genome_name -g genome.gff -b b
         --help      : Print this help information
 
 =cut
-sub Essentiality_TAs {
+sub Essentiality_TAs_Worker {
     my ($class, %args) = @_;
-    ## A smarter way of handling counting inter-cds regions would be to use the Read_GFF() functions to pull the intercds regions rather than the hackish @inter_starts @inter_ends.
+    ## A smarter way of handling counting inter-cds regions would be
+    ## to use the Read_GFF() functions to pull the intercds regions
+    ## rather than the hackish @inter_starts @inter_ends.
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],

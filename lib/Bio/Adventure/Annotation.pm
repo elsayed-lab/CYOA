@@ -704,7 +704,7 @@ cd \${start}
     return($trinotate);
 }
 
-=head2 C<Watson_Plus>
+=head2 C<Rosalind_Plus>
 
 Use prodigal to count up putative ORFs on the plus and minus strands.
 If the number of minus strand ORFs is larger than plus, reverse
@@ -713,8 +713,12 @@ complement the sequence.
 This function just puts the actual function which does the work onto
 the dependency chain.
 
+Just a little note from a friend: "This is my formal proposal to start
+calling the 'Watson' and 'Crick' strands 'Rosalind' and 'Franklin'
+."
+
 =cut
-sub Watson_Plus {
+sub Rosalind_Plus {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -722,10 +726,10 @@ sub Watson_Plus {
         jprefix => '44',);
 
     my $input_seq = $options->{input};
-    my $job_name = 'watsonplus';
+    my $job_name = 'rosalindplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
     make_path($output_dir);
-    my $watson_prodigal = Bio::Adventure::Feature_Prediction::Prodigal($class,
+    my $rosalind_prodigal = Bio::Adventure::Feature_Prediction::Prodigal($class,
         gcode => '11',
         input => $options->{input},
         jdepends => $options->{jdepends},
@@ -734,16 +738,16 @@ sub Watson_Plus {
         modules => ['prodigal'],
         output_dir => $output_dir,
         species => 'phages',);
-    $options->{jdepends} = $watson_prodigal->{job_id};
-    my $input_gff = $watson_prodigal->{output_gff};
+    $options->{jdepends} = $rosalind_prodigal->{job_id};
+    my $input_gff = $rosalind_prodigal->{output_gff};
     my $output_file = basename($options->{input});
     $output_file = qq"${output_dir}/${output_file}";
     my $comment_string = qq"## This takes the prodigal output and checks to see which strand has
-## more ORFs, if it is the crick strand, then the chromsome is reverse complemented.
+## more ORFs, if it is the Franklin strand, then the chromsome is reverse complemented.
 ";
     my $jstring = qq!
 use Bio::Adventure::Annotation;
-\$result = \$h->Bio::Adventure::Annotation::Watson_Rewrite(
+\$result = \$h->Bio::Adventure::Annotation::Rosalind_Rewrite(
   gff => '${input_gff}',
   input => '$options->{input}',
   jdepends => '$options->{jdepends}',
@@ -768,13 +772,13 @@ use Bio::Adventure::Annotation;
     return($rewrite);
 }
 
-=head2 C<Watson_Rewrite>
+=head2 C<Rosalind_Rewrite>
 
 Does the actual work of rewriting a genome to put the majority ORFs on
-the plus strand.  Watson_Plus() calls this.
+the plus strand.  Rosalind_Plus() calls this.
 
 =cut
-sub Watson_Rewrite {
+sub Rosalind_Rewrite {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -782,7 +786,7 @@ sub Watson_Rewrite {
 
     my $input_gff = $options->{gff};
     my $input_seq = $options->{input};
-    my $job_name = 'watsonplus';
+    my $job_name = 'rosalindplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
     make_path($output_dir);
 
@@ -795,8 +799,8 @@ sub Watson_Rewrite {
     my $read_fasta = Bio::SeqIO->new(-file => qq"<$options->{input}", -format => 'Fasta');
     my $write_fasta = Bio::SeqIO->new(-file => qq">${write_file}", -format => 'Fasta');
     my $write_log = FileHandle->new(">${log_file}");
-    print $write_log "Counting ORFs on the current watson and crick strand.
-If the crick strand is larger, flipping them.
+    print $write_log "Counting ORFs on the current Rosalind and Franklin strand.
+If the Franklin strand is larger, flipping them.
 ";
     ## A prodigal line looks like:
     ## EAb06   Prodigal_v2.6.3 CDS     3205    3414    8.7     -       0       ID=1_10;partial=00;start_type=ATG;rbs_motif=GGAG/GAGG;rbs_spacer=5-10bp;gc_cont=0.248;conf=88.17;score=8.74;cscore=-0.38;sscore=9.12;rscore=8.34;uscore=-0.93;tscore=2.86;

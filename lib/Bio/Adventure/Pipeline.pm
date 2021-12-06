@@ -216,13 +216,13 @@ sub Annotate_Phage {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSetting the Watson strand to the one with the most ORFs.\n";
-    my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
+    print "\nSetting the Rosalind strand to the one with the most ORFs.\n";
+    my $rosalindplus = $class->Bio::Adventure::Annotation::Rosalind_Plus(
         jdepends => $last_job,
         input => $depth_filtered->{output},
         jprefix => $prefix,
-        jname => 'watsonplus',);
-    $last_job = $watsonplus->{job_id};
+        jname => 'rosalindplus',);
+    $last_job = $rosalindplus->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -232,7 +232,7 @@ sub Annotate_Phage {
         input => $filtered_reads,
         jprefix => $prefix,
         jname => 'phageterm',
-        library => $watsonplus->{output},);
+        library => $rosalindplus->{output},);
     $last_job = $phageterm->{job_id};
     sleep(0.2);
 
@@ -752,7 +752,7 @@ the following:
 10. Filter it by depth coverage with the assumption that sometimes prophage sequences sneak past #7.
 11. Run phastaf as an initial taxonomic classification (also to see if it is a nonsense chimera).
 12. Uses tblastx against the curated set of ICTV viral references to generate another taxonomic classification.
-13. Counts up the +/- strand ORFs to make the watson strand have the most.
+13. Counts up the +/- strand ORFs to make the Rosalind strand have the most.
 14. Runs phageterm to reorganize the genome if there is a detectable DTR.
 15. If #14 is a no, search for a terminase and reorganize the genome accordingly.
 16. Create an initial prokka annotation.
@@ -879,13 +879,13 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSetting the Watson strand to the one with the most ORFs.\n";
-    my $watsonplus = $class->Bio::Adventure::Annotation::Watson_Plus(
+    print "\nSetting the Rosalind strand to the one with the most ORFs.\n";
+    my $rosalindplus = $class->Bio::Adventure::Annotation::Rosalind_Plus(
         jdepends => $last_job,
         input => $depth_filtered->{output},
         jprefix => $prefix,
-        jname => 'watsonplus',);
-    $last_job = $watsonplus->{job_id};
+        jname => 'rosalindplus',);
+    $last_job = $rosalindplus->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -895,7 +895,7 @@ sub Phage_Assemble {
         input => $filter->{output},
         jprefix => $prefix,
         jname => 'phageterm',
-        library => $watsonplus->{output},);
+        library => $rosalindplus->{output},);
     $last_job = $phageterm->{job_id};
     sleep(0.2);
 
@@ -1115,7 +1115,7 @@ sub Phage_Assemble {
         depth_filter => $depth_filtered,
         phastaf => $phastaf,
         ictv => $ictv,
-        watsonplus => $watsonplus,
+        rosalindplus => $rosalindplus,
         phageterm => $phageterm,
         terminase_reorder => $termreorder,
         prokka => $prokka,
