@@ -178,47 +178,6 @@ samtools index ${output_dir}/coverage.bam \\
     return($coverage);
 }
 
-=head2 C<Collect_Assembly>
-
-Collect the final files created by an assembly.
-
-=cut
-sub Collect_Assembly {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        input_fsa => '',
-        input => '',
-        input_genbank => '',
-        input_tsv => '',
-        output => '',
-        jmem => 2,
-        jprefix => 81,
-        jname => 'collect',);
-    my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
-    my @output_files = split(/:/, $options->{output});
-    my $jstring = qq!
-mkdir -p ${output_dir}
-cp $options->{input_fsa} ${output_dir}
-cp $options->{input} ${output_dir}
-cp $options->{input_genbank} ${output_dir}
-cp $options->{input_tsv} ${output_dir}
-!;
-    for my $o (@output_files) {
-        $jstring .= qq"cp $o ${output_dir}
-";
-    }
-
-    my $collect = $class->Submit(
-        jdepends => $options->{jdepends},
-        jname => $options->{jname},
-        jstring => $jstring,
-        jprefix => $options->{jprefix},
-        jmem => $options->{jmem},
-        output => $output_dir,);
-    return($collect);
-}
-
 =head2 C<Filter_Depth>
 
 Filter (for the moment only) a unicycler assembly by the ratio of the

@@ -849,17 +849,6 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nChecking coverage.\n";
-    my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
-        jdepends => $last_job,
-        input => $filter->{output},
-        library => $assemble->{output},
-        jprefix => $prefix,
-        jname => 'coverage',);
-    $last_job = $coverage->{job_id};
-    sleep(0.2);
-
-    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nDepth filtering initial assembly.\n";
     my $depth_filtered = $class->Bio::Adventure::Assembly::Filter_Depth(
         jdepends => $last_job,
@@ -908,6 +897,17 @@ sub Phage_Assemble {
         jname => 'phageterm',
         library => $watsonplus->{output},);
     $last_job = $phageterm->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nChecking coverage.\n";
+    my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
+        jdepends => $last_job,
+        input => $filter->{output},
+        library => $assemble->{output},
+        jprefix => $prefix,
+        jname => 'coverage',);
+    $last_job = $coverage->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1062,9 +1062,10 @@ sub Phage_Assemble {
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
         jname => 'mergeannot2',
+        suffix => 'stripped',
         keep_genes => 0,
         locus_tag => 0,
-        evalue => undef,);
+        evalue => 0,);
     sleep(0.2);
     $last_job = $merge2->{job_id};
 
@@ -1087,19 +1088,21 @@ sub Phage_Assemble {
     $last_job = $vienna->{job_id};
     sleep(0.2);
 
-##    $prefix = sprintf("%02d", ($prefix + 1));
-##    print "\nCollecting output files.\n";
-##    my $collect = $class->Bio::Adventure::Assembly::Collect_Assembly(
-##        jdepends => $last_job,
-##        input_fsa => $merge->{output_fsa},
-##        input => $merge->{output_gbk},
-##        input_genbank => $merge2->{output_gbk},
-##        input_tsv => $merge->{output_tsv},
-##        output => qq"$cds_merge->{output_xlsx}:$cds_merge->{output_faa}:$cds_merge->{output_genome}",
-##        jprefix => $prefix,
-##        jname => 'collect',);
-##    $last_job = $collect->{job_id};
-##    sleep(0.2);
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nCollecting output files.\n";
+    my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
+        jdepends => $last_job,
+        input_fsa => $merge->{output_fsa},
+        input => $merge->{output_gbk},
+        input_stripped => $merge2->{output_gbk},
+        input_tsv => $merge->{output_tsv},
+        input_xlsx => $merge->{output_xlsx},
+        input_faa => $cds_merge->{output_faa},
+        input_cds => $cds_merge->{output_cds},
+        jprefix => $prefix,
+        jname => 'collect',);
+    $last_job = $collect->{job_id};
+    sleep(0.2);
 
     my $ret = {
         trim => $trim,
