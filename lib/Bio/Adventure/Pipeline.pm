@@ -796,7 +796,7 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nStarting read correction\n";
+    print "\nStarting read correction.\n";
     my $correct = $class->Bio::Adventure::Trim::Racer(
         jdepends => $last_job,
         input => $trim->{output},
@@ -849,7 +849,7 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nCreating initial assembly with Unicycler.\n";
+    print "\nChecking coverage.\n";
     my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
         jdepends => $last_job,
         input => $filter->{output},
