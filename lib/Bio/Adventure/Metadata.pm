@@ -49,8 +49,8 @@ sub Collect_Assembly {
     my $options = $class->Get_Vars(
         args => \%args,
         input_fsa => qq"outputs/25mergeannot/${start}.fsa",
-        input => qq"outputs/25mergeannot/${start}.gbk",
-        input_stripped => qq"outputs/26mergeannot/${start}.gbk",
+        input_genbank => qq"outputs/25mergeannot/${start}.gbk",
+        input_stripped => qq"outputs/26mergeannot/${start}_stripped.gbk",
         input_tsv => qq"outputs/25mergeannot/${start}.tsv",
         input_xlsx => qq"outputs/25mergeannot/${start}.xlsx",
         input_faa => qq"outputs/19merge_cds_predictions/${start}.faa",
@@ -65,14 +65,15 @@ sub Collect_Assembly {
     $output_dir = qq"${output_dir}/collected_assemblies";
     my $made = make_path($output_dir);
 
+    my $input_base = basename($options->{input_fsa}, ('.fsa'));
     my $jstring = '';
-    $jstring .= qq"cp $options->{input_fsa} ${output_dir}\n" if ($options->{input_fsa});
-    $jstring .= qq"cp $options->{input_genbank} ${output_dir}\n" if ($options->{input_genbank});
-    $jstring .= qq"cp $options->{input_stripped} ${output_dir}\n" if ($options->{input_stripped});
-    $jstring .= qq"cp $options->{input_tsv} ${output_dir}\n" if ($options->{input_tsv});
-    $jstring .= qq"cp $options->{input_xlsx} ${output_dir}\n" if ($options->{input_xlsx});
-    $jstring .= qq"cp $options->{input_faa} ${output_dir}\n" if ($options->{input_faa});
-    $jstring .= qq"cp $options->{input_cds} ${output_dir}\n" if ($options->{input_cds});
+    $jstring .= qq"cp $options->{input_fsa} ${output_dir}/\n" if ($options->{input_fsa});
+    $jstring .= qq"cp $options->{input_genbank} ${output_dir}/\n" if ($options->{input_genbank});
+    $jstring .= qq"cp $options->{input_stripped} ${output_dir}/\n" if ($options->{input_stripped});
+    $jstring .= qq"cp $options->{input_tsv} ${output_dir}/\n" if ($options->{input_tsv});
+    $jstring .= qq"cp $options->{input_xlsx} ${output_dir}/\n" if ($options->{input_xlsx});
+    $jstring .= qq"cp $options->{input_faa} ${output_dir}/\n" if ($options->{input_faa});
+    $jstring .= qq"cp $options->{input_cds} ${output_dir}/\n" if ($options->{input_cds});
     ## $jstring .= qq"cp $options->{input_genome} ${output_dir}\n" if ($options->{input_genome});
 
     my $collect = $class->Submit(
@@ -372,13 +373,15 @@ sub Merge_Annotations {
         jprefix => '15',);
 
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
+    if ($options->{suffix}) {
+        $output_name .= qq"_$options->{suffix}";
+    }
     my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
     my $output_fsa = qq"${output_dir}/${output_name}.fsa";
     my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
     my $output_gbf = qq"${output_dir}/${output_name}.gbf";
     my $output_tbl = qq"${output_dir}/${output_name}.tbl";
-    my $output_gbk = basename($output_gbf, ('.gbf'));
-    $output_gbk = qq"${output_dir}/${output_gbk}";
+    my $output_gbk = qq"${output_dir}/${output_name}.gbk";
 
     my $jstring = qq?
 use Bio::Adventure::Annotation;
@@ -483,6 +486,7 @@ sub Merge_Annotations_Worker {
     my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
     my $output_gbf = qq"${output_dir}/${output_name}.gbf";
     my $output_tbl = qq"${output_dir}/${output_name}.tbl";
+    my $output_gbk = qq"${output_dir}/${output_name}.gbk";
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
     my $log_fh = FileHandle->new(">$log");
@@ -854,7 +858,7 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
         " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
-    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
+    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
     my $sed_result = qx"${sed_command}";
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
@@ -865,12 +869,6 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
         output => $output_xlsx,
         primary_key => $primary_key);
 
-    ## Functions like this one should still return a job-like data structure so that I can
-    ## putatively chain them, even though they are running primarily for their side-effects
-    ## and the job that calls them is the one returning the fun information.
-    my $output_gbk = basename($output_gbf, ('.gbf'));
-    my $gbk_dir = dirname($output_gbf);
-    $output_gbk = qq"${gbk_dir}/${output_gbk}.gbk";
     my $job = {
         output_dir => $output_dir,
         output_fsa => $output_fsa,

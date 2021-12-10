@@ -1093,7 +1093,7 @@ sub Phage_Assemble {
     my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
         jdepends => $last_job,
         input_fsa => $merge->{output_fsa},
-        input => $merge->{output_gbk},
+        input_genbank => $merge->{output_gbk},
         input_stripped => $merge2->{output_gbk},
         input_tsv => $merge->{output_tsv},
         input_xlsx => $merge->{output_xlsx},
