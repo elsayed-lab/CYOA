@@ -32,10 +32,19 @@ Invocations for a few assemblers: Abyss, Shovill/Unicycler (spades), trinity.
 
 =head2 C<Abyss>
 
+Abyss: doi:10.1101/gr.214346.116 is a de novo assembler which uses short reads.
+
 This defaults to a k=41 abyss-pe or abyss-se assembly, depending on
 how many input files provided.  Ideally, it should at least do a
 little work to try to optimize k.  Abyss is the first program I have
 ever seen which uses make as an interpreter.
+
+=item C<Arguments>
+
+ input(required): one or more fastq files to assemble.
+ k(41): Kmer size for the de Bruijn graph.
+ jmem(12): Memory allocation on the cluster.
+ modules('abyss'): Environment module to load.
 
 =cut
 sub Abyss {
@@ -104,17 +113,35 @@ cd \${start}
 
 Use hisat2 and bbmap's pileup script to calculate coverate on a per-contig basis.
 
+Given an assembly and a pile of reads, this will return the coverage
+on a per-nucleotide/per-contig basis, hopefully providing some metrics
+which will allow one to discriminate the quality of the contigs.  This
+is particularly notable when working with phage assemblies where one
+might expect prophage sequence to reside in the bacterial host at
+detectable and assemblable(is this a word?) levels, but at coverages
+which are notably lower than the actual viral sequences.  E.g. this
+should provide in effect a metric of the amount of bacterial
+contamination which snuck past previous filters.
+
+=item C<Arguments>
+
+ input(required): Filename(s) of corrected/filtered reads which were
+  used to assemble the genome.
+ library(required): Filename of the assembly.
+ jmem(12): Memory allocated on the cluster.
+ jprefix(14): job name/output directory prefix.
+ modules('hisat', 'bbmap'): Environment modules loaded to run this.
+
 =cut
 sub Assembly_Coverage {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input', 'library'],
         ## input is the corrected/filtered reads, library is the assembly
         jmem => 12,
         jprefix => 14,
-        required => ['input', 'library'],
-        modules => ['hisat', 'bbmap'],
-        );
+        modules => ['hisat', 'bbmap'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
 
     my $job_name = $class->Get_Job_Name();
@@ -181,6 +208,16 @@ samtools index ${output_dir}/coverage.bam \\
 =head2 C<Collect_Assembly>
 
 Collect the final files created by an assembly.
+
+My little assembly pipeline generates quite a pile of
+files/directories.  Choosing the appropriate final outputs can be a
+bit daunting.  This function defines a few likely candidates and
+copies them to a single working directory.
+
+=item C<Arguments>
+
+input_fsa(''): .fsa assembly to copy.
+input(''):
 
 =cut
 sub Collect_Assembly {

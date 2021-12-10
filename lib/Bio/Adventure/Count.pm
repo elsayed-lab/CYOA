@@ -29,6 +29,23 @@ These functions handle the counting of reads, primarily via htseq.
 
 Invoke htseq multiple times with options for counting different transcript types.
 
+=item C<Arguments>
+
+ species(required): Defines the gff/fasta files to query in {libdir}.
+ input(required): The sorted/indexed .bam alignment file to count.
+ htseq_stranded(required): Boolean of the stranded state of the library.
+ gff_type(''): Type of feature to count.  If left alone, this will count up
+   each category of feature and choose the most represented.
+   (deprecated in favor of htseq_type)
+ htseq_type('gene): Ibid.  I just have not converted everything to use this.
+ htseq_id('ID'): GFF tag used to identify the genes/transcripts/etc.  In
+   metazoans this is usually 'ID', in bacteria it is often
+   'locus_tag', in parasites 'gene_id'.  There are lots of choices.
+ libtype('genome'): Used to differentiate between genomic counts vs. rRNA
+   vs. contaminants.
+ modules('htseq'): List of environment modules.
+ paired('1'): Is this a paired library?
+
 =cut
 sub HT_Multi {
     my ($class, %args) = @_;
@@ -162,7 +179,10 @@ sub HT_Multi {
 Read the first 100k lines of a gff file and use that to guess at the most likely
 type of feature when invoking htseq.
 
-FIXME: max_lines should be an option!
+=item C<Arguments>
+
+  htseq_type('gene'): When set, this will just count that type.
+  htseq_id('ID'): Ditto, but the GFF tag for IDs.
 
 =cut
 sub HT_Types {
@@ -260,6 +280,26 @@ sub HT_Types {
 Invoke htseq-count.  This should be able to automagically pick up
 other types of countable features and send the htseq-count results to
 a separate count file.
+
+=item C<Arguments>
+
+ input: Sorted/indexed bam file to count.
+ species: Defines the gff/fasta files to read.
+ htseq_stranded: Is this library stranded?
+ htseq_args(--order=name --idattr=gene_id --minaqual=10 --type exon
+  --stranded=yes --mode=union): Define arbitrary htseq arguments.
+ gff_type(''): Redundant with htseq_type, used to choose a specific
+  type to count; when left blank, HT_Types() will make a guess.
+ htseq_type('gene'): Deprecated, Ibid.
+ htseq_id('ID'): GFF tag used to identify the counted features.
+ jname(''): Job name base for the cluster.
+ jprefix(''): Prefix for the job name and output directory.
+ libtype('genome'): Choose the library to count,
+  genomic/rRNA/contaminants/etc.
+ mapper('hisat2'): Specify the mapper used so that the output file
+  will make it easier to tell where it came from.
+ modules('htseq'): List of environment modules to load.
+ paired('1'): Is this library paired?
 
 =cut
 sub HTSeq {
@@ -389,6 +429,13 @@ This should also send the wacky fasta format fo counted sequences to a
 tsv of kmers and numbers, which should be a rather more tractable
 format with which to play.
 
+=item C<Arguments>
+
+ input(required): Fast(a|q) file(s) to index.
+ length('9,11,13,15'): Text list of k values to give to jellyfish.
+ jprefix(18): Prefix for the job name.
+ modules('jellyfish'): Module list.
+
 =cut
 sub Jellyfish {
     my ($class, %args) = @_;
@@ -509,6 +556,13 @@ use Bio::Adventure::Phage;
 This function is responsible for actually converting the fasta output
 from jellyfish into tsv.  It is pretty quick and dirty.
 
+=item C<Arguments>
+
+ input(required): The peculiar fasta file produced by jellyfish.
+ output('fasta_matrix.csv'): Filename to which to convert the
+  jellyfish output.
+ jprefix(19): Prefix for the jobname/output directory.
+
 =cut
 sub Jellyfish_Matrix {
     my ($class, %args) = @_;
@@ -551,6 +605,15 @@ sub Jellyfish_Matrix {
 =head2 C<Mi_Map>
 
 Given a set of alignments, map reads to mature/immature miRNA species.
+This function has not been used in a very long time and likely will
+require some work if I wish to use it again.
+
+=item C<Arguments>
+
+ mirbase_data(required): File containing miRNAs from the mirbase.
+ mature_fasta(required): Fasta file of the mature miRNA species.
+ mi_genome(required): The set of all miRNAs expected.
+ bamfile(required): Input bam file to search.
 
 =cut
 sub Mi_Map {
@@ -594,6 +657,12 @@ sub Mi_Map {
 =head2 C<Read_Mi>
 
 Read an miRNA database.
+This takes the fasta file from the mirbase and extracts the IDs and
+sequences.
+
+=item C<Arguments>
+
+seqfile: The fasta file in question.
 
 =cut
 sub Read_Mi {
@@ -614,6 +683,12 @@ sub Read_Mi {
 
 Read an miRNA database and get the connections between the various IDs, mature
 sequences, and immature sequences.
+
+=item C<Arguments>
+
+ output: Output file to write.
+ seqdb: Hash of IDs to sequences from Read_Mi().
+ mappings: Hash of IDs to precursors/etc.
 
 =cut
 sub Read_Mappings_Mi {
@@ -692,6 +767,12 @@ sub Read_Mappings_Mi {
 
 Read a bam file and cross reference it against an miRNA database.
 
+=item C<Arguments>
+
+ mappings: Set of database entries to query against.
+ bamfile: Input alignments to search.
+ mi_genome: Fasta file containing the genomic context of the miRNAs.
+
 =cut
 sub Read_Bam_Mi {
     my ($class, %args) = @_;
@@ -766,6 +847,11 @@ sub Read_Bam_Mi {
 
 Print out the final counts of miRNA mappings.
 
+=item C<Arguments>
+
+ data: Result from cross referencing the bam/genome/miRNAs.
+ output: Output filename for writing a tsv of the counts.
+
 =cut
 sub Final_Print_Mi {
     my ($class, %args) = @_;
@@ -775,7 +861,7 @@ sub Final_Print_Mi {
     foreach my $immature (keys %{$final}) {
         foreach my $mature (@{$final->{$immature}}) {
             $hits = $hits++;
-            print $output "$mature->{mimat} $mature->{count}\n";
+            print $output "$mature->{mimat}\t$mature->{count}\n";
         }
     }
     $output->close();
@@ -790,12 +876,22 @@ parasite along with multi-hits across both.  This was first used to
 distinguish between T. cruzi and human hits, ergo the 'Tc' as the
 default parasite pattern.
 
+=item C<Arguments>
+
+ input(required): Input bam file to count against.
+ species(required): Set the host or parasite species to count against.
+ para_patterm('^Tc'): Pattern used to differentiate parasite-mapped
+  reads.
+ host_pattern(''): Pattern used to differentiate host-mapped reads.
+ libdir: Change the dirname of the fasta libraries.
+ libtype('genome'): Change the subdirectory of the fasta libraries.
+
 =cut
 sub Count_Alignments {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'genome'],
+        required => ['input', 'species'],
         para_pattern => '^Tc',
         host_pattern => '',);
     my $result = {
@@ -951,6 +1047,30 @@ Multi-both: $result->{both_multi}\n";
     return($result);
 }
 
+=head2 C<SLSearch>
+
+Use some simple pattern matching on a pile of reads to look for
+sequences of interest.  By default this looks for a portion of the
+spliced leader sequence from Leishmania major.  Having written and
+used this, I realized that it is ... dumb.  I should have used
+jellyfish and simply counted up the hits across a range of the SL.
+Doing this with jellyfish would also let me count up each window of
+the SL and plot a histogram of the occurrences, thus showing the
+optimal starting point to discriminate the SL as opposed to my ad hoc
+choice of position generated via repeated invocations of 'grep | wc'.
+
+With that in mind, this counts up the number of times a string of
+interest appears in the input files in the forward and RC directions,
+and prints that in an easy-to-read format.
+
+=item C<Arguments>
+
+ input(required): Set of input files to read.
+ search('AGTTTCTGTACTTTATTGG'): SL substring to search.
+ jmem(24): Memory to allocate for this task.
+ jprefix(50): Default jobname/output prefix.
+
+=cut
 sub SLSearch {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -986,6 +1106,11 @@ use Bio::Adventure::Count;
     return($slsearch);
 }
 
+=head2 C<SLSearch_Worker>
+
+This function does the actual work for SLSearch().
+
+=cut
 sub SLSearch_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -993,7 +1118,6 @@ sub SLSearch_Worker {
         required => ['input', 'output'],
         jmem => 24,
         jprefix => '50',
-        ##        search => 'AGTTTCTGTACTTTATTGG',);
         search => 'AGTTTCTGTACTTTAT',);
     ## Ideally, I would like to run this function on the mapping
     ## directories and search the aligned/unaligned sequences
@@ -1004,9 +1128,6 @@ sub SLSearch_Worker {
     ## I think I will write the following: the read IDs for every
     ## read which matches the forward or RC versions of the SL and
     ## a summary txt file of the result.
-
-    print "TESTME: $options->{input} $options->{output}\n";
-
     my @input_lst = ();
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @tmp_lst = split(/\:|\;|\,|\s+/, $options->{input});
@@ -1026,9 +1147,6 @@ sub SLSearch_Worker {
     my $rc_search = reverse($fwd_search);
     $rc_search =~ tr/ATGCUatgcu/TACGAtacga/;
     my $search_length = length($fwd_search);
-
-    print qq"Starting search for a portion of the SL sequence: $options->{search}
-in the file(s): $options->{input}.\n";
 
     my $log_fh = FileHandle->new(">$options->{output}/slsearch_log.txt");
     print $log_fh qq"Starting search for a portion of the SL sequence: $options->{search}
@@ -1070,18 +1188,15 @@ in the file(s): $options->{input}.\n";
           my $fwd_end = undef;
           if ($read_seq =~ m/$fwd_search/g) {
               $fwd_end = pos($read_seq);
-              print "TESTME: Found $fwd_search in $read_seq at position $fwd_end\n";
           }
           my $rc_end = undef;
           if ($read_seq =~ m/$rc_search/g) {
               $rc_end = pos($read_seq);
-              print "TESTME RC: Found $rc_search in $read_seq at position $rc_end\n";
           }
           ## Get out if we do not find the SL portion.
           if (!defined($fwd_end) && !defined($rc_end)) {
               next FSA;
           }
-
 
           if ($fwd_end) {
               my $fwd_start = $fwd_end - ($search_length - 1);
@@ -1126,7 +1241,7 @@ Email <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-    L<htseq-count> L<Bio::DB::Sam> L<Bio::SeqIO>
+L<htseq-count> L<Bio::DB::Sam> L<Bio::SeqIO>
 
 =cut
 
