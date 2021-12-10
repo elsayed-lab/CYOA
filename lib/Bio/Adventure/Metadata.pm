@@ -38,6 +38,54 @@ use List::MoreUtils qw"any";
 use Template;
 use Text::CSV_XS::TSV;
 
+=head2 C<Collect_Assembly>
+
+Collect the final files created by an assembly.
+
+=cut
+sub Collect_Assembly {
+    my ($class, %args) = @_;
+    my $start = basename(cwd());
+    my $options = $class->Get_Vars(
+        args => \%args,
+        input_fsa => qq"outputs/25mergeannot/${start}.fsa",
+        input_genbank => qq"outputs/25mergeannot/${start}.gbk",
+        input_stripped => qq"outputs/26mergeannot/${start}_stripped.gbk",
+        input_tsv => qq"outputs/25mergeannot/${start}.tsv",
+        input_xlsx => qq"outputs/25mergeannot/${start}.xlsx",
+        input_faa => qq"outputs/19merge_cds_predictions/${start}.faa",
+        input_cds => qq"outputs/19merge_cds_predictions/${start}.ffn",
+        jmem => 2,
+        jprefix => 81,
+        jname => 'collect',);
+    my $output_dir = File::Spec->rel2abs("../");
+    if ($output_dir =~ /preprocessing$/) {
+        $output_dir = File::Spec->rel2abs("${output_dir}/../");
+    }
+    $output_dir = qq"${output_dir}/collected_assemblies";
+    my $made = make_path($output_dir);
+
+    my $input_base = basename($options->{input_fsa}, ('.fsa'));
+    my $jstring = '';
+    $jstring .= qq"cp $options->{input_fsa} ${output_dir}/\n" if ($options->{input_fsa});
+    $jstring .= qq"cp $options->{input_genbank} ${output_dir}/\n" if ($options->{input_genbank});
+    $jstring .= qq"cp $options->{input_stripped} ${output_dir}/\n" if ($options->{input_stripped});
+    $jstring .= qq"cp $options->{input_tsv} ${output_dir}/\n" if ($options->{input_tsv});
+    $jstring .= qq"cp $options->{input_xlsx} ${output_dir}/\n" if ($options->{input_xlsx});
+    $jstring .= qq"cp $options->{input_faa} ${output_dir}/\n" if ($options->{input_faa});
+    $jstring .= qq"cp $options->{input_cds} ${output_dir}/\n" if ($options->{input_cds});
+    ## $jstring .= qq"cp $options->{input_genome} ${output_dir}\n" if ($options->{input_genome});
+
+    my $collect = $class->Submit(
+        jdepends => $options->{jdepends},
+        jname => $options->{jname},
+        jstring => $jstring,
+        jprefix => $options->{jprefix},
+        jmem => $options->{jmem},
+        output => $output_dir,);
+    return($collect);
+}
+
 =head2 C<Generate_Samplesheet>
 
 Use the extract_metadata() R function from hpgltools to create a
@@ -224,8 +272,8 @@ sub Get_Aragorn {
             -display_name => $trna{formatted},
             -tag => {
                 'locus_tag' => $trna{formatted},
-                'product' => $trna{type},
-                'note' => $trna{annotation},
+                    'product' => $trna{type},
+                    'note' => $trna{annotation},
             },);
         push(@aragorn_features, $trna_feature);
     }
@@ -302,10 +350,11 @@ dependency chain.
 
 =cut
 sub Merge_Annotations {
-   my ($class, %args) = @_;
+    my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input_fsa', 'input_genbank', 'input_tsv'],
+        evalue => '1e-10',
         input_abricate => '',
         input_aragorn => '',
         input_classifier => '',
@@ -313,28 +362,30 @@ sub Merge_Annotations {
         input_phageterm => '',
         input_prodigal => '',
         input_trinotate => '',
-        evalue => '1e-10',
         keep_genes => 1,
         locus_tag => 1,
         primary_key => 'locus_tag',
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
         product_signalp => 'trinity_SignalP',
+        suffix => '',
         jmem => 12,
         jprefix => '15',);
 
-   my $output_name = basename($options->{input_fsa}, ('.fsa'));
-   my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
-   my $output_fsa = qq"${output_dir}/${output_name}.fsa";
-   my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
-   my $output_gbf = qq"${output_dir}/${output_name}.gbf";
-   my $output_tbl = qq"${output_dir}/${output_name}.tbl";
-   my $output_gbk = basename($output_gbf, ('.gbf'));
-   $output_gbk = qq"${output_dir}/${output_gbk}";
+    my $output_name = basename($options->{input_fsa}, ('.fsa'));
+    if ($options->{suffix}) {
+        $output_name .= qq"_$options->{suffix}";
+    }
+    my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
+    my $output_fsa = qq"${output_dir}/${output_name}.fsa";
+    my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
+    my $output_gbf = qq"${output_dir}/${output_name}.gbf";
+    my $output_tbl = qq"${output_dir}/${output_name}.tbl";
+    my $output_gbk = qq"${output_dir}/${output_name}.gbk";
 
-   my $jstring = qq?
+    my $jstring = qq?
 use Bio::Adventure::Annotation;
-\$h->Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk(
+\$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
   input_fsa => '$options->{input_fsa}',
   input_genbank => '$options->{input_genbank}',
   input_tsv => '$options->{input_tsv}',
@@ -349,52 +400,55 @@ use Bio::Adventure::Annotation;
   jprefix => '$options->{jprefix}',
   jname => 'merge_annotations',
   keep_genes => '$options->{keep_genes}',
-  locus_tag => '$options->{locus_tag}',);
+  locus_tag => '$options->{locus_tag}',
+  suffix => '$options->{suffix}',);
 ?;
-   my $merge_job = $class->Submit(
-       input_fsa => $options->{input_fsa},
-       input_genbank => $options->{input_genbank},
-       input_tsv => $options->{input_tsv},
-       input_abricate => $options->{input_abricate},
-       input_aragorn => $options->{input_aragorn},
-       input_classifier => $options->{input_classifier},
-       input_interpro => $options->{input_interpro},
-       input_phageterm => $options->{input_phageterm},
-       input_prodigal => $options->{input_prodigal},
-       input_trinotate => $options->{input_trinotate},
-       jdepends => $options->{jdepends},
-       jname => 'merge_annotations',
-       jmem => $options->{jmem},
-       jprefix => $options->{jprefix},
-       jstring => $jstring,
-       language => 'perl',
-       library => $options->{library},
-       output_dir => $output_dir,
-       output_fsa => $output_fsa,
-       output_gbf => $output_gbf,
-       output_gbk => $output_gbk,
-       output_tbl => $output_tbl,
-       output_xlsx => $output_xlsx,
-       primary_key => $options->{primary_key},
-       keep_genes => $options->{keep_genes},
-       locus_tag => $options->{locus_tag},
-       shell => '/usr/bin/env perl',);
-   $class->{language} = 'bash';
-   $class->{shell} = '/usr/bin/env bash';
-   return($merge_job);
+    my $merge_job = $class->Submit(
+        input_fsa => $options->{input_fsa},
+        input_genbank => $options->{input_genbank},
+        input_tsv => $options->{input_tsv},
+        input_abricate => $options->{input_abricate},
+        input_aragorn => $options->{input_aragorn},
+        input_classifier => $options->{input_classifier},
+        input_interpro => $options->{input_interpro},
+        input_phageterm => $options->{input_phageterm},
+        input_prodigal => $options->{input_prodigal},
+        input_trinotate => $options->{input_trinotate},
+        jdepends => $options->{jdepends},
+        jname => 'merge_annotations',
+        jmem => $options->{jmem},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        library => $options->{library},
+        output_dir => $output_dir,
+        output_fsa => $output_fsa,
+        output_gbf => $output_gbf,
+        output_gbk => $output_gbk,
+        output_tbl => $output_tbl,
+        output_xlsx => $output_xlsx,
+        primary_key => $options->{primary_key},
+        keep_genes => $options->{keep_genes},
+        locus_tag => $options->{locus_tag},
+        shell => '/usr/bin/env perl',
+        suffix => $options->{suffix},);
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
+    return($merge_job);
 }
 
-=head2 C<Merge_Annotations_Make_Gbk>
+=head2 C<Merge_Annotations_Worker>
 
 This does the actual work of merging various annotation sources into a
 new and more interesting genbank file.
 
 =cut
-sub Merge_Annotations_Make_Gbk {
+sub Merge_Annotations_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input_fsa', 'input_genbank', 'input_tsv'],
+        evalue => '1e-10',
         input_abricate => '',
         input_aragorn => '',
         input_classifier => '',
@@ -403,19 +457,20 @@ sub Merge_Annotations_Make_Gbk {
         input_phageterm => '',
         input_prodigal => '',
         input_trinotate => '',
-        evalue => '1e-10',
-        jprefix => '15',
+        keep_genes => 1,
+        locus_tag => 1,
         primary_key => 'locus_tag',
         product_columns => ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
         product_transmembrane => 'inter_TMHMM',
         product_signalp => 'inter_signal',
-        keep_genes => 1,
-        locus_tag => 1,
-        template_sbt => '/bio/reference/tbl2asn_template.sbt',);
+        suffix => '',
+        template_sbt => '/bio/reference/tbl2asn_template.sbt',
+        jprefix => '15',);
+
     my $high_confidence = undef;
     my $likely_maximum = undef;
     my $possible_maximum = undef;
-    if (defined($options->{evalue})) {
+    if ($options->{evalue}) {
         $high_confidence = 1e-90;
         $likely_maximum = $options->{evalue} * $options->{evalue};
         $possible_maximum = $options->{evalue} * 100;
@@ -424,10 +479,14 @@ sub Merge_Annotations_Make_Gbk {
     my $output_dir = qq"outputs/$options->{jprefix}mergeannot";
     make_path($output_dir);
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
+    if ($options->{suffix}) {
+        $output_name .= qq"_$options->{suffix}";
+    }
     my $output_fsa = qq"${output_dir}/${output_name}.fsa";
     my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
     my $output_gbf = qq"${output_dir}/${output_name}.gbf";
     my $output_tbl = qq"${output_dir}/${output_name}.tbl";
+    my $output_gbk = qq"${output_dir}/${output_name}.gbk";
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
     my $log_fh = FileHandle->new(">$log");
@@ -562,7 +621,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
     my $dtr_features;
     if ($options->{input_phageterm} && -r $options->{input_phageterm}) {
-    ## Pull the direct-terminal-repeats from phageterm if they exist.
+        ## Pull the direct-terminal-repeats from phageterm if they exist.
         $dtr_features = $class->Bio::Adventure::Phage::Get_DTR(
             input_dtr => $options->{input_phageterm},
             input_fsa => $options->{input_fsa},
@@ -575,7 +634,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## An array reference;
     my $aragorn_features;
     if ($options->{input_aragorn} && -r $options->{input_aragorn}) {
-    ## Pull the direct-terminal-repeats from phageterm if they exist.
+        ## Pull the direct-terminal-repeats from phageterm if they exist.
         $aragorn_features = $class->Bio::Adventure::Metadata::Get_Aragorn(
             input => $options->{input_aragorn});
         print $log_fh "Adding aragorn tRNA annotations.\n";
@@ -605,173 +664,163 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
     my @new_seq = ();
     my @new_features = ();
-    while (my $seq = $seqio->next_seq) {
-        my $seqid = $seq->id;
-        push(@new_seq, $seqid);
-        $seq_count++;
-        my @feature_list = $seq->get_SeqFeatures();
-        ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
-        for my $d (@{$dtr_features}) {
-            unshift(@feature_list, $d);
+  SEQUENCES: while (my $seq = $seqio->next_seq) {
+      my $seqid = $seq->id;
+      push(@new_seq, $seqid);
+      $seq_count++;
+      my @feature_list = $seq->get_SeqFeatures();
+      ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
+      for my $d (@{$dtr_features}) {
+          unshift(@feature_list, $d);
+      }
+      for my $ara (@{$aragorn_features}) {
+          unshift(@feature_list, $ara);
+      }
+
+    FEATURES: for my $feat (@feature_list) {
+        my $contig = $feat->seq_id(); ## The contig ID
+        my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
+        my $annot = $feat->annotation();
+        my $locus = 'failed_locustag';
+        my $type = $feat->primary_tag;
+
+        ## A couple of places to attempt to make my gbk file more similar to patric's vis a vis
+        ## the tags that are retained.
+        if (!$options->{keep_genes} && $type eq 'gene') {
+            next FEATURES;
         }
-        for my $ara (@{$aragorn_features}) {
-            unshift(@feature_list, $ara);
+
+        ## I want to mess with the CDS entries and leave the others alone.
+        if ($type eq 'CDS') {
+            ## Get the information from our extra data source and add it as notes.
+            my @loci = $feat->get_tag_values('locus_tag');
+            $locus = $loci[0];
+            my $new_info = $merged_data->{$locus};
+            ## print "TESTME: $contig $locus\n";
+            ## Pull out some sequence information to send back to $merged_data
+            $merged_data->{$locus}->{start} = $feat->start;
+            $merged_data->{$locus}->{end} = $feat->end;
+            $merged_data->{$locus}->{strand} = $feat->strand;
+            $merged_data->{$locus}->{cds} = $feat->seq->seq;
+            $merged_data->{$locus}->{aaseq} = $feat->seq->translate->seq;
+            ## Ok, back to our regularly scheduled programming of adding notes.
+            ## to the Features from the annotation data.
+
+            ## This is the likely place for mixing and matching where we want to add
+            ## the annotation information, we could switch the add_tag_value() to inference,
+            ## etc...
+            my $note_string = '';
+            ## my $match_number = 1;
+          ROWDATA: foreach my $k (keys %{$new_info}) {
+              next ROWDATA if (!defined($new_info->{$k}));
+              next ROWDATA if ($new_info->{$k} eq '.');
+              if (exists($note_keys{$k})) {
+                  my ($first_note, $stuff) = split(/\`/, $new_info->{$k});
+                  my $note_string = qq"$note_keys{$k} hit: ${first_note}.";
+                  $feat->add_tag_value('note', $note_string);
+              }
+          }
+
+            ## Let us look through the array of product_columns
+            ## ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
+            ## Followed by the TmHMM and signalp colums
+            ## product_transmembrane 'inter_TMHMM',
+            ## product_signalp => 'inter_signal',
+            my $tm_string = qq"Putative transmembrane domain containing protein";
+            my $signal_string = "Putative signal peptide";
+            my $product_string = undef;
+            my $chosen_column = 0;
+            my $tmhmm_column = $options->{product_transmembrane};
+            if ($new_info->{$tmhmm_column}) {
+                my @tmhmm_data = split(/\^/, $new_info->{$tmhmm_column});
+                my $tm_region = $tmhmm_data[2];
+                $tm_region =~ s/^Q://g;
+                $product_string = $tm_string;
+            }
+            my $signalp_column = $options->{product_signalp};
+            if ($new_info->{$signalp_column}) {
+                my @signal_data = split(/\^/, $new_info->{$signalp_column});
+                my $likelihood = $signal_data[2];
+                if ($likelihood > 0.9) {
+                    $product_string = $signal_string;
+                }
+            }
+            my @product_columns = @{$options->{product_columns}};
+            my $best_hit = 0;
+            my $current_hit = 0;
+            ## print "Precolumns\n\n";
+          PRODCOL: for my $col (@product_columns) {
+              ## Accession^Accession^Query,Hit^Identity^Evalue^RecName^Taxonomy
+              next PRODCOL unless(defined($new_info->{$col}));
+              my ($accession, $id, $query_hit, $identity, $evalue, $db_name, $taxonomy) = split(/\^/, $new_info->{$col});
+              next PRODCOL unless(defined($db_name));
+              next PRODCOL if ($db_name eq '-');
+              ## A little sanitization for the db names.
+              $db_name =~ s/\;//g;
+              $db_name =~ s/(\{.*\})?//g;
+              ## print "TESTME: acc:$accession id:$id qh:$query_hit name:$db_name\n";
+              next PRODCOL unless(defined($evalue));
+              $evalue =~ s/^(E|e)://g;
+              my $this_string;
+              if (defined($high_confidence)) {
+                  if ($evalue <= $high_confidence) {
+                      $this_string = qq"_High confidence ${db_name}: ${accession}";
+                      $current_hit = 3;
+                  } elsif ($evalue <= $likely_maximum) {
+                      $this_string = qq"_Likely ${db_name}: ${accession}";
+                      $current_hit = 2;
+                  } elsif ($evalue <= $possible_maximum) {
+                      $this_string = qq"_Potential ${db_name}: ${accession}";
+                      $current_hit = 1;
+                  }
+                  ## If we are not attempting to discriminate among potential hits.
+              } else {
+                  $this_string = qq"${db_name}: ${accession}";
+              }
+              if ($current_hit > $best_hit) {
+                  $product_string = $this_string;
+                  $chosen_column = $col;
+              }
+          } ## Iterating over product columns looking for the most fun hit.
+
+            ## See if $product_string has been filled
+            if (defined($product_string)) {
+                $product_string =~ s/RecName: Full=//g;
+                my @current_values = $feat->remove_tag('product');
+                my $new = $feat->add_tag_value('product', $product_string);
+                my $inf;
+                if ($product_string eq $signal_string) {
+                    $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
+                } elsif ($product_string eq $tm_string) {
+                    $inf = $feat->add_tag_value('inference', 'ab initio prediction:TmHMM');
+                } else {
+                    ## The %note_keys has more-readable versions of the column names, use one.
+                    my $inference_string = $note_keys{$chosen_column};
+                    $inference_string = qq"ab initio prediction:${inference_string}\n";
+                    $inf = $feat->add_tag_value('inference', $inference_string);
+                }
+          } ## End if there is already a product string associated with this feature.
+
+        } ## End looking for CDS entries
+
+        ## Another place to try to make my genbank file more similar to patric's
+        ## Its genbank files do not include a locus_tag.  I don't know why, though.
+        if (!$options->{locus_tag}) {
+            $feat->remove_tag('locus_tag') if ($feat->has_tag('locus_tag'));
         }
-        ##use Data::Dumper;
-        ##print Dumper @feature_list;
-        FEATURES: for my $feat (@feature_list) {
-            my $contig = $feat->seq_id(); ## The contig ID
-            my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
-            my $annot = $feat->annotation();
-            my $locus = 'failed_locustag';
-            my $type = $feat->primary_tag;
 
-            ## A couple of places to attempt to make my gbk file more similar to patric's vis a vis
-            ## the tags that are retained.
-            if (!$options->{keep_genes} && $type eq 'gene') {
-                next FEATURES;
-            }
+        push(@new_features, $feat);
+      } ## End iterating over the feature list
 
-            ## I want to mess with the CDS entries and leave the others alone.
-            if ($type eq 'CDS') {
-                ## Get the information from our extra data source and add it as notes.
-                my @loci = $feat->get_tag_values('locus_tag');
-                $locus = $loci[0];
-                my $new_info = $merged_data->{$locus};
-                ## print "TESTME: $contig $locus\n";
-                ## Pull out some sequence information to send back to $merged_data
-                $merged_data->{$locus}->{start} = $feat->start;
-                $merged_data->{$locus}->{end} = $feat->end;
-                $merged_data->{$locus}->{strand} = $feat->strand;
-                $merged_data->{$locus}->{cds} = $feat->seq->seq;
-                $merged_data->{$locus}->{aaseq} = $feat->seq->translate->seq;
-                ## Ok, back to our regularly scheduled programming of adding notes.
-                ## to the Features from the annotation data.
-
-                ## This is the likely place for mixing and matching where we want to add
-                ## the annotation information, we could switch the add_tag_value() to inference,
-                ## etc...
-                my $note_string = '';
-                ## my $match_number = 1;
-                ROWDATA: foreach my $k (keys %{$new_info}) {
-                    next ROWDATA if (!defined($new_info->{$k}));
-                    next ROWDATA if ($new_info->{$k} eq '.');
-                    if (exists($note_keys{$k})) {
-                        my ($first_note, $stuff) = split(/\`/, $new_info->{$k});
-                        my $note_string = qq"$note_keys{$k} hit: ${first_note}.";
-                        $feat->add_tag_value('note', $note_string);
-
-                        ## Make a simplified version of the note string as a match:
-                        ## my @tag_arr = split(/\^/, $new_info->{$k});
-                        ## my $tag_name = qq"match${match_number}";
-                        ## my $tag_string = qq"$tag_arr[0] $tag_arr[3]";
-                        ## print "ADDING TAG: $tag_name $tag_string\n";
-                        ## $feat->add_tag_value($tag_name, $tag_string);
-                        ## $match_number++;
-                    }
-                }
-
-                ## Let us look through the array of product_columns
-                ## ['trinity_sprot_Top_BLASTX_hit', 'inter_Pfam', 'inter_TIGRFAM',],
-                ## Followed by the TmHMM and signalp colums
-                ## product_transmembrane 'inter_TMHMM',
-                ## product_signalp => 'inter_signal',
-                my $tm_string = qq"Putative transmembrane domain containing protein";
-                my $signal_string = "Putative signal peptide";
-                my $product_string = undef;
-                my $chosen_column = 0;
-                my $tmhmm_column = $options->{product_transmembrane};
-                if ($new_info->{$tmhmm_column}) {
-                    my @tmhmm_data = split(/\^/, $new_info->{$tmhmm_column});
-                    my $tm_region = $tmhmm_data[2];
-                    $tm_region =~ s/^Q://g;
-                    $product_string = $tm_string;
-                }
-                my $signalp_column = $options->{product_signalp};
-                if ($new_info->{$signalp_column}) {
-                    my @signal_data = split(/\^/, $new_info->{$signalp_column});
-                    my $likelihood = $signal_data[2];
-                    if ($likelihood > 0.9) {
-                        $product_string = $signal_string;
-                    }
-                }
-                my @product_columns = @{$options->{product_columns}};
-                my $best_hit = 0;
-                my $current_hit = 0;
-                ## print "Precolumns\n\n";
-                PRODCOL: for my $col (@product_columns) {
-                    ## Accession^Accession^Query,Hit^Identity^Evalue^RecName^Taxonomy
-                    next PRODCOL unless(defined($new_info->{$col}));
-                    my ($accession, $id, $query_hit, $identity, $evalue, $db_name, $taxonomy) = split(/\^/, $new_info->{$col});
-                    next PRODCOL unless(defined($db_name));
-                    next PRODCOL if ($db_name eq '-');
-                    ## A little sanitization for the db names.
-                    $db_name =~ s/\;//g;
-                    $db_name =~ s/(\{.*\})?//g;
-                    ## print "TESTME: acc:$accession id:$id qh:$query_hit name:$db_name\n";
-                    next PRODCOL unless(defined($evalue));
-                    $evalue =~ s/^(E|e)://g;
-                    my $this_string;
-                    if (defined($high_confidence)) {
-                        if ($evalue <= $high_confidence) {
-                            $this_string = qq"_High confidence ${db_name}: ${accession}";
-                            $current_hit = 3;
-                        } elsif ($evalue <= $likely_maximum) {
-                            $this_string = qq"_Likely ${db_name}: ${accession}";
-                            $current_hit = 2;
-                        } elsif ($evalue <= $possible_maximum) {
-                            $this_string = qq"_Potential ${db_name}: ${accession}";
-                            $current_hit = 1;
-                        }
-                        ## If we are not attempting to discriminate among potential hits.
-                    } else {
-                        $this_string = qq"${db_name}: ${accession}";
-                    }
-                    if ($current_hit > $best_hit) {
-                        $product_string = $this_string;
-                        $chosen_column = $col;
-                    }
-                } ## Iterating over product columns looking for the most fun hit.
-
-                ## See if $product_string has been filled
-                if (defined($product_string)) {
-                    $product_string =~ s/RecName: Full=//g;
-                    my @current_values = $feat->remove_tag('product');
-                    my $new = $feat->add_tag_value('product', $product_string);
-                    my $inf;
-                    if ($product_string eq $signal_string) {
-                        $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
-                    } elsif ($product_string eq $tm_string) {
-                        $inf = $feat->add_tag_value('inference', 'ab initio prediction:TmHMM');
-                    } else {
-                        ## The %note_keys has more-readable versions of the column names, use one.
-                        my $inference_string = $note_keys{$chosen_column};
-                        $inference_string = qq"ab initio prediction:${inference_string}\n";
-                        $inf = $feat->add_tag_value('inference', $inference_string);
-                    }
-                } ## End if there is already a product string associated with this feature.
-
-            } ## End looking for CDS entries
-
-            ## Another place to try to make my genbank file more similar to patric's
-            ## Its genbank files do not include a locus_tag.  I don't know why, though.
-            if (!$options->{locus_tag}) {
-                $feat->remove_tag('locus_tag') if ($feat->has_tag('locus_tag'));
-            }
-
-            push(@new_features, $feat);
-        } ## End iterating over the feature list
-
-        ## In theory, we now have a set of features with some new notes.
-        ## So now let us steal the tbl writer from prokka and dump this new stuff...
-        print $log_fh "Writing new tbl file to ${output_tbl}.\n";
-        my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
-            tbl_file => $output_tbl,
-            taxonomy_information => $taxonomy_information,
-            sequences => \@new_seq,
-            features => \@new_features);
-    } ## End Iterating over every sequence
-
+      ## In theory, we now have a set of features with some new notes.
+      ## So now let us steal the tbl writer from prokka and dump this new stuff...
+      print $log_fh "Writing new tbl file to ${output_tbl}.\n";
+      my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
+          tbl_file => $output_tbl,
+          taxonomy_information => $taxonomy_information,
+          sequences => \@new_seq,
+          features => \@new_features);
+  } ## End Iterating over every sequence
 
     ## Remember that tbl2asn assumes the input files are all in the same directory.
     ## Before running tbl2asn, write a fresh copy of the fsa file containing the detected phage taxonomy.
@@ -809,7 +858,7 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
         " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
-    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_dir}/${output_name}.gbf | sed 's/product=\"_/product=\"/g' >${output_dir}/${output_name}.gbk";
+    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
     my $sed_result = qx"${sed_command}";
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
@@ -820,12 +869,6 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
         output => $output_xlsx,
         primary_key => $primary_key);
 
-    ## Functions like this one should still return a job-like data structure so that I can
-    ## putatively chain them, even though they are running primarily for their side-effects
-    ## and the job that calls them is the one returning the fun information.
-    my $output_gbk = basename($output_gbf, ('.gbf'));
-    my $gbk_dir = dirname($output_gbf);
-    $output_gbk = qq"${gbk_dir}/${output_gbk}.gbk";
     my $job = {
         output_dir => $output_dir,
         output_fsa => $output_fsa,
@@ -979,10 +1022,10 @@ sub Merge_Classifier {
         if ($default_values->{taxon} ne 'Unknown taxonomy.') {
             my $comment_string =  qq"tblastx derived taxonomy: $default_values->{taxon}, description: $default_values->{hit_description}, accession: $default_values->{hit_accession}, significance: $default_values->{hit_bit}, hit length: $default_values->{hit_length}, hit score: $default_values->{hit_score}";
             $default_values->{user_comment} = $comment_string;
+            my $colname = 'ictv_accession';
         }
     } ## End checking that a taxonomy file was provided.
-    my $tt = Template->new({
-        ABSOLUTE => 1,});
+    my $tt = Template->new({ ABSOLUTE => 1, });
     my $written = $tt->process($template, $default_values, $output) or print $tt->error(), "\n";
     ## Now write out template sbt file to the output directory with the various values filled in.
     return($merged_data, $default_values);
@@ -1079,26 +1122,26 @@ sub Merge_Start_Data {
     my (%args) = @_;
     my $primary_key = $args{primary_key};
     my $merged_data = $args{output};
-  ##  my $in = Bio::FeatureIO->new(-file => $args{input}, -format => 'GFF', -version => 3);
-  ##FEATURES: while (my $f = $in->next_feature()) {
-  ##    next FEATURES if ($f->primary_tag eq 'source');
-  ##    next FEATURES if ($f->primary_tag eq 'gene');
-  ##    my @tags = $f->get_all_tags();
-  ##    my $id = $f->seq_id();
-  ##    my $start = $f->start;
-  ##    my $end = $f->end;
-  ##    my $strand = $f->strand;
-  ##    my $key = $f->display_name;
-  ##    $merged_data->{$key}->{locus_tag} = $key;
-  ##    $merged_data->{$key}->{start} = $start;
-  ##    $merged_data->{$key}->{end} = $end;
-  ##    $merged_data->{$key}->{strand} = $strand;
-  ##    foreach my $t (@tags) {
-  ##        my @values = $f->get_tag_values($t);
-  ##        my $value = $values[0];
-  ##        $merged_data->{$key}->{$t} = $value;
-  ##    }
-  ##}
+    ##  my $in = Bio::FeatureIO->new(-file => $args{input}, -format => 'GFF', -version => 3);
+    ##FEATURES: while (my $f = $in->next_feature()) {
+    ##    next FEATURES if ($f->primary_tag eq 'source');
+    ##    next FEATURES if ($f->primary_tag eq 'gene');
+    ##    my @tags = $f->get_all_tags();
+    ##    my $id = $f->seq_id();
+    ##    my $start = $f->start;
+    ##    my $end = $f->end;
+    ##    my $strand = $f->strand;
+    ##    my $key = $f->display_name;
+    ##    $merged_data->{$key}->{locus_tag} = $key;
+    ##    $merged_data->{$key}->{start} = $start;
+    ##    $merged_data->{$key}->{end} = $end;
+    ##    $merged_data->{$key}->{strand} = $strand;
+    ##    foreach my $t (@tags) {
+    ##        my @values = $f->get_tag_values($t);
+    ##        my $value = $values[0];
+    ##        $merged_data->{$key}->{$t} = $value;
+    ##    }
+    ##}
     my $input_tsv = Text::CSV_XS::TSV->new({ binary => 1, });
     open(my $input_fh, "<:encoding(utf8)", $args{input});
     my $header = $input_tsv->getline($input_fh);
@@ -1144,54 +1187,95 @@ sub Write_XLSX {
     ## Write a quick xlsx file of what we have merged together.
     my @table;
     ## I am tired, so I will just do a two-pass over the keys to get all of their names.
-    ##my @column_ids = ($primary_key);
-  ##COLHUNT: foreach my $rowname (keys %{$tsv_data}) {
-  ##    $tsv_data->{$rowname}->{$primary_key} = $rowname;
-  ##    next COLHUNT unless (defined($tsv_data->{$rowname}));
-  ##    my %internal = %{$tsv_data->{$rowname}};
-  ##    foreach my $k (keys %internal) {
-  ##        next if ($k eq $primary_key);
-  ##        push(@column_ids, $k) unless any { $_ eq $k } @column_ids
-  ##    }
-    ##}
-    my @column_ids = (
-        'locus_tag',
-        'product',
-        'start',
-        'end',
-        'strand',
-        'length_bp',
-        'COG',
-        'EC_number',
-        'trinity_phage_pep_BLASTX',
-        'trinity_terminase_BLASTX',
-        'trinity_sprot_Top_BLASTX_hit',
-        'inter_Pfam',
-        'trinity_Pfam',
-        'inter_TIGRFAM',
-        'inter_CDD',
-        'inter_TMHMM',
-        'trinity_TmHMM',
-        'inter_signalp',
-        'trinity_SignalP',
-        'inter_Coils',
-        'inter_ProSitePatterns',
-        'trinity_RNAMMER',
-        'trinity_eggnog',
-        'trinity_Kegg',
-        'trinity_gene_ontology_BLASTX',
-        'trinity_gene_ontology_Pfam',
-        'abricate_argannot',
-        'abricate_card',
-        'abricate_ecoh',
-        'abricate_ecoli_vf',
-        'abricate_megares',
-        'abricate_ncbi',
-        'abricate_plasmidfinder',
-        'abricate_resfinder',
-        'abricate_vfdb',
-        'aaseq',
-        'cds',);
+    my %observations = ();
+
+  COLHUNT: foreach my $rowname (keys %{$tsv_data}) {
+      $tsv_data->{$rowname}->{$primary_key} = $rowname;
+      next COLHUNT unless (defined($tsv_data->{$rowname}));
+      my %internal = %{$tsv_data->{$rowname}};
+      foreach my $k (keys %internal) {
+          next if ($k eq $primary_key);
+          ## push(@column_ids, $k) unless any { $_ eq $k } @column_ids;
+          if ($internal{$k}) {
+              if ($internal{$k} eq '.') {
+                  ## Skip this one.
+                  $internal{$k} = '';
+              } elsif ($internal{$k} =~ /\^/) {
+                  ## Then it is an encoded field.
+                  my @fields = split(/\^/, $internal{$k});
+                  my $k_first_name = qq"${k}_name";
+                  $observations{$k_first_name}++;
+                  my $k_second_name = qq"${k}_value";
+                  $observations{$k_second_name}++;
+                  $tsv_data->{$rowname}->{$k_first_name} = shift @fields;
+                  my $second_field = '';
+                  for my $s (@fields) {
+                      $second_field .= qq"$s,";
+                  }
+                  $second_field =~ s/\,$//g;
+                  $tsv_data->{$rowname}->{$k_second_name} = $second_field;
+              } else {
+                  $observations{$k}++;
+              }
+          }
+      }
+  }
+
+    my @column_ids = ($primary_key, 'contig', 'type', 'start', 'end', 'strand');
+  IDS: for my $k (sort keys %observations) {
+      next IDS if ($k eq 'contig');
+      next IDS if ($k eq 'aaseq');
+      next IDS if ($k eq 'aa_sequence');
+      next IDS if ($k eq 'cds');
+      next IDS if ($k eq 'type');
+      next IDS if ($k eq 'start');
+      next IDS if ($k eq 'end');
+      next IDS if ($k eq 'strand');
+      next IDS if ($k eq 'trinity_transcript_id');
+      if ($observations{$k}) {
+          push(@column_ids, $k);
+      }
+  }
+    push(@column_ids, 'aa_sequence');
+    push(@column_ids, 'cds');
+    ##my @column_ids = (
+    ##    'locus_tag',
+    ##    'product',
+    ##    'start',
+    ##    'end',
+    ##    'strand',
+    ##    'length_bp',
+    ##    'COG',
+    ##    'EC_number',
+    ##    'trinity_phage_pep_BLASTX',
+    ##    'trinity_terminase_BLASTX',
+    ##    'trinity_sprot_Top_BLASTX_hit',
+    ##    'inter_Pfam',
+    ##    'trinity_Pfam',
+    ##    'inter_TIGRFAM',
+    ##    'inter_CDD',
+    ##    'inter_TMHMM',
+    ##    'trinity_TmHMM',
+    ##    'inter_signalp',
+    ##    'trinity_SignalP',
+    ##    'inter_Coils',
+    ##    'inter_ProSitePatterns',
+    ##    'trinity_RNAMMER',
+    ##    'trinity_eggnog',
+    ##    'trinity_Kegg',
+    ##    'trinity_gene_ontology_BLASTX',
+    ##    'trinity_gene_ontology_Pfam',
+    ##    'abricate_argannot',
+    ##    'abricate_card',
+    ##    'abricate_ecoh',
+    ##    'abricate_ecoli_vf',
+    ##    'abricate_megares',
+    ##    'abricate_ncbi',
+    ##    'abricate_plasmidfinder',
+    ##    'abricate_resfinder',
+    ##    'abricate_vfdb',
+    ##    'aaseq',
+    ##    'cds',);
 
     foreach my $locus_tag (sort keys %{$tsv_data}) {
         my @row;
@@ -1199,6 +1283,9 @@ sub Write_XLSX {
             my $cell;
             if (defined($tsv_data->{$locus_tag}->{$col})) {
                 $cell = $tsv_data->{$locus_tag}->{$col};
+                if ($cell eq '.') {
+                    $cell = '';
+                }
             } else {
                 $cell = '';
             }
@@ -1208,9 +1295,9 @@ sub Write_XLSX {
     }
 
     my $xlsx_data = Data::Table->new(\@table, \@column_ids, 0);
-    ## tables2xlsx ($fileName, $tables, $names, $colors, $portrait, $columnHeaders)
-    my $written = tables2xlsx($output, [$xlsx_data], ["Features"],
-                              [["white","lightblue","blue"]], [1], [1]);
+    ##my $written = tables2xlsx($output, [$xlsx_data], ["Features"],
+    ##                          [["white","lightblue","gray"]], [1], [1]);
+    my $written = tables2xlsx($output, [$xlsx_data], ['Features'], [undef], [1], [1]);
     my $out = basename($output, ('.xlsx'));
     my $dir = dirname($output);
     my $outtsv = FileHandle->new(">${dir}/${out}.tsv");
@@ -1627,7 +1714,7 @@ sub Trimomatic_Stats {
         args => \%args,
         jmem => 1,
         output_dir => 'outputs',
-    );
+        );
     ## Dereferencing the options to keep a safe copy.
     my $basename = $options->{basename};
     my $input_file = "$options->{output_dir}/${basename}-trimomatic.out";
