@@ -759,6 +759,7 @@ sub Get_Menus {
                 '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
                 '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
                 '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
+                '(slsearch): Count frequency of SL (or an arbitrary) sequences.' => \&Bio::Adventure::Count::SLSearch,
             },
         },
         Feature_Prediction => {
@@ -1046,6 +1047,7 @@ sub Get_TODOs {
         "salmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon'},
         "terminasereorder+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Terminase_ORF_Reorder'},
         "shovill+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Shovill'},
+        "slsearch+" => \$todo_list->{todo}{'Bio::Adventure::Count::SLSearch'},
         "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
         "alignsnpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
         "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
