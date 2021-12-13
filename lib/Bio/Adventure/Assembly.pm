@@ -22,22 +22,22 @@ no warnings 'experimental::try';
 
 =head1 NAME
 
-Bio::Adventure::Assembly - Perform some de-novo assembly tasks.
+ Bio::Adventure::Assembly - Perform some de-novo assembly tasks.
 
 =head1 SYNOPSIS
 
-Invocations for a few assemblers: Abyss, Shovill/Unicycler (spades), trinity.
+ Invocations for a few assemblers: Abyss, Shovill/Unicycler (spades), trinity.
 
 =head1 METHODS
 
 =head2 C<Abyss>
 
-Abyss: doi:10.1101/gr.214346.116 is a de novo assembler which uses short reads.
+ Abyss: doi:10.1101/gr.214346.116 is a de novo assembler which uses short reads.
 
-This defaults to a k=41 abyss-pe or abyss-se assembly, depending on
-how many input files provided.  Ideally, it should at least do a
-little work to try to optimize k.  Abyss is the first program I have
-ever seen which uses make as an interpreter.
+ This defaults to a k=41 abyss-pe or abyss-se assembly, depending on
+ how many input files provided.  Ideally, it should at least do a
+ little work to try to optimize k.  Abyss is the first program I have
+ ever seen which uses make as an interpreter.
 
 =item C<Arguments>
 
@@ -111,17 +111,17 @@ cd \${start}
 
 =head2 C<Assembly_Coverage>
 
-Use hisat2 and bbmap's pileup script to calculate coverate on a per-contig basis.
+ Use hisat2 and bbmap's pileup script to calculate coverate on a per-contig basis.
 
-Given an assembly and a pile of reads, this will return the coverage
-on a per-nucleotide/per-contig basis, hopefully providing some metrics
-which will allow one to discriminate the quality of the contigs.  This
-is particularly notable when working with phage assemblies where one
-might expect prophage sequence to reside in the bacterial host at
-detectable and assemblable(is this a word?) levels, but at coverages
-which are notably lower than the actual viral sequences.  E.g. this
-should provide in effect a metric of the amount of bacterial
-contamination which snuck past previous filters.
+ Given an assembly and a pile of reads, this will return the coverage
+ on a per-nucleotide/per-contig basis, hopefully providing some metrics
+ which will allow one to discriminate the quality of the contigs.  This
+ is particularly notable when working with phage assemblies where one
+ might expect prophage sequence to reside in the bacterial host at
+ detectable and assemblable(is this a word?) levels, but at coverages
+ which are notably lower than the actual viral sequences.  E.g. this
+ should provide in effect a metric of the amount of bacterial
+ contamination which snuck past previous filters.
 
 =item C<Arguments>
 
@@ -207,17 +207,27 @@ samtools index ${output_dir}/coverage.bam \\
 
 =head2 C<Collect_Assembly>
 
-Collect the final files created by an assembly.
+ Collect the final files created by an assembly.
 
-My little assembly pipeline generates quite a pile of
-files/directories.  Choosing the appropriate final outputs can be a
-bit daunting.  This function defines a few likely candidates and
-copies them to a single working directory.
+ My little assembly pipeline generates quite a pile of
+ files/directories.  Choosing the appropriate final outputs can be a
+ bit daunting.  This function defines a few likely candidates and
+ copies them to a single working directory.
 
 =item C<Arguments>
 
-input_fsa(''): .fsa assembly to copy.
-input(''):
+ input_fsa(''): .fsa assembly to copy.
+ input(''): I do not think this is used any longer.
+ input_genbank(''): Output from the genbank file creator.
+ input_stripped(''): Output from the genbank creator with some features
+  stripped out.
+ input_tsv(''): Tsv output from the genbank creator.
+ input_xlsx(''): Xlsx output from the same.
+ input_faa(''): Amino acid fasta file from the same.
+ input_cds(''): CDS fasta file from same.
+ jmem(2): Memory allocated on the cluster.
+ jprefix(81): Default prefix for the job/directory.
+ jname('collect'): Default jobname.
 
 =cut
 sub Collect_Assembly {
@@ -256,18 +266,27 @@ cp $options->{input_tsv} ${output_dir}
     return($collect);
 }
 
-=head2 C<Filter_Depth>
+=head2 C<Unicycler_Filter_Worker>
 
-Filter (for the moment only) a unicycler assembly by the ratio of the
-highest depth observed vs. the depth of each contig.  If that ratio
-falls below options->{coverage} then that contig should be dropped.
-The remaining contigs should be depth normalized to <=1. If there is
-only 1 contig, just return it with depth set to 1.  This should be
-trivially improved to handle other assembly methods by using the
-coverage calculation script above.
+ This does the work for Unicycler_Filter_Depth().
+
+ Filter (for the moment only) a unicycler assembly by the ratio of the
+ highest depth observed vs. the depth of each contig.  If that ratio
+ falls below options->{coverage} then that contig should be dropped.
+ The remaining contigs should be depth normalized to <=1. If there is
+ only 1 contig, just return it with depth set to 1.  This should be
+ trivially improved to handle other assembly methods by using the
+ coverage calculation script above.
+
+=item C<Arguments>
+
+ input(required): Fasta assembly from unicycler to test.
+ output(''): Set of filtered contigs.
+ coverage(0.2): Minimal relative coverage ratio allowed.
+ output_log(''): Location to write the log of the tasks performed.
 
 =cut
-sub Do_Filter_Depth {
+sub Unicycler_Filter_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -340,7 +359,27 @@ Writing filtered contigs to $options->{output}
     return($final_coverage_data);
 }
 
-sub Filter_Depth {
+=head2 C<Unicycler_Filter_Depth>
+
+ Parse unicycler contig headers, extract relative coverage, and filter.
+
+ Filter (for the moment only) a unicycler assembly by the ratio of the
+ highest depth observed vs. the depth of each contig.  If that ratio
+ falls below options->{coverage} then that contig should be dropped.
+ The remaining contigs should be depth normalized to <=1. If there is
+ only 1 contig, just return it with depth set to 1.  This should be
+ trivially improved to handle other assembly methods by using the
+ coverage calculation script above.
+
+=item C<Arguments>
+
+ input(required): Fasta assembly from unicycler to test.
+ output(''): Set of filtered contigs.
+ coverage(0.2): Minimal relative coverage ratio allowed.
+ output_log(''): Location to write the log of the tasks performed.
+
+=cut
+sub Unicycler_Filter_Depth {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -360,7 +399,7 @@ sub Filter_Depth {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Assembly;
-Bio::Adventure::Assembly::Do_Filter_Depth(\$h,
+Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   comment => '${comment}',
   coverage => '$options->{coverage}',
   input => '$options->{input}',
@@ -387,8 +426,21 @@ Bio::Adventure::Assembly::Do_Filter_Depth(\$h,
 
 =head2 C<Shovill>
 
-Use shovill to perform/optimize a spades assembly.  Shovill has a lot
-of interesting options, this only includes a few at the moment.
+ Perform a shovill/spades assembly. https://github.com/tseemann/shovill
+
+ I am learning that spades is the basis for more than a couple of
+ assemblers. Shovill is one of them, and very feature-full.  Shovill
+ has a lot of interesting options, this only includes a few at the
+ moment.
+
+=item C<Arguments>
+
+ input(required): Filtered/corrected/trimmed reads.
+ depth(40): Used to filter over/under represented contigs.
+ jmem(12): Expected memory usage.
+ jprefix('13'): Added to the beginning of the job name.
+ arbitrary(''): Add arbitrary arguments here.
+ modules('shovill'): Use this environment module.
 
 =cut
 sub Shovill {
@@ -451,20 +503,18 @@ fi
 
 =head2 C<Trinity>
 
-$hpgl->Trinity() submits a trinity denovo sequence assembly and runs its default
-post-processing tools.
+ Run the trinity de-novo transcriptome assembler.  doi:10.1038/nbt.1883.
 
-=over
+ This function invokes trinity along with its default set of
+ post-processing tools.
 
-=item I<input> * File(s) containing reads to be assembled by trinity.
+=item C<Arguments>
 
-=item I<contig_length> (600) Minimum length for a contig to keep.
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task assembly --method trinity --input forward.fastq.gz:reverse.fastq.gz
+ input(required): Fastq input files, trimmed and presumably corrected.
+ contig_length(600): Minimum contig length for a transcript.
+ jmem(80): Trinity is quite memory intensive.
+ jprefix(60): Prefix for job name.
+ modules('trinity'): Use this environment module.
 
 =cut
 sub Trinity {
@@ -474,13 +524,14 @@ sub Trinity {
         required => ['input'],
         contig_length => 600,
         jmem => 80,
+        jprefix => '60',
         modules => ['trinity'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('Trinity');
     die("Could not find trinity in your PATH.") unless($check);
 
     my $job_name = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/trinity_${job_name}";
+    my $output_dir = qq"outputs/$options->{jprefix}trinity_${job_name}";
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
@@ -530,17 +581,18 @@ sub Trinity {
 
 =head2 C<Trinity_Post>
 
-Perform some of the post-processing tools provided by trinity.
+ Perform some of the post-processing tools provided by trinity.
 
-=over
+ Trinity comes with some scripts to grade the quality of the
+ transcripts it generated.  This invokes a few of them.
 
-=item I<input> * Input fasta from trinity.
+=item C<Arguments>
 
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task assembly --method trinitypost --input trinity.fasta
+ input(required): The fasta assembly from trinity.
+ jmem(24): Expected memory requirement.
+ jname(trin_rsem): Name on the cluster.
+ jprefix('61'): Job prefix.
+ modules('rsem'): RSEM is used to quanify the transcripts.
 
 =cut
 sub Trinity_Post {
@@ -550,6 +602,7 @@ sub Trinity_Post {
         required => ['input'],
         jmem => 24,
         jname => "trin_rsem",
+        jprefix => '61',
         modules => ['rsem'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
@@ -621,7 +674,27 @@ cd \${start}
 
 =head2 C<Unicycler>
 
-Use unicycler to assemble bacterial/viral reads.
+ Use unicycler to assemble bacterial/viral reads. doi:10.1371/journal.pcbi.1005595
+
+ Yet another Spades-based assembler, this one has some nice pre and
+ post-processing tools written into it, which means that I do not need
+ to figure out the arguments for pilon and stuff!
+
+=item C<Arguments>
+
+ input(required): Fastq input, it need not be filtered, trimmed,
+  corrected.
+ arbitrary(''): Add extra arguments here.
+ depth(20): Include an extra depth filter(I think this is not
+  currently used)
+ min_length(1000): Drop contigs less than this size.
+ mode('bold'): Unicycler has three modes, fast, normal, bold.  Bold
+  tries hard to reduce the assembly graph to a single contig at the
+  potential cost of correctness.
+ jmem(24): Expected memory usage.
+ jprefix('13'): Prefix for the job/output name.
+ modules('trimomatic','bowtie2','spades','unicycer'): The environment
+  module dependencies.
 
 =cut
 sub Unicycler {
@@ -693,28 +766,33 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 
 =head2 C<Velvet>
 
-Submit sequences for a generic assembly by velvet and pass it to ragoo.
+ Perform a velvet assembly and pass it to ragoo.
+ velvet: doi:10.1371/journal.pone.0008407
+ ragoo: doi:10.1186/s13059-019-1829-6
 
-=over
+ Yet another kmer-based assembler.
 
-=item I<input> * Input reads passed to velveth.
+=item C<Arguments>
 
-=item I<species> * Species name for passing to ragoo.py.
+ input(required): Fastq reads, presumably filtered/corrected/trimmed.
+ species(''): Used by ragoo when provided.
+ kmer(31): Kmer length for velvet.
+ jmem(24): Expected memory usage.
+ modules(velvet): Environment modules used.
 
-=back
+=item C<Invocation>
 
-=head3 C<Invocation>
-
-> cyoa --task assembly --method velvet --input forward.fastq.gz:reverse.fastq.gz
+ > cyoa --task assembly --method velvet --input forward.fastq.gz:reverse.fastq.gz
 
 =cut
 sub Velvet {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
+        species => '',
         kmer => 31,
         jmem => 24,
-        required => ['input', 'species'],
         modules => ['velvet'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('velveth');
@@ -744,10 +822,14 @@ sub Velvet {
     sed 's/velvetg parameters: //g')
   ##velvetg ${output_dir} \${new_params} -read_trkg yes -amos_file yes \\
   ##  2>${output_dir}/second_velvetg.txt 2>&1
+!;
+    if ($options->{species}) {
+        $jstring .= qq!
   ragoo.py \\
     ${output_dir}/configs.fa \\
     $options->{libdir}/$options->{libtype}/$options->{species}.fasta
 !;
+    }
     my $velvet = $class->Submit(
         cpus => 6,
         comment => $comment,
