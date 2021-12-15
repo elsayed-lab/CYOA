@@ -472,6 +472,16 @@ sub Jellyfish {
     my $cwd_name = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}jellyfish_${cwd_name}";
 
+    my $input_string = qq"<(less $options->{input})";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        ## Then multiple files were provided.
+        my @file_list = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = '';
+        for my $f (@file_list) {
+            $input_string .= qq"<(less $f) ";
+        }
+    }
+
     my $jelly_base = qq"${output_dir}/${cwd_name}_$options->{length}";
     my $count_file = qq"${jelly_base}.count";
     my $info_file = qq"${jelly_base}.info";
@@ -483,10 +493,14 @@ sub Jellyfish {
 jellyfish count -m $options->{length} \\
   -o ${count_file} \\
   -s 50000 -t 4 \\
-  <(less $options->{input})
-jellyfish info ${count_file} > ${info_file}
-jellyfish histo ${count_file} > ${histogram_file}
-jellyfish dump ${count_file} > ${count_fasta}
+  ${input_string} \\
+  2>${jelly_base}.stderr 1>${jelly_base}.stdout
+jellyfish info ${count_file} > ${info_file} \\
+  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
+jellyfish histo ${count_file} > ${histogram_file} \\
+  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
+jellyfish dump ${count_file} > ${count_fasta} \\
+  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
 !;
 
     my $jelly = $class->Submit(

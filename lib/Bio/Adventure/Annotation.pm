@@ -27,8 +27,19 @@ use Text::CSV_XS::TSV;
 
 =head2 C<Interproscan>
 
-Use interproscan to look for existing annotations which are similar to
-a set of provided ORFs.
+ Invoke interproscan on a set of sequences.
+
+ Interproscan is (I think) the gold-standard of similarity-based search
+ tools.  It provides a single interface for searching against a
+ comprehensive array of databases.
+
+=item C<Arguments>
+
+ input(required): Fasta file containing amino acid sequences.
+ jprefix(21): Prefix of the job name/output directory.
+ jmem(8): Expected memory consumption.
+ cpus(4): Limit the number of cpus per job with this.
+ modules('interproscan'): Environment module to load.
 
 =cut
 sub Interproscan {
@@ -93,7 +104,17 @@ cd \${start}
 
 =head2 C<Kraken>
 
-Use kraken2 to taxonomically classify reads.
+ Use kraken2 to taxonomically classify reads.
+
+ Kraken2 is a kmer-based read classifier.  It is quite fast once its
+ databases are built.
+
+=item C<Arguments>
+
+ input(required): Set of fastq reads.
+ library('viral'): Kraken2 database to classify against.
+ jprefix(11): Prefix for the job name and output directory.
+ modules('kraken'): Environment module to load.
 
 =cut
 sub Kraken {
@@ -148,8 +169,27 @@ sub Kraken {
 
 =head2 C<Prokka>
 
-Prokka is an automagic annotation tool for bacterial assemblies.  It
-seems useful for other relatively small genomes.
+ Perform automated assembly annotation, intended for bacteria.
+
+ Prokka is an automagic annotation tool for bacterial assemblies.  It
+ seems useful for other relatively small genomes.  It is one of the
+ suite of tools written by Torsten Seeman, and probably my
+ favorite. It takes an assembly, runs prodigal, some tRNA searches,
+ some BLAST searches, and generates fasta/gbk/etc files from the results.
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ arbitrary(''): Add arbitrary arguments here.
+ coverage(30): Intended for a coverage filter, not currently used.
+ evalue('1e-05'): Intended as a confidence filter, not currently used.
+ gcode('11'): Use this codon code (bacterial is 11).
+ genus('phage'): Set the genus tag in the output files.
+ kingdom('bacteria'): Set the kingdom tag in the output files.
+ locus_tag('unknownphage'): Set the locus tag in the output files.
+ species('virus'): Set the species tag in the output files.
+ jprefix('19'): Use this prefix for the job/output.
+ modules('prokka'): Use this environment module.
 
 =cut
 sub Prokka {
@@ -162,11 +202,11 @@ sub Prokka {
         evalue => '1e-05',
         gcode => '11',
         genus => 'phage',
-        jprefix => '19',
         kingdom => 'bacteria',
         locus_tag => 'unknownphage',
-        modules => ['prokka'],
-        species => 'virus',);
+        species => 'virus',
+        jprefix => '19',
+        modules => ['prokka'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prokka');
     die("Could not find prokka in your PATH.") unless($check);
@@ -255,17 +295,19 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
 
 =head2 C<Extract_Annotations>
 
-Used by Extract_Trinotate to extract annotations from the strangely encoded trinotate outputs.
+ Pull apart the encoded trinotate annotations into a more readable format.
 
-=over
+ Trinotate uses its own format to encode annotations, it wraps
+ multiple hits into one cell of a tsv output file with a combination
+ of backticks(`) and caret(^).  This function reads that and splits
+ them up into separate cells.  It is called by Extract_Trinotate().
 
-=item I<evalue> Evalue cutoff for trinotate output.
+=item C<Arguments>
 
-=item I<identity> Minimum percent identity cutoff for trinotate output.
-
-=item I<ids> IDs to extract.
-
-=item I<fh> Filehandle to parse.
+ identity: Cutoff for percent identity between a query and hit.
+ evalue: Cutoff by evalue between query and a hit.
+ ids: Set of IDs to explicitly extract from the trinotate output.
+ fh: filehandle to read.
 
 =back
 
@@ -319,6 +361,7 @@ The trinotate output format is a bit... unwieldy.  This seeks to parse out the
 useful information from it.
 
 =over
+
 
 =item I<input> * Input csv file from trinotate.
 
