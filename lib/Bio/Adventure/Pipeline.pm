@@ -90,6 +90,18 @@ sub Annotate_Assembly {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning relaxed tRNAscan to search for tmRNAs.\n";
+    my $trnascan = $class->Bio::Adventure::Feature_Prediction::tRNAScan(
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'trnascan',
+        arbitrary => ' -r ',
+        suffix => 'relaxed',
+        jprefix => $prefix,);
+    $last_job = $trnascan->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         input => $prokka->{output_cds},
@@ -993,6 +1005,18 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'aragorn',);
     $last_job = $aragorn->{job_id};
+    sleep(0.2);
+
+        $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning relaxed tRNAscan to search for tmRNAs.\n";
+    my $trnascan = $class->Bio::Adventure::Feature_Prediction::tRNAScan(
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'trnascan',
+        arbitrary => ' -r ',
+        suffix => 'relaxed',
+        jprefix => $prefix,);
+    $last_job = $trnascan->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));

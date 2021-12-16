@@ -473,19 +473,24 @@ sub tRNAScan {
         args => \%args,
         required => ['input'],
         jmem => 6,
-        modules => ['trnascan'],
         species => undef,
-        arbitrary => ' -G ',);
+        arbitrary => ' -G ',
+        suffix => 'general',
+        tool => 'trnascan',
+        modules => ['infernal', 'trnascan'],);
+
     my $trnascan_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/trnascan";
+    my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
     my $species_string = qq"";
     my $comment = qq!## This is a script to run trnascan.
 !;
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  tRNAscan-SE $options->{arbitrary} \\
-    -o ${output_dir}/trnascan.txt \\
-    $options->{input}
+    my $jstring = qq!mkdir -p ${output_dir}
+$options->{tool} $options->{arbitrary} \\
+  -o ${output_file} \\
+  $options->{input} \\
+  2>${output_dir}/trnascan.stderr 1>${output_dir}/trnascan.stdout
 !;
 
     my $trnascan = $class->Submit(
@@ -497,7 +502,7 @@ sub tRNAScan {
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},
-        output => qq"${output_dir}/trnascan.txt",
+        output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => "workstation",);
