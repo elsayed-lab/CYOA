@@ -33,10 +33,17 @@ sub Abricate {
         args => \%args,
         required => ['input'],
         jprefix => '18',
-        modules => ['any2fasta', 'abricate'],);
+        coverage => 80,
+        identity => 80,
+        modules => ['any2fasta', 'abricate', 'blast'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abricate');
     die("Could not find abricate in your PATH.") unless($check);
+
+    my $coverage = 70;
+    $coverage = $options->{coverage} if (defined($options->{coverage}));
+    my $identity = 70;
+    $identity = $options->{identity} if (defined($options->{identity}));
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
@@ -55,6 +62,7 @@ sub Abricate {
 dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
 for db in \${dbs}; do
   abricate $options->{input} --db \${db} --nopath --noheader \\
+  --minid ${identity} --mincov ${coverage} \\
   2>${output_dir}/abricate_\${db}.err \\
   1>${output_dir}/abricate_\${db}.tsv
   cat ${output_dir}/abricate_\${db}.tsv >> ${output_dir}/abricate_combined.tsv
