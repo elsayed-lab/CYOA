@@ -321,7 +321,7 @@ ${exe} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
   1>${output_dir}/${basename}-trimomatic.out 2>&1
-excepted=\$(grep "Exception" outputs/${basename}-trimomatic.out)
+excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
   ${exe} \\
