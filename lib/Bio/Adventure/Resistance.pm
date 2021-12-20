@@ -54,14 +54,14 @@ sub Abricate {
 ## First get the list of available databases:
 dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
 for db in \${dbs}; do
-    abricate $options->{input} --db \${db} --nopath --noheader \\
-    2>${output_dir}/abricate_\${db}.err \\
-    1>${output_dir}/abricate_\${db}.tsv
-    cat ${output_dir}/abricate_\${db}.tsv >> ${output_dir}/abricate_combined.tsv
+  abricate $options->{input} --db \${db} --nopath --noheader \\
+  2>${output_dir}/abricate_\${db}.err \\
+  1>${output_dir}/abricate_\${db}.tsv
+  cat ${output_dir}/abricate_\${db}.tsv >> ${output_dir}/abricate_combined.tsv
 done
 abricate --summary ${output_dir}/*.tsv \\
-         2>${output_dir}/abricate_summary.err \\
-         1>${output_dir}/abricate_summary.txt
+  2>${output_dir}/abricate_summary.err \\
+  1>${output_dir}/abricate_summary.txt
 !;
 
     my $abricate = $class->Submit(
