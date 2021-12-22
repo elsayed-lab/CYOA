@@ -53,7 +53,7 @@ sub Interproscan {
         modules => ['interproscan'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('interproscan.sh');
-    die("Could not find interproscan in your PATH.") unless($check);
+    die('Could not find interproscan in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -75,8 +75,8 @@ start=\$(pwd)
 cd ${output_dir}
 perl -pe 's/\\*//g' ${input_path} > ${input_filename}
 interproscan.sh -i ${input_filename} \\
-  2>interproscan.err \\
-  1>interproscan.out
+  2>interproscan.stderr \\
+  1>interproscan.stdout
 ln -sf ${output_filename} interproscan.tsv
 cd \${start}
 !;
@@ -94,8 +94,8 @@ cd \${start}
         output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "large",
-        walltime => "144:00:00",);
+        jqueue => 'large',
+        walltime => '144:00:00',);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -127,7 +127,7 @@ sub Kraken {
         modules => ['kraken'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kraken2');
-    die("Could not find kraken2 in your PATH.") unless($check);
+    die('Could not find kraken2 in your PATH.') unless($check);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -147,7 +147,8 @@ sub Kraken {
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-  2>${output_dir}/kraken.out 1>&2
+  2>${output_dir}/kraken.stderr \\
+  1>${output_dir}/kraken.stdout
 !;
     my $kraken = $class->Submit(
         cpus => 6,
@@ -209,7 +210,7 @@ sub Prokka {
         modules => ['prokka'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prokka');
-    die("Could not find prokka in your PATH.") unless($check);
+    die('Could not find prokka in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
@@ -287,7 +288,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         output_tsv => $tsv_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($prokka);
@@ -383,7 +384,7 @@ sub Extract_Trinotate {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jname => "trin_rsem",
+        jname => 'trin_rsem',
         output => 'interesting.fasta',
         evalue => 1e-10,
         identity => 70,);
@@ -594,8 +595,7 @@ sub Read_Write_Annotation {
                                          ids => $ids,
                                          fh => $fh,
                                          evalue => $args{evalue},
-                                         identity => $args{identity},
-                           );
+                                         identity => $args{identity},);
     return($filled_in);
 }
 
@@ -618,7 +618,7 @@ default post-processing tools.
 sub Transdecoder {
     my ($class, %args) = @_;
     my $check = which('TransDecoder.LongOrfs');
-    die("Could not find transdecoder in your PATH.") unless($check);
+    die('Could not find transdecoder in your PATH.') unless($check);
     my $transdecoder_exe_dir = dirname($check);
     my $options = $class->Get_Vars(
         args => \%args,
@@ -647,13 +647,13 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
         comment => $comment,
         jmem => 4,
         jname => "transdecoder_${job_name}",
-        jprefix => "47",
+        jprefix => '47',
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_dir}/transcripts.fasta.transdecoder.genome.gff3",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     return($transdecoder);
 }
 
@@ -722,8 +722,8 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --transcripts $input_paths->{filename} \\
   --gene_to_trans_map $input_paths->{filename}.gene_trans_map \\
   --CPU 6 \\
-  2>trinotate_${job_name}.err \\
-  1>trinotate_${job_name}.out
+  2>trinotate_${job_name}.stderr \\
+  1>trinotate_${job_name}.stdout
 mv Trinotate.tsv ${output_name}
 cd \${start}
 !;
@@ -790,7 +790,7 @@ sub Rosalind_Plus {
 ";
     my $jstring = qq!
 use Bio::Adventure::Annotation;
-\$result = \$h->Bio::Adventure::Annotation::Rosalind_Rewrite(
+my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Rewrite(
   gff => '${input_gff}',
   input => '$options->{input}',
   jdepends => '$options->{jdepends}',
@@ -857,7 +857,7 @@ If the Franklin strand is larger, flipping them.
             $contig = $1;
             $orf = $2;
         } else {
-            die("Could not get contig and orf.");
+            die('Could not get contig and orf.');
         }
         if (!defined($orf_count->{$contig})) {
             $orf_count->{$contig} = {
@@ -880,11 +880,11 @@ If the Franklin strand is larger, flipping them.
       if ($test->{plus} >= $test->{minus}) {
           ## Then leave this contig alone.
           $write_fasta->write_seq($seq);
-          print $write_log "$id was unchanged and has $test->{plus} plus and $test->{minus} minus ORFs.\n";
+          print $write_log "${id} was unchanged and has $test->{plus} plus and $test->{minus} minus ORFs.\n";
       } else {
           my $tmp = $seq->revcom();
           $write_fasta->write_seq($tmp);
-          print $write_log "$id was reverse-complemented and now has $test->{minus} plus and $test->{plus} minus ORFs.\n";
+          print $write_log "${id} was reverse-complemented and now has $test->{minus} plus and $test->{plus} minus ORFs.\n";
       }
   } ## Done flipping sequence files.
     $write_log->close();

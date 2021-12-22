@@ -125,7 +125,6 @@ sub Bowtie {
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $class->{bt1_indexjobs} = 1;
-        ## $options = $class->Set_Vars(bt1_indexjobs => 1);
         my $genome_input = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
         $index_job = $class->Bio::Adventure::Index::BT1_Index(
             input => $genome_input,
@@ -137,7 +136,7 @@ sub Bowtie {
 
     my $bowtie_input_flag = "-q"; ## fastq by default
     $bowtie_input_flag = "-f" if ($options->{input} =~ /\.fasta/);
-    my $error_file = qq"${bt_dir}/$options->{jbasename}-${bt_type}.err";
+    my $error_file = qq"${bt_dir}/$options->{jbasename}-${bt_type}.stderr";
     my $comment = qq!## This is a bowtie1 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt_args}.
 !;
@@ -154,7 +153,7 @@ bowtie \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
   2>${error_file} \\
-  1>${bt_dir}/$options->{jbasename}-${bt_type}.out
+  1>${bt_dir}/$options->{jbasename}-${bt_type}.stdout
 !;
 
     my $bt_job = $class->Submit(
@@ -180,7 +179,7 @@ bowtie \\
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.\n",
         jdepends => $bt_job->{job_id},
-        jname => "xzun",
+        jname => 'xzun',
         jprefix => $options->{jprefix} + 1,
         jwalltime => '24:00:00',
         input => $compress_files,);
@@ -192,7 +191,7 @@ bowtie \\
         cpus => 1,
         input => $sam_filename,
         jdepends => $bt_job->{job_id},
-        jname => "s2b_${jname}",
+        jname => qq"s2b_${jname}",
         jprefix => $options->{jprefix} + 3,
         paired => $paired,
         species => $options->{species},);
@@ -206,7 +205,7 @@ bowtie \\
                 input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
-                jname => "ht_${jname}",
+                jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
                 libtype => $libtype,
                 jqueue => 'workstation',
@@ -219,7 +218,7 @@ bowtie \\
                 input => $sam_job->{output},
                 htseq_type => $options->{htseq_type},
                 jdepends => $sam_job->{job_id},
-                jname => "ht_${jname}",
+                jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
                 libtype => $libtype,
                 jqueue => 'workstation',
@@ -234,7 +233,7 @@ bowtie \\
         bt_type => $bt_type,
         count_table => $bt_job->{htseq}->[0]->{output},
         jdepends => $bt_job->{job_id},
-        jname => "${jname}_stats",
+        jname => qq"${jname}_stats",
         jprefix => $options->{jprefix} + 5,
         trim_input => ${trim_output_file},);
     $bt_job->{stats} = $stats;
@@ -289,7 +288,7 @@ sub Bowtie2 {
         modules => ['bowtie2']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bowtie2-build');
-    die("Could not find bowtie2 in your PATH.") unless($check);
+    die('Could not find bowtie2 in your PATH.') unless($check);
 
 
     if ($options->{species} =~ /\:/) {
@@ -313,7 +312,7 @@ sub Bowtie2 {
     my $libtype = 'genome';
     my $bt2_args = $options->{bt2_args};
 
-    my $prefix_name = qq"bt2";
+    my $prefix_name = qw"bt2";
     my $bt2_name = qq"${prefix_name}_$options->{species}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
@@ -327,7 +326,7 @@ sub Bowtie2 {
     }
     my $bt_input = $options->{input};
 
-    my $test_file = "";
+    my $test_file = '';
     if ($bt_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
@@ -355,11 +354,11 @@ sub Bowtie2 {
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{jobid};
     }
-    my $bowtie_input_flag = "-q "; ## fastq by default
-    $bowtie_input_flag = "-f " if (${bt_input} =~ /\.fasta$/);
+    my $bowtie_input_flag = '-q '; ## fastq by default
+    $bowtie_input_flag = '-f ' if (${bt_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
-    my $error_file = qq"${bt_dir}/$options->{jbasename}.err";
+    my $error_file = qq"${bt_dir}/$options->{jbasename}.stderr";
     my $comment = qq!## This is a bowtie2 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt2_args}.
 !;
@@ -374,7 +373,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     --al ${aligned_filename} \\
     -S ${sam_filename} \\
     2>${error_file} \\
-    1>${bt_dir}/$options->{jbasename}.out
+    1>${bt_dir}/$options->{jbasename}.stdout
 !;
 
     my $bt2_job = $class->Submit(
@@ -397,7 +396,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
         input => $compression_files,
         jdepends => $bt2_job->{job_id},
-        jname => "xzun_${suffix_name}",
+        jname => qq"xzun_${suffix_name}",
         jprefix => $options->{jprefix} + 1,);
     $bt2_job->{compression} = $comp;
 
@@ -407,13 +406,13 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         input => $error_file,
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
-        jname => "bt2st_${suffix_name}",
+        jname => qq"bt2st_${suffix_name}",
         jprefix => $options->{jprefix} + 3,);
     $bt2_job->{stats} = $stats;
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $bt2_job->{job_id},
-        jname => "s2b_${suffix_name}",
+        jname => qq"s2b_${suffix_name}",
         jprefix => $options->{jprefix} + 4,);
     $bt2_job->{samtools} = $sam_job;
     my $htseq_input = $sam_job->{output};
@@ -555,7 +554,7 @@ sub BWA {
         jprefix => 30,
         modules => ['bwa'],);
     my $check = which('bwa');
-    die("Could not find bwa in your PATH.") unless($check);
+    die('Could not find bwa in your PATH.') unless($check);
 
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -572,8 +571,8 @@ sub BWA {
     }
 
     my $bwa_input = $options->{input};
-    my $test_file = "";
-    my $forward_reads = "";
+    my $test_file = '';
+    my $forward_reads = '';
     my $reverse_reads = undef;
     if ($bwa_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $bwa_input);
@@ -614,40 +613,40 @@ sub BWA {
 
     my $aln_sam = qq"${bwa_dir}/$options->{jbasename}_aln.sam";
     my $mem_sam = qq"${bwa_dir}/$options->{jbasename}_mem.sam";
-    my $aln_args = qq"";
-    my $mem_args = qq"-M ";
-    my $sam_args = qq"";
+    my $aln_args = '';
+    my $mem_args = '-M ';
+    my $sam_args = '';
     my $mem_string = qq!mkdir -p ${bwa_dir}
 bwa mem ${mem_args} \\
   -a ${bwa_reflib} \\
   ${bwa_input} \\
-  2>${bwa_dir}/bwa.err \\
+  2>${bwa_dir}/bwa.stderr \\
   1>${mem_sam}
 !;
     my $reporter_string = qq"bwa samse ${sam_args} \\
   ${bwa_reflib} \\
   ${bwa_dir}/$options->{jbasename}_aln-forward.sai \\
   ${bwa_input} \\
-  2>${bwa_dir}/$options->{jbasename}.samerr \\
+  2>${bwa_dir}/$options->{jbasename}_samse.stderr \\
   1>${aln_sam}";
     my $aln_string = qq"bwa aln ${aln_args} \\
   ${bwa_reflib} \\
   ${forward_reads} \\
-  2>${bwa_dir}/$options->{jbasename}_aln-forward.err \\
+  2>${bwa_dir}/$options->{jbasename}_aln-forward.stderr \\
   1>${bwa_dir}/$options->{jbasename}_aln-forward.sai";
     if (defined($reverse_reads)) {
         $aln_string = qq"${aln_string}
 bwa aln ${aln_args} \\
   ${bwa_reflib} \\
   <(less ${reverse_reads}) \\
-  2>${bwa_dir}/$options->{jbasename}_aln-reverse.err \\
+  2>${bwa_dir}/$options->{jbasename}_aln-reverse.stderr \\
   1>${bwa_dir}/$options->{jbasename}_aln-reverse.sai";
         $reporter_string = qq"bwa ${sam_args} \\
   sampe ${bwa_reflib} \\
   ${bwa_dir}/$options->{jbasename}_aln-forward.sai \\
   ${bwa_dir}/$options->{jbasename}_aln-reverse.sai \\
   <(less ${forward_reads}) <(less ${reverse_reads}) \\
-  2>${bwa_dir}/$options->{jbasename}.samerr \\
+  2>${bwa_dir}/$options->{jbasename}_sam.stderr \\
   1>${aln_sam}";
     }
 
@@ -666,7 +665,7 @@ bwa aln ${aln_args} \\
         comment => $mem_comment,
         input => $bwa_input,
         jdepends => $options->{jdepends},
-        jname => "bwamem_$options->{species}",
+        jname => qq"bwamem_$options->{species}",
         output => $mem_sam,
         jprefix => $options->{jprefix},
         jstring => $mem_string,
@@ -679,7 +678,7 @@ bwa aln ${aln_args} \\
     my $mem_sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $mem_sam,
         jdepends => $bwa_job->{job_id},
-        jname => "s2b_mem",
+        jname => 's2b_mem',
         jmem => '20',
         jprefix => $options->{jprefix} + 1,);
     $bwa_job->{samtools_mem} = $mem_sam_job;
@@ -689,7 +688,7 @@ bwa aln ${aln_args} \\
         comment => $aln_comment,
         input => $bwa_input,
         jdepends => $mem_sam_job->{job_id},
-        jname => "bwaaln_$options->{species}",
+        jname => qq"bwaaln_$options->{species}",
         output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
         jprefix => $options->{jprefix} + 2,
         jstring => $aln_string,
@@ -704,7 +703,7 @@ bwa aln ${aln_args} \\
         comment => $report_comment,
         input => $aln_job->{output},
         jdepends => $aln_job->{job_id},
-        jname => "bwarep_$options->{species}",
+        jname => qq"bwarep_$options->{species}",
         modules => $options->{modules},
         output => $aln_sam,
         jprefix => $options->{jprefix} + 3,
@@ -718,7 +717,7 @@ bwa aln ${aln_args} \\
     my $aln_sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $aln_sam,
         jdepends => $rep_job->{job_id},
-        jname => "s2b_aln",
+        jname => 's2b_aln',
         jmem => '20',
         jprefix => $options->{jprefix} + 4,);
     $bwa_job->{samtools_aln} = $aln_sam_job;
@@ -729,7 +728,7 @@ bwa aln ${aln_args} \\
             input => $mem_sam_job->{output},
             htseq_type => $options->{htseq_type},
             jdepends => $mem_sam_job->{job_id},
-            jname => "htmem_${jname}",
+            jname => qq"htmem_${jname}",
             jprefix => $options->{jprefix} + 5,
             mapper => 'bwa',);
         $bwa_job->{htseq_mem} = $mem_htmulti;
@@ -738,7 +737,7 @@ bwa aln ${aln_args} \\
             input => $aln_sam_job->{output},
             htseq_type => $options->{htseq_type},
             jdepends => $aln_sam_job->{job_id},
-            jname => "htaln_${jname}",
+            jname => qq"htaln_${jname}",
             jprefix => $options->{jprefix} + 6,
             mapper => 'bwa',);
         $bwa_job->{htseq_aln} = $aln_htmulti;
@@ -797,7 +796,7 @@ sub Hisat2 {
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
 
-    my $prefix_name = qq'hisat2';
+    my $prefix_name = 'hisat2';
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
@@ -851,7 +850,7 @@ sub Hisat2 {
     $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
 
     my $cpus = $options->{cpus};
-    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.err";
+    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.stderr";
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
@@ -892,7 +891,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
     $jstring .= qq!  -S ${sam_filename} \\
   2>${error_file} \\
-  1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.out
+  1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.stdout
 !;
     my $hisat_job = $class->Submit(
         comment => $comment,
@@ -1069,7 +1068,7 @@ sub Kallisto {
 ## The sam->bam conversion is copy/pasted from Sam2Bam() but I figured why start another job
 ## because kallisto is so fast
 !;
-    my $dropped_args = qq" --pseudobam ";
+    my $dropped_args = ' --pseudobam ';
     my $jstring = qq!mkdir -p ${outdir}
 kallisto quant ${ka_args} \\
   --plaintext -t 4 -b 100 \\
@@ -1116,7 +1115,7 @@ Invoke RSEM.
 sub RSEM {
     my ($class, %args) = @_;
     my $check = which('rsem-prepare-reference');
-    die("Could not find RSEM in your PATH.") unless($check);
+    die('Could not find RSEM in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
@@ -1170,13 +1169,13 @@ sub RSEM {
     my $rsem_dir = qq"outputs/rsem_$options->{species}";
     my $rsem_comment = qq"## This is a rsem invocation script.
 ";
-    my $output_file = "$options->{species}_something.txt";
+    my $output_file = qq"$options->{species}_something.txt";
     my $jstring = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
   --calc-ci ${rsem_input} \\
   ${idx} \\
   ${rsem_dir}/$options->{species} \\
-  2>${rsem_dir}/$options->{species}.err \\
-  1>${rsem_dir}/$options->{species}.out
+  2>${rsem_dir}/$options->{species}.stderr \\
+  1>${rsem_dir}/$options->{species}.stdout
 ";
 
     my $rsem = $class->Submit(
@@ -1185,7 +1184,7 @@ sub RSEM {
         jname => qq"rsem_${jbasename}",
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jprefix => "28",
+        jprefix => '28',
         mem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
@@ -1268,7 +1267,7 @@ salmon quant -i ${sa_reflib} \\
   -l A --gcBias --validateMappings  \\
   ${sa_args} \\
   -o ${outdir} \\
-  2>${outdir}/salmon.err 1>${outdir}/salmon.out
+  2>${error_file} 1>${outdir}/salmon.stdout
 !;
 
     my $salmon = $class->Submit(
@@ -1288,8 +1287,8 @@ salmon quant -i ${sa_reflib} \\
     my $stats = $class->Bio::Adventure::Metadata::Salmon_Stats(
         input => qq"${outdir}/lib_format_counts.json",
         jdepends => $salmon->{job_id},
-        jname => "sastats_$options->{species}",
-        jprefix => "33",);
+        jname => qq"sastats_$options->{species}",
+        jprefix => '33',);
     $salmon->{stats} = $stats;
     return($salmon);
 }
@@ -1302,10 +1301,10 @@ Invoke STAR for transcript abundances.
 sub STAR {
     my ($class, %args) = @_;
     my $check = which('STAR');
-    die("Could not find STAR in your PATH.") unless($check);
+    die('Could not find STAR in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species','input'],
+        required => ['species', 'input'],
         jmem => 48,
         modules => ['star'],);
     if ($options->{species} =~ /\:/) {
@@ -1337,7 +1336,7 @@ sub STAR {
         $star_inputstring = qq"$pair_listing[0],$pair_listing[1]";
         $input_name = $pair_listing[0];
     } else {
-        $star_inputstring = qq"$star_input";
+        $star_inputstring = qq"${star_input}";
     }
 
     ## Check that the indexes exist
@@ -1371,7 +1370,7 @@ STAR \\
   --readFilesIn ${star_inputstring} \\
   --readFilesCommand /usr/bin/lesspipe.sh \\
   --runThreadN 6 \\
-  2>outputs/star_gene.out 1>&2
+  2>${error_file} 1>${outdir}/star_${species}.stdout
 
 STAR \\
   --genomeDir ${star_refdir} \\
@@ -1383,7 +1382,7 @@ STAR \\
   --readFilesIn ${star_inputstring} \\
   --readFilesCommand /usr/bin/lesspipe.sh \\
   --runThreadN 6 \\
-  2>outputs/star_tx.out 1>&2
+  2>>${error_file} 1>>${outdir}/star_${species}.stdout
 !;
 
     my $star_job = $class->Submit(
@@ -1411,10 +1410,10 @@ statistics, and passes the hits to htseq-count.
 sub Tophat {
     my ($class, %args) = @_;
     my $check = which('tophat');
-    die("Could not find tophat in your PATH.") unless($check);
+    die('Could not find tophat in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "input", "htseq_type"],
+        required => ['species', 'input', 'htseq_type'],
         modules => ['tophat'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1478,7 +1477,6 @@ sub Tophat {
         print "Missing the gtf file for $options->{species}\n";
         print "Using the gff file.\n";
         $gtf_file =~ s/\.gtf/\.gff/;
-        ##my $written = $class->Gff2Gtf(gff => "$class->{libdir}/genome/$class->{species}.gff");
     }
 
     my $spliced = 0;
@@ -1497,12 +1495,16 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
     }
     $jstring .= qq!  $options->{libdir}/genome/indexes/$options->{species} \\
   ${inputs} \\
-  2>outputs/tophat.err \\
-  1>outputs/tophat.out && \\
- samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam && \\
- samtools index ${tophat_dir}/accepted_hits.bam && \\
- samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam && \\
- samtools index ${tophat_dir}/unmapped.bam
+  2>${tophat_dir}/tophat.stderr \\
+  1>${tophat_dir}/tophat.stdout && \\
+ samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam \\
+  2>${tophat_dir}/samtools_sort.stderr 1>${tophat_dir}/samtools_sort.stdout && \\
+ samtools index ${tophat_dir}/accepted_hits.bam \\
+  2>${tophat_dir}/samtools_index.stderr 1>${tophat_dir}/samtools_index.stdout && \\
+ samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam \\
+  2>>${tophat_dir}/samtools_sorted.stderr 1>>${tophat_dir}/samtools_sort.stdout && \\
+ samtools index ${tophat_dir}/unmapped.bam \\
+  2>>${tophat_dir}/samtools_index.stderr 1>>${tophat_dir}/samtools_sort.stdout
 !;
     if ($paired) {
         $jstring .= qq!
@@ -1526,7 +1528,7 @@ fi
         cpus => $tophat_cpus,
         jdepends => $options->{jdepends},
         jname => $options->{jname},
-        jprefix => "31",
+        jprefix => '31',
         jstring => $jstring,
         jmem => $tophat_mem,
         modules => $options->{mdules},
@@ -1536,9 +1538,9 @@ fi
         jwalltime => $tophat_walltime,);
 
     ## Set the input for htseq
-    my $accepted = "${tophat_dir}/accepted_hits.bam";
+    my $accepted = qq"${tophat_dir}/accepted_hits.bam";
     $accepted = $options->{accepted_hits} if ($options->{accepted_hits});
-    my $count_table = "accepted_hits.count";
+    my $count_table = 'accepted_hits.count';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_input => $accepted,
@@ -1569,8 +1571,8 @@ fi
         accepted_input => $accepted,
         count_table => qq"${count_table}.xz",
         jdepends => $tophat->{job_id},
-        jname => "tpstats_$options->{species}",
-        jprefix => "33",
+        jname => qq"tpstats_$options->{species}",
+        jprefix => '33',
         prep_input => $input_read_info,
         unaccepted_input => $unaccepted,);
     $tophat->{stats} = $stats;

@@ -46,7 +46,7 @@ sub Recompress {
         my $in_base = $in->{filebase_compress};
         my $in_full = $in->{fullpath};
         my $output_file = qq"${in_dir}/${in_base}.xz";
-        $output_string .= "${output_file}:";
+        $output_string .= qq"${output_file}:";
         $jstring .= qq!
 less ${in_full} | \\
   xz -9e -f > ${output_file} && \\

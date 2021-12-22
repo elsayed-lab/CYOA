@@ -109,7 +109,7 @@ sub Generate_Samplesheet {
         modules => ['R']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('R');
-    die("Could not find R in your PATH.") unless($check);
+    die('Could not find R in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -272,8 +272,8 @@ sub Get_Aragorn {
             -display_name => $trna{formatted},
             -tag => {
                 'locus_tag' => $trna{formatted},
-                    'product' => $trna{type},
-                    'note' => $trna{annotation},
+                'product' => $trna{type},
+                'note' => $trna{annotation},
             },);
         push(@aragorn_features, $trna_feature);
     }
@@ -300,7 +300,7 @@ sub Kraken_Best_Hit {
         modules => ['kraken'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kraken2');
-    die("Could not find kraken2 in your PATH.") unless($check);
+    die('Could not find kraken2 in your PATH.') unless($check);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -320,13 +320,13 @@ sub Kraken_Best_Hit {
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-  2>${output_dir}/kraken.out 1>&2
+  2>${output_dir}/kraken.stderr 1>${output_dir}/kraken.stdout
 !;
     my $kraken = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "kraken_${job_name}",
+        jname => qq"kraken_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -385,7 +385,7 @@ sub Merge_Annotations {
 
     my $jstring = qq?
 use Bio::Adventure::Annotation;
-\$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
+my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
   input_fsa => '$options->{input_fsa}',
   input_genbank => '$options->{input_genbank}',
   input_tsv => '$options->{input_tsv}',
@@ -489,7 +489,7 @@ sub Merge_Annotations_Worker {
     my $output_gbk = qq"${output_dir}/${output_name}.gbk";
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
-    my $log_fh = FileHandle->new(">$log");
+    my $log_fh = FileHandle->new(">${log}");
     print $log_fh "Merging annotations and writing new output files:
 gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## Here is a list of columns that will be created when merging these data sources.
@@ -556,7 +556,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## This is #1 above and should contain all the interesting stuff from 1a-1d
     my $merged_data = {};
 
-    print $log_fh "Reading tsv data from $options->{input_tsv} to start.\n";
+    print $log_fh qq"Reading tsv data from $options->{input_tsv} to start.\n";
     ## 1a above, the starter set of annotations.
     unless (-r $options->{input_tsv}) {
         die("Unable to find the tsv input: $options->{input_tsv}, this is required.\n");
@@ -726,8 +726,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             ## Followed by the TmHMM and signalp colums
             ## product_transmembrane 'inter_TMHMM',
             ## product_signalp => 'inter_signal',
-            my $tm_string = qq"Putative transmembrane domain containing protein";
-            my $signal_string = "Putative signal peptide";
+            my $tm_string = 'Putative transmembrane domain containing protein';
+            my $signal_string = 'Putative signal peptide';
             my $product_string = undef;
             my $chosen_column = 0;
             my $tmhmm_column = $options->{product_transmembrane};
@@ -758,7 +758,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
               ## A little sanitization for the db names.
               $db_name =~ s/\;//g;
               $db_name =~ s/(\{.*\})?//g;
-              ## print "TESTME: acc:$accession id:$id qh:$query_hit name:$db_name\n";
               next PRODCOL unless(defined($evalue));
               $evalue =~ s/^(E|e)://g;
               my $this_string;
@@ -855,14 +854,14 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
     my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL; Most similar taxon to this strain: $taxonomy_information->{taxon}";
     my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y '${tbl2asn_comment}'" .
-        " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.log 2>${output_dir}/tbl2asn.err";
+        " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.stdout 2>${output_dir}/tbl2asn.stderr";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
     my $sed_result = qx"${sed_command}";
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
-    print $log_fh "Writing final xlsx file of the annotations to $output_xlsx\n";
+    print $log_fh "Writing final xlsx file of the annotations to ${output_xlsx}.\n";
 
     my $written = $class->Bio::Adventure::Metadata::Write_XLSX(
         input => $merged_data,
@@ -1147,7 +1146,6 @@ sub Merge_Start_Data {
     my $header = $input_tsv->getline($input_fh);
     $input_tsv->column_names($header);
   ROWS: while (my $row = $input_tsv->getline_hr($input_fh)) {
-      ## next ROWS if ($row->{ftype} eq 'gene');
       my $key = $row->{$primary_key};
       $merged_data->{$key}->{$primary_key} = $key;
       foreach my $colname (@{$header}) {
@@ -1210,7 +1208,7 @@ sub Write_XLSX {
                   $tsv_data->{$rowname}->{$k_first_name} = shift @fields;
                   my $second_field = '';
                   for my $s (@fields) {
-                      $second_field .= qq"$s,";
+                      $second_field .= qq"${s},";
                   }
                   $second_field =~ s/\,$//g;
                   $tsv_data->{$rowname}->{$k_second_name} = $second_field;
@@ -1325,9 +1323,9 @@ sub BT1_Stats {
         jmem => 1,
         required => ['input']);
     my $bt_input = $options->{input};
-    my $bt_type = "";
+    my $bt_type = '';
     $bt_type = $options->{bt_type} if ($options->{bt_type});
-    my $jname = "stats";
+    my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
     my $count_table = "";
@@ -1381,10 +1379,10 @@ sub BT2_Stats {
         jmem => 1,
         required => ['input']);
     my $bt_input = $options->{input};
-    my $jname = "bt2_stats";
+    my $jname = 'bt2_stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
+    my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $output = "outputs/bowtie2_stats.csv";
@@ -1434,10 +1432,10 @@ sub BWA_Stats {
     $mem_input = qq"${mem_input}.stats";
     my $stat_output = qq"outputs/bwa_stats.csv";
 
-    my $jname = "bwa_stats";
+    my $jname = 'bwa_stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
+    my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $jstring = qq!
@@ -1469,7 +1467,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         jstring => $jstring,
         cpus => 1,
         jmem => 1,
-        jqueue => "throughput",);
+        jqueue => 'throughput',);
     return($stats);
 }
 
@@ -1557,13 +1555,13 @@ sub HT2_Stats {
         jmem => 1,
         output_dir => 'outputs',);
     my $ht_input = $options->{ht_input};
-    my $jname = "ht2_stats";
+    my $jname = 'ht2_stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
-    my $count_table = "";
+    my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
-    my $output = "$options->{output_dir}/hisat2_stats.csv";
+    my $output = qq"$options->{output_dir}/hisat2_stats.csv";
     my $jstring = qq!
 if [ \! -e "${output}" ]; then
     echo "id, original reads, single hits, failed reads, multi-hits, rpm" > ${output}
@@ -1604,7 +1602,7 @@ sub Salmon_Stats {
     my $options = $class->Get_Vars(
         args => \%args,
         jmem => 1,);
-    my $jname = "stats";
+    my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
     my $outdir = dirname($options->{input});
@@ -1657,12 +1655,13 @@ sub Tophat_Stats {
     my $unaccepted_input = $options->{unaccepted_input};
     my $unaccepted_output = qq"${unaccepted_input}.stats";
     my $read_info = $options->{prep_input};
-    my $jname = "stats";
+    my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
     my $jobid = qq"$options->{jbasename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
-    my $output = "outputs/tophat_stats.csv";
+    ## FIXME: Put this in the tophat_directory, but maybe who cares, just delete tophat.
+    my $output = 'outputs/tophat_stats.csv';
     my $comment = qq!## This is a stupidly simple job to collect tophat alignment statistics.!;
     my $jstring = qq!
 if [ \! -r "${output}" ]; then
@@ -1713,11 +1712,10 @@ sub Trimomatic_Stats {
     my $options = $class->Get_Vars(
         args => \%args,
         jmem => 1,
-        output_dir => 'outputs',
-        );
+        output_dir => 'outputs',);
     ## Dereferencing the options to keep a safe copy.
     my $basename = $options->{basename};
-    my $input_file = "$options->{output_dir}/${basename}-trimomatic.out";
+    my $input_file = qq"$options->{output_dir}/${basename}-trimomatic.out";
     my $jname = 'trimst';
     $jname = $options->{jname} if ($options->{jname});
     my $comment = qq!## This is a stupidly simple job to collect trimomatic statistics!;

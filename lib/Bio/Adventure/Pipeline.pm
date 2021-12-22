@@ -862,7 +862,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nDepth filtering initial assembly.\n";
-    my $depth_filtered = $class->Bio::Adventure::Assembly::Filter_Depth(
+    my $depth_filtered = $class->Bio::Adventure::Assembly::Unicycler_Filter_Depth(
         jdepends => $last_job,
         input => $assemble->{output},
         jprefix => $prefix,

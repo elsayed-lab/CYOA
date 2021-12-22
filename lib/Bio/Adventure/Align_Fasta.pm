@@ -69,8 +69,8 @@ cd $options->{basedir}
 $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{cpus} \\
  $options->{workdir}/split/\${PBS_ARRAYID}/in.fasta \\
  $options->{library} \\
- 1>$options->{basedir}/outputs/\${PBS_ARRAYID}.out \\
- 2>>$options->{basedir}/split_align_errors.txt
+ 1>$options->{basedir}/outputs/\${PBS_ARRAYID}.stdout \\
+ 2>>$options->{basedir}/split_align.stderr
 !;
     } else {
         $jstring = qq!
@@ -78,8 +78,8 @@ cd $options->{basedir}
   $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{cpus} \\
   $options->{input} \\
   $options->{library} \\
-  1>$options->{workdir}/$options->{fasta_tool}.out \\
-  2>>$options->{basedir}/split_align_errors.txt
+  1>$options->{workdir}/$options->{fasta_tool}.stdout \\
+  2>>$options->{basedir}/split_align.stderr
 !;
     }
     my $comment = qq!## Running multiple fasta jobs.!;
@@ -149,8 +149,6 @@ sub Parse_Fasta {
     print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tLStrand\n";
     my $results = 0;
     while (my $result = $searchio->next_result()) {
-      ##use Data::Dumper;
-      ##print Dumper $result;
       $results++;
       my $hit_count = 0;
     HIT: while (my $hit = $result->next_hit) {
@@ -183,8 +181,7 @@ sub Parse_Fasta {
           my @matches = $hsp->matches(-seq => 'hit');
           $hit_matches = $matches[1];
       }
-        ##print $out "QueryName\tQueryLength\tLibID\tLibHitLength\tScore\tE\tIdentity\tHitMatches\tQueryStart\tQueryEnd\tLibStart\tLibEnd\tQStrand\tLStrand\n";
-        print $out "$query_name\t$query_length\t$library_id\t$length\t$score\t$sig\t$ident\t$hit_matches\t$first_qstart\t$first_qend\t$first_lstart\t$first_lend\t$lstrand\n";
+        print $out "${query_name}\t${query_length}\t${library_id}\t${length}\t${score}\t${sig}\t${ident}\t${hit_matches}\t${first_qstart}\t${first_qend}\t${first_lstart}\t${first_lend}\t${lstrand}\n";
         ## process the Bio::Search::Hit::HitI object
         ## while(my $hsp = $hit->next_hsp) {
         ## process the Bio::Search::HSP::HSPI object
@@ -272,7 +269,6 @@ sub Parse_Fasta_Global {
         my $entry = qq"${query_name}\t";
         my $hit_count = 0;
       HITLOOP: while(my $hit = $result->next_hit) {
-          ##my $query_name = $result->query_name();
           my $query_length = $result->query_length();
           my $accession = $hit->accession();
           my $acc2 = $hit->name();
@@ -293,7 +289,7 @@ sub Parse_Fasta_Global {
               $hit_matches = $matches[1];
           }
           $entry .= "${acc2}:${ident}:${sig} ";
-          print $parsed "$query_name\t$query_length\t$acc2\t$length\t$score\t$sig\t$ident\t$hit_len\t$hit_matches\n";
+          print $parsed "${query_name}\t${query_length}\t${acc2}\t${length}\t${score}\t${sig}\t${ident}\t${hit_len}\t${hit_matches}\n";
       }                       ## End iterating over every hit for a sequence.
         $entry .= "\n";
         print $all $entry;
@@ -309,7 +305,7 @@ sub Parse_Fasta_Global {
             print $zero $entry;
         }
         print $counts "${query_name}\t${hit_count}\n";
-    }                           ## End iterating over every result in searchio
+    } ## End iterating over every result in searchio
     $counts->close();
     $parsed->close();
     $singles->close();
@@ -367,9 +363,7 @@ sub Split_Align_Fasta {
     if ($options->{pbs}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        ##$class->{num_per_split} = $num_per_split;
         $options = $class->Set_Vars(workdir => $outdir);
-        ##$class->{workdir} = $outdir;
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             %args,
@@ -384,15 +378,13 @@ sub Split_Align_Fasta {
             jdepends => $alignment->{job_id},
             output => $output,
             workdir => $outdir,
-            jprefix => "92",);
+            jprefix => '92',);
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         $options->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
         $options = $class->Set_Vars(num_per_split => $num_per_split);
-        ##$class->{num_per_split} = $num_per_split;
         $options = $class->Set_Vars(workdir => $outdir);
-        ##$class->{workdir} = $outdir;
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             workdir => $outdir,
             %args);
@@ -412,15 +404,16 @@ sub Split_Align_Fasta {
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Fasta;
-Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type => 'global_fasta',);
+my \$result = Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input',
+                                                 search_type => 'global_fasta',);
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
         jdepends => $concat_job->{job_id},
         jmem => $options->{jmem},
-        jname => "parse_search",
+        jname => 'parse_search',
         jstring => $jstring,
-        jprefix => "93",
+        jprefix => '93',
         language => 'perl',
         shell => '/usr/bin/env perl',);
     return($concat_job);

@@ -58,7 +58,7 @@ sub Abyss {
         modules => ['abyss'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abyss-pe');
-    die("Could not find abyss in your PATH.") unless($check);
+    die('Could not find abyss in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my %abyss_jobs = ();
@@ -87,8 +87,8 @@ rm -f ./*
 ${executable} -C \$(pwd) \\
     ${k_string} ${name_string} \\
     ${input_string} \\
-    2>abyss_${outname}.err \\
-    1>abyss_${outname}.out
+    2>abyss_${outname}.stderr \\
+    1>abyss_${outname}.stdout
 cd \${start}
 !;
     my $abyss = $class->Submit(
@@ -103,7 +103,7 @@ cd \${start}
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($abyss);
@@ -159,31 +159,32 @@ sub Assembly_Coverage {
         $input_string = qq"-1 <(less ${r1}) ";
     }
     my $comment = qq!## This is a script to remap the reads against an assembly
-and calculate the coverage by contig.
+## and calculate the coverage by contig.
 !;
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
-hisat2-build $options->{library} ${output_dir}/coverage_test
+hisat2-build $options->{library} ${output_dir}/coverage_test \\
+  2>${output_dir}/coverage_hisat_index.stderr 1>${output_dir}/coverage_hisat_index.stdout
 hisat2 -x ${output_dir}/coverage_test -q \\
   ${input_string} -S ${output_dir}/coverage.sam \\
-  2>${output_dir}/coverage_hisat.err 1>${output_dir}/coverage_hisat.out
+  2>${output_dir}/coverage_hisat.stderr 1>${output_dir}/coverage_hisat.stdout
 pileup.sh in=${output_dir}/coverage.sam \\
   out=${output_dir}/coverage.tsv \\
   basecov=${output_dir}/base_coverage.tsv \\
   covwindow=100 \\
   k=19 \\
   overwrite=true \\
-  2>${output_dir}/pileup.err 1>${output_dir}/pileup.out
+  2>${output_dir}/pileup.stderr 1>${output_dir}/pileup.stdout
 samtools view -u -t $options->{library} \\
   -S ${output_dir}/coverage.sam -o ${output_dir}/coverage.bam \\
-  2>${output_dir}/coverage_samtools.err 1>${output_dir}/coverage_samtools.out
+  2>${output_dir}/coverage_samtools.stderr 1>${output_dir}/coverage_samtools.stdout
 rm ${output_dir}/coverage.sam
 samtools sort -l 9 ${output_dir}/coverage.bam \\
   -o ${output_dir}/coverage_sorted.bam \\
-  2>>${output_dir}/coverage_samtools.err 1>>${output_dir}/coverage_samtools.out
+  2>>${output_dir}/coverage_samtools.stderr 1>>${output_dir}/coverage_samtools.stdout
 mv ${output_dir}/coverage_sorted.bam ${output_dir}/coverage.bam
 samtools index ${output_dir}/coverage.bam \\
-  2>>${output_dir}/coverage_samtools.err 1>>${output_dir}/coverage_samtools.out
+  2>>${output_dir}/coverage_samtools.stderr 1>>${output_dir}/coverage_samtools.stdout
 !;
     my $coverage = $class->Submit(
         cpus => 6,
@@ -252,7 +253,7 @@ cp $options->{input_genbank} ${output_dir}
 cp $options->{input_tsv} ${output_dir}
 !;
     for my $o (@output_files) {
-        $jstring .= qq"cp $o ${output_dir}
+        $jstring .= qq"cp ${o} ${output_dir}
 ";
     }
 
@@ -387,8 +388,7 @@ sub Unicycler_Filter_Depth {
         coverage => 0.2,  ## The ratio of each sequence's coverage / the maximum coverage observed.
         jmem => 4,
         jprefix => '13',
-        output => 'final_assembly.fasta',
-        );
+        output => 'final_assembly.fasta',);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
@@ -399,13 +399,12 @@ sub Unicycler_Filter_Depth {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Assembly;
-Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
+my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   comment => '${comment}',
   coverage => '$options->{coverage}',
   input => '$options->{input}',
   output => '${output}',
-  output_log => '${output_log}',
-);
+  output_log => '${output_log}',);
 !;
     my $depth_filtered = $class->Submit(
         jdepends => $options->{jdepends},
@@ -455,7 +454,7 @@ sub Shovill {
         modules => ['shovill',]);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('shovill');
-    die("Could not find shovill in your PATH.") unless($check);
+    die('Could not find shovill in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}shovill";
@@ -472,8 +471,8 @@ sub Shovill {
 shovill $options->{arbitrary} --force --keepfiles --depth $options->{depth} \\
    --outdir ${output_dir} \\
   $input_string \\
-  2>${output_dir}/shovill_${outname}.err \\
-  1>${output_dir}/shovill_${outname}.out
+  2>${output_dir}/shovill_${outname}.stderr \\
+  1>${output_dir}/shovill_${outname}.stdout
 if [[ -f ${output_dir}/contigs.fa ]]; then
   mv ${output_dir}/contigs.fa ${output_dir}/final_assembly.fasta
 elif [[ -f ${output_dir}/spades.fasta.uncorrected ]]; then
@@ -528,11 +527,11 @@ sub Trinity {
         modules => ['trinity'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('Trinity');
-    die("Could not find trinity in your PATH.") unless($check);
+    die('Could not find trinity in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trinity_${job_name}";
-    my $input_string = "";
+    my $input_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq"--left $in[0] --right $in[1] ";
@@ -546,31 +545,31 @@ sub Trinity {
     --trimmomatic --max_memory 90G --CPU 6 \\
     --output ${output_dir} \\
     ${input_string} \\
-    2>${output_dir}/trinity_${job_name}.err \\
-    1>${output_dir}/trinity_${job_name}.out
+    2>${output_dir}/trinity_${job_name}.stderr \\
+    1>${output_dir}/trinity_${job_name}.stdout
 !;
     my $trinity = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "$options->{jprefix}trin_${job_name}",
+        jname => qq"$options->{jprefix}trin_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
         jqueue => 'large',
         modules => $options->{modules},
-        output => qq"${output_dir}/Trinity.xls",
+        output => qq"${output_dir}/Trinity.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
         jdepends => $trinity->{job_id},
-        jname => "$options->{jprefix}_1trin_rsem",
+        jname => qq"$options->{jprefix}_1trin_rsem",
         input => $options->{input},);
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         %args,
         jdepends => $trinity->{job_id},
-        jname => "$options->{jprefix}_2trinotate",
+        jname => qq"$options->{jprefix}_2trinotate",
         input => qq"${output_dir}/Trinity.fasta",);
     $trinity->{rsem_job} = $rsem;
     $trinity->{trinotate_job} = $trinotate;
@@ -601,7 +600,7 @@ sub Trinity_Post {
         args => \%args,
         required => ['input'],
         jmem => 24,
-        jname => "trin_rsem",
+        jname => 'trin_rsem',
         jprefix => '61',
         modules => ['rsem'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -625,8 +624,8 @@ sub Trinity_Post {
 start=\$(pwd)
 cd ${trinity_out_dir}
 ${trinity_exe_dir}/util/TrinityStats.pl Trinity.fasta \\
-  2>${trinity_out_dir}/trinpost_stats.err \\
-  1>${trinity_out_dir}/trinpost_stats.out &
+  2>${trinity_out_dir}/trinpost_stats.stderr \\
+  1>${trinity_out_dir}/trinpost_stats.stdout &
 
 ${trinity_exe_dir}/util/align_and_estimate_abundance.pl \\
   --output_dir align_estimate.out \\
@@ -636,20 +635,20 @@ ${trinity_exe_dir}/util/align_and_estimate_abundance.pl \\
   --est_method RSEM \\
   --aln_method bowtie \\
   --trinity_mode --prep_reference \\
-  2>trinpost_align_estimate.err \\
-  1>trinpost_align_estimate.out
+  2>trinpost_align_estimate.stderr \\
+  1>trinpost_align_estimate.stdout
 
 ${trinity_exe_dir}/util/abundance_estimates_to_matrix.pl \\
   --est_method RSEM \\
   --gene_trans_map Trinity.fasta.gene_trans_map \\
   align_estimate.out/RSEM.isoform.results \\
-  2>trinpost_estimate_to_matrix.err \\
-  1>trinpost_estimate_to_matrix.out
+  2>trinpost_estimate_to_matrix.stderr \\
+  1>trinpost_estimate_to_matrix.stdout
 
 ${trinity_exe_dir}/util/SAM_nameSorted_to_uniq_count_stats.pl \\
   bowtie_out/bowtie_out.nameSorted.bam \\
-  2>trinpost_count_stats.err \\
-  1>trinpost_count_stats.out
+  2>trinpost_count_stats.stderr \\
+  1>trinpost_count_stats.stdout
 
 cd \${start}
 !;
@@ -658,7 +657,7 @@ cd \${start}
         input => $options->{input},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => "$options->{jprefix}trinpost_${job_name}",
+        jname => qq"$options->{jprefix}trinpost_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'large',
         jstring => $jstring,
@@ -711,7 +710,7 @@ sub Unicycler {
         modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
-    die("Could not find unicycler in your PATH.") unless($check);
+    die('Could not find unicycler in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
@@ -738,8 +737,8 @@ unicycler $options->{arbitrary} \\
   --min_fasta_length $options->{min_length} \\
   ${input_string} \\
   -o ${output_dir} \\
-  2>${output_dir}/unicycler_${outname}.err \\
-  1>${output_dir}/unicycler_${outname}.out
+  2>${output_dir}/unicycler_${outname}.stderr \\
+  1>${output_dir}/unicycler_${outname}.stdout
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
 rm -f r1.fastq.gz r2.fastq.gz
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
@@ -796,7 +795,7 @@ sub Velvet {
         modules => ['velvet'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('velveth');
-    die("Could not find velvet in your PATH.") unless($check);
+    die('Could not find velvet in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/velvet_${job_name}";
     my $input_string = "";
@@ -811,12 +810,12 @@ sub Velvet {
     my $jstring = qq!mkdir -p ${output_dir} && \\
   velveth ${output_dir} $options->{kmer} \\
     $input_string \\
-    2>${output_dir}/velveth_${job_name}.err \\
-    1>${output_dir}/velveth_${job_name}.out
+    2>${output_dir}/velveth_${job_name}.stderr \\
+    1>${output_dir}/velveth_${job_name}.stdout
   velvetg ${output_dir} \\
     -exp_cov auto -cov_cutoff auto \\
-    2>${output_dir}/velvetg_${job_name}.err \\
-    1>${output_dir}/velvetg_${job_name}.out
+    2>${output_dir}/velvetg_${job_name}.stderr \\
+    1>${output_dir}/velvetg_${job_name}.stdout
   new_params=\$(velvet-estimate-exp_cov.pl ${output_dir}/stats.txt \|
     grep velvetg parameters \|
     sed 's/velvetg parameters: //g')

@@ -27,13 +27,27 @@ use Text::CSV_XS::TSV;
 
 =head2 C<Aragorn>
 
-Use aragorn to search for tRNA genes in a sequence database.  By
-default this will explictly search for tmRNA as well.
+ Search for potential tRNA genes across the tree of life.
+ aragorn: https://doi.org/10.1093/nar/gkh152
 
-One thing which fascinates me about tRNA genes: mitochondrial tRNA
-genes have introns.  In addition, mtRNA genes are in the introns of
-other genes; and in that context have regulatory effects.  So its like
-an island on a lake with an island in a pond.
+ Use aragorn to search for tRNA genes in a sequence database.  This
+ invocation defaults to also searching for tmRNA, but not
+ mitochondrial.
+
+ One thing which fascinates me about tRNA genes: mitochondrial tRNA
+ genes have introns.  In addition, mtRNA genes are in the introns of
+ other genes; and in that context have regulatory effects.  So its like
+ an island on a lake with an island in a pond.
+
+=item C<Arguments>
+
+ input(required): Fasta of long sequences, presumably an assembly.
+ arbitrary('-rp -fasta -w -m -t'): My favorite aragorn options.
+ species(undef):  Currently unused, and TBH I do not remember what I
+  intended for it.
+ jmem(4): Expected memory usage.
+ jprefix('21'): Prefix for the job name and output directory.
+ modules('aragorn'): Environment module used.
 
 =cut
 sub Aragorn {
@@ -41,31 +55,32 @@ sub Aragorn {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['aragorn'],
-        jmem => 8,
-        jprefix => 21,
+        arbitrary => ' -rp -fasta -w -m -t ',
         species => undef,
-        arbitrary => ' -rp -fasta -w -m -t ',);
+        jmem => 4,
+        jprefix => 21,
+        modules => ['aragorn'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('aragorn');
-    die("Could not find aragorn in your PATH.") unless($check);
+    die('Could not find aragorn in your PATH.') unless($check);
     my $aragorn_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}aragorn";
-    my $species_string = qq"";
+    my $species_string = '';
     my $comment = qq!## This is a script to run aragorn.
 !;
     my $jstring = qq!mkdir -p ${output_dir} && \\
   aragorn $options->{arbitrary} \\
     -o ${output_dir}/aragorn.txt \\
-    $options->{input}
+    $options->{input} \\
+    2>${output_dir}/aragorn.stderr \\
+    1>${output_dir}/aragorn.stdout
 !;
-
     my $aragorn = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "aragorn_${job_name}",
+        jname => qq"aragorn_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -75,18 +90,26 @@ sub Aragorn {
         postscript => $options->{postscript},
         jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
-        action => 'unload',);
+                                    action => 'unload',);
     return($aragorn);
 }
 
 =head2 C<Glimmer>
 
-Use glimmer in two passes to search for ORFs in a sequence database.
+ Use glimmer in two passes to search for ORFs in a sequence database.
+ Glimmer: https://doi.org/10.1093/nar/26.2.544
 
-The script template which follows was annoyingly brittle, so I instead
-rewrote it as a short perl script which has some error handling and
-captures each step in a separate function in the hopes that the
-outputs will be clearer and easier to follow.
+ The script template which follows was annoyingly brittle, so I instead
+ rewrote it as a short perl script which has some error handling and
+ captures each step in a separate function in the hopes that the
+ outputs will be clearer and easier to follow.
+
+=item C<Arguments>
+
+ input(required): Fasta of long sequence, likely an assembly.
+ jmem(8): Expected memory usage.
+ jprefix('16'): prefix for jobnames/output directories.
+ modules('glimmer'): Environment module used.
 
 =cut
 sub Glimmer {
@@ -94,12 +117,12 @@ sub Glimmer {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['glimmer'],
         jmem => 8,
-        jprefix => '16',);
+        jprefix => '16',
+        modules => ['glimmer'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('glimmer3');
-    die("Could not find glimmer in your PATH.") unless($check);
+    die('Could not find glimmer in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
 
@@ -135,12 +158,11 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
 !;
 
     ## FIXME: There are a bunch of potentially useful glimmer outputs which should be put here.
-
     my $glimmer = $class->Submit(
         cpus => $options->{cpus},
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "glimmer_${job_name}",
+        jname => qq"glimmer_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -148,7 +170,7 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
         output => qq"${output_dir}/${job_name}_glimmer.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($glimmer);
@@ -156,10 +178,23 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
 
 =head2 C<Glimmer_Single
 
-Run glimmer in a single pass instead of the two passes as per the
-paper.  I am somewhat against running glimmer like this, it does not
-take much time to use glimmer's training functions; but some assembly
-methods explicitly run it in a single-pass fashion.
+ Invoke glimmer in a single pass.
+
+ This is an alternate invocation of glimmer which does not perform the
+ training run. I am somewhat against running glimmer like this, it
+ does not take much time to use glimmer's training functions; but some
+ assembly methods explicitly run it in a single-pass fashion.
+
+=item C<Arguments>
+
+ input(required): Fasta of long sequence, likely an assembly.
+ cutoff(1.1): Used with the invocation of glimmer3.
+ overlap(20): Allow overlaps of this length?
+ minlength(45): Minimum number of nucleotides.
+ threshold(30): the -t option to glimmer3.
+ jmem(8): Expected memory usage.
+ jprefix('16'): Output directory and job name prefix.
+ modules('glimmer'): Environment module to use.
 
 =cut
 sub Glimmer_Single {
@@ -167,16 +202,16 @@ sub Glimmer_Single {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['glimmer'],
         cutoff => 1.1,
         overlap => 20,
         minlength => 45,
         threshold => 30,
         jmem => 8,
-        jprefix => '16',);
+        jprefix => '16',
+        modules => ['glimmer'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('glimmer3');
-    die("Could not find glimmer in your PATH.") unless($check);
+    die('Could not find glimmer in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
 
@@ -185,12 +220,13 @@ sub Glimmer_Single {
     my $final_error = qq"${output_dir}/glimmer3.err";
     my $jstring = qq!mkdir -p ${output_dir}
 long-orfs -n -t $options->{cutoff} $options->{input} ${output_dir}/longorfs.txt \\
-  2>${output_dir}/longorfs.err \\
-  1>${output_dir}/longorfs.out
+  2>${output_dir}/longorfs.stderr \\
+  1>${output_dir}/longorfs.stdout
 extract -t $options->{input} ${output_dir}/longorfs.txt \\
   1>${output_dir}/training.txt \\
-  2>${output_dir}/training.err
-build-icm -r ${output_dir}/single_run.icm < ${output_dir}/training.txt
+  2>${output_dir}/training.stderr
+build-icm -r ${output_dir}/single_run.icm < ${output_dir}/training.txt \\
+  2>${output_dir}/build-icm.stderr
 glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \\
   $options->{input} \\
   ${output_dir}/single_run.icm \\
@@ -202,7 +238,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => "glimmer_${job_name}",
+        jname => qq"glimmer_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -213,7 +249,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
         output_training => qq"${output_dir}/training.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($glimmer);
@@ -221,13 +257,23 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
 
 =head2 C<Phanotate>
 
-Phanotate is a cousin to glimmer/prodigal, but with some assumptions
-built in regarding the packing of viral/phage ORFs.  It therefore
-results in a higher number of very closely packed ORFs, with some
-increased risk of spurious calls.
+ Search for phage CDS in an assembly.
+ phanotate: https://doi.org/10.1093/bioinformatics/btz265
 
-This function invokes phanotate on a viral assembly to search for
-ORFs.
+ Phanotate is a cousin to glimmer/prodigal, but with some assumptions
+ built in regarding the packing of viral/phage ORFs.  It therefore
+ results in a higher number of very closely packed ORFs, with some
+ increased risk of spurious calls.
+
+ This function invokes phanotate on a viral assembly to search for
+ ORFs.
+
+=item C<Arguments>
+
+ input(required): Viral assembly fasta file.
+ jmem(6): Expected memory usage.
+ jprefix('17'): Prefix for the jobname and output directory.
+ modules('phanotate'): Environment module used.
 
 =cut
 sub Phanotate {
@@ -240,30 +286,32 @@ sub Phanotate {
         modules => ['phanotate'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phanotate.py');
-    die("Could not find glimmer in your PATH.") unless($check);
+    die('Could not find phanotate in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phanotate";
     my $output_file = qq"${output_dir}/${job_name}_phanotate.tsv";
     my $input_paths = $class->Get_Paths($output_file);
-    my $comment = qq"## This is a script to run phanotate.";
+    my $comment = '## This is a script to run phanotate.';
     my $jstring = qq!
 phanotate.py \\
   --outfile ${output_file} \\
-  $options->{input}
+  $options->{input} \\
+  2>${output_dir}/phanotate.stderr \\
+  1>${output_dir}/phanotate.stdout
 xz -9e -f ${output_file}
 !;
     my $phanotate = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => "phanotate_${job_name}",
+        jname => qq"phanotate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_file}.xz",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($phanotate);
@@ -271,9 +319,24 @@ xz -9e -f ${output_file}
 
 =head2 C<Prodigal>
 
-Invoke prodigal on an assembly to search for ORFs.  This will by
-default look for an existing training file provided by
-Train_Prodigal()'.
+ Search for CDS using prodigal.
+ prodigal: 10.1186/1471-2105-11-119
+
+ Invoke prodigal on an assembly to search for ORFs.  This will by
+ default look for an existing training file provided by
+ Train_Prodigal()'.
+
+=item C<Arguments>
+
+ input(required): Fasta assembly of non-intron containing sequence.
+ species(undef): Training species name, if left undefined prodigal
+  will train on the assembly itself.
+ gcode(11): Use this genomic code (bacterial).
+ output_dir(undef): Put outputs here.
+ prodigal_outname(undef): Prefix for the outputs.
+ jmem(8): Expected memory usage.
+ jprefix('17'): Prefix for the outputs and jobname.
+ modules('prodigal'): Load this environment module.
 
 =cut
 sub Prodigal {
@@ -284,13 +347,13 @@ sub Prodigal {
         species => undef,
         gcode => '11',
         output_dir => undef,
+        prodigal_outname => undef,
         jmem => 8,
         jprefix => '17',
-        modules => ['prodigal'],
-        prodigal_outname => undef,);
+        modules => ['prodigal'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prodigal');
-    die("Could not find prodigal in your PATH.") unless($check);
+    die('Could not find prodigal in your PATH.') unless($check);
 
     my $inputs = $class->Get_Paths($options->{input});
     my $job_name = $class->Get_Job_Name();
@@ -333,8 +396,7 @@ sub Prodigal {
         $gbk_file = qq"${output_dir}/predicted_cds.gb";
     }
 
-    my $comment = qq!## This is a script to run prodigal.
-!;
+    my $comment = '!## This is a script to run prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
 prodigal ${train_string} \\
   -i $options->{input} \\
@@ -342,22 +404,22 @@ prodigal ${train_string} \\
   -d ${cds_file} \\
   -s ${scores_file} \\
   -f gff -o ${gff_file} \\
-  2>${output_dir}/prodigal_gff.err \\
-  1>${output_dir}/prodigal_gff.out
+  2>${output_dir}/prodigal_gff.stderr \\
+  1>${output_dir}/prodigal_gff.stdout
 prodigal ${train_string} \\
   -i $options->{input} \\
   -f gbk -o ${gbk_file} \\
-  2>${output_dir}/prodigal_gbk.err \\
-  1>${output_dir}/prodigal_gbk.out
+  2>${output_dir}/prodigal_gbk.stderr \\
+  1>${output_dir}/prodigal_gbk.stdout
 !;
     my $prodigal = $class->Submit(
         cpus => 1,
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => "prodigal_${job_name}",
+        jname => qq"prodigal_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => "workstation",
+        jqueue => 'workstation',
         jstring => $jstring,
         modules => $options->{modules},
         output => $gbk_file,
@@ -375,7 +437,18 @@ prodigal ${train_string} \\
 
 =head2 C<Rho_Terminase_Predict>
 
-Use the rho terminase prediction tool to hunt for rho.
+ Use the rho terminase prediction tool to hunt for rho.
+ rhotermpredict: https://doi.org/10.1186/s12859-019-2704-x
+
+ Polymerase termination is neat!  Look for rho termination factors
+ with this tool.
+
+=item C<Arguments>
+
+ input(required): Fasta of sequence to search.
+ jmem(12): Expected memory usage.
+ jprefix('51'): Prefix for the jobname/output directory.
+ modules('rhotermpredict'): Use this environment module.
 
 =cut
 sub RhoTermPredict {
@@ -383,9 +456,9 @@ sub RhoTermPredict {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => ['rhotermpredict'],
         jmem => 12,
-        jprefix => '51',);
+        jprefix => '51',
+        modules => ['rhotermpredict'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
@@ -396,8 +469,9 @@ sub RhoTermPredict {
 start=\$(pwd)
 cd ${output_dir}
 cp $options->{input} .
-echo $input_paths->{filename} | RhoTermPredict_algorithm.py
-
+echo $input_paths->{filename} | RhoTermPredict_algorithm.py \\
+  2>${output_dir}/rhotermpredict.stderr \\
+  1>${output_dir}/rhotermpredict.stdout
 ?;
 
     my $rhoterm = $class->Submit(
@@ -414,16 +488,26 @@ echo $input_paths->{filename} | RhoTermPredict_algorithm.py
 
 =head2 C<Train_Prodigal>
 
-Some assemblies I have been performing are on sets of sequence which
-are too small for prodigal to train itself sufficiently; so this
-function was written to provide an opportunity for one to collate a
-larger sequence database for training.
+ Train prodigal to improve its predictions!
+
+ Some assemblies I have been performing are on sets of sequence which
+ are too small for prodigal to train itself sufficiently; so this
+ function was written to provide an opportunity for one to collate a
+ larger sequence database for training.
+
+=item C<Arguments>
+
+ input(required): Fasta training input.
+ species(required): Used to set the name of the output training file.
+ gcode(11): Use this genomic code.
+ jmem(8): Expected memory usage.
+ modules('prodigal'): Use this environment module.
 
 =cut
 sub Train_Prodigal {
     my ($class, %args) = @_;
     my $check = which('prodigal');
-    die("Could not find prodigal in your PATH.") unless($check);
+    die('Could not find prodigal in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
@@ -446,7 +530,7 @@ prodigal -i $options->{input} \\
         cpus => 1,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "prodigal_training_${job_name}",
+        jname => qq"prodigal_training_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -454,36 +538,51 @@ prodigal -i $options->{input} \\
         output => $output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
     return($prodigal);
 }
 
 =head2 C<tRNAScan>
 
-Alternative to aragorn.  Search for tRNAs!  Having spent a little time
-poking at the two methods, it may prove worth while to employ them
-both.
+ Search for tRNA sequence-like elements with infernal.
+ tRNAScan: 10.1093/nar/25.5.955
+
+ Alternative to aragorn.  Search for tRNAs!  Having spent a little time
+ poking at the two methods, it may prove worth while to employ them
+ both.  By default, this invocation is less stringent than the
+ previous aragorn invocation.
+
+=item C<Arguments>
+
+ input(required): Fasta file in which to hunt.
+ arbitrary('-G'): Any of the many arguments one may pass to trnascan.
+ species(undef): Currently unused, I forgot why I wanted it.
+ suffix('general'): jobname suffix -- I guess this should be jsuffix.
+ tool('trnascan'): tRNAScan comes with a few executables, use this
+  one.
+ jmem(6): Expected memory usage.
+ modules('infernal', 'trnascan'): Use these environment modules.
 
 =cut
 sub tRNAScan {
     my ($class, %args) = @_;
-    my $check = which('trnascan');
-    die("Could not find trnascan in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jmem => 6,
-        species => undef,
         arbitrary => ' -G ',
+        species => undef,
         suffix => 'general',
         tool => 'trnascan',
+        jmem => 6,
         modules => ['infernal', 'trnascan'],);
-
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('trnascan');
+    die('Could not find trnascan in your PATH.') unless($check);
     my $trnascan_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/trnascan";
     my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
-    my $species_string = qq"";
+    my $species_string = '';
     my $comment = qq!## This is a script to run trnascan.
 !;
     my $jstring = qq!mkdir -p ${output_dir}
@@ -492,20 +591,21 @@ $options->{tool} $options->{arbitrary} \\
   $options->{input} \\
   2>${output_dir}/trnascan.stderr 1>${output_dir}/trnascan.stdout
 !;
-
     my $trnascan = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "trnascan_${job_name}",
-        jprefix => "64",
+        jname => qq"trnascan_${job_name}",
+        jprefix => '64',
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "workstation",);
+        jqueue => 'workstation',);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($trnascan);
 }
 

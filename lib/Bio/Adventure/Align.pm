@@ -63,8 +63,7 @@ rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${
         jmem => $options->{jmem},
         jstring => $jstring,
         jprefix => $options->{jprefix},
-        output => qq"${output}",
-        );
+        output => qq"${output}",);
     return($concatenate);
 }
 
@@ -85,7 +84,7 @@ sub Duplicate_Remove {
         my ($self, $others) = split(/\t/, $line);
         my @other_list = split(/ /, $others);
         my $entry = {self => $self, others => \@other_list};
-        print "Pushing self: $self others: @other_list\n";
+        print "Pushing self: ${self} others: @other_list\n";
         push(@entries, $entry);
     }
     $in->close();
@@ -96,17 +95,17 @@ sub Duplicate_Remove {
         my $self = $keeper->{self};
         my $others = $keeper->{others};
         ## Write down this first entry
-        print "Writing $self to out.\n";
+        print "Writing ${self} to out.\n";
         print $out qq"${self}\n";
         ## Now remove all instances of the 'others' from the list and future consideration.
         my $other_length = scalar(@{$others});
       OTHERS: foreach my $other (@{$others}) {
             my ($other_name, $other_ident, $other_e) = split(/:/, $other);
-            print "Checking for $other_name in entries.\n";
+            print "Checking for ${other_name} in entries.\n";
             my @tmp = @entries;
             my $length = scalar(@tmp);
             my @new = ();
-            print "The length of entries is now: $length\n";
+            print "The length of entries is now: ${length}\n";
           CHECK: foreach my $tmp_entry (@tmp) {
                 my $self_check = $tmp_entry->{self};
                 if ($self_check eq $other_name) {
@@ -143,7 +142,7 @@ sub Get_Split {
     }
     my $ret = ceil($seqs / $options->{align_jobs});
     if ($seqs < $options->{align_jobs}) {
-        print "There are fewer sequences than the chosen number of split files, resetting that to $seqs.\n";
+        print "There are fewer sequences than the chosen number of split files, resetting that to ${seqs}.\n";
         $options = $class->Set_Vars(align_jobs => $seqs);
     }
     print "Get_Split: Making $options->{align_jobs} directories with $ret sequences.\n";
@@ -159,7 +158,7 @@ sub Ids_to_Sequences {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $id_input_file = $options->{id_list};
-    my $id_in = FileHandle->new("<$id_input_file");
+    my $id_in = FileHandle->new("<${id_input_file}");
     my $chromosomes = $class->Read_Genome(genome => $class->{genome});
     my $gff_info = $class->Read_GFF(gff => $class->{gff});
     ## Now I have the set of start/stops for all IDs
@@ -178,7 +177,7 @@ sub Ids_to_Sequences {
     while (my $line = <$id_in>) {
         chomp $line;
         my $seq = join("\n",($sequences{$line} =~ m/.{1,80}/g));
-        print $id_out ">$line
+        print $id_out ">${line}
 $sequences{$seq}
 ";
     }
@@ -190,12 +189,10 @@ $sequences{$seq}
         library => $id_output_file,
         max_significance => 0.0001,
         min_percent => 0.80,
-        query => $id_output_file,
-    );
+        query => $id_output_file,);
     my $duplicates = Bio::Tools::Adventure::Align::Duplicate_Remove(
         $class,
-        input => $id_output_file,
-        );
+        input => $id_output_file,);
     return($concat);
 }
 
@@ -222,7 +219,7 @@ sub Make_Directories {
     remove_tree("${workdir}/split", {verbose => 0 });
     for my $c ($dir .. ($dir + $splits)) {
         ## print "Making directory: split/$c\n";
-        make_path("${workdir}/split/$c") if (!-d "${workdir}/split/$c" and !-f "${workdir}/split/$c");
+        make_path("${workdir}/split/${c}") if (!-d "${workdir}/split/${c}" and !-f "${workdir}/split/${c}");
     }
 
     my $in = Bio::SeqIO->new(-file => $options->{input},);
@@ -233,8 +230,8 @@ sub Make_Directories {
         $seq = join("\n", ($seq =~ m/.{1,80}/g));
         my $output_file = qq"${workdir}/split/${dir}/in.fasta";
         my $outfile = FileHandle->new(">>${workdir}/split/${dir}/in.fasta");
-        my $out_string = qq!>$id
-$seq
+        my $out_string = qq!>${id}
+${seq}
 !;
         print $outfile $out_string;
         $outfile->close();
@@ -246,7 +243,7 @@ $seq
             my $last = $dir;
             $last--;
             if ($count == 1) {
-                print "Writing $num_per_split entries to files 1000 to $last\n";
+                print "Writing ${num_per_split} entries to files 1000 to ${last}\n";
             }
             ## You might be wondering why this num_dirs is here.
             ## Imagine if you have a query library of 10,004 sequences and you try to write them to 200 files.

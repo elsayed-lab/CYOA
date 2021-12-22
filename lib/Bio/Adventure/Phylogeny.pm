@@ -38,14 +38,15 @@ sub Run_Gubbins {
     $gub_dir = $options->{gub_dir} if ($options->{gub_dir});
     my $jstring = qq!mkdir -p ${gub_dir} && run_gubbins.py \\
   $options->{input} \\
-  --threads ${cpus} !;
+  --threads ${cpus} \\
+!;
     if ($options->{outgroup}) {
-        $jstring .= qq! --outgoup $options->{outgroup} !;
+        $jstring .= qq! --outgoup $options->{outgroup} \\!;
     }
     if ($options->{starting_tree}) {
-        $jstring .= qq! --starting_tree $options->{starting_tree} !;
+        $jstring .= qq! --starting_tree $options->{starting_tree} \\!;
     }
-
+    $jstring .= qq"  2>${gub_dir}/gubbins.stderr 1>${gub_dir}/gubbins.stdout";
     my $gubbins = $class->Submit(
         basename => 'gubbins',
         comment => 'This should remove recombination events from bacterial genomes.',

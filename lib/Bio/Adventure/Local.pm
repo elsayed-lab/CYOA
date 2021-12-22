@@ -96,18 +96,16 @@ $args{jstring}" if ($options->{verbose});
 
     my $module_string = '';
     if (scalar(@{$options->{modules}} > 0)) {
-        $module_string = qq"module add";
+        $module_string = 'module add';
         for my $m (@{$options->{modules}}) {
-            $module_string .= qq" $m";
+            $module_string .= qq" ${m}";
         }
     }
 
     my $script_start = qq?#!/usr/bin/env bash
 
 echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
-
 ${module_string}
-
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
 echo "###Job status:\$?" >> outputs/log.txt
@@ -130,18 +128,18 @@ $args{jstring}
 ";
     }
 
-    my $total_script_string = "";
-    $total_script_string .= "${script_start}\n";
-    $total_script_string .= "$args{comment}\n" if ($args{comment});
-    $total_script_string .= "$args{prescript}\n" if ($args{prescript});
-    $total_script_string .= "$args{jstring}\n" if ($args{jstring});
+    my $total_script_string = '';
+    $total_script_string .= qq"${script_start}\n";
+    $total_script_string .= qq"$args{comment}\n" if ($args{comment});
+    $total_script_string .= qq"$args{prescript}\n" if ($args{prescript});
+    $total_script_string .= qq"$args{jstring}\n" if ($args{jstring});
     if ($args{postscript}) {
         $total_script_string .= qq!if [ \$? == "0" ]; then
    $args{postscript}
 fi
 !;
     }
-    $total_script_string .= "${script_end}\n";
+    $total_script_string .= qq"${script_end}\n";
 
     my $script = FileHandle->new(">$script_file");
     print $script $total_script_string;

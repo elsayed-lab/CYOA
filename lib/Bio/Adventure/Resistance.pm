@@ -38,7 +38,7 @@ sub Abricate {
         modules => ['any2fasta', 'abricate', 'blast'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('abricate');
-    die("Could not find abricate in your PATH.") unless($check);
+    die('Could not find abricate in your PATH.') unless($check);
 
     my $coverage = 70;
     $coverage = $options->{coverage} if (defined($options->{coverage}));
@@ -54,7 +54,7 @@ sub Abricate {
         $input_name = $input_paths->{filebase_extension};
     }
     my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_name}";
-    my $species_string = qq"";
+    my $species_string = '';
     my $comment = qq!## This is a script to run abricate.
 !;
     my $jstring = qq!mkdir -p ${output_dir}
@@ -63,12 +63,12 @@ dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
 for db in \${dbs}; do
   abricate $options->{input} --db \${db} --nopath --noheader \\
   --minid ${identity} --mincov ${coverage} \\
-  2>${output_dir}/abricate_\${db}.err \\
+  2>${output_dir}/abricate_\${db}.stderr \\
   1>${output_dir}/abricate_\${db}.tsv
   cat ${output_dir}/abricate_\${db}.tsv >> ${output_dir}/abricate_combined.tsv
 done
 abricate --summary ${output_dir}/*.tsv \\
-  2>${output_dir}/abricate_summary.err \\
+  2>${output_dir}/abricate_summary.stderr \\
   1>${output_dir}/abricate_summary.txt
 !;
 
@@ -77,7 +77,7 @@ abricate --summary ${output_dir}/*.tsv \\
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => 24,
-        jname => "abricate_${job_name}",
+        jname => qq"abricate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -138,7 +138,7 @@ run_resfinder.py -ifa $options->{input} \\
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => 24,
-        jname => "resfinder_${job_name}",
+        jname => qq"resfinder_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},

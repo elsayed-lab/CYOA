@@ -104,7 +104,7 @@ sub BT2_Index {
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "bt2idx_${species}",
+        jname => qq"bt2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -135,8 +135,8 @@ start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes
 ln -sf ../${species}.fa .
 bwa index ${species}.fa \\
-  2>bwa_index.err \\
-  1>bwa_index.out
+  2>bwa_index.stderr \\
+  1>bwa_index.stdout
 cd \$start
 !;
     my $basedir = qq"$options->{libdir}/$options->{libtype}/indexes";
@@ -184,7 +184,7 @@ sub Check_Blastdb {
     ## If it isn't there, make one in basedir/blastdb/
     my $foundlib = 0;
     if ($options->{type} ne 'prot' && $options->{type} ne 'nucl') {
-        die("makeblastdb requires either a type of 'prot' or 'nucl'.");
+        die(qw"makeblastdb requires either a type of 'prot' or 'nucl'.");
     }
 
     my $mismatches = 0;
@@ -213,7 +213,7 @@ sub Check_Blastdb {
     }
     my $db_directory = $ENV{BLASTDB};
     my $lib = '';
-    my $relative_directory = qq"blastdb";
+    my $relative_directory = 'blastdb';
     if (!defined($ENV{BLASTDB})) {
         $ENV{BLASTDB} = "$options->{basedir}/blastdb";
         $db_directory = "$options->{basedir}/blastdb";
@@ -240,7 +240,9 @@ sub Check_Blastdb {
         my $formatdb_command = qq"makeblastdb \\
   -in $options->{input} \\
   -dbtype $options->{type} \\
-  -out ${db_directory}/${libname}";
+  -out ${db_directory}/${libname} \\
+  2>${db_directory}/makeblastdb.stderr \\
+  1>${db_directory}/makeblastdb.stdout";
         print "The makeblastdb command run is: ${formatdb_command}\n";
         my $formatdb_ret = qx"${formatdb_command}";
     }
@@ -256,7 +258,7 @@ Add some more sequences to an existing kraken2 database.
 sub Extend_Kraken_DB {
     my ($class, %args) = @_;
     my $check = which('kraken2');
-    die("Could not find kraken2 in your PATH.") unless($check);
+    die('Could not find kraken2 in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
@@ -264,34 +266,38 @@ sub Extend_Kraken_DB {
         modules => ['kraken'],);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/extend_kraken";
+    my $output_dir = qw"outputs/extend_kraken";
 
     my $comment = qq!## This is a script to extend an existing kraken2 library with some new sequences.
 !;
     my $jstring = qq!mkdir -p ${output_dir}
 kraken2-build --download-taxonomy --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>${output_dir}/kraken2-build.out 1>&2
+              2>${output_dir}/kraken2-build.stderr \\
+              1>${output_dir}/kraken2-build.stdout
 kraken2-build --add-to-library $options->{input} --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.out 1>&2
+              2>>${output_dir}/kraken2-build.stderr \\
+              1>>${output_dir}/kraken2-build.stdout
 kraken2-build --download-library $options->{library} \\
               --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.out 1>&2
+              2>>${output_dir}/kraken2-build.stderr \\
+              1>>${output_dir}/kraken2-build.stdout
 kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.out 1>&2
+              2>>${output_dir}/kraken2-build.stderr \\
+              1>>${output_dir}/kraken2-build.stdout
 !;
     my $kraken = $class->Submit(
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "kraken_${job_name}",
-        jprefix => "99",
+        jname => qq"kraken_${job_name}",
+        jprefix => '99',
         jstring => $jstring,
         jmem => 96,
         modules => $options->{modules},
         output => qq"${output_dir}/kraken2-build.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => "large",);
+        jqueue => 'large',);
     return($kraken);
 }
 
@@ -364,7 +370,7 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
         comment => $comment,
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jname => "kalidx",
+        jname => 'kalidx',
         jprefix => $options->{jprefix},
         modules => $options->{modules},
         prescript => $options->{prescript},
@@ -391,15 +397,16 @@ sub RSEM_Index {
         cp($options->{input}, $copied_location);
     }
 
-    my $comment = qq"## RSEM Index creation.";
+    my $comment = '## RSEM Index creation.';
     my $jstring = qq!
-rsem-prepare-reference --bowtie2 $options->{input} ${species}
+rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
+  2>rsem_prepare.stderr 1>rsem_prepare.stdout
 !;
     my $jobid = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jname => "rsemidx",
+        jname => 'rsemidx',
         jprefix => $options->{jprefix},
         modules => $options->{modules},
         prescript => $options->{prescript},
@@ -481,9 +488,9 @@ otherwise a decoy-less index will be generated.");
         comment => $comment,
         jdepends => $options->{jdepends},
         jstring => $jstring,
-        jname => "salidx_${species}",
+        jname => qq"salidx_${species}",
         jmem => 24,
-        jprefix => "15",
+        jprefix => '15',
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -501,7 +508,7 @@ sub STAR_Index {
         args => \%args,
         required => ['input',],
         modules => ['star'],);
-    my $comment = qq"## STAR Index creation.";
+    my $comment = '## STAR Index creation.';
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = basename($options->{input}, ('.fasta', '.fa'));
@@ -517,13 +524,15 @@ STAR \\
   --genomeDir ${star_refdir} \\
   --genomeFastaFiles $options->{libdir}/${libtype}/${species}.fasta \\
   --sjdbGTFfile $options->{libdir}/${libtype}/${species}.gtf \\
-  --limitGenomeGenerateRAM 160000000000
+  --limitGenomeGenerateRAM 160000000000 \\
+  2>star_index.stderr 1>star_index.stdout
+
 !;
     my $jobid = $class->Submit(
         comment => $comment,
         jdepends => $options->{depends},
         jstring => $jstring,
-        jname => "staridx",
+        jname => 'staridx',
         jprefix => $options->{jprefix},
         jmem => 180,
         modules => $options->{modules},

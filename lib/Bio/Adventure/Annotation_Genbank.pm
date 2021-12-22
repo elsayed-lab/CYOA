@@ -112,13 +112,13 @@ sub Combine_CDS_Features {
         if (($first_fivep eq $second_fivep) and ($first_threep eq $second_threep)) {
             if ($dominant eq 'first') {
                 ## my $tag = $first_cds->add_tag_value('note', qq"cds_prediciton: ${first_name}");
-                if ($args{notes} eq 'both') {
+                if ($notes eq 'both') {
                     my @second = $second_cds->get_tag_values('note');
                     $first_cds->add_tag_value('note', $second[0]);
                 }
                 push(@merged_cds, $first_cds);
             } else {
-                if ($args{notes} eq 'both') {
+                if ($notes eq 'both') {
                     my @first = $first_cds->get_tag_values('note');
                     $second_cds->add_tag_values('note', $first[0]);
                 }
@@ -210,7 +210,7 @@ sub Merge_CDS_Predictions {
 
     my $jstring = qq?
 use Bio::Adventure::Annotation;
-\$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Worker(
+my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Worker(
   input => '$options->{input}',
   input_glimmer => '$options->{input_glimmer}',
   input_phanotate => '$options->{input_phanotate}',
@@ -747,9 +747,6 @@ sub Rename_Features {
 
           my $this_id = $f->display_name;
           my $this_contig_id = $orfs_by_contig{$this_id};
-          ## my $start = $f->start;
-          ## my $end = $f->end;
-          ## print "TESTME: Going to set $this_id to $this_contig_id with $start and $end\n";
           my $gene = Bio::SeqFeature::Generic->new(
               -primary_tag => 'gene',
               -seq_id => $this_contig_id,
@@ -838,7 +835,6 @@ sub Write_CDS_from_SeqFeatures {
     ## Make a hash of the contigs by name
   CONTIGS: for my $s (@sequences) {
       my $id = $s->display_name;
-      ##print "TESTME: THE ID IS: $id\n";
       $named_seq{$id} = $s;
   }
 
@@ -882,7 +878,7 @@ sub Write_CDS_from_SeqFeatures {
              print "Cannot deal with this sequence right now, start:${start}, end:${end}\n";
              next FEATURES;
          }
-     } else {  ## Normal sequence where start < end
+     } else { ## Normal sequence where start < end
          $cds_obj = $full_sequence->trunc($start, $end);
          if ($strand < 0) {
              $cds_obj = $cds_obj->revcom;
@@ -900,10 +896,6 @@ sub Write_CDS_from_SeqFeatures {
      $written++;
 
      ## Now figure out what information to write to the tsv file.
-
-     ## $aa_sequence_string
-     ##my @all_tags = $in->get_all_tags;
-     ##print Dumper @all_tags;
      my @notes;
      my $note;
      if ($in->has_tag('note')) {
@@ -939,10 +931,8 @@ sub Write_Fsa_from_SeqFeature_Generic {
     for my $s (@in) {
         $written++;
         my $id = $s->seq_id;
-        ## my $new_id = qq"${id_prefix}${start_id}";
         my $entire_sequence = $s->entire_seq();
         my $sequence_string = $entire_sequence->seq();
-        ## my $seq_obj = Bio::Seq->new(-display_id => $new_id,
         my $seq_obj = Bio::Seq->new(-display_id => $id,
                                     -seq => $sequence_string);
         $out->write_seq($seq_obj);
@@ -985,7 +975,7 @@ sub Write_Gbk {
         print $log_fh "\n";
     }
     print $log_fh qq"Outputs from tbl2asn: $args{output_gbk}.\n";
-    my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL";
+    my $tbl2asn_comment = qq"Annotated using ${EXE} ${VERSION} from ${URL}";
     if (defined($args{taxonomy})) {
         my $taxonomy_information = $args{taxonomy};
         $tbl2asn_comment .= qq"; Most similar taxon to this strain: $taxonomy_information->{taxon}";
@@ -1083,9 +1073,6 @@ sub Write_Tbl_from_SeqFeatures {
 
     my @features = @{$args{features}};
 
-    ##use Data::Dumper;
-    ##print Dumper @features;
-
     my $tbl_fh = FileHandle->new(">${file}");
     my $hypothetical_string = 'hypothetical protein';
     ## Ok, so it turns out that Torsten uses %seq, @seq, and $seq separately in prokka.
@@ -1130,17 +1117,15 @@ sub Write_Tbl_from_SeqFeatures {
                 my $strand = $f->strand;
                 my $start = $f->start;
                 my $end = $f->end;
-                print "THERE IS A PROBLEM WITH: $name\n";
-                print "ONE OF STRAND:$strand START:$start OR END:$end IS UNDEFINED.\n";
+                print "THERE IS A PROBLEM WITH: ${name}\n";
+                print "ONE OF STRAND:${strand} START:${start} OR END:${end} IS UNDEFINED.\n";
             }
             my ($L, $R) = ($f->strand >= 0) ? ($f->start, $f->end) : ($f->end, $f->start);
-            print $tbl_fh "$L\t$R\t", $f->primary_tag, "\n";
+            print $tbl_fh "${L}\t${R}\t", $f->primary_tag, "\n";
             WRITE_TAGS: for my $tag ($f->get_all_tags) {
                 # remove GFF specific tags (start with uppercase letter)
                 next WRITE_TAGS if $tag =~ m/^[A-Z]/ and $tag !~ m/EC_number/i;
                 my @unwanted = ('gc_cont', 'sscore', 'phase', 'conf', 'tscore', 'partial', 'rbs_spacer', 'rbs_motif', 'cscore', 'start_type', 'uscore', 'seq_id', 'rscore', 'source', 'frame', 'score', 'type');
-                ## next WRITE_TAGS if ($tag ~~ @unwanted);
-                ## next WRITE_TAGS if any { $_ eq $tag } @unwanted;
                 next WRITE_TAGS if (grep $_ eq $tag, @unwanted);
                 for my $value ($f->get_tag_values($tag)) {
                     if (!defined($value)) {
@@ -1148,10 +1133,11 @@ sub Write_Tbl_from_SeqFeatures {
                     } else {
                         print $tbl_fh "\t\t\t${tag}\t${value}\n";
                     }
-                }
-            }
-        }
-    }
+                } ## End iterating over the tag values.
+            } ## End getting all tags
+        } ## End iterating over features
+    } ## End iterating over sequence objects.
+    return(%contig_to_orf);
 }
 
 =head2 C<TAG>

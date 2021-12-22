@@ -112,7 +112,7 @@ sub HT_Multi {
             push(@jobs, $ht);
             $htseq_runs++;
         } elsif (-r "$gtf") {
-            print "Found $gtf, performing htseq with it.\n";
+            print "Found ${gtf}, performing htseq with it.\n";
             my $ht = $class->Bio::Adventure::Count::HTSeq(
                 gff_type => $gff_type,
                 htseq_gff => $gtf,
@@ -136,7 +136,7 @@ sub HT_Multi {
     $gtf =~ s/\.gff/\.gtf/g;
     my $htall_jobname = qq"htall_${output_name}_$options->{species}_s${stranded}_$ro_opts{htseq_type}_$ro_opts{htseq_id}";
     if (-r "$gff") {
-        print "Found $gff, performing htseq_all with it.\n";
+        print "Found ${gff}, performing htseq_all with it.\n";
         my $ht = $class->Bio::Adventure::Count::HTSeq(
             gff_type => '',
             htseq_gff => $gff,
@@ -151,12 +151,12 @@ sub HT_Multi {
             prescript => $options->{prescript},
             suffix => $options->{suffix},);
         push(@jobs, $ht);
-    } elsif (-r "$gtf") {
-        print "Found $gtf, performing htseq_all with it.\n";
+    } elsif (-r "${gtf}") {
+        print "Found ${gtf}, performing htseq_all with it.\n";
         my $ht = $class->Bio::Adventure::Count::HTSeq(
             gff_type => '',
             htseq_gff => $gff,
-            htseq_type => "none",
+            htseq_type => 'none',
             input => $htseq_input,
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
@@ -194,9 +194,9 @@ sub HT_Types {
     );
     my $my_type = $options->{htseq_type};
     my $my_id = $options->{htseq_id};
-    print "Calling htseq with options for type: $my_type and tag: $my_id\n";
-    $my_type = "" unless($my_type);
-    $my_type = "" unless($my_id);
+    print "Calling htseq with options for type: ${my_type} and tag: ${my_id}.\n";
+    $my_type = '' unless($my_type);
+    $my_type = '' unless($my_id);
     my $gff_out = {};
     my $max_lines = 100000;
     my $count = 0;
@@ -238,7 +238,7 @@ sub HT_Types {
     } ## End loop
     $reader->close();
     my $found_my_type = 0;
-    my $max_type = "";
+    my $max_type = '';
     my $max = 0;
     foreach my $type (keys %found_types) {
         if ($found_types{$type} > $max) {
@@ -344,8 +344,8 @@ sub HTSeq {
     ## This may be provided by a series of defaults in %HT_Multi::gff_types, overridden by an argument
     ## Or finally auto-detected by HT_Types().
     ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
-    my $htseq_type_arg = "";
-    my $htseq_id_arg = "";
+    my $htseq_type_arg = '';
+    my $htseq_id_arg = '';
 
     my $annotation = $gtf;
     if (!-r "${gtf}") {
@@ -359,12 +359,12 @@ sub HTSeq {
         $htseq_type = $htseq_type_pair->[0];
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}"
-    } elsif (ref($htseq_type) eq "ARRAY") {
+    } elsif (ref($htseq_type) eq 'ARRAY') {
         $htseq_type_arg = qq" --type $htseq_type->[0]";
         $htseq_id_arg = qq" --idattr ${htseq_id}";
     } elsif ($htseq_type eq 'none') {
-        $htseq_type_arg = qq"";
-        $htseq_id_arg = qq"";
+        $htseq_type_arg = qq'';
+        $htseq_id_arg = qq'';
     } else {
         $htseq_type_arg = qq" --type ${htseq_type}";
         $htseq_id_arg = qq" --idattr ${htseq_id}";
@@ -375,7 +375,7 @@ sub HTSeq {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
     }
     my $error = basename($output, ('.count'));
-    $error = qq"${output_dir}/${error}.err";
+    $error = qq"${output_dir}/${error}.stderr";
 
     my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
     ## Much like samtools, htseq versions on travis are old.
@@ -529,7 +529,7 @@ jellyfish dump ${count_file} > ${count_fasta} \\
     $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-\$h->Bio::Adventure::Count::Jellyfish_Matrix(
+my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
   comment => '$comment',
   input => '${count_fasta}',
   jdepends => '$jelly->{job_id}',
@@ -603,14 +603,14 @@ sub Jellyfish_Matrix {
             $nmer_identity = $line;
             $counts->{$nmer_identity} = $nmer_count;
         } else {
-            die("Should not get here.");
+            die('Should not get here.');
         }
     }
     $in->close();
 
     my $out = FileHandle->new(">$options->{output}");
     foreach my $k (sort keys %{$counts}) {
-        print $out "$k\t$counts->{$k}\n";
+        print $out "${k}\t$counts->{$k}\n";
     }
     $out->close();
     return($nmer_count);
@@ -632,7 +632,7 @@ require some work if I wish to use it again.
 =cut
 sub Mi_Map {
     my ($class, %args) = @_;
-    eval "use Bio::DB::Sam; 1;";
+    eval 'use Bio::DB::Sam; 1;';
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['mirbase_data', 'mature_fasta', 'mi_genome', 'bamfile',]);
@@ -681,7 +681,7 @@ seqfile: The fasta file in question.
 =cut
 sub Read_Mi {
     my ($class, %args) = @_;
-    my $fasta = Bio::SeqIO->new(-file => $args{seqfile}, -format => "Fasta");
+    my $fasta = Bio::SeqIO->new(-file => $args{seqfile}, -format => 'Fasta');
     my %sequences = ();
     while (my $mi_seq = $fasta->next_seq()) {
         next unless(defined($mi_seq->id));
@@ -760,13 +760,11 @@ sub Read_Mappings_Mi {
                 ## Then there should be an existing element, append to it.
                 @hit_list = @{$newdb->{$ensembl_id}};
                 push(@hit_list, $element);
-                ## $newdb->{$new_id} = \@hit_list;
                 $newdb->{$ensembl_id} = \@hit_list;
-                print $out "$id; $element->{mirbase_id}; $element->{ensembl}; $element->{hit_id}; $element->{mimat}; $element->{sequence}\n";
+                print $out "${id}; $element->{mirbase_id}; $element->{ensembl}; $element->{hit_id}; $element->{mimat}; $element->{sequence}\n";
             } else {
                 @hit_list = ();
                 push(@hit_list, $element);
-                ## $newdb->{$new_id} = \@hit_list;
                 $newdb->{$ensembl_id} = \@hit_list;
             }
         } else {
@@ -831,15 +829,10 @@ sub Read_Bam_Mi {
                 my $element_datum = $element_list[$c];
                 my $element_seq = $element_list[$c]->{sequence};
                 ## print "Comparing: $read_seq vs. $element_seq\n";
-
                 my @read_vs_element = amatch($read_seq, [ 'S1' ], ($element_seq));
                 my @element_vs_read = amatch($element_seq, [ 'S1' ], ($read_seq));
                 if (scalar(@read_vs_element) > 0 or scalar(@element_vs_read) > 0) {
                     $mappings->{$read_seqid}->[$c]->{count}++;
-                    ##print "Found hit with amatch against $element_seq: ";
-                    ##print "We need to get the slot in position: {ensembl_id} -> [c] -> {id}\n";
-                    ##print "is read_seqid ensembl? $read_seqid  \n";
-                    ##print "Incremented $mappings->{$read_seqid}->[$c]->{id} to $mappings->{$read_seqid}->[$c]->{count}\n";
                     $found_element = 1;
                 }
                 ## if ($read_seq =~ /$element_seq/ or $element_seq =~ /$read_seq/) {
@@ -849,9 +842,6 @@ sub Read_Bam_Mi {
                 ##     $found_element = 1;
                 ## }
             }
-            ##if ($found_element == 0) {
-            ##    print "No map for $read_seq\n";
-            ##}
         }
     } ## Finish iterating through every read
     return($mappings);
@@ -926,12 +916,8 @@ sub Count_Alignments {
         wtf => 0,
     };
 
-    my %group = (
-        para => 0,
-        host => 0,);
-    my %null_group = (
-        para => 0,
-        host => 0,);
+    my %group = ( para => 0, host => 0,);
+    my %null_group = ( para => 0, host => 0,);
 
     my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam = Bio::DB::Sam->new(-bam => $options->{input},
@@ -955,17 +941,12 @@ sub Count_Alignments {
     my $last_readid = "";
   BAMLOOP: while (my $align = $bam->read1) {
         $align_count++;
-        ##if ($class->{debug}) {  ## Stop after a relatively small number of reads when debugging.
-        ##    last BAMLOOP if ($align_count > 200);
-        ##}
         if (($align_count % 1000000) == 0) {
             $million_aligns++;
             print $out "Finished $million_aligns million alignments out of ${number_reads}.\n";
         }
         my $seqid = $target_names->[$align->tid];
         my $readid = $align->qname;
-        ## my $start = $align->pos + 1;
-        ## my $end = $align->calend;
         my $start = $align->pos;
         my $end = $align->calend - 1;
         my $cigar = $align->cigar_str;
@@ -974,7 +955,6 @@ sub Count_Alignments {
         my $qual= $align->qual;
         if ($cigar eq '') {
             $result->{unmapped}++;
-            ##print "$result->{unmapped} $readid unaligned.\n";
             next BAMLOOP;
         } else {
             ## Everything which follows is for a mapped read.
@@ -1098,7 +1078,7 @@ sub SLSearch {
     my $comment = qq"## Search for SL sub-sequences.";
     my $jstring = qq?
 use Bio::Adventure::Count;
-\$h->Bio::Adventure::Count::SLSearch_Worker(
+my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
   input => '$options->{input}',
   output => '${output_dir}',
   jprefix => '$options->{jprefix}',

@@ -15,7 +15,7 @@ use File::Which qw"which";
 use List::MoreUtils qw"uniq";
 use Text::CSV_XS::TSV;
 
-no warnings "experimental::try";
+no warnings qw"experimental::try";
 
 =head1 NAME
 
@@ -75,7 +75,7 @@ sub Gb2Gff {
         $seq_count++;
         $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);
-        print "Wrote $seq_count features.\n";
+        print "Wrote ${seq_count} features.\n";
         my @feature_list = ();
         ## defined a default name
 
@@ -92,14 +92,14 @@ sub Gb2Gff {
           my $feat_count = 0;
           if ($feat_object->primary_tag eq 'rRNA') {
               $rrna_gffout->write_feature($feat_object);
-              my $id_string = "";
-              my $desc = "";
+              my $id_string = '';
+              my $desc = '';
               my $id_hash = {};
               foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
                   my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
                   $id_hash->{$thing} = $arr[0];
               }
-              my $id = qq"";
+              my $id = '';
               if (defined($id_hash->{protein_id})) {
                   $id = qq"$id_hash->{protein_id}";
               }
@@ -120,7 +120,7 @@ sub Gb2Gff {
                   $seq = $feat_object->spliced_seq->seq;
               }
               catch ($e) {
-                  print "Something went wrong getting the sequence.\n";
+                  print qq"Something went wrong getting the sequence.\n";
                   next FEAT;
               }
               my $size = {
@@ -136,17 +136,17 @@ sub Gb2Gff {
           } elsif ($feat_object->primary_tag eq 'CDS') {
               $cds_gff->write_feature($feat_object);
               $feat_count++;
-              my $id_string = "";
+              my $id_string = '';
               my $id_hash = {};
               foreach my $thing (keys %{$feat_object->{_gsf_tag_hash}}) {
                   my @arr = @{$feat_object->{_gsf_tag_hash}->{$thing}};
                   $id_hash->{$thing} = $arr[0];
               }
-              my $id = qq"";
+              my $id = '';
               if (defined($id_hash->{protein_id})) {
                   $id = qq"$id_hash->{protein_id}";
               }
-              my $desc = "";
+              my $desc = '';
               if (defined($id_hash->{gene})) {
                   $desc .= "$id_hash->{gene} ; ";
               }
@@ -162,8 +162,8 @@ sub Gb2Gff {
               my $len = $feat_object->length;
               ## This is in response to the puzzling error:
               ## "Error::throw("Bio::Root::Exception", "Location end (601574) exceeds length (0) of called sequence C"...) called at /sw/local/perl/5.28.1/perl5/Bio/Root/Root.pm line 449"
-              my $seq = qq'';
-              my $pep = qq'';
+              my $seq = '';
+              my $pep = '';
 
               my $e;
               try {
@@ -193,7 +193,7 @@ sub Gb2Gff {
               $cds_fasta->write_seq($seq_object);
               my $ttseq = $seq_object->seq;
               $pep_fasta->write_seq($pep_object);
-          } elsif ($feat_object->primary_tag eq "gene") {
+          } elsif ($feat_object->primary_tag eq 'gene') {
               $gene_gff->write_feature($feat_object);
           }
         } ## End looking at every feature and putting them into the @feature_list
@@ -355,7 +355,7 @@ sub Gff2Fasta {
       }
       my $id = '';
       foreach my $i (@ids) {
-          $id .= "$i ";
+          $id .= qq"${i} ";
       }
       $id =~ s/(\s+$)//g;
       my $genome_obj = $chromosomes->{$gff_chr}->{obj};
@@ -369,10 +369,10 @@ sub Gff2Fasta {
       my $aa_cds = $seq_obj->translate->seq();
       $aa_cds = join("\n", ($aa_cds =~ m/.{1,80}/g));
       $cds = join("\n", ($cds =~ m/.{1,80}/g));
-      print $out_fasta_amino ">${gff_chr}_${id}_${features_read}
+      print $out_fasta_amino qq">${gff_chr}_${id}_${features_read}
 ${aa_cds}
 ";
-      print $out_fasta_nt ">${gff_chr}_${id}_${features_read}
+      print $out_fasta_nt qq">${gff_chr}_${id}_${features_read}
 ${cds}
 ";
       $features_written++;
@@ -401,7 +401,7 @@ sub Gff2Gtf {
     my ($name, $path, $suffix) = fileparse($input, qr/\.gff/);
     my $out_file = $path . $name . '.gtf';
 
-    my $in_gff = Bio::FeatureIO->new(-file => "$input",
+    my $in_gff = Bio::FeatureIO->new(-file => "${input}",
                                      -format => 'GFF',
                                      -version => 3);
     my $out_gtf = FileHandle->new(">${out_file}");
@@ -436,8 +436,9 @@ sub Gff2Gtf {
       if ($primary_id eq 'CDS') {
           $phase = $feature->phase();
       }
-      next FEATURES if ($primary_id eq 'supercontig' or $primary_id eq 'region' or $primary_id eq 'chromosome');
-      ## my $string = qq"${seqid}\t${source}\tCDS\t$start\t$end\t.\t$strand\t0\t";
+      next FEATURES if ($primary_id eq 'supercontig' or
+                        $primary_id eq 'region' or
+                        $primary_id eq 'chromosome');
       my $string = qq"${seqid}\t${source}\t${primary_id}\t${start}\t${end}\t.\t${strand}\t${phase}\t";
 
       my $last_column = '';
@@ -487,7 +488,7 @@ sub Read_GFF {
       my $start = $location->start();
       my $end = $location->end();
       my $strand = $location->strand();
-      my @ids = $feature->each_tag_value("ID");
+      my @ids = $feature->each_tag_value('ID');
       my $id = "";
       my $gff_chr = $feature->{_gsf_seq_id};
       my $gff_string = $annotation_in->gff_string($feature);
@@ -498,7 +499,7 @@ sub Read_GFF {
       foreach my $i (@ids) {
           $i =~ s/^cds_//g;
           $i =~ s/\-\d+$//g;
-          $id .= "$i ";
+          $id .= "${i} ";
       }
       $id =~ s/\s+$//g;
       my @gff_information = split(/\t+/, $gff_string);
@@ -507,7 +508,7 @@ sub Read_GFF {
       my $annot = {
           id => $id,
           start => $start, ## Genomic coordinate of the start codon
-          end => $end,     ## And stop codon
+          end => $end, ## And stop codon
           strand => $strand,
           description_string => $description_string,
           chromosome => $gff_chr,
@@ -548,7 +549,7 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ["species", "input"],
+        required => ['species', 'input'],
         modules => ['samtools', 'bamtools'],);
     my @input_list = ();
     if ($options->{input}) {
@@ -561,7 +562,7 @@ sub Sam2Bam {
 
         } else {
             foreach my $k (%{$options->{bt_args}}) {
-                my $output_string = "bowtie_out/$options->{jbasename}-${k}.sam";
+                my $output_string = qq"bowtie_out/$options->{jbasename}-${k}.sam";
                 push(@input_list, $output_string);
             }
             my $bt = $class->Bio::Adventure::Map::Bowtie(%args);
@@ -624,13 +625,15 @@ sub Samtools {
   -S ${input} -o ${output}  \\
   2>${output}.err 1>${output}.out && \\";
     my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam \\
-  2>${sorted_name}.err 1>${sorted_name}.out && \\";
+  2>${sorted_name}.stderr \\
+  1>${sorted_name}.stdout && \\";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output} && \\";
         $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted_name} \\
-  2>${sorted_name}.err 1>${sorted_name}.out && \\";
+  2>>${sorted_name}.stderr \\
+  1>>${sorted_name}.stdout && \\";
     }
     my $jstring = qq!
 echo "Starting samtools"

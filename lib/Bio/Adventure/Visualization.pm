@@ -67,19 +67,19 @@ sub CGView {
     ## A bunch more
     my $option_string = '-size large-v2 ';
     if ($options->{linear}) {
-        $option_string .= "-linear T ";
+        $option_string .= '-linear T ';
     }
     if ($options->{reading_frame}) {
-        $option_string .= "-reading_frame T ";
+        $option_string .= '-reading_frame T ';
     }
     if ($options->{orfs}) {
-        $option_string .= " -orfs T ";
+        $option_string .= ' -orfs T ';
     }
     if ($options->{feature_labels}) {
-        $option_string .= "-feature_labels T ";
+        $option_string .= '-feature_labels T ';
     }
     if ($options->{gene_labels}) {
-        $option_string .= "-gene_labels T ";
+        $option_string .= '-gene_labels T ';
     }
 
     my $jstring = qq!
@@ -87,27 +87,27 @@ mkdir -p ${output_directory}
 cgview_xml_builder.pl -sequence ${xml_input} \\
   -output ${xml_output} \\
   ${option_string} \\
-  2>${output_directory}/cgview.err 1>${output_directory}/cgview.out
+  2>${output_directory}/cgview.stderr 1>${output_directory}/cgview.stdout
 
 cgview -i ${xml_output} \\
   -o ${output_file}.png -f png \\
-  2>>${output_directory}/cgview.err 1>>${output_directory}/cgview.out
+  2>>${output_directory}/cgview.stderr 1>>${output_directory}/cgview.stdout
 cgview -i ${xml_output} \\
   -o ${output_file}.svg -f svg \\
-  2>>${output_directory}/cgview.err 1>>${output_directory}/cgview.out
+  2>>${output_directory}/cgview.stderr 1>>${output_directory}/cgview.stdout
 !;
     if ($options->{imagemap}) {
         $jstring = qq!
 ${jstring}
 cgview -i ${xml_output} \\
   -s ${output_directory}/imagemap \\
-  2>>${output_directory}/cgview.err 1>>${output_directory}/cgview.out
+  2>>${output_directory}/cgview.stderr 1>>${output_directory}/cgview.stdout
 !;
     }
 
     my $cgview = $class->Submit(
         jdepends => $options->{jdepends},
-        jname => "cgview_${job_name}",
+        jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},

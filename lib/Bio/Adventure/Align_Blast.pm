@@ -83,7 +83,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
  -db ${library} $options->{blast_params} \\
  -out $options->{basedir}/outputs/\${${queue_array_string}}.out \\
  1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
- 2>>$options->{basedir}/split_align_errors.txt
+ 2>>$options->{basedir}/split_align.stderr
 !;
     } else {
         $jstring = qq!
@@ -93,7 +93,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
   -db ${library} \\
   -out $options->{basedir}/outputs/$options->{blast_tool}.out \\
   1>$options->{basedir}/outputs/$options->{blast_tool}.stdout \\
-  2>>$options->{basedir}/split_align_errors.txt
+  2>>$options->{basedir}/split_align.stderr
 !;
     }
     my $comment = qq!## Running multiple blast jobs.!;
@@ -142,8 +142,7 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
         jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',
-        );
+        language => 'perl',);
     return($parse);
 }
 
@@ -200,7 +199,7 @@ sub Parse_Blast {
     my $searchio = Bio::SearchIO->new(-fh => $in);
     ## Perform a test for the output format, this will close the filehandle, so reopen it after
     my $guessed_format = $searchio->format();
-    print STDERR "Guessed the format is: $guessed_format\n";
+    print STDERR "Guessed the format is: ${guessed_format}\n";
     $in->close();
     $in = FileHandle->new("less ${input} |");
 
@@ -221,7 +220,7 @@ sub Parse_Blast {
   RESULT: while(my $result = $searchio->next_result()) {
         my $hit_count = 0;
         $result_count++;
-        print STDERR "Parsed $result_count of $options->{state}->{num_sequences} results.\n";
+        print STDERR "Parsed ${result_count} of $options->{state}->{num_sequences} results.\n";
         my $query_name = "";
         my $real_name = "";
         while (my $hit = $result->next_hit) {
@@ -255,7 +254,7 @@ sub Parse_Blast {
 
             ## This prints %identity with respect to the overlap of the component
             ## Then the score of the hit, its Evalue, and the component length.
-            my $print_string = qq"${query_name}\t${real_name}\t${acc2}\t${acc3}\t${start}\t${end}\t${ident}\t${score}\t${sig}\t${query_length}\t${hsp_identical}\t$hit_count\n";
+            my $print_string = qq"${query_name}\t${real_name}\t${acc2}\t${acc3}\t${start}\t${end}\t${ident}\t${score}\t${sig}\t${query_length}\t${hsp_identical}\t${hit_count}\n";
             print $fh $print_string;
             if ($args{best_only}) {
                 next RESULT;
@@ -263,7 +262,7 @@ sub Parse_Blast {
         } ## End each hit for a single result
         print $counts "${query_name}\t${real_name}\t${hit_count}\n";
         ## print "$result had $hit_count hits\n";
-    }   ## Finish looking at each sequence
+    } ## Finish looking at each sequence
     $fh->close();
     $in->close();
     $counts->close();
@@ -354,16 +353,16 @@ sub Run_Parse_Blast {
         ## $blast_output = $search->blastall($query_library);
         if ($options->{blast_tool} eq 'blastp') {
             $blast_output = $search->blastp(-query => $options->{input},
-                -outfile => $options->{output});
+                                            -outfile => $options->{output});
         } elsif ($options->{blast_tool} eq 'blastn') {
             $blast_output = $search->blastn(-query => $options->{input},
-                -outfile => $options->{output});
+                                            -outfile => $options->{output});
         } elsif ($options->{blast_tool} eq 'tblastx') {
             $blast_output = $search->tblastx(-query => $options->{input},
-                -outfile => $options->{output});
+                                             -outfile => $options->{output});
         } else {
             $blast_output = $search->blastx(-query => $options->{input},
-                -outfile => $options->{output});
+                                            -outfile => $options->{output});
         }
     };
     if ($@) {
@@ -395,7 +394,7 @@ sub Run_Parse_Blast {
           next HITLOOP unless ($hit_sig < $sig_cutoff and $hit_score > $score_cutoff);
           $hit_count++;
       } ## End iterating over each hit of the result.
-        my $entry = "$query_name $query_descr\n";
+        my $entry = "${query_name} ${query_descr}\n";
         if ($hit_count == 1) {
             print $singles $entry;
         } elsif ($hit_count == 2) {
@@ -407,7 +406,7 @@ sub Run_Parse_Blast {
         } else {
             print $zeros $entry;
         }
-        print $counts "$query_name\t$hit_count\n";
+        print $counts "${query_name}\t${hit_count}\n";
     ## } ## End of the individual blast search  (maybe not needed?)
     } ## End of this search library  (the 7 states to search against)
     $counts->close();
@@ -417,7 +416,7 @@ sub Run_Parse_Blast {
     $few->close();
     $many->close();
     $loaded = $class->Module_Loader(modules => $options->{modules},
-        action => 'unload');
+                                    action => 'unload');
     return($number_hits);
 }
 
@@ -498,7 +497,7 @@ blastp is normal protein/protein.
     $lib = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     if ($options->{pbs}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        print "Going to make $options->{align_jobs} directories with $num_per_split sequences each.\n";
+        print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(%args,
             num_per_split => $num_per_split);
         print "Actually used ${actual} directories to write files.\n";
@@ -533,7 +532,9 @@ use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 my \$h = new Bio::Adventure;
-Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input', search_type => 'blastxml', best => $args{best_only});
+my \$result = Bio::Adventure::Align::Parse_Search(\$h, input => '${parse_input}',
+                                                 search_type => 'blastxml',
+                                                 best => $args{best_only});
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,

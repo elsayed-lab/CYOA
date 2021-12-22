@@ -79,8 +79,8 @@ sub Get_DTR {
             -frame => 0,
             -tag => {
                 'product' => 'Direct Terminal Repeat',
-                    'inference' => 'COORDINATES:profile:PhageTerm',
-                    'note' => qq"DTR type: ${dtr_type}",
+                'inference' => 'COORDINATES:profile:PhageTerm',
+                'note' => qq"DTR type: ${dtr_type}",
             },);
         push(@dtr_features, $dtr_feature);
     } ## End matching on this contig
@@ -108,7 +108,7 @@ sub Filter_Host_Kraken {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-Bio::Adventure::Phage::Get_Kraken_Host(\$h,
+my \$result = Bio::Adventure::Phage::Get_Kraken_Host(\$h,
   comment => '${comment}',
   output => '${output_files}',
   output_dir => '${output_dir}',
@@ -187,7 +187,7 @@ sub Get_Kraken_Host {
         }
     }
     foreach my $s (keys %species_observed) {
-        print $out "$options->{type} $s was observed $species_observed{$s} times.\n";
+        print $out "$options->{type} ${s} was observed $species_observed{$s} times.\n";
     }
     print $out "\n";
     $species_observed{most} = {
@@ -214,7 +214,7 @@ sub Get_Kraken_Host {
         print $out "Searching ${search_url} for appropriate download links.\n";
         my $search_data = $mech->get($search_url);
         my @search_links = $mech->find_all_links(
-            tag => "a", text_regex => qr/ASM/i);
+            tag => 'a', text_regex => qr/ASM/i);
         my $first_hit = $search_links[0];
         my ($assembly_link, $assembly_title) = @{$first_hit};
         my $accession = basename($assembly_link);
@@ -226,7 +226,7 @@ sub Get_Kraken_Host {
             print $out "Searching ${assembly_url} for appropriate download links.\n";
             my $assembly_data = $mech->get($assembly_url);
             my @download_links = $mech->find_all_links(
-                tag => "a", text_regex => qr/FTP/i);
+                tag => 'a', text_regex => qr/FTP/i);
           LINKS: foreach my $l (@download_links) {
               my ($download_url, $download_title) = @{$l};
               if ($download_title eq 'FTP directory for GenBank assembly') {
@@ -295,7 +295,7 @@ sub Download_NCBI_Assembly_UID {
     my $url = qq"https://www.ncbi.nlm.nih.gov/assembly?LinkName=genome_assembly&from_uid=$args{uid}";
     my $data = $mech->get($url);
     my @links = $mech->find_all_links(
-        tag => "a", text_regex => qr/ASM/i);
+        tag => 'a', text_regex => qr/ASM/i);
   FIRST: for my $k (@links) {
       my ($url2, $title2) = @{$k};
   }
@@ -317,7 +317,7 @@ sub Download_NCBI_Assembly_Accession {
 
     my $data = $mech->get($url);
     my @links = $mech->find_all_links(
-        tag => "a", text_regex => qr/FTP/i);
+        tag => 'a', text_regex => qr/FTP/i);
     my $title;
   LINKS: foreach my $l (@links) {
       ($url, $title) = @{$l};
@@ -372,7 +372,7 @@ sub Classify_Phage {
     my $jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-Bio::Adventure::Phage::Blast_Classify(\$h,
+my \$result = Bio::Adventure::Phage::Blast_Classify(\$h,
   comment => '${comment}',
   blast_tool => '$options->{blast_tool}',
   evalue => '$options->{evalue}',
@@ -590,7 +590,7 @@ sub Caical {
         modules => ['caical']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('caical');
-    die("Could not find caical in your PATH.") unless($check);
+    die('Could not find caical in your PATH.') unless($check);
     my $index = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
     if (!-r $index) {
         my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
@@ -706,7 +706,6 @@ sub Make_Codon_Table {
           }
           $total_codons++;
       } ## Done pulling apart the sequence arrays.
-        ## print "TESTME: $sequence_string\n$trans\n\n\n";
     } ## Iterating over the features in this sequence.
   } ## End going through the sequences of the assembly.
     $in->close();
@@ -751,7 +750,7 @@ sub Phageterm {
         jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
-    die("Could not find phageterm in your PATH.") unless($check);
+    die('Could not find phageterm in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -779,13 +778,12 @@ sub Phageterm {
     my $dtr_test_file = qq"${output_dir}/phageterm_final_nodtr.txt";
     my $jstring = qq?
 use Bio::Adventure::Phage;
-\$h->Bio::Adventure::Phage::Phageterm_Worker(
+my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
   input => '$options->{input}',
   library => '$options->{library}',
   jname => 'phageterm_${job_name}',
   output_dir => '${output_dir}',
-  output => '${output_file}',
-);
+  output => '${output_file}',);
 ?;
     my $phageterm_run = $class->Submit(
         comment => $comment,
@@ -949,7 +947,7 @@ sub Phageterm_old {
         jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
-    die("Could not find phageterm in your PATH.") unless($check);
+    die('Could not find phageterm in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -1046,7 +1044,7 @@ cd \${start}
         comment => $comment,
         dtr_file => $test_file,
         jdepends => $options->{jdepends},
-        jname => "phageterm_${job_name}",
+        jname => qq"phageterm_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -1077,7 +1075,7 @@ sub Phastaf {
         jprefix => '14',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phastaf');
-    die("Could not find phastaf in your PATH.") unless($check);
+    die('Could not find phastaf in your PATH.') unless($check);
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
@@ -1095,15 +1093,15 @@ mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
   --cpus $options->{cpus} \\
   $options->{input} \\
-  2>${output_dir}/phastaf.err \\
-  1>${output_dir}/phastaf.out
+  2>${output_dir}/phastaf.stderr \\
+  1>${output_dir}/phastaf.stdout
 ?;
     my $output_file = qq"${output_dir}/something.txt";
     my $phastaf = $class->Submit(
         cpus => $options->{cpus},
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => "phastaf_${job_name}",
+        jname => qq"phastaf_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -1170,7 +1168,7 @@ sub Terminase_ORF_Reorder {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
+my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
   comment => '$comment',
   evalue => '$options->{evalue}',
   fasta_tool => '$options->{fasta_tool}',

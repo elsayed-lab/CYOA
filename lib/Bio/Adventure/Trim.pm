@@ -277,7 +277,7 @@ sub Trimomatic_Pairwise {
     }
     my $r1 = $input_list[0];
     my $r2 = $input_list[1];
-    my @suff = (".fastq",".gz",".xz");
+    my @suff = ('.fastq', '.gz', '.xz');
 
     my $basename = basename($r1, @suff);
     $basename = basename($basename, @suff);
@@ -300,7 +300,7 @@ sub Trimomatic_Pairwise {
     my $r2op = qq"${r2b}-trimmed_paired.fastq";
     my $r2ou = qq"${r2b}-trimmed_unpaired.fastq";
 
-    my $leader_trim = "";
+    my $leader_trim = '';
     if ($options->{task} eq 'dnaseq') {
         $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
     }
@@ -320,7 +320,7 @@ ${exe} \\
   ${r2op} ${r2ou} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
-  1>${output_dir}/${basename}-trimomatic.out 2>&1
+  1>${output_dir}/${basename}-trimomatic.stdout 2>&1
 excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
@@ -331,7 +331,7 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
-    1>${output_dir}/${basename}-trimomatic.out 2>&1
+    1>${output_dir}/${basename}-trimomatic.stdout 2>&1
 fi
 sleep 10
 mv ${r1op} ${r1o}
@@ -416,8 +416,8 @@ sub Trimomatic_Single {
 
     my $input = $options->{input};
     my $basename = $input;
-    $basename = basename($basename, (".gz"));
-    $basename = basename($basename, (".fastq"));
+    $basename = basename($basename, ('.gz'));
+    $basename = basename($basename, ('.fastq'));
     my $job_name = $class->Get_Job_Name();
     my $output = qq"${basename}-trimmed.fastq";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
@@ -432,7 +432,7 @@ ${exe} \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
-  1>${output_dir}/${basename}-trimomatic.out 2>&1
+  1>${output_dir}/${basename}-trimomatic.stdout 2>&1
 xz -9e -f ${output}
 ln -sf ${output}.xz r1_trimmed.fastq.xz
 !;
@@ -440,7 +440,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         comment => $comment,
         input => $input,
         jmem => $options->{jmem},
-        jname => "trim_${job_name}",
+        jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -452,8 +452,8 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
-        jname => "trst_${job_name}",
-        jprefix => "06",
+        jname => qq"trst_${job_name}",
+        jprefix => '06',
         output_dir => $output_dir,
     );
     $trim->{stats} = $trim_stats;
