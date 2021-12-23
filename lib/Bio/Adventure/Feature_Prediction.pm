@@ -273,7 +273,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
  input(required): Viral assembly fasta file.
  jmem(6): Expected memory usage.
  jprefix('17'): Prefix for the jobname and output directory.
- modules('phanotate'): Environment module used.
+ modules('trnascan', 'phanotate'): Environment module used.
 
 =cut
 sub Phanotate {
@@ -283,7 +283,7 @@ sub Phanotate {
         required => ['input'],
         jmem => 6,
         jprefix => '17',
-        modules => ['phanotate'],);
+        modules => ['trnascan', 'phanotate'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phanotate.py');
     die('Could not find phanotate in your PATH.') unless($check);
@@ -574,13 +574,14 @@ sub tRNAScan {
         suffix => 'general',
         tool => 'trnascan',
         jmem => 6,
+        jprefix => '28',
         modules => ['infernal', 'trnascan'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('trnascan');
     die('Could not find trnascan in your PATH.') unless($check);
     my $trnascan_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
-    my $output_dir = qq"outputs/trnascan";
+    my $output_dir = qq"outputs/$options->{jprefix}trnascan";
     my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
     my $species_string = '';
     my $comment = qq!## This is a script to run trnascan.
@@ -596,7 +597,7 @@ $options->{tool} $options->{arbitrary} \\
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"trnascan_${job_name}",
-        jprefix => '64',
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},

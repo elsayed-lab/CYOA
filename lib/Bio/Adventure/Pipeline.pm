@@ -1007,7 +1007,7 @@ sub Phage_Assemble {
     $last_job = $aragorn->{job_id};
     sleep(0.2);
 
-        $prefix = sprintf("%02d", ($prefix + 1));
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning relaxed tRNAscan to search for tmRNAs.\n";
     my $trnascan = $class->Bio::Adventure::Feature_Prediction::tRNAScan(
         input => $prokka->{output_assembly},

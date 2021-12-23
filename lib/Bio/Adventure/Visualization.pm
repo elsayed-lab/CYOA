@@ -56,7 +56,7 @@ sub CGView {
     my $job_paths = $class->Get_Paths($options->{input});
     my $output_directory = qq"outputs/$options->{jprefix}cgview";
     my $output_base = basename($job_paths->{filename}, ('.gbk'));
-    my $xml_input = qq"$options->{input}.gbk";
+    my $xml_input = qq"$options->{input}";
     my $xml_output = qq"${output_directory}/${output_base}.xml";
     my $output_file = qq"${output_directory}/${output_base}";
     my $out_paths = $class->Get_Paths($output_file);

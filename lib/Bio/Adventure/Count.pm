@@ -496,11 +496,11 @@ jellyfish count -m $options->{length} \\
   ${input_string} \\
   2>${jelly_base}.stderr 1>${jelly_base}.stdout
 jellyfish info ${count_file} > ${info_file} \\
-  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
+  2>>${jelly_base}.stderr
 jellyfish histo ${count_file} > ${histogram_file} \\
-  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
+  2>>${jelly_base}.stderr
 jellyfish dump ${count_file} > ${count_fasta} \\
-  2>>${jelly_base}.stderr 1>>${jelly_base}.stdout
+  2>>${jelly_base}.stderr
 !;
 
     my $jelly = $class->Submit(
