@@ -22,9 +22,9 @@ my $input_r2 = dist_file('Bio-Adventure', 'r2.fastq.xz');
 ok(cp($input_r2, 'r2.fastq.xz'), 'Copying r2.') if (!-r 'r2.fastq.xz');
 
 ## Invoke the pipeline, keep it within our test directory with basedir.
-##my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
-##my $assemble = $cyoa->Bio::Adventure::Pipeline::Phage_Assemble(
-##    input => 'r1.fastq.xz:r2.fastq.xz',);
+my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $assemble = $cyoa->Bio::Adventure::Pipeline::Phage_Assemble(
+    input => 'r1.fastq.xz:r2.fastq.xz',);
 
 ## Check the trimomatic output.
 $test_file = 'outputs/01trimomatic/r1-trimomatic.stdout';
