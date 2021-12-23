@@ -44,7 +44,8 @@ sub Cutadapt {
         left => undef,
         right => undef,
         either => undef,
-        jmem => 12,);
+        jmem => 12,
+        jprefix => '12',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
@@ -73,19 +74,19 @@ sub Cutadapt {
     $basename = basename($basename, @suffixes);
     my $adapter_flags = "";
     if ($type eq 'tnseq') {
-        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ";
+        $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ';
         $options->{maxlength} = 20;
     } elsif ($type eq 'riboseq') {
-        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
+        $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ';
         $options->{minlength} = 16;
     } else {
-        $adapter_flags = qq" -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ";
+        $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ';
     }
 
     my $comment = qq!## This script makes use of biopieces and cutadapt to trim away adapters
 ## and separate the sequence file into a few pieces depending on size
 ## and adapter status.  It also performs some simple graphs of the data.!;
-    my $out_dir = qq"$options->{basedir}/outputs/cutadapt";
+    my $out_dir = qq"outputs/$options->{jprefix}cutadapt";
     my $type_flag = '';
     my $out_suffix = 'fastq';
     my $input_flags = qq"less ${input} | cutadapt - ";
@@ -93,23 +94,25 @@ sub Cutadapt {
         $type_flag = '-c -t --strip-f3';
         $options = $class->Get_Vars(
             args => \%args,
-            required => ["qual"],
+            required => ['qual'],
         );
         $input_flags = qq"less ${input} | cutadapt - $options->{qual} "; ## If we are keeping quality files
         $out_suffix = 'fastq';
     }
-    my $output = qq"${basename}-trimmed_ca.${out_suffix}";
-    my $compressed_out = qq"${output}.xz";
+    my $output = qq"${out_dir}/${basename}-trimmed_ca.${out_suffix}";
+    my $compressed_out = qq"${out_dir}/${output}.xz";
     my $jstring = qq!
 mkdir -p ${out_dir} && \\
  ${input_flags} \\
   ${type_flag} ${adapter_flags} ${arbitrary} \\
+  -o ${output} \\
   -e $options->{maxerr} -n $options->{maxremoved} \\
   -m $options->{minlength} -M $options->{maxlength} \\
   --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
   --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
-  2>outputs/cutadapt.err 1>${output}
+  2>${out_dir}/cutadapt.stderr \\
+  1>${out_dir}/cutadapt.stdout
 xz -9e -f ${output}
 xz -9e -f ${out_dir}/${basename}_tooshort.${out_suffix}
 xz -9e -f ${out_dir}/${basename}_toolong.${out_suffix}
@@ -130,15 +133,14 @@ xz -9e -f ${out_dir}/${basename}_untrimmed.${out_suffix}
         output => $compressed_out,);
     if ($type eq 'tnseq') {
         my $ta_check = $class->Bio::Adventure::TNSeq::TA_Check(
-            comment => qq"## Check that TAs exist.",
+            comment => '## Check that TAs exist.',
             input => $compressed_out,
             jdepends => $cutadapt->{job_id},
             jname => qq"tach_${job_name}",
-            jprefix => "08",);
+            jprefix => '08',);
     }
     return($cutadapt);
 }
-
 
 =head2 C<Racer>
 
@@ -158,7 +160,7 @@ sub Racer {
     my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
-    my @suffixes = (".fastq", ".gz", ".xz");
+    my @suffixes = ('.fastq', '.gz', '.xz');
     my @base_list = ();
     for my $in (@input_list) {
         my $shorted = basename($in, @suffixes);
@@ -167,7 +169,7 @@ sub Racer {
     my $comment = qq!## This calls RACER to try to remove
 ## arbitrary errors in sequencing data.
 !;
-    my $jstring = qq"";
+    my $jstring = qq'';
     my $output_dir = qq"outputs/$options->{jprefix}racer";
     my @created = make_path($output_dir);
     my @output_files;
@@ -180,7 +182,8 @@ sub Racer {
   ${name}.fastq \\
   ${output} \\
   $options->{length} \\
-  2>${output_dir}/racer.out 1>&2 &&
+  1>${output_dir}/racer.stdout \\
+  2>${output_dir}/racer.stderr &&
   rm ${name}.fastq
 xz -9e -f ${output}
 
@@ -320,7 +323,8 @@ ${exe} \\
   ${r2op} ${r2ou} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
-  1>${output_dir}/${basename}-trimomatic.stdout 2>&1
+  1>${output_dir}/${basename}-trimomatic.stdout \\
+  2>${output_dir}/${basename}-trimomatic.stderr
 excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.out)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
@@ -331,7 +335,8 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
-    1>${output_dir}/${basename}-trimomatic.stdout 2>&1
+    1>${output_dir}/${basename}-trimomatic.stdout \\
+    2>${output_dir}/${basename}-trimomatic.sterr \\
 fi
 sleep 10
 mv ${r1op} ${r1o}
