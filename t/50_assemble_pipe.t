@@ -15,6 +15,13 @@ my $test_file = '';
 mkdir($new);
 chdir($new);
 
+if (!defined($ENV{LESSOPEN})) {
+    $ENV{LESSOPEN} = '| lesspipe %s';
+}
+if (!defined($ENV{LESS})) {
+    $ENV{LESS} = '--buffers 0';
+}
+
 ## Copy the reads for running the tests.
 my $input_r1 = dist_file('Bio-Adventure', 'r1.fastq.xz');
 ok(cp($input_r1, 'r1.fastq.xz'), 'Copying r1.') if (!-r 'r1.fastq.xz');
@@ -27,7 +34,7 @@ my $assemble = $cyoa->Bio::Adventure::Pipeline::Phage_Assemble(
     input => 'r1.fastq.xz:r2.fastq.xz',);
 
 ## Check the trimomatic output.
-$test_file = 'outputs/01trimomatic/r1-trimomatic.stdout';
+$test_file = 'outputs/01trimomatic/r1-trimomatic.stderr';
 ok(-f $test_file, 'The trimomatic output was created.');
 $expected = qq"Using PrefixPair: 'TACACTCTTTCCCTACACGACGCTCTTCCGATCT' and 'GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT'
 Using Long Clipping Sequence: 'GGAATTCTCGGGTGCCAAGGAACTCCAA'
@@ -110,17 +117,9 @@ unless(ok($expected eq $actual, 'Did kraken provide the expected report?')) {
 ## See if the kraken-based filter worked.
 $test_file = 'outputs/05filter_kraken_host/kraken_filter.log';
 ok(-f $test_file, 'The kraken filter log was created.');
-$actual = qx"head ${test_file}";
-$expected = qq"Starting search for best kraken host strain.
-Reading kraken report: outputs/04kraken_standard/kraken_report.txt.
-species Microbulbifer sp. ALW1 was observed 71 times.
-species Candidatus Solibacter usitatus was observed 118 times.
-species Xylophilus rhododendri was observed 1 times.
-species Proteus vulgaris was observed 1 times.
-species Providencia rettgeri was observed 379 times.
-species Pseudomonas sp. R76 was observed 1152 times.
-species Citrobacter portucalensis was observed 72 times.
-species Providencia huaxiensis was observed 33 times.
+$actual = qx"tail -n 2 ${test_file}";
+$expected = qq"Filtering out reads which map to GCF_002900365.1.
+Symlinking final output files to outputs/05filter_kraken_host
 ";
 unless(ok($expected eq $actual, 'Did kraken provide the expected filter log?')) {
     my ($old, $new) = diff($expected, $actual);
@@ -244,17 +243,10 @@ unless(ok($expected eq $actual, 'Is the coverage tsv as expected?')) {
 ## Check the terminase search results.
 $test_file = 'outputs/14termreorder_12phageterm_11rosalindplus/terminase_summary.tsv';
 ok(-f $test_file, 'The terminase search results exist.');
-$actual = qx"head ${test_file}";
+$actual = qx"head -n 3 ${test_file}";
 $expected = qq"Name\tLength\tAccession\tDescription\tScore\tSignificance\tBit\tHitStrand\tQueryStrand
 AZS06569.1\t551\tAZS06569\tterminase [Mycobacterium phage JacoRen57]\t26.4\t2.6\t26.4\t0\t1
 AUV61411.1\t503\tAUV61411\tlarge terminase [Pontimonas phage phiPsal1]\t32.5\t0.24\t32.5\t0\t1
-QIN97975.1\t423\tQIN97975\tterminase [Salmonella phage pink]\t26.7\t4.8\t26.7\t0\t-1
-ATN92724.1\t499\tATN92724\tterminase [Escherichia phage APC_JM3.2]\t28.3\t1.9\t28.3\t0\t-1
-YP_009614610.1\t839\tYP_009614610\tterminase [Aeromonas phage pIS4-A]\t30.4\t0.72\t30.4\t0\t1
-QCW19659.1\t696\tQCW19659\tterminase [Vibrio phage Va_90-11-286_p16]\t27.6\t1.9\t27.6\t0\t1
-BAV81144.1\t505\tBAV81144\tterminase [Vibrio phage CKB-S2]\t26.7\t4.6\t26.7\t0\t1
-ASZ73214.1\t492\tASZ73214\tterminase [Arthrobacter phage JayCookie]\t30.3\t1.6\t30.3\t0\t-1
-ATS92560.1\t186\tATS92560\tterminase [Klebsiella phage 1611E-K2-1]\t26.7\t1.3\t26.7\t0\t-1
 ";
 unless(ok($expected eq $actual, 'Did the terminase search return expected hits?')) {
     my ($old, $new) = diff($expected, $actual);
@@ -359,19 +351,21 @@ unless(ok($expected eq $actual, 'Did we get expected merged CDS?')) {
 ## I messed up the jellyfish runs when standardizing the style.
 ## This test is therefore broken until I rerun.
 ## Check jellyfish
-$test_file = 'outputs/20jellyfish_test_output/test_output_9.stdout';
+$test_file = 'outputs/20jellyfish_test_output/test_output_9.hist.xz';
 ok(-f $test_file, 'The jellyfish results exist.');
-$actual = qx"tail ${test_file}";
-$expected = qq">1
-ATACCTGCG
->1
-AAGCCAGAA
->1
-CCGTCCCAT
->1
-TAGGAATCA
->1
-AGCGAGAGT
+$actual = qx"less ${test_file}";
+$expected = qq"1 28869
+2 4389
+3 661
+4 253
+5 67
+6 17
+7 8
+8 2
+9 2
+10 5
+11 2
+12 1
 ";
 unless(ok($expected eq $actual, 'Did we get expected jellyfish output?')) {
     my ($old, $new) = diff($expected, $actual);
@@ -391,11 +385,13 @@ unless(ok($expected eq $actual, 'Did we get expected aragorn output?')) {
 }
 
 ## I also broke the trnascan run...
-$test_file = 'outputs/22trnascan/aragorn.txt';
+$test_file = 'outputs/22trnascan/trnascan_relaxed.txt';
 ok(-f $test_file, 'The trnascan results exist.');
-$actual = qx"more ${test_file}";
-$expected = qq">test_output_1
-0 genes found
+$actual = qx"tail -n 4 ${test_file}";
+$expected = qq"number of sequences= 1
+number of bases tested (one strand)=41261
+number of bases tested (both strands)= 82522
+number of predicted tRNA=25
 ";
 unless(ok($expected eq $actual, 'Did we get expected trnascan output?')) {
     my ($old, $new) = diff($expected, $actual);
@@ -438,13 +434,21 @@ unless(ok($expected eq $actual, 'Did we get expected abricate output?')) {
     diag("--\n${old}\n--\n${new}\n");
 }
 
+## It turns out that every invocation of interproscan is different in pretty much every file...
 ## interproscan
-$test_file = 'outputs/25interproscan_19merge_cds_predictions/interproscan.tsv';
+$test_file = 'outputs/25interproscan_19merge_cds_predictions/test_output.faa.gff3';
 ok(-f $test_file, 'The interproscan results exist.');
-$actual = qx"head -n 3 ${test_file}";
-$expected = qq"test_output_0061\t4eb154f61b29dbd33cf415f020f10f23\t87\tPfam\tPF11123\tDNA packaging protein\t6\t72\t3.1E-16\tT\t21-12-2021\tIPR024345\tDNA maturase, bacteriophage T7-like
-test_output_0051\tf8d393226c15f8244492a90ec5880836\t188\tPfam\tPF17212\tTail tubular protein\t13\t179\t7.1E-45\tT\t21-12-2021\tIPR033767\tTail tubular protein Gp11
-test_output_0028\t0994f22652375b1bbe2ca5661ffaeffb\t150\tPfam\tPF05367\tPhage endonuclease I\t1\t149\t1.6E-81\tT\t21-12-2021\tIPR008029\tBacteriophage T7, Gp3, endodeoxynuclease I
+$actual = qx"sort ${test_file} | head";
+$expected = qq"AAESSAGNAKDSEDEARRIAESIKASGLIGYITRRSFENGFNVTTWNEVLLWEADGGYYR
+AALQAKDFKAITDAIWNAKPFVPAGVVSAASLKDRTREAMLKAETEGLMFSSCTTLNAMT
+AALSTVMSMGLAGIYYMA
+AAPWLLAAV
+ACP
+ACPSFDLQRWLSTNELV
+ADDAAFATVMRTMTDLSFFAKNAYMGVQNLTEIGGMLARGNVRALLHGVPMFRDLAFRNK
+ADDAAFATVMRTMTDLSFFAKNAYMGVQNLTEIGGMLARGNVRALLHGVPMFRDLAFRNK
+ADKFIPVEWLREATVRLPSGILIPKKGVK
+ADKFIPVEWLREATVRLPSGILIPKKGVKK
 ";
 unless(ok($expected eq $actual, 'Did we get expected interproscan output?')) {
     my ($old, $new) = diff($expected, $actual);

@@ -325,7 +325,7 @@ ${exe} \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
   1>${output_dir}/${basename}-trimomatic.stdout \\
   2>${output_dir}/${basename}-trimomatic.stderr
-excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.out)
+excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.stdout)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
   ${exe} \\
@@ -336,7 +336,7 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${r2op} ${r2ou} \\
     ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
     1>${output_dir}/${basename}-trimomatic.stdout \\
-    2>${output_dir}/${basename}-trimomatic.sterr \\
+    2>${output_dir}/${basename}-trimomatic.sterr
 fi
 sleep 10
 mv ${r1op} ${r1o}
