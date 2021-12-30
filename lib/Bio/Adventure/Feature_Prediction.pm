@@ -396,7 +396,7 @@ sub Prodigal {
         $gbk_file = qq"${output_dir}/predicted_cds.gb";
     }
 
-    my $comment = '!## This is a script to run prodigal.';
+    my $comment = '## This is a script to run prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
 prodigal ${train_string} \\
   -i $options->{input} \\

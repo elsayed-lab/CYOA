@@ -1113,6 +1113,16 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSearching for Restriction Sites.\n";
+    my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
+        jdepends => $last_job,
+        input => $cds_merge->{output},
+        jprefix => $prefix,
+        jname => 'restrict',);
+    $last_job = $re_search->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nCollecting output files.\n";
     my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
         jdepends => $last_job,

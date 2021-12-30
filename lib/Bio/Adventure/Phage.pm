@@ -11,6 +11,9 @@ use feature 'try';
 no warnings 'experimental::try';
 
 use Bio::DB::EUtilities;
+use Bio::Restriction::Analysis;
+use Bio::Restriction::Enzyme;
+use Bio::Restriction::EnzymeCollection;
 use Bio::SeqFeature::Generic;
 use Bio::Tools::Run::Alignment::StandAloneFasta;
 use Bio::Tools::Run::StandAloneBlastPlus;
@@ -1114,6 +1117,98 @@ phastaf --force --outdir ${output_dir} \\
     return($phastaf);
 }
 
+sub Restriction_Catalog {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'host_species.txt',
+        jmem => 8,
+        jprefix => '29',);
+
+    my $output_dir = qq"outputs/$options->{jprefix}re_catalog";
+    my $re_output = qq"${output_dir}/re_catalog.tsv";
+    my $host_output = qq"${output_dir}/re_host_catalog.tsv";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+    my $paths = $class->Get_Paths($re_output);
+
+
+    my $comment = qq"## Go on a restriction enzyme hunt!
+";
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+\$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
+  comment => '$comment',
+  input => '$options->{input}',
+  jname => 're_catalog',
+  jprefix => '$options->{jprefix}',
+  library => '$options->{library}',
+  output => '${re_output}',);
+!;
+    my $re_job = $class->Submit(
+        input => $options->{input},
+        jmem => $options->{jmem},
+        jname => 're_catalog',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        library => $options->{library},
+        modules => $options->{modules},
+        output => $re_output,
+        shell => '/usr/bin/env perl',);
+    return($re_job);
+}
+
+sub Restriction_Catalog_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'library'],
+        jprefix => '29',
+        output => 're_catalog.tsv',);
+    my $output_dir = dirname($options->{output});
+    my $log = FileHandle->new(">${output_dir}/re_catalog.log");
+
+    my $collection = Bio::Restriction::EnzymeCollection->new();
+
+    my $query = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+    my %data = ();
+  SEARCHES: while (my $contig = $query->next_seq()) {
+      my $sequence = $contig->seq;
+      my $analysis = Bio::Restriction::Analysis->new(-seq => $contig);
+      my $internal = {};
+      for my $en ($collection->each_enzyme()) {
+          my $name = $en->name;
+          my $site = $en->site;
+          my $overhang = $en->overhang_seq;
+          my $cuts = $analysis->cuts_by_enzyme($name);
+          my @fragments = $analysis->fragments($en);
+          $internal = {
+              site => $site,
+              overhang => $overhang,
+              cuts => $cuts,
+              fragments => \@fragments,
+          };
+          if ($data{$name}) {
+              $internal->{cuts} = $internal->{cuts} + $data{$name}->{cuts};
+              push(@fragments, $internal->{fragments});
+              $internal->{fragments} = \@fragments;
+          }
+          $data{$name} = $internal;
+      }
+  }
+
+    my $re_tsv = FileHandle->new(">$options->{output}");
+    print $re_tsv qq"RE\tSite\tOverhang\tCuts\n";
+    for my $name (sort keys %data) {
+        print $re_tsv qq"${name}\t$data{$name}->{site}\t$data{$name}->{overhang}\t$data{$name}->{cuts}\n";
+    }
+    $re_tsv->close();
+}
+
 =head2 C<Terminase_Reorder>
 
 Reorder an assembly so that a terminase gene is at the beginning.
@@ -1183,22 +1278,23 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
   test_file => '$options->{test_file}',);
 !;
     my $tjob = $class->Submit(
-        jdepends => $options->{jdepends},
+        comment => $comment,
         evalue => $options->{evalue},
         fasta_tool => 'fastx36',
         input => $options->{input},
+        library => $options->{library},
+        query => $prodigal_cds,
+        output => $final_output,
+        output_dir => $output_dir,
+        test_file => $options->{test_file},
+        shell => '/usr/bin/env perl',
+        language => 'perl',
+        jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'terminase_reorder',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        language => 'perl',
-        library => $options->{library},
-        modules => $options->{modules},
-        query => $prodigal_cds,
-        output => $final_output,
-        output_dir => $output_dir,
-        shell => '/usr/bin/env perl',
-        test_file => $options->{test_file},);
+        modules => $options->{modules},);
     $tjob->{prodigal_job} = $term_prodigal;
     return($tjob);
 }

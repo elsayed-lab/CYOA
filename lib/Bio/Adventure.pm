@@ -818,6 +818,7 @@ sub Get_Menus {
                 '(phastaf): Search for phage regions in arbitrary assemblies.' => \&Bio::Adventure::Phage::Phastaf,
                 '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
                 '(caical): Calculate codon adaptation index of a phage vs. some host.' => \&Bio::Adventure::Phage::Caical,
+                '(recatalog): Create a catalog of restriction enzyme hits.' => \&Bio::Adventure::Phage::Restriction_Catalog,
             },
         },
         Phylogeny => {
@@ -1041,6 +1042,7 @@ sub Get_TODOs {
         "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},
         "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
         "readsample+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
+        "recatalog+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Restriction_Catalog'},
         "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},
         "rgi+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rgi'},
         "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
