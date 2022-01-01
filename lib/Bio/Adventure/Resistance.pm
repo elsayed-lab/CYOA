@@ -55,8 +55,7 @@ sub Abricate {
     }
     my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_name}";
     my $species_string = '';
-    my $comment = qq!## This is a script to run abricate.
-!;
+    my $comment = '## This is a script to run abricate.';
     my $jstring = qq!mkdir -p ${output_dir}
 ## First get the list of available databases:
 dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
@@ -126,8 +125,7 @@ sub Resfinder {
         $species_string = qq" --species $options->{species} ";
     }
 
-    my $comment = qq!## This is a script to run resfinder.
-!;
+    my $comment = '## This is a script to run resfinder.';
     my $jstring = qq!mkdir -p ${output_dir}
 run_resfinder.py -ifa $options->{input} \\
   -o ${output_dir} \\
@@ -172,8 +170,7 @@ sub Rgi {
     my $assembly_name = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}rgi";
     my $species_string = qq"";
-    my $comment = qq!## This is a script to run rgi.
-!;
+    my $comment = '## This is a script to run rgi.';
     my $jstring = qq!mkdir -p ${output_dir}
 rgi main --input_sequence $options->{input} \\
   --output_file ${output_dir}/rgi_result.txt --input_type protein \\

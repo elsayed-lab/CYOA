@@ -81,7 +81,7 @@ sub CGView {
     if ($options->{gene_labels}) {
         $option_string .= '-gene_labels T ';
     }
-
+    my $comment = '## Run cgview given an assembly genbank file.';
     my $jstring = qq!
 mkdir -p ${output_directory}
 cgview_xml_builder.pl -sequence ${xml_input} \\
@@ -106,6 +106,7 @@ cgview -i ${xml_output} \\
     }
 
     my $cgview = $class->Submit(
+        comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},

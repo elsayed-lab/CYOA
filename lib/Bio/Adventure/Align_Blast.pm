@@ -96,7 +96,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
   2>>$options->{basedir}/split_align.stderr
 !;
     }
-    my $comment = qq!## Running multiple blast jobs.!;
+    my $comment = '## Running multiple blast jobs.';
     my $blast_jobs = $class->Submit(
         comment => $comment,
         jname => 'blast_multi',

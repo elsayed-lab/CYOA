@@ -488,7 +488,7 @@ sub Jellyfish {
     my $histogram_file = qq"${jelly_base}.hist";
     my $count_fasta = qq"${jelly_base}_by_count.fasta";
     my $matrix_file = qq"${jelly_base}_matrix.csv";
-    my $comment = qq"## Invoke jellyfish on some sequence!";
+    my $comment = '## Invoke jellyfish on some sequence!';
     my $jstring = qq!mkdir -p ${output_dir}
 jellyfish count -m $options->{length} \\
   -o ${count_file} \\
@@ -530,7 +530,6 @@ jellyfish dump ${count_file} > ${count_fasta} \\
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
-  comment => '$comment',
   input => '${count_fasta}',
   jdepends => '$jelly->{job_id}',
   jname => 'jelly_matrix',
@@ -551,7 +550,7 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
 
     my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compress the jellyfish output files.",
+        comment => '## Compress the jellyfish output files.',
         jdepends => $matrix_job->{job_id},
         jname => qq"xzjelly_$options->{length}",
         jprefix => $options->{jprefix} + 1,
@@ -1075,7 +1074,7 @@ sub SLSearch {
         search => 'AGTTTCTGTACTTTATTGG',);
     my $output_dir =  qq"outputs/$options->{jprefix}SL_search";
     my $output_made = make_path($output_dir);
-    my $comment = qq"## Search for SL sub-sequences.";
+    my $comment = '## Search for SL sub-sequences.';
     my $jstring = qq?
 use Bio::Adventure::Count;
 my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(

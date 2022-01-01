@@ -53,7 +53,8 @@ sub BT1_Index {
   $options->{libdir}/$options->{libtype}/indexes/${species} \\
   2>bt1_index.stderr 1>bt1_index.stdout
 !;
-    my $comment = qq!## Generating bowtie1 indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
+    my $comment = qq!## Generating bowtie1 indexes for species: ${species}
+in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
         comment => $comment,
         jname => qq"bt1idx_${species}",
@@ -100,7 +101,8 @@ sub BT2_Index {
   $options->{libdir}/${libtype}/indexes/${species} \\
   2>bt2_index.stderr 1>bt2_index.stdout
 !;
-    my $comment = qq!## Generating bowtie2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating bowtie2 indexes for species: ${species}
+in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -147,7 +149,8 @@ cd \$start
     my $index_amb = qq"${basedir}/${species}.fa.amb";
     my $index_fa = qq"${basedir}/${species}.fa";
 
-    my $comment = qq!## Generating bwa indexes for species: ${species} in $options->{libdir}/$options->{libtype}/indexes!;
+    my $comment = qq!## Generating bwa indexes for species: ${species}
+in $options->{libdir}/$options->{libtype}/indexes!;
     my $bwa_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -268,8 +271,7 @@ sub Extend_Kraken_DB {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qw"outputs/extend_kraken";
 
-    my $comment = qq!## This is a script to extend an existing kraken2 library with some new sequences.
-!;
+    my $comment = '## This is a script to extend an existing kraken2 library with some new sequences.';
     my $jstring = qq!mkdir -p ${output_dir}
 kraken2-build --download-taxonomy --db \${KRAKEN_DB_PATH}/$options->{library} \\
               2>${output_dir}/kraken2-build.stderr \\
@@ -326,7 +328,8 @@ hisat2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
   2>hisat2_index.stderr 1>hisat2_index.stdout
 !;
-    my $comment = qq!## Generating hisat2 indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating hisat2 indexes for species: ${species}
+in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -365,7 +368,8 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
   ${input} \\
   2>kallisto_index.stderr 1>kallisto_index.stdout
 !;
-    my $comment = qq!## Generating kallisto indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating kallisto indexes for species: ${species}
+in $options->{libdir}/${libtype}/indexes!;
     my $ka_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -483,7 +487,8 @@ otherwise a decoy-less index will be generated.");
         sleep(10);
     }
 
-    my $comment = qq!## Generating salmon indexes for species: ${species} in $options->{libdir}/${libtype}/indexes!;
+    my $comment = qq!## Generating salmon indexes for species: ${species}
+in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},

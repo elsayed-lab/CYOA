@@ -67,8 +67,7 @@ sub Aragorn {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}aragorn";
     my $species_string = '';
-    my $comment = qq!## This is a script to run aragorn.
-!;
+    my $comment = '## This is a script to run aragorn.';
     my $jstring = qq!mkdir -p ${output_dir} && \\
   aragorn $options->{arbitrary} \\
     -o ${output_dir}/aragorn.txt \\
@@ -126,8 +125,7 @@ sub Glimmer {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
 
-    my $comment = qq!## This is a script to run glimmer.
-!;
+    my $comment = '## This is a script to run glimmer.';
 ##    my $jstring = qq!mkdir -p ${output_dir}
 ##long-orfs -n -t 1.15 $options->{input} ${output_dir}/first_run_longorfs.txt \\
 ##  2> ${output_dir}/first_run_longorfs.out 1>&2
@@ -215,7 +213,7 @@ sub Glimmer_Single {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
 
-    my $comment = qq!## This is a script to run glimmer.!;
+    my $comment = '## This is a script to run glimmer.';
     my $final_output = qq"${output_dir}/glimmer3.txt";
     my $final_error = qq"${output_dir}/glimmer3.err";
     my $jstring = qq!mkdir -p ${output_dir}
@@ -253,6 +251,88 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($glimmer);
+}
+
+=head2 C<Phagepromoter>
+
+ Use the phagepromoter tool to search for potential promoters.
+ https://doi.org/10.1093/bioinformatics/btz580
+
+ I pulled this tool off the galaxy toolshed and was disappointed in
+ how pooly documented it is.  I have a pretty strong desire to rewrite
+ it and make it able to train on other genera and/or make it generic;
+ as well as document and clean it up.
+
+=item C<Arguments>
+
+ input(required): Viral assembly fasta file, or genbank file.
+ format(fasta): Format of the input(this is the first thing I would fix)
+ both_strands(True): Analyze both strands?
+ cutoff(0.5): Score cutoff, in my limited experience, 0.6 is a good score.
+ family(Podoviridae): Virus family, I would like to make this smarter,
+  at least have it read the viral taxonomy and use it.
+ host(Pseudomonas): Host genus.  This could be smarter, too.
+ phage_type(virulent): phagepromoter was trained on lytic and not strains.
+ model(SVM2400): Choose a trained model to feed phagepromoter.
+ jmem(6): Expected memory usage.
+ jprefix(30): Prefix for the output directory and job name.
+ modules(phagepromoter): Environment module to load.
+
+=cut
+sub Phagepromoter {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        format => 'fasta',
+        both_strands => 'True',
+        cutoff => 0.5,
+        family => 'Podoviridae',
+        host => 'Pseudomonas',
+        phage_type => 'virulent',
+        model => 'SVM2400',
+        jmem => 6,
+        jprefix => '30',
+        modules => ['phagepromoter'],);
+    ## Here are the lines which define what is passed to it on ARGV : defaults
+    ## gen_format = sys.argv[1] : genbank or fasta
+    ## genome_file = sys.argv[2] : input file
+    ## both = sys.argv[3] : True or False
+    ## threshold = sys.argv[4] : 0.5
+    ## family = sys.argv[5] : Podoviridae
+    ## host = sys.argv[6] : Pseudomonas
+    ## phage_type = sys.argv[7] : virulent
+    ## model = sys.argv[8] : SVM2400
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('phagepromoter.py');
+    die('Could not find phagepromoter in your PATH.') unless($check);
+    my $job_name = $class->Get_Job_Name();
+    my $output_dir = qq"outputs/$options->{jprefix}phagepromoter";
+    my $output_file = qq"${output_dir}/${job_name}_phagepromoter.tsv";
+    my $input_paths = $class->Get_Paths($output_file);
+    my $comment = '## This is a script to run phagepromoter.';
+    my $jstring = qq!
+phagepromoter.py $options->{format} \\
+  $options->{input} \\
+  $options->{both_strands} $options->{cutoff} \\
+  $options->{family} $options->{host} \\
+  $options->{phage_type} $options->{model}
+!;
+    my $phanotate = $class->Submit(
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => qq"phanotate_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        modules => $options->{modules},
+        output => qq"${output_file}.xz",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        jqueue => 'workstation',);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($phanotate);
 }
 
 =head2 C<Phanotate>
@@ -518,8 +598,7 @@ sub Train_Prodigal {
     my $kingdom_string = '';
     my $output_dir = qq"$options->{libdir}/hmm";
     my $output = qq"${output_dir}/$options->{species}_gc$options->{gcode}.training";
-    my $comment = qq!## This is a script to train prodigal.
-!;
+    my $comment = '## This is a script to train prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
 prodigal -i $options->{input} \\
   -t ${output} \\
@@ -584,8 +663,7 @@ sub tRNAScan {
     my $output_dir = qq"outputs/$options->{jprefix}trnascan";
     my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
     my $species_string = '';
-    my $comment = qq!## This is a script to run trnascan.
-!;
+    my $comment = '## This is a script to run trnascan.';
     my $jstring = qq!mkdir -p ${output_dir}
 $options->{tool} $options->{arbitrary} \\
   -o ${output_file} \\

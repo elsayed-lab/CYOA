@@ -51,7 +51,8 @@ sub Concatenate_Searches {
     my $output = qq"${workdir}/split_search.txt";
     $output = $options->{output} if (defined($options->{output}));
     $output .= ".xz" unless ($output =~ /\.xz$/);
-    my $comment_string = qq"## Concatenating the output files into ${output}\n";
+    my $comment_string = qq"## Concatenating the output files into ${output}
+";
     my $jstring = qq!
 rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${output}; done
 !;

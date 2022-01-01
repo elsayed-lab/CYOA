@@ -78,8 +78,7 @@ sub Abyss {
         $input_string = qq!in=${r1} "!;
         $executable = "abyss-se"
     }
-    my $comment = qq!## This is a abyss submission script
-!;
+    my $comment = '## This is a abyss submission script.';
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 cd ${output_dir}
@@ -394,13 +393,11 @@ sub Unicycler_Filter_Depth {
     my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
     my $output_log = qq"${output_dir}/filter_depth.log";
     my $output = qq"${output_dir}/$options->{output}";
-    my $comment = qq!## This is a submission script for a depth filter.
-!;
+    my $comment = '## This is a submission script for a depth filter.';
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Assembly;
-my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
-  comment => '${comment}',
+\$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   coverage => '$options->{coverage}',
   input => '$options->{input}',
   output => '${output}',
@@ -465,8 +462,7 @@ sub Shovill {
     } else {
         $input_string = qq" -R1 $options->{input}";
     }
-    my $comment = qq!## This is a shovill submission script
-!;
+    my $comment = '## This is a shovill submission script.';
     my $jstring = qq!mkdir -p ${output_dir}
 shovill $options->{arbitrary} --force --keepfiles --depth $options->{depth} \\
    --outdir ${output_dir} \\
@@ -538,8 +534,7 @@ sub Trinity {
     } else {
         $input_string = qq"--single $options->{input} ";
     }
-    my $comment = qq!## This is a trinity submission script
-!;
+    my $comment = '## This is a trinity submission script.';
     my $jstring = qq!mkdir -p ${output_dir} && \\
   Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
     --trimmomatic --max_memory 90G --CPU 6 \\
@@ -618,8 +613,7 @@ sub Trinity_Post {
         $input_string = qq"--single $options->{input} ";
     }
 
-    my $comment = qq!## This is a trinity post-processing submission script.
-!;
+    my $comment = '## This is a trinity post-processing submission script.';
     my $jstring = qq!
 start=\$(pwd)
 cd ${trinity_out_dir}
@@ -728,8 +722,7 @@ less $in[1] | gzip > ${output_dir}/r2.fastq.gz
         $ln_string = qq"less $options->{input} | gzip > ${output_dir}/r1.fastq.gz
 ";
     }
-    my $comment = qq!## This is a unicycler submission script
-!;
+    my $comment = '## This is a unicycler submission script.';
     my $jstring = qq!mkdir -p ${output_dir}
 ${ln_string}
 unicycler $options->{arbitrary} \\
@@ -805,8 +798,7 @@ sub Velvet {
     } else {
         $input_string = qq" -fastq -short <(less $options->{input})";
     }
-    my $comment = qq!## This is a velvet submission script
-!;
+    my $comment = '## This is a velvet submission script.';
     my $jstring = qq!mkdir -p ${output_dir} && \\
   velveth ${output_dir} $options->{kmer} \\
     $input_string \\

@@ -35,7 +35,7 @@ sub RNAFold_Windows {
     my $output_name = basename($options->{input}, ('.gbk'));
     my $output_dir = qq"outputs/$options->{jprefix}rnafold";
     my $output = qq"${output_dir}/${output_name}.tsv.xz";
-
+    my $comment = '## Iterate over a sequence with RNAfold.';
     my $jstring = qq?
 use Bio::Adventure::Structure;
 \$h->Bio::Adventure::Structure::RNAFold_Windows_Worker(
@@ -53,6 +53,7 @@ use Bio::Adventure::Structure;
         length => $options->{length},
         step => $options->{step},
         jstring => $jstring,
+        comment => $comment,
         language => 'perl',
         shell => '/usr/bin/env perl',);
     $class->{language} = 'bash';

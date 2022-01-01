@@ -102,7 +102,7 @@ sub Filter_Host_Kraken {
         jdepends => '',
         jmem => 8,
         jprefix => '06',);
-    my $comment = qq"## Use kraken results to choose a host species to filter against.\n";
+    my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
     make_path($output_dir);
     my $out_r1_name = 'r1_host_filtered.fastq.xz';
@@ -112,7 +112,6 @@ sub Filter_Host_Kraken {
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = Bio::Adventure::Phage::Get_Kraken_Host(\$h,
-  comment => '${comment}',
   output => '${output_files}',
   output_dir => '${output_dir}',
   input => '$options->{input}',
@@ -122,11 +121,12 @@ my \$result = Bio::Adventure::Phage::Get_Kraken_Host(\$h,
   jprefix => '$options->{jprefix}',);
 !;
     my $host = $class->Submit(
-        jdepends => $options->{jdepends},
         input => $options->{input},
         input_fastq => $options->{input_fastq},
         output => $output_files,
         output_dir => $output_dir,
+        comment => $comment,
+        jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'hostfilter',
         jprefix => $options->{jprefix},
@@ -375,8 +375,7 @@ sub Classify_Phage {
     my $jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-my \$result = Bio::Adventure::Phage::Blast_Classify(\$h,
-  comment => '${comment}',
+my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
   blast_tool => '$options->{blast_tool}',
   evalue => '$options->{evalue}',
   input => '$options->{input}',
@@ -389,10 +388,11 @@ my \$result = Bio::Adventure::Phage::Blast_Classify(\$h,
 ?;
 
     my $cjob = $class->Submit(
-        jdepends => $options->{jdepends},
         blast_tool => $options->{blast_tool},
         evalue => $options->{evalue},
         input => $options->{input},
+        comment => $comment,
+        jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'classify_ictv',
         jprefix => $options->{jprefix},
@@ -409,13 +409,13 @@ my \$result = Bio::Adventure::Phage::Blast_Classify(\$h,
     return($cjob);
 }
 
-=head2 C<Blast_Classify>
+=head2 C<Classify_Phage_Worker>
 
 Does the actual work of attempting to classify a viral sequence
 against the ICTV database.
 
 =cut
-sub Blast_Classify {
+sub Classify_Phage_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -445,8 +445,6 @@ sub Blast_Classify {
     ## First check for the test file, if it exists, then this should
     ## just symlink the input to the output until I think of a smarter
     ## way of thinking about this.
-    my $comment = qq!## This invokes blast and pulls the top entries in an attempt to classify a viral genome.
-!;
     my $blast_output = Bio::SearchIO->new(-format => 'blast', );
     my $number_hits = 0;
     my $blast_outfile = qq"$options->{output_blast}";
@@ -789,7 +787,6 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
   output => '${output_file}',);
 ?;
     my $phageterm_run = $class->Submit(
-        comment => $comment,
         input => $options->{input},
         output => $output_file,
         output_type => $dtr_type_file,
@@ -797,6 +794,7 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         test_file => $dtr_test_file,
         shell => 'usr/bin/env perl',
         language => 'perl',
+        comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'phageterm',
@@ -1044,8 +1042,8 @@ cd \${start}
 
     my $phageterm = $class->Submit(
         cpus => $options->{cpus},
-        comment => $comment,
         dtr_file => $test_file,
+        comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"phageterm_${job_name}",
         jprefix => $options->{jprefix},
@@ -1089,8 +1087,7 @@ sub Phastaf {
         my $removed = rmtree($output_dir);
     }
 
-    my $comment = qq!## This is a script to run phastaf.
-!;
+    my $comment = '## This is a script to run phastaf.';
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
@@ -1102,6 +1099,7 @@ phastaf --force --outdir ${output_dir} \\
     my $output_file = qq"${output_dir}/something.txt";
     my $phastaf = $class->Submit(
         cpus => $options->{cpus},
+        output => $output_file,
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"phastaf_${job_name}",
@@ -1109,7 +1107,6 @@ phastaf --force --outdir ${output_dir} \\
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},
-        output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -1135,13 +1132,11 @@ sub Restriction_Catalog {
     my $paths = $class->Get_Paths($re_output);
 
 
-    my $comment = qq"## Go on a restriction enzyme hunt!
-";
+    my $comment = '## Go on a restriction enzyme hunt!';
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
-  comment => '$comment',
   input => '$options->{input}',
   jname => 're_catalog',
   jprefix => '$options->{jprefix}',
@@ -1150,6 +1145,7 @@ use Bio::Adventure::Phage;
 !;
     my $re_job = $class->Submit(
         input => $options->{input},
+        comment => $comment,
         jmem => $options->{jmem},
         jname => 're_catalog',
         jprefix => $options->{jprefix},
@@ -1264,7 +1260,6 @@ sub Terminase_ORF_Reorder {
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
-  comment => '$comment',
   evalue => '$options->{evalue}',
   fasta_tool => '$options->{fasta_tool}',
   input => '$options->{input}',
@@ -1278,7 +1273,6 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
   test_file => '$options->{test_file}',);
 !;
     my $tjob = $class->Submit(
-        comment => $comment,
         evalue => $options->{evalue},
         fasta_tool => 'fastx36',
         input => $options->{input},
@@ -1289,6 +1283,7 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         test_file => $options->{test_file},
         shell => '/usr/bin/env perl',
         language => 'perl',
+        comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'terminase_reorder',

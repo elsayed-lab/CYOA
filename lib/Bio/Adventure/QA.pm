@@ -42,7 +42,7 @@ sub Biopieces_Graph {
     my $jname = $class->Get_Job_Name();
     $jname = qq"biop_${jname}";
     my @inputs = split(/\,|\:|\;/, $input);
-    my $comment = qq!## This script uses biopieces to draw some simple graphs of the sequence.!;
+    my $comment = '## This script uses biopieces to draw some simple graphs of the sequence.';
     my $bp;
     if (scalar(@inputs) > 1) { ## multiple comma/colon/semicolon inputs were provided.
         foreach my $in (@inputs) {
@@ -63,8 +63,8 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
  count_records -o outputs/biopieces/${short_in}_count.txt -x
 !;
             $bp = $class->Submit(
-                comment => $comment,
                 input => $in,
+                comment => $comment,
                 jdepends => $options->{jdepends},
                 jmem => $options->{jmem},
                 jname => qq"${jname}_${in}",
@@ -91,8 +91,8 @@ less ${input} | read_fastq -i - -e base_33 |\\
  count_records -o outputs/biopieces/${jname}_count.txt -x
 !;
         $bp = $class->Submit(
-            comment => $comment,
             input => $input,
+            comment => $comment,
             jdepends => $options->{jdepends},
             jmem => $options->{jmem},
             jname => 'biop',
@@ -188,8 +188,8 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
-        comment => $comment,
         cpus => 8,
+        comment => $comment,
         jname => $jname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
@@ -245,8 +245,8 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
-        comment => $comment,
         cpus => 8,
+        comment => $comment,
         jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},

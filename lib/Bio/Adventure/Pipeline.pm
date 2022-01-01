@@ -1106,7 +1106,7 @@ sub Phage_Assemble {
     print "\nRunning Vienna RNAfold on the assembly.\n";
     my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
         jdepends => $last_job,
-        input => $cds_merge->{output},
+        input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'vienna',);
     $last_job = $vienna->{job_id};

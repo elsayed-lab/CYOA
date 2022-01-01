@@ -138,8 +138,7 @@ sub Bowtie {
     $bowtie_input_flag = "-f" if ($options->{input} =~ /\.fasta/);
     my $error_file = qq"${bt_dir}/$options->{jbasename}-${bt_type}.stderr";
     my $comment = qq!## This is a bowtie1 alignment of ${bt_input} against
-## ${bt_reflib} using arguments: ${bt_args}.
-!;
+## ${bt_reflib} using arguments: ${bt_args}.!;
     my $aligned_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq";
     my $unaligned_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq";
     my $sam_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}.sam";
@@ -177,7 +176,7 @@ bowtie \\
 
     my $compress_files = qq"${bt_dir}/$options->{jbasename}-${bt_type}_unaligned_${species}.fastq:${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.\n",
+        comment => '## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.',
         jdepends => $bt_job->{job_id},
         jname => 'xzun',
         jprefix => $options->{jprefix} + 1,
@@ -393,7 +392,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
 
     my $compression_files = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq:${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
-        comment => qq"## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}\n",
+        comment => '## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}.',
         input => $compression_files,
         jdepends => $bt2_job->{job_id},
         jname => qq"xzun_${suffix_name}",
@@ -1167,8 +1166,7 @@ sub RSEM {
     }
 
     my $rsem_dir = qq"outputs/rsem_$options->{species}";
-    my $rsem_comment = qq"## This is a rsem invocation script.
-";
+    my $rsem_comment = '## This is a rsem invocation script.';
     my $output_file = qq"$options->{species}_something.txt";
     my $jstring = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
   --calc-ci ${rsem_input} \\

@@ -82,7 +82,7 @@ cd $options->{basedir}
   2>>$options->{basedir}/split_align.stderr
 !;
     }
-    my $comment = qq!## Running multiple fasta jobs.!;
+    my $comment = '## Running multiple fasta jobs.';
     my $fasta_jobs = $class->Submit(
         comment => $comment,
         depends_type => 'array',

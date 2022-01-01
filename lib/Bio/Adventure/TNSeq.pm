@@ -47,13 +47,11 @@ sub Essentiality_TAs {
     my $output_dir = qq"outputs/essentiality_$options->{species}";
     my $output_log = qq"${output_dir}/count_ta.log";
     my $output = qq"${output_dir}/${outname}-v0M1_tas.txt";
-    my $comment = qq!## This is a submission script to count TAs for essentiality.
-!;
+    my $comment = '## This is a submission script to count TAs for essentiality.';
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::TNSeq;
 Bio::Adventure::TNSeq::Essentiality_TAs_Worker(\$h,
-  comment => '${comment}',
   input => '$options->{input}',
   species => '$options->{species}',
   htseq_type => '$options->{htseq_type}',
@@ -161,7 +159,7 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_TA_Check(
     my $input_base = basename($options->{input}, ('.gz', '.xz', '.bz2'));
     $input_base = basename($input_base, ('.fastq', '.fasta'));
     my $sort_job = $class->Submit(
-        comment => "# Check for tailing TAs!",
+        comment => '## Check for tailing TAs!',
         cpus => 1,
         jdepends => $options->{jdepends},
         jmem => 8,
@@ -245,7 +243,6 @@ sub Sort_Indexes {
     my $jstring = qq!
 use Bio::Adventure;
 my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
-  comment => '# Sort those indexes.',
   cpus => 1,
   input => "$options->{input}",
   index_file => "$options->{index_file}",
@@ -255,7 +252,7 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
   output => '$options->{outdir}/tnseq_sorting_out.txt');
 !;
     my $sort_job = $class->Submit(
-        comment => "# Sort those indexes!",
+        comment => '## Sort those indexes!',
         cpus => 1,
         input => $options->{input},
         index_file => $options->{index_file},

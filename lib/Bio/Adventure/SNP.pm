@@ -128,7 +128,7 @@ bcftools index ${final_output} 2>${vcfutils_dir}/bcftools_index.err
 echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.out
 !;
 
-    my $comment_string = qq!## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.!;
+    my $comment_string = '## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.';
     my $pileup = $class->Submit(
         comment => $comment_string,
         jdepends => $options->{jdepends},
@@ -440,7 +440,7 @@ snippy --force \\
   --ref ${genome} \\
   ${snippy_input}
 !;
-    my $comment_string = qq!## Invoke snippy on some reads.!;
+    my $comment_string = '## Invoke snippy on some reads.';
     my $snippy = $class->Submit(
         comment => $comment_string,
         jdepends => $options->{jdepends},

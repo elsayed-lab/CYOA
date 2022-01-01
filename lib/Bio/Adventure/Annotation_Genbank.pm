@@ -206,7 +206,7 @@ sub Merge_CDS_Predictions {
     my $output_tsv = qq"${output_dir}/${output_basename}.tsv";
     ## After we do the various annotation searches, we will add
     ## the metadata template file (sbt), the tsv, and xlsx outputs.
-    my $comment = qq"## This will hopefully merge CDS predictions from prodigal/glimmer/prokka.";
+    my $comment = '## This will hopefully merge CDS predictions from prodigal/glimmer/prokka.';
 
     my $jstring = qq?
 use Bio::Adventure::Annotation;

@@ -1497,7 +1497,7 @@ sub Fastqc_Stats {
         $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";
         $jname = qq"$options->{jname}_$options->{direction}";
     }
-    my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
+    my $comment = '## This is a stupidly simple job to collect alignment statistics.';
     my $jstring = qq!
 if [ \! -r "${stat_output}" ]; then
   echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
