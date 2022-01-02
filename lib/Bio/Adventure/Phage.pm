@@ -592,6 +592,18 @@ sub Caical {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('caical');
     die('Could not find caical in your PATH.') unless($check);
+
+    my $species = $options->{species};
+    ## Then the species argument is a filename, so pull the species from it.
+    if (-r $species) {
+        my $in = FileHandle->new("<$species");
+        while (my $line = <$in>) {
+            chomp $line;
+            $species = $line;
+        }
+        $in->close();
+    }
+
     my $index = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
     if (!-r $index) {
         my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
@@ -600,7 +612,7 @@ sub Caical {
     my $test = ref($options->{suffixes});
     my @suffixes = split(/,/, $options->{suffixes});
     my $out_base = basename($options->{input}, @suffixes);
-    my $jname = qq"${out_base}_vs_$options->{species}";
+    my $jname = qq"caical_${out_base}_vs_$options->{species}";
     my $output_dir = qq"outputs/$options->{jprefix}${jname}";
     make_path($output_dir);
     my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
@@ -608,6 +620,7 @@ sub Caical {
     my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
     my $stderr = qq"${output_dir}/${out_base}.stderr";
     my $stdout = qq"${output_dir}/${out_base}.stdout";
+    my $comment = qq'## Running caical against ${species}.';
     my $jstring = qq?mkdir -p ${output_dir}
 caical -g 11 \\
   -f $options->{input} \\
@@ -619,6 +632,7 @@ caical -g 11 \\
 ?;
 
     my $job = $class->Submit(
+        comment => $comment,
         output => $output_cai,
         output_random => $random_sequences,
         output_expected => $expected_cai,

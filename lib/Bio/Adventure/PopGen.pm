@@ -39,7 +39,7 @@ sub Angsd_Filter {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input_paths = $class->Get_Paths($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}angsd_$input_paths->{dirname}";
-    my $comment '## angsd seems like it should be awesome, but it is fragile.';
+    my $comment = '## angsd seems like it should be awesome, but it is fragile.';
     my $jstring = qq!
 angsd -b $options->{input} \\
   -doHWE 1 -GL 1 -doMajorMinor 1 -doMaf 2 -snp_pval 1e-2 -P 5 -dosnpstat 1 \\

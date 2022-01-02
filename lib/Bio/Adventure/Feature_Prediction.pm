@@ -322,7 +322,7 @@ phagepromoter.py $options->{format} \\
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => qq"phanotate_${job_name}",
+        jname => qq"phagepromoter",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -531,7 +531,7 @@ prodigal ${train_string} \\
  modules('rhotermpredict'): Use this environment module.
 
 =cut
-sub RhoTermPredict {
+sub Rho_Predict {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -547,8 +547,8 @@ sub RhoTermPredict {
     my $info_file = qq"${output_dir}/info_about_predictions_seqname.csv";
     my $jstring = qq?mkdir -p ${output_dir}
 start=\$(pwd)
+cp $options->{input} ${output_dir}/
 cd ${output_dir}
-cp $options->{input} .
 echo $input_paths->{filename} | RhoTermPredict_algorithm.py \\
   2>${output_dir}/rhotermpredict.stderr \\
   1>${output_dir}/rhotermpredict.stdout

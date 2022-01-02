@@ -1116,10 +1116,41 @@ sub Phage_Assemble {
     print "\nSearching for Restriction Sites.\n";
     my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
         jdepends => $last_job,
-        input => $cds_merge->{output},
+        input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'restrict',);
     $last_job = $re_search->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nRunning caical against the assumed host.\n";
+    my $caical = $class->Bio::Adventure::Phage::Caical(
+        jdepends => $last_job,
+        input => $merge->{output_fsa},
+        species => 'host_species.txt',
+        jprefix => $prefix,
+        jname => 'restrict',);
+    $last_job = $caical->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSearching for Phage promoters.\n";
+    my $phagepromoter = $class->Bio::Adventure::Feature_Prediction::Phagepromoter(
+        jdepends => $last_job,
+        input => $merge->{output_fsa},
+        jprefix => $prefix,
+        jname => 'phagepromoter',);
+    $last_job = $phagepromoter->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nSearching for rho terminators.\n";
+    my $rhopredict = $class->Bio::Adventure::Feature_Prediction::Rho_Predict(
+        jdepends => $last_job,
+        input => $merge->{output_fsa},
+        jprefix => $prefix,
+        jname => 'rhopredict',);
+    $last_job = $rhopredict->{job_id};
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
