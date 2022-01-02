@@ -193,7 +193,7 @@ sub SNP_Ratio {
 
     my $jstring = qq"
 use Bio::Adventure::SNP;
-\$h->Bio::Adventure::SNP::Make_SNP_Ratio(
+my \$result = \$h->Bio::Adventure::SNP::Make_SNP_Ratio(
   input => '$print_input',
   output => '$print_output',
   species => '$options->{species}',

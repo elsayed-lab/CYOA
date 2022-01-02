@@ -532,9 +532,10 @@ use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
 my \$h = new Bio::Adventure;
-my \$result = Bio::Adventure::Align::Parse_Search(\$h, input => '${parse_input}',
-                                                 search_type => 'blastxml',
-                                                 best => $args{best_only});
+my \$result = Bio::Adventure::Align::Parse_Search(
+  \$h, input => '${parse_input}',
+  search_type => 'blastxml',
+  best => $args{best_only});
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,

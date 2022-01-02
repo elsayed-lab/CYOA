@@ -29,7 +29,26 @@ use WWW::Mechanize;
 
 =head2 C<Get_DTR>
 
-Extract the direct-terminal-repeats from a phageterm run.
+ Extract the direct-terminal-repeats from a phageterm run.
+
+ Given the lengths we go in order to make phageterm actually run
+ successfully, it makes some sense that we should also have to work
+ to get the resulting direct terminal repeats from it.  This function
+ seeks to extract them.  It reads the resulting fasta file and creates
+ a SeqFeature from it.
+
+ This is slightly complicated by the fact that we cannot trust
+ phageterm to write a single copy, two, three, or four on the ends of
+ the assembly; but instead it adds a variable number depending on the
+ type of DTR.  As a result, this function includes a regex-based
+ search of the output assembly to find the n copies of the DTR and set
+ the DTR features accordingly.
+
+=item C<Arguments>
+
+ input_fsa: Fasta file of the reorganized genome produced by
+  phageterm.
+ input_dtr: Smaller fasta file containing the dtr sequence.
 
 =cut
 sub Get_DTR {
@@ -91,7 +110,24 @@ sub Get_DTR {
     return(\@dtr_features);
 }
 
-=head2 C<Filter_Host_Kraken
+=head2 C<Filter_Host_Kraken>
+
+ Set the host species to the most represented by kraken, and filter.
+
+ This function reads the results of a standard kraken run and pulls out
+ the most represented species.  It then goes to NCBI and crawls to
+ find a reference genome for that species, downloads it, and indexes
+ it.  Finally, it runs hisat2 using the reads and this downloaded
+ genome as a reference.  Then the unaligned reads are hopefully only
+ from the phage and not the host bacterium.
+
+=item C<Arguments>
+
+ input(required): The kraken report.
+ input_fastq(required): The trimmed/corrected reads.
+ jdepends(''): Job this depends upon.
+ jmem(8): Expected memory usage.
+ jprefix('06'): Job/directory prefix.
 
 =cut
 sub Filter_Host_Kraken {
@@ -111,7 +147,7 @@ sub Filter_Host_Kraken {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-my \$result = Bio::Adventure::Phage::Get_Kraken_Host(\$h,
+my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
   output => '${output_files}',
   output_dir => '${output_dir}',
   input => '$options->{input}',
@@ -136,12 +172,21 @@ my \$result = Bio::Adventure::Phage::Get_Kraken_Host(\$h,
     return($host);
 }
 
-=head2 C<Get_Kraken_Host>
+=head2 C<Filter_Kraken_Worker>
 
-Read the report from kraken and hunt down the species name with the most reads.
+ Do the work for Filter_Kraken().
+
+ This does the actual work for the previous function.
+
+=item C<Arguments>
+
+ input(required): The kraken report file.
+ output(required): The unaligned reads produced by hisat2.
+ jname(krakenfilter): Job name (maybe not needed?)
+ type(species): Which element from the kraken report to extract?
 
 =cut
-sub Get_Kraken_Host {
+sub Filter_Kraken_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -289,6 +334,22 @@ sub Get_Kraken_Host {
     return(%species_observed);
 }
 
+=head2 C<Download_NCBI_Assembly_UID>
+
+ Perform a web crawl to download a reference genome from NCBI.
+
+ In theory, the various entrez modules should make downloading
+ genomes/etc from NCBI relatively easy.  In practice, they are a right
+ pain in the arse.  I fought for hours with them to download reference
+ genomes and only ever got it working about 1 time in 4.  So, I
+ decided to say 'screw it' and write a simple web crawler to do it
+ instead.
+
+=item C<Arguments>
+
+ uid: a UID to download.
+
+=cut
 sub Download_NCBI_Assembly_UID {
     my %args = @_;
     my $out_fh = $args{out};
@@ -309,6 +370,13 @@ sub Download_NCBI_Assembly_UID {
     return($accession);
 }
 
+=head2 C<Download_NCBI_Assembly_Accession>
+
+ Perform a web crawl to download a reference genome from NCBI.  This
+ is similar in idea to the download_uid function above, but the logic
+ is slightly different to get an accession.
+
+=cut
 sub Download_NCBI_Assembly_Accession {
     my %args = @_;
     my $out_fh = $args{out};
@@ -342,10 +410,24 @@ sub Download_NCBI_Assembly_Accession {
 
 =head2 C<Classify_Phage>
 
-Use tblastx against a database extracted from reference accessions
-provided by the ICTV.  This should hopefully provide a reasonably
-complete set of taxonomic classifications for viral assemblies.  This
-function pretty much just calls Blast_Classify().
+ Use the ICTV data to attempt to classify a viral assembly.
+ https://talk.ictvonline.org/taxonomy/
+
+ Use tblastx against a database extracted from reference accessions
+ provided by the ICTV.  This should hopefully provide a reasonably
+ complete set of taxonomic classifications for viral assemblies.  This
+ function pretty much just calls Blast_Classify().
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ evalue(0.01): Cutoff evalue.
+ blast_tool(tblastx): Choose a blast method when searching.
+ library(ictv): Blast database basename.
+ topn(5): Keep this number of hits.
+ jmem(12): Expected memory usage.
+ jprefix('18'): Job/output prefix.
+ modules(blastdb, blast): Environment modules to load.
 
 =cut
 sub Classify_Phage {
@@ -355,18 +437,18 @@ sub Classify_Phage {
         required => ['input'],
         evalue => 0.01,
         blast_tool => 'tblastx',
+        library => 'ictv',
+        topn => 5,
         jmem => 12,
         jprefix => '18',
-        library => 'ictv',
-        modules => ['blastdb', 'blast'],
-        topn => 5,);
+        modules => ['blastdb', 'blast'],);
+
 
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}classify_${input_dir}";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
-
     my $output_tsv = qq"${output_dir}/$options->{library}_filtered.tsv";
     my $output_blast = qq"${output_dir}/$options->{library}_hits.txt";
     my $output_log = qq"${output_dir}/classify.log";
@@ -386,7 +468,6 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
   output_log => '${output_log}',
   topn => '$options->{topn}',);
 ?;
-
     my $cjob = $class->Submit(
         blast_tool => $options->{blast_tool},
         evalue => $options->{evalue},
@@ -411,8 +492,34 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
 
 =head2 C<Classify_Phage_Worker>
 
-Does the actual work of attempting to classify a viral sequence
-against the ICTV database.
+ Does the actual work of attempting to classify a viral sequence
+ against the ICTV database.
+
+ In order for this to actually give a hit genus/species/accession/etc,
+ it must read a CSV copy of the ICTV data, which was copied to the
+ blast database directory as 'ictv.csv'.  It extracts from that csv
+ file the various taxonomy data and will cross reference the results
+ of the blast search against that data structure.
+
+ It then invokes blast, parses the output, and pulls out the hits
+ which pass the various cutoffs.  Upon completion, it collects the
+ results, sorts them, and writes them out as a tab separated file.
+
+=item C<Arguments>
+
+ input(required): Input assembly to search against.
+ evalue(0.01): Cutoff evalue.
+ blast_tool(tblastx): I experimented with a few aligners and blast tools.
+ library(ictv): Database name to search against.
+ output_log(classify.log): Log filename to write.
+ output_blast(ictv_hits.txt): Filename to write the blast hits.
+ output_dir('.'): Directory to write the results.
+ output('ictv_filtered.tsv'): TSV file to write the final results.
+ score(1000): Cutoff score -- this is the stringent portion.
+ topn(5): Keep this number of hits passing the score/evalue cutoffs.
+ jprefix('18'): Job/directory prefix.
+ jcpus(6): Use this number of cpus.
+ modules('blast', 'blastdb'): Environment modules to load.
 
 =cut
 sub Classify_Phage_Worker {
@@ -422,16 +529,16 @@ sub Classify_Phage_Worker {
         required => ['input',],
         evalue => 0.01,
         blast_tool => 'tblastx',
-        jprefix => '18',
-        jcpus => 6,
         library => 'ictv',
-        modules => ['blast', 'blastdb'],
         output_log => 'classify.log',
         output_blast => 'ictv_hits.txt',
         output_dir => '.',
         output => 'ictv_filtered.tsv',
         score => 1000,
-        topn => 5,);
+        topn => 5,
+        jprefix => '18',
+        jcpus => 6,
+        modules => ['blast', 'blastdb'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which($options->{blast_tool});
     die("Could not find $options->{blast_tool} in your PATH.") unless($check);
@@ -581,6 +688,30 @@ Writing filtered results to $options->{output}.
     return($result_data);
 }
 
+=head2 C<Caical>
+
+ Use caical against a reference species.
+ 10.1186/1745-6150-3-38
+
+ It takes a bit of hunting on their web server to find the actual
+ script they use, it is somewhere at the bottom.  Once found, with a
+ little work it can be made to run successfully.  This script does
+ just that, given an input set of ORFs and host species, it will
+ create a codon usage table of the host and run caical of the input
+ against it.
+
+ The caical perl script comes with a fair number of arguments, this
+ just blindly uses the defaults.
+
+=item C<Arguments>
+
+ input(required): Input set of CDS sequences.
+ species(required): Reference species to query.
+ jmem(4): Expected memory.
+ jprefix(80): Jobname/directory prefix.
+ modules(caical): Environment module to load.
+
+=cut
 sub Caical {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -648,8 +779,14 @@ caical -g 11 \\
 
 =head2 C<Make_Codon_Table>
 
-Given a reference assembly, print out a codon table for use with a codon adapatation calculator.
-I wrote a little piece of code which works from a fasta/gff pair, but currently it is dumb.
+ Assist caical by creating a codon table for an arbitrary species in
+ the expected format.
+
+ Given a reference assembly, print out a codon table for use with a
+ codon adapatation calculator.  I wrote a little piece of code which
+ works from a fasta/gff pair, but currently it is dumb.  I ought to
+ improve its logging and have it return a useful/interesting data
+ structure.
 
 =cut
 sub Make_Codon_Table {
@@ -749,9 +886,27 @@ sub Make_Codon_Table {
 
 =head2 C<Phageterm>
 
-Use phageterm on a viral assembly to look for terminal repeat
-regions.  If they are found, rearrange the assembly to move them to
-the ends.
+ Attempt to run phageterm and detect direct terminal repeats.
+ 10.1038/s41598-017-07910-5
+
+ Use phageterm on a viral assembly to look for terminal repeat
+ regions.  If they are found, rearrange the assembly to move them to
+ the ends.
+
+ This function goes to some trouble to try to work around some of the
+ fragilities in the phageterm implementation.  Thus it splits
+ multi-contig assemblies into separate files and runs on them.  In
+ addition, it works around the nasty file type detection in phageterm
+ by simply decompressing the input files.
+
+=item C<Arguments>
+
+ input(required): Input fastq reads.
+ library(required): Assembly created from the input reads.
+ cpus(8): Use this number of cpus.
+ jmem(12): and this amount of memory.
+ jprefix('14'): Output/jobname prefix.
+ modules('phageterm'): load the phageterm environment module.
 
 =cut
 sub Phageterm {
@@ -759,10 +914,10 @@ sub Phageterm {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'library'],
-        cpus => '8',
-        modules => ['phageterm'],
+        cpus => 8,
         jmem => 12,
-        jprefix => '14',);
+        jprefix => '14',
+        modules => ['phageterm'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
     die('Could not find phageterm in your PATH.') unless($check);
@@ -818,6 +973,15 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
     return($phageterm_run);
 }
 
+=head2 C<Phageterm_Worker>
+
+ Does the actual work of the phageterm function.
+
+ This handles the logic of splitting the input assembly, decompressing
+ the input files, and looking over the phageterm results to try to
+ make sense of them.
+
+=cut
 sub Phageterm_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -951,132 +1115,23 @@ PhageTerm.py -f ${read_string} \\
                                     action => 'unload');
 }
 
-sub Phageterm_old {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input', 'library'],
-        cpus => '8',
-        modules => ['phageterm'],
-        jmem => 18,
-        jprefix => '14',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('PhageTerm.py');
-    die('Could not find phageterm in your PATH.') unless($check);
-
-    my $job_name = $class->Get_Job_Name();
-    my $inputs = $class->Get_Paths($options->{input});
-    my $cwd_name = basename(cwd());
-    my $assembly_relative = $options->{library};
-    my $assembly_full = abs_path($options->{library});
-    my $assembly_name = basename(dirname($options->{library}));
-    my $output_dir = qq"outputs/$options->{jprefix}phageterm_${assembly_name}";
-    if (-d $output_dir) {
-        my $removed = rmtree($output_dir);
-    }
-
-    my $uncompress_string = qq"";
-    my $input_string = qq"";
-    my $delete_string = qq"";
-    if ($options->{input} =~ /\:|\;|\,|\s+/) {
-        my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        ## I think abs_path only works on things which already exist.
-        ## Which is a problem if we are running this in the middle of a pipeline
-        my $in_dir = dirname($in[0]);
-        make_path($in_dir);
-        my $prefix = abs_path($in_dir);
-        my $r1_dirname = dirname($in[0]);
-        my $r2_dirname = dirname($in[1]);
-        my $r1_filename = basename($in[0]);
-        my $r2_filename = basename($in[1]);
-        $uncompress_string = qq!
-less \${start}/${r1_dirname}/${r1_filename} > r1.fastq && \\
-  less \${start}/${r2_dirname}/${r2_filename} > r2.fastq
-!;
-        $input_string = qq! -f r1.fastq -p r2.fastq !;
-        $delete_string = qq!rm r1.fastq && rm r2.fastq!;
-    } else {
-        my $r1_filename = basename($options->{input});
-        my $r1_dirname = dirname($options->{input});
-        my $r1 = abs_path($options->{input});
-        $uncompress_string = qq!
-less \${start}/${r1_dirname}/${r1_filename} > r1.fastq
-!;
-        $input_string = qq! -f r1.fastq !;
-        $delete_string = qq!rm r1.fastq!;
-    }
-
-    my $comment = qq!## This is a script to run phageterm.
-## Phageterm has some peculiarities which require one to be
-## extra careful when running it.
-!;
-    my $test_file = qq"${output_dir}/${cwd_name}_direct-term-repeats.fasta";
-    my $cwd_test_file = basename($test_file);
-    my $output_file = "${output_dir}/${cwd_name}_sequence.fasta";
-    my $jstring = qq?start=\$(pwd)
-mkdir -p ${output_dir}
-cd ${output_dir}
-if [[ -f ${cwd_name}_sequence.fasta ]]; then
-  rm -f ${cwd_name}_sequence.fasta
-fi
-if [[ -f ${cwd_name}_original_sequence.fasta ]]; then
-  rm -f ${cwd_name}_original_sequence.fasta
-fi
-${uncompress_string}
-
-PhageTerm.py ${input_string} \\
-  -r \${start}/${assembly_relative} \\
-  -c $options->{cpus} \\
-  --report_title ${cwd_name} --nrt \\
-  2>phageterm.err 1>phageterm.out
-
-${delete_string}
-ln -s \${start}/${assembly_relative} ${cwd_name}_original_sequence.fasta
-## This is a little hack to make terminase reordering easier.
-if [[ -f ${cwd_test_file} ]]; then
-  ln -s ${cwd_test_file} direct-terminal-repeats.fasta
-else
-  ## If phageterm fails, it still writes the output file, but it is useless
-  ## so just copy the assembly.
-  rm ${cwd_name}_sequence.fasta
-  ln -s \${start}/${assembly_relative} ${cwd_name}_sequence.fasta
-fi
-
-## I found another bug in phageterm, sometimes it finds a DTR, but leaves the genome blank.
-## In this case, I can either use my reordering code to fix it, or just say eff it and
-## remove the 'reordered' sequence.
-reordered_lines=\$(wc -l ${cwd_name}_sequence.fasta | awk '{print \$1}')
-if [[ \${reordered_lines} -eq '2' ]]; then
-  rm ${cwd_name}_sequence.fasta
-  ln -s \${start}/${assembly_relative} ${cwd_name}_sequence.fasta
-fi
-
-cd \${start}
-?;
-
-    my $phageterm = $class->Submit(
-        cpus => $options->{cpus},
-        dtr_file => $test_file,
-        comment => $comment,
-        jdepends => $options->{jdepends},
-        jname => qq"phageterm_${job_name}",
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        jmem => $options->{jmem},
-        modules => $options->{modules},
-        output => $output_file,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        test_file => $test_file,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-    return($phageterm);
-}
-
 =head2 C<Phastaf>
 
-Invoke Torsten Seeman's phastaf tool in order to hunt for
-phage-derived sequences in an assembly.
+ Invoke Torsten Seeman's phastaf tool to seek out phage-derived sequences.
+ https://github.com/tseemann/phastaf
+
+ Phastaf is (I assume) a joke on phaster, and a much more straight
+ forward way to hunt for phage-derived sequences in an input assembly.
+ It basically just runs tblastx on the input assembly and returns some
+ files which describe the locations of high-quality hits.
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ cpus(8): Use this number of cpus.
+ jmem(12): And this amount of memory.
+ jprefix('14'): with this prefix for the jobname/directory.
+ modules('phastaf'): Load the phastaf environment module.
 
 =cut
 sub Phastaf {
@@ -1084,10 +1139,10 @@ sub Phastaf {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        cpus => '8',
-        modules => ['phastaf'],
+        cpus => 8,
         jmem => 12,
-        jprefix => '14',);
+        jprefix => '14',
+        modules => ['phastaf'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phastaf');
     die('Could not find phastaf in your PATH.') unless($check);
@@ -1100,7 +1155,6 @@ sub Phastaf {
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
-
     my $comment = '## This is a script to run phastaf.';
     my $jstring = qq?
 mkdir -p ${output_dir}
@@ -1128,6 +1182,25 @@ phastaf --force --outdir ${output_dir} \\
     return($phastaf);
 }
 
+=head2 C<Restriction_Catalog>
+
+ Make a catalog of restriction enzyme hits from an input sequence.
+
+ My initial goal for this was to also have it pull the restriction
+ enzymes from a host genome and cross reference them.  Sadly, the
+ references I checked against had only ~ 1 annotated restriction
+ endonuclease -- which makes no damn sense to me.  I guess they are on
+ plasmids or something?  In any event, I figured it would still be
+ nice to have an idea of the restriction sites.
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ library(host_species.txt): Either a species name or filename. (Currently not used)
+ jmem(8): Memory expected.
+ jprefix('29'): Job/directory prefix.
+
+=cut
 sub Restriction_Catalog {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -1136,7 +1209,6 @@ sub Restriction_Catalog {
         library => 'host_species.txt',
         jmem => 8,
         jprefix => '29',);
-
     my $output_dir = qq"outputs/$options->{jprefix}re_catalog";
     my $re_output = qq"${output_dir}/re_catalog.tsv";
     my $host_output = qq"${output_dir}/re_host_catalog.tsv";
@@ -1144,13 +1216,11 @@ sub Restriction_Catalog {
         my $removed = rmtree($output_dir);
     }
     my $paths = $class->Get_Paths($re_output);
-
-
     my $comment = '## Go on a restriction enzyme hunt!';
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
-\$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
+my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
   input => '$options->{input}',
   jname => 're_catalog',
   jprefix => '$options->{jprefix}',
@@ -1172,6 +1242,13 @@ use Bio::Adventure::Phage;
     return($re_job);
 }
 
+=head2 C<Restriction_Catalog_Worker>
+
+ This does the actual work for Restriction_Catalog().
+
+ Bio::Restriction makes this really easy.
+
+=cut
 sub Restriction_Catalog_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -1221,12 +1298,29 @@ sub Restriction_Catalog_Worker {
 
 =head2 C<Terminase_Reorder>
 
-Reorder an assembly so that a terminase gene is at the beginning.
-This will take an arbitrary assembly file, invoke prodigal on it to get ORFs,
-pass them to Reorder_Search (above), and copy the assembly to a new file
-with the most likely terminase sequence at the beginning.
+ Reorder an assembly so that a terminase gene is at the beginning.
+ Terminase library: 10.1186/s12864-021-08029-8
 
-We should potentially consider switching this from prodigal to phanotate.
+ This will take an arbitrary assembly file, invoke prodigal on it to get ORFs,
+ pass them to Reorder_Search (above), and copy the assembly to a new file
+ with the most likely terminase sequence at the beginning.  It is
+ worth noting that I took the terminase library directly out of MAS.
+
+ We should potentially consider switching this from prodigal to phanotate.
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ evalue(0.01): Cutoff evalue.
+ fasta_tool(fastx36): Use this aligner.
+ gcode(11): Assume the bacterial genetic code.
+ library(terminase): Name of the library to search against.
+ species('phage'): Used for prodigal training.
+ test_file('direct-term-repeats.fasta'): File to test whether to run
+  against (I think this is no longer needed).
+ jmem(8): Expected memory usage.
+ jprefix('15'): Job/directory prefix.
+ modules('fasta', 'blast', 'blastdb'): Environment modules to load.
 
 =cut
 sub Terminase_ORF_Reorder {
@@ -1238,12 +1332,11 @@ sub Terminase_ORF_Reorder {
         fasta_tool => 'fastx36',
         gcode => '11',
         library => 'terminase',
+        species => 'phages',
+        test_file => 'direct-term-repeats.fasta',
         jmem => 8,
         jprefix => '15',
-        species => 'phages',
-        modules => ['fasta', 'blast', 'blastdb'],
-        test_file => 'direct-term-repeats.fasta',);
-
+        modules => ['fasta', 'blast', 'blastdb'],);
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
     my $final_output = qq"${output_dir}/final_assembly.fasta";
@@ -1310,7 +1403,11 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
 
 =head2 C<Terminase_ORF_Reorder_Worker>
 
-Reorder an assembly from the result of a blast(or presumbly other) search.
+ Reorder an assembly from the result of a blast(or presumbly other) search.
+
+ This does the work for the Terminase_ORF_Reorder().  It contains the
+ logic for performing a blast/fasta search, parsing the results,
+ filtering for high quality hits, and reordering the assembly accordingly.
 
 =cut
 sub Terminase_ORF_Reorder_Worker {

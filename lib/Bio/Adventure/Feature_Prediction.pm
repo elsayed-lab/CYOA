@@ -309,11 +309,12 @@ sub Phagepromoter {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phagepromoter";
     my $output_file = qq"${output_dir}/${job_name}_phagepromoter.tsv";
-    my $input_paths = $class->Get_Paths($output_file);
+    my $input_paths = $class->Get_Paths($options->{input});
     my $comment = '## This is a script to run phagepromoter.';
-    my $jstring = qq!
+    my $jstring = qq!start=\$(pwd)
+cd ${output_dir}
 phagepromoter.py $options->{format} \\
-  $options->{input} \\
+  $input_paths->{fullpath} \\
   $options->{both_strands} $options->{cutoff} \\
   $options->{family} $options->{host} \\
   $options->{phage_type} $options->{model}

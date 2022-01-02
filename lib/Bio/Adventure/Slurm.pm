@@ -75,7 +75,6 @@ my \$d = qx'date';
 print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
-my \$result;
 ?;
 ##        if ($options->{option_file}) {
 ##            $perl_start .= qq!

@@ -404,8 +404,9 @@ sub Split_Align_Fasta {
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Fasta;
-my \$result = Bio::Adventure::Align::Parse_Search(\$h, input => '$parse_input',
-                                                 search_type => 'global_fasta',);
+my \$result = Bio::Adventure::Align::Parse_Search(
+  \$h, input => '$parse_input',
+  search_type => 'global_fasta',);
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,

@@ -397,7 +397,7 @@ sub Unicycler_Filter_Depth {
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Assembly;
-\$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
+my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   coverage => '$options->{coverage}',
   input => '$options->{input}',
   output => '${output}',

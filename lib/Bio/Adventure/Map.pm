@@ -25,35 +25,35 @@ $hpgl->Bowtie();
 
 =head2 C<Bowtie>
 
-Perform a bowtie alignment.  Unless instructed otherwise, it will do so with 0
-mismatches and with multi-matches randomly placed 1 time among the
-possibilities (options -v 0 -M 1).  It will then convert the resulting sam alignment
-to a sorted-compressed-indexed bam, count it with htseq-count, compress the various
-output fastq files, and collect a few alignment statistics.
+ Perform a bowtie alignment.  Unless instructed otherwise, it will do so with 0
+ mismatches and with multi-matches randomly placed 1 time among the
+ possibilities (options -v 0 -M 1).  It will then convert the resulting sam alignment
+ to a sorted-compressed-indexed bam, count it with htseq-count, compress the various
+ output fastq files, and collect a few alignment statistics.
 
-This requires the arguments: 'input' and 'species'.  The input is likely a
-colon-separated pair of (compressed)fastq files.  The species will be used
-to look for bowtie indexes in ${libdir}/${libtype}/indexes/${species}.
+ This requires the arguments: 'input' and 'species'.  The input is likely a
+ colon-separated pair of (compressed)fastq files.  The species will be used
+ to look for bowtie indexes in ${libdir}/${libtype}/indexes/${species}.
 
-The argument bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location)
-defines the mismatch and multimatch parameters; I
-pre-defined a few likely option sets for these rather important options.
+ The argument bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location)
+ defines the mismatch and multimatch parameters; I
+ pre-defined a few likely option sets for these rather important options.
 
-The count(1: e.g. yes) argument defines whether htseq-count will be performed.
+ The count(1: e.g. yes) argument defines whether htseq-count will be performed.
 
-libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
-index to search against.
+ libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
+ index to search against.
 
-htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
-the third column of a gff file.
+ htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
+ the third column of a gff file.
 
-htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
-other species follow their own arbitrary rules) defines the ID type for htseq-count. These
-are the tags in the last column of a gff file.
+ htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+ other species follow their own arbitrary rules) defines the ID type for htseq-count. These
+ are the tags in the last column of a gff file.
 
-jprefix(10): Used all over the place to define the prefix job number.
+ jprefix(10): Used all over the place to define the prefix job number.
 
-modules(bowtie1)
+ modules(bowtie1)
 
 =cut
 sub Bowtie {
