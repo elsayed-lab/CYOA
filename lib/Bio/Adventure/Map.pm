@@ -13,7 +13,7 @@ use File::Which qw"which";
 
 =head1 NAME
 
-Bio::Adventure::Map - Perform highthroughput sequence alignments with tools like bowtie/tophat/etc
+ Bio::Adventure::Map - Perform highthroughput sequence alignments with tools like bowtie/tophat/etc
 
 =head1 SYNOPSIS
 
@@ -24,6 +24,9 @@ $hpgl->Bowtie();
 =head1 METHODS
 
 =head2 C<Bowtie>
+
+ Run the OG (except bwa) short read aligner.
+ 10.1186/gb-2009-10-3-r25
 
  Perform a bowtie alignment.  Unless instructed otherwise, it will do so with 0
  mismatches and with multi-matches randomly placed 1 time among the
@@ -244,34 +247,32 @@ bowtie \\
 
 =head2 C<Bowtie2>
 
-Perform a bowtie2 alignment.  This is pretty much a twin to the Bowtie function above
-with the obvious caveat that it uses bowtie2. It converts the resulting sam alignment
-to a sorted-compressed-indexed bam, count it with htseq-count, compress the various
-output fastq files, and collect a few alignment statistics.
+ Perform a bowtie2 alignment.
 
-This requires the arguments: 'input' and 'species'.  The input is likely a
-colon-separated pair of (compressed)fastq files.  The species will be used
-to look for bowtie indexes in ${libdir}/${libtype}/indexes/${species}.
+ This is pretty much a twin to the Bowtie function above with the
+ obvious caveat that it uses bowtie2. It converts the resulting sam
+ alignment to a sorted-compressed-indexed bam, count it with
+ htseq-count, compress the various output fastq files, and collect a
+ few alignment statistics.
 
-The argument bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location)
-defines the mismatch and multimatch parameters; I
-pre-defined a few likely option sets for these rather important options.
+=item C<Arguments>
 
-The count(1: e.g. yes) argument defines whether htseq-count will be performed.
-
-libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
-index to search against.
-
-htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
-the third column of a gff file.
-
-htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
-other species follow their own arbitrary rules) defines the ID type for htseq-count. These
-are the tags in the last column of a gff file.
-
-jprefix(10)
-
-modules(bowtie2)
+ input(required): colon-separated pair of (compressed)fastq files.
+ species(required): used to look for bowtie indexes in
+  ${libdir}/${libtype}/indexes/${species}.
+ bt_type(v0M1: no mismatches, randomly place multi-matches in 1 location):
+  defines the mismatch and multimatch parameters; I pre-defined a few
+  likely option sets for these rather important options.
+ count(1: e.g. yes): argument defines whether htseq-count will be performed.
+ libtype(genome: as opposed to rRNA or contaminants etc): defines the type of
+  index to search against.
+ htseq_type(gene): defines the type of feature to count with
+  htseq-count.  This is effectively the third column of a gff file.
+ htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+  other species follow their own arbitrary rules): defines the ID type for htseq-count. These
+  are the tags in the last column of a gff file.
+ jprefix(10): Prefix for the job/output directory
+ modules(bowtie2): Load this environment module.
 
 =cut
 sub Bowtie2 {
@@ -288,8 +289,6 @@ sub Bowtie2 {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bowtie2-build');
     die('Could not find bowtie2 in your PATH.') unless($check);
-
-
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -310,7 +309,6 @@ sub Bowtie2 {
     my %bt_jobs = ();
     my $libtype = 'genome';
     my $bt2_args = $options->{bt2_args};
-
     my $prefix_name = qw"bt2";
     my $bt2_name = qq"${prefix_name}_$options->{species}";
     my $suffix_name = $prefix_name;
@@ -324,7 +322,6 @@ sub Bowtie2 {
         $bt_dir = $args{bt_dir};
     }
     my $bt_input = $options->{input};
-
     my $test_file = '';
     if ($bt_input =~ /\:|\;|\,|\s+/) {
         my @pair_listing = split(/\:|\;|\,|\s+/, $bt_input);
@@ -374,7 +371,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     2>${error_file} \\
     1>${bt_dir}/$options->{jbasename}.stdout
 !;
-
     my $bt2_job = $class->Submit(
         aligned => $aligned_filename,
         comment => $comment,
@@ -389,7 +385,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         unaligned => $unaligned_filename,);
-
     my $compression_files = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq:${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => '## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}.',
@@ -398,7 +393,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         jname => qq"xzun_${suffix_name}",
         jprefix => $options->{jprefix} + 1,);
     $bt2_job->{compression} = $comp;
-
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $stats = $class->Bio::Adventure::Metadata::BT2_Stats(
@@ -447,9 +441,11 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
 
 =head2 C<Bowtie_RRNA>
 
-This function is probably extraneous at this point.  It simply calls Bowtie()
-with the libtype set to 'rRNA' in order to get it to look for ribosomal reads
-instead of the default, genomic reads.
+ Search for rRNA using bowtie.
+
+ This function is probably extraneous at this point.  It simply calls Bowtie()
+ with the libtype set to 'rRNA' in order to get it to look for ribosomal reads
+ instead of the default, genomic reads.
 
 =cut
 sub Bowtie_RRNA {
@@ -473,12 +469,14 @@ sub Bowtie_RRNA {
 
 =head2 C<BT_Multi>
 
-Attempts to run multiple bowtie1 runs for a given species.  One run is performed
-for each of a few parameter sets which are kept in the global 'bt_args' variable.
-and generally include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
-hit, 0 randomly placed hits, or default options.
+ Run multiple bowtie parameters at once.
 
-This should either be removed or modified to work more generally with other tools.
+ Attempts to run multiple bowtie1 runs for a given species.  One run is performed
+ for each of a few parameter sets which are kept in the global 'bt_args' variable.
+ and generally include: 0 mismatch, 1 mismatch, 2 mismatches, 1 randomly placed
+ hit, 0 randomly placed hits, or default options.
+
+ This should either be removed or modified to work more generally with other tools.
 
 =cut
 sub BT_Multi {
@@ -514,29 +512,28 @@ sub BT_Multi {
 
 =head2 C<BWA>
 
-Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
-converts the output (when appropriate) to sorted/indexed bam and passes them to
-htseq.
+ The other OG short read aligner!
+ 10.1093/bioinformatics/btp324
 
-This requires the arguments: 'input' and 'species'.  The input is likely a
-colon-separated pair of (compressed)fastq files.  The species will be used
-to look for bwa indexes in ${libdir}/${libtype}/indexes/${species}.
+ Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
+ converts the output (when appropriate) to sorted/indexed bam and passes them to
+ htseq.
 
-The count(1: e.g. yes) argument defines whether htseq-count will be performed.
+=item C<Arguments>
 
-libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
-index to search against.
-
-htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
-the third column of a gff file.
-
-htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
-other species follow their own arbitrary rules) defines the ID type for htseq-count. These
-are the tags in the last column of a gff file.
-
-jprefix(30)
-
-modules(bowtie1)
+ input(required): likely a colon-separated pair of (compressed)fastq files.
+ species(required): will be used to look for bwa indexes in
+  ${libdir}/${libtype}/indexes/${species}.
+ count(1: e.g. yes): argument defines whether htseq-count will be performed.
+ libtype(genome: as opposed to rRNA or contaminants etc): defines the type of
+  index to search against.
+ htseq_type(gene): defines the type of feature to count with
+  htseq-count.  This is effectively the third column of a gff file.
+ htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+  other species follow their own arbitrary rules): defines the ID type for htseq-count. These
+  are the tags in the last column of a gff file.
+ jprefix(30): Prefix for jobname and output directory.
+ modules(bwa): load this environment module
 
 =cut
 sub BWA {
@@ -755,7 +752,23 @@ bwa aln ${aln_args} \\
 
 =head2 C<Hisat2>
 
-Invoke hisat2
+ Invoke hisat2!
+ 10.1038/s41587-019-0201-4
+
+ Hisat2 is currently my favorite aligner.
+
+=item C<Arguments>
+
+ input(required): Colon separated fastq input files.
+ species(required): Set the indexes.
+ htseq_type('gene'): Define the htseq-count type parameter.
+ htseq_id('ID'): Define the htseq-count id attribute parameter.
+ count(1): Count after aligning?
+ libtype('genome'): Change this for different index types (contaminants/rRNA/genome).
+ jmem(24): Expected memory required.
+ jprefix('40'): Set the job prefix and output directory.
+ modules('hisat2','samtools','htseq','bamtools'): Load these
+  environment modules.
 
 =cut
 sub Hisat2 {
@@ -766,9 +779,9 @@ sub Hisat2 {
         htseq_type => 'gene',
         htseq_id => 'ID',
         count => 1,
+        libtype => 'genome',
         jmem => 24,
         jprefix => '40',
-        libtype => 'genome',
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
@@ -794,7 +807,6 @@ sub Hisat2 {
     }
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
-
     my $prefix_name = 'hisat2';
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
@@ -830,7 +842,6 @@ sub Hisat2 {
     my $hisat_reflib = qq"$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
     my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
     my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
-
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
@@ -847,7 +858,6 @@ sub Hisat2 {
 
     my $hisat_input_flag = '-q '; ## fastq by default
     $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
-
     my $cpus = $options->{cpus};
     my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.stderr";
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
@@ -920,7 +930,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
 
     ## Sneak the compression job's ID in place as hisat's.
     $hisat_job->{job_id} = $comp->{job_id};
-
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $new_jprefix = qq"$options->{jprefix}_1";
@@ -988,17 +997,28 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
 
 =head2 C<Kallisto>
 
-Perform a kallisto transcript quantification.
+ Perform a kallisto transcript quantification.
+ 10.1038/nbt.3519
+
+ Kallisto and salmon are my two favorite 'voting' based aligners.
+
+=item C<Arguments>
+
+ input(required): Colon separated fastq input file(s).
+ species(required): Define the location of the indexes.
+ jmem(24): Expected memory requirements.
+ jprefix('46'): Set the output directory/job prefix.
+ modules('kallisto'): Load this environment module.
 
 =cut
 sub Kallisto {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['kallisto'],
+        required => ['species', 'input'],
         jmem => 24,
         jprefix => '46',
-        required => ['species', 'input'],);
+        modules => ['kallisto'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kallisto');
     die('Could not find kallisto in your PATH.') unless($check);
@@ -1022,7 +1042,6 @@ sub Kallisto {
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = $options->{species};
-
     my $jname = qq"kall_${species}";
     ## $jname = $options->{jname} if ($options->{jname});
     my $ka_args = '';
@@ -1108,7 +1127,10 @@ kallisto quant ${ka_args} \\
 
 =head2 C<RSEM>
 
-Invoke RSEM.
+ Invoke RSEM.
+ 10.1186/1471-2105-12-323
+
+ The most accurate and slow transcript quantification method.
 
 =cut
 sub RSEM {
@@ -1175,7 +1197,6 @@ sub RSEM {
   2>${rsem_dir}/$options->{species}.stderr \\
   1>${rsem_dir}/$options->{species}.stdout
 ";
-
     my $rsem = $class->Submit(
         comment => $rsem_comment,
         input => $rsem_input,
@@ -1194,7 +1215,10 @@ sub RSEM {
 
 =head2 C<Salmon>
 
-Perform a salmon quantification of transcript abundances.
+ Perform a salmon quantification of transcript abundances.
+ 10.1038/nmeth.4197
+
+ My favorite transcript aware quantification method.
 
 =cut
 sub Salmon {
@@ -1281,7 +1305,6 @@ salmon quant -i ${sa_reflib} \\
         prescript => $args{prescript},
         postscript => $args{postscript},);
     $salmon->{index_job} = $index_job;
-
     my $stats = $class->Bio::Adventure::Metadata::Salmon_Stats(
         input => qq"${outdir}/lib_format_counts.json",
         jdepends => $salmon->{job_id},
@@ -1293,7 +1316,8 @@ salmon quant -i ${sa_reflib} \\
 
 =head2 C<STAR>
 
-Invoke STAR for transcript abundances.
+ Invoke STAR for transcript abundances.
+ 10.1093/bioinformatics/bts635
 
 =cut
 sub STAR {
@@ -1318,12 +1342,10 @@ sub STAR {
         return(@result_lst);
     }
 
-    my $ready = $class->Check_Input(
-        files => $options->{input},);
+    my $ready = $class->Check_Input(files => $options->{input});
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = $options->{species};
-
     my $jname = qq"star_${species}";
     ## $jname = $options->{jname} if ($options->{jname});
     my $star_inputstring = qq"";
@@ -1349,7 +1371,6 @@ sub STAR {
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{job_id};
     }
-
     my $outdir = qq"outputs/star_${species}";
     my $error_file = qq"${outdir}/star_${species}.stderr";
     my $comment = qq!## This is a star pseudoalignment of ${star_input} against
@@ -1401,8 +1422,11 @@ STAR \\
 
 =head2 C<Tophat>
 
-Invokes tophat!  It also sorts/indexes the accepted_hits file, collects some
-statistics, and passes the hits to htseq-count.
+ Invokes tophat!
+ 10.1186/gb-2013-14-4-r36
+
+ It also sorts/indexes the accepted_hits file, collects some
+ statistics, and passes the hits to htseq-count.
 
 =cut
 sub Tophat {

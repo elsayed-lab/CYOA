@@ -14,26 +14,24 @@ use File::Which qw"which";
 
 =head1 NAME
 
-Bio::Adventure::Index - Invoke the various indexing utilities.
+ Bio::Adventure::Index - Invoke the various indexing utilities.
 
 =head1 SYNOPSIS
 
-=cut
-
 =head2 C<BT1_Index>
 
-Create a bowtie1 index.
+ Create a bowtie1 index.
 
-This requires an 'input' argument.  This is a fasta file which will be used
-to write indexes in the libdir/libtype/indexes directory.  It assumes that the
-input fasta file is named in a way which is human-readable as the species.
+ This requires an 'input' argument.  This is a fasta file which will be used
+ to write indexes in the libdir/libtype/indexes directory.  It assumes that the
+ input fasta file is named in a way which is human-readable as the species.
 
-Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
-be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
-'lmajor_v46'.
+ Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
+ be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
+ 'lmajor_v46'.
 
-This also uses less(1) to send an uncompressed copy of the input file to
-libdir/libtype/species.fasta.
+ This also uses less(1) to send an uncompressed copy of the input file to
+ libdir/libtype/species.fasta.
 
 =cut
 sub BT1_Index {
@@ -68,18 +66,18 @@ in $options->{libdir}/$options->{libtype}/indexes!;
 
 =head2 C<BT2_Index>
 
-Create a bowtie2 index.
+ Create a bowtie2 index.
 
-This requires an 'input' argument.  This is a fasta file which will be used
-to write indexes in the libdir/libtype/indexes directory.  It assumes that the
-input fasta file is named in a way which is human-readable as the species.
+ This requires an 'input' argument.  This is a fasta file which will be used
+ to write indexes in the libdir/libtype/indexes directory.  It assumes that the
+ input fasta file is named in a way which is human-readable as the species.
 
-Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
-be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
-'lmajor_v46'.
+ Thus, if the input fasta is 'lmajor_v46.fasta' and libtype is 'genome' it will
+ be copied to $libdir/genome/lmajor_v46.fasta and indexes will have the basename
+ 'lmajor_v46'.
 
-This also uses less(1) to send an uncompressed copy of the input file to
-libdir/libtype/species.fasta.
+ This also uses less(1) to send an uncompressed copy of the input file to
+ libdir/libtype/species.fasta.
 
 =cut
 sub BT2_Index {
@@ -117,7 +115,7 @@ in $options->{libdir}/${libtype}/indexes!;
 
 =head2 C<BWA_Index>
 
-Create bwa indexes.
+ Create bwa indexes.
 
 =cut
 sub BWA_Index {
@@ -171,8 +169,8 @@ in $options->{libdir}/$options->{libtype}/indexes!;
 
 =head2 C<Check_Blastdb>
 
-Check_Blastdb makes sure that there is an appropriately formatted blastdb for
-the library and type of blast performed.
+ Check_Blastdb makes sure that there is an appropriately formatted blastdb for
+ the library and type of blast performed.
 
 =cut
 sub Check_Blastdb {
@@ -255,7 +253,7 @@ sub Check_Blastdb {
 
 =head2 C<Extend_Kraken_DB>
 
-Add some more sequences to an existing kraken2 database.
+ Add some more sequences to an existing kraken2 database.
 
 =cut
 sub Extend_Kraken_DB {
@@ -305,8 +303,8 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
 
 =head2 C<Hisat2_Index>
 
-Create a hisat2 index using ${species}.fasta and leaves it in the indexes/
-directory.
+ Create a hisat2 index using ${species}.fasta and leaves it in the indexes/
+ directory.
 
 =cut
 sub Hisat2_Index {
@@ -343,7 +341,7 @@ in $options->{libdir}/${libtype}/indexes!;
 
 =head2 C<Kallisto_Index
 
-Use kallisto and an annotated_CDS fasta sequence library to create an index.
+ Use kallisto and an annotated_CDS fasta sequence library to create an index.
 
 =cut
 sub Kallisto_Index {
@@ -384,7 +382,7 @@ in $options->{libdir}/${libtype}/indexes!;
 
 =item C<RSEM_Index
 
-Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
+ Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
 
 =cut
 sub RSEM_Index {
@@ -420,18 +418,18 @@ rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
 
 =head2 C<Salmon_Index>
 
-Invoke salmon with an annotated_CDS fasta sequence library to create a
-transcript index.  Note that newer version of salmon would like a set
-of decoys, which may be performed in a couple of ways, the second of
-which I am copy/pasting from the documentation.
+ Invoke salmon with an annotated_CDS fasta sequence library to create a
+ transcript index.  Note that newer version of salmon would like a set
+ of decoys, which may be performed in a couple of ways, the second of
+ which I am copy/pasting from the documentation.
 
-The second is to use the entire genome of the organism as the decoy
-sequence. This can be done by concatenating the genome to the end of
-the transcriptome you want to index and populating the decoys.txt
-file with the chromosome names. Detailed instructions on how to
-prepare this type of decoy sequence is available here. This scheme
-provides a more comprehensive set of decoys, but, obviously, requires
-considerably more memory to build the index
+ The second is to use the entire genome of the organism as the decoy
+ sequence. This can be done by concatenating the genome to the end of
+ the transcriptome you want to index and populating the decoys.txt
+ file with the chromosome names. Detailed instructions on how to
+ prepare this type of decoy sequence is available here. This scheme
+ provides a more comprehensive set of decoys, but, obviously, requires
+ considerably more memory to build the index
 
 =cut
 sub Salmon_Index {
@@ -504,7 +502,7 @@ in $options->{libdir}/${libtype}/indexes!;
 
 =head2 C<STAR_Index>
 
-Create indexes appropriate for STAR.
+ Create indexes appropriate for STAR.
 
 =cut
 sub STAR_Index {

@@ -19,21 +19,23 @@ no warnings qw"experimental::try";
 
 =head1 NAME
 
-Bio::Adventure::Convert - Perform conversions between various formats.
+ Bio::Adventure::Convert - Perform conversions between various formats.
 
 
 =head1 SYNOPSIS
 
-The functions here handle the various likely conversions one may perform.
-sam to bam, gff to fasta, genbank to fasta, etc.
+ The functions here handle the various likely conversions one may perform.
+ sam to bam, gff to fasta, genbank to fasta, etc.
 
 =head1 METHODS
 
 =head2 C<Gb2Gff>
 
-$hpgl->Gb2Gff() takes a genbank genome file and splits it into:
-A genomic fasta file, CDS fasta, peptide fasta, gff file of all
-entries, CDS, and interCDS regions.
+ A poorly named genbank flat file converter.
+
+ Gb2Gff() takes a genbank genome file and splits it into:
+ A genomic fasta file, CDS fasta, peptide fasta, gff file of all
+ entries, CDS, and interCDS regions.
 
 =cut
 sub Gb2Gff {
@@ -286,23 +288,28 @@ sub Gb2Gff {
 
 =head2 C<Gff2Fasta>
 
-$hpgl->Gff2Fasta(genome => 'something.fasta', gff => 'something.gff')
-will read the genome's fasta and annotation files and return a set
-of fasta files which include the coding sequence regions which are
-members of args{feature_type} in the gff file.
+ Extract feature types from a gff/fasta pair.
 
-It writes one file of amino acid sequence and one of nucleotides.
-Upon completion, it returns the number of entries written.
+ Gff2Fasta(genome => 'something.fasta', gff => 'something.gff')
+ will read the genome's fasta and annotation files and return a set
+ of fasta files which include the coding sequence regions which are
+ members of args{feature_type} in the gff file.
 
-=over
+ It writes one file of amino acid sequence and one of nucleotides.
+ Upon completion, it returns the number of entries written.
 
-=item I<gff> * Gff file to read.
+=item C<Arguments>
 
-=item I<genome> * Genome fasta file to read.
+ gff(required): Gff file to read.
+ input(required): Genome fasta file to read.
+ htseq_id('gene_id'): ID tag to use when extracting features.
+ htseq_type(undef): gff type to extract, left undefined it will count
+  them up and choose the most highly represented.
 
-=item I<tag> (gene_id) Which gff types to add to the fasta file?
+=item C<Invocation>
 
-=back
+> cyoa --task convert --method gff2 --input lmajor.fasta \
+   --gff lmajor.gff --htseq_type CDS --htseq_id ID
 
 =cut
 sub Gff2Fasta {
@@ -385,13 +392,14 @@ ${cds}
 
 =head2 C<Gff2Gtf>
 
-$hpgl->Gff2Gtf(gff => 'mmusculus.gff')
-reads a given gff file and writes a gtf file from the features
-found therein.  It returns the number of features written.
+ Pretty much unused gff to gtf converter.
 
-note that I only use gtf files for tophat, thus they must have a tag 'transcript_id'!
-This is woefully untrue for the tritrypdb gff files.  Thus I need to have a regex in this
-to make sure that web_id or somesuch is changed to transcript_id.
+ Reads a given gff file and writes a gtf file from the features
+ found therein.  It returns the number of features written.
+
+ note that I only use gtf files for tophat, thus they must have a tag 'transcript_id'!
+ This is woefully untrue for the tritrypdb gff files.  Thus I need to have a regex in this
+ to make sure that web_id or somesuch is changed to transcript_id.
 
 =cut
 sub Gff2Gtf {
@@ -471,7 +479,11 @@ sub Gff2Gtf {
 
 =head2 C<Read_GFF>
 
-use Bio::Tools::GFF to gather information from a gff file.
+ use Bio::Tools::GFF to gather information from a gff file.
+
+ This pulls information of potential interest from a gff file.  In
+ theory it could be trivially modified to be robust to different
+ formats and other shenanigans.
 
 =cut
 sub Read_GFF {
@@ -521,26 +533,25 @@ sub Read_GFF {
 
 =head2 C<Sam2Bam>
 
-$hpgl->Sam2Bam();
-Used to invoke samtools to take the sam output from bowtie/bwa and
-convert it to an compressed-sorted-indexed bam alignment.
+ Sort, compress, index a sam file into a usable bam file.
 
-This function just calls $class->Samtools(), but has a little logic
-to see if the invocation of this is for an extent .sam file or
-calling it on an existing .fastq(.gz), in which case one must
-assume it is being called on one or more files in the bowtie_out/
-directory and which start with $basename, include something like
--trimmed-v0M1.sam.
+ Used to invoke samtools to take the sam output from bowtie/bwa and
+ convert it to an compressed-sorted-indexed bam alignment. This
+ function just calls $class->Samtools(), but has a little logic
+ to see if the invocation of this is for an extent .sam file or
+ calling it on an existing .fastq(.gz), in which case one must
+ assume it is being called on one or more files in the bowtie_out/
+ directory and which start with $basename, include something like
+ -trimmed-v0M1.sam.
 
-=over
+=item C<Arguments>
 
-=item I<species> * Prefix species name from which to read the genome.
+ input(required): Input sam file.
+ species(required): Species name to hunt down the appropriate
+  fasta/gff files.
+ modules('samtools', 'bamtools'): Environment modules to load.
 
-=item I<input> * Input sam file.
-
-=back
-
-=head3 C<Invocation>
+=item C<Invocation>
 
 > cyoa --task convert --method sam2bam --input bob.sam --species hg38_91
 
@@ -580,22 +591,21 @@ sub Sam2Bam {
 
 =head2 C<Samtools>
 
-$hpgl->Samtools() calls (in order): samtools view, samtools sort,
-and samtools index.  Upon completion, it invokes bamtools stats to
-see what the alignments looked like.
+ Does the actual work of converting a sam to a bam file.
 
-It explicitly does not pipe one samtools invocation into the next,
-not for any real reason but because when I first wrote it, it
-seemed like the sorting was taking too long if I did not already
-have the alignments in a bam file.
+ $hpgl->Samtools() calls (in order): samtools view, samtools sort,
+ and samtools index.  Upon completion, it invokes bamtools stats to
+ see what the alignments looked like.
 
-=over
+ It explicitly does not pipe one samtools invocation into the next,
+ not for any real reason but because when I first wrote it, it
+ seemed like the sorting was taking too long if I did not already
+ have the alignments in a bam file.
 
-=item I<input> * Input sam file.
+=item C<Arguments>
 
-=item I<species> * Input species prefix for finding a genome.
-
-=back
+ input(required): Input sam file.
+ species(required): Input species prefix for finding a genome.
 
 =cut
 sub Samtools {
@@ -607,6 +617,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
+        mistmatch => 1,
         modules => ['samtools', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
@@ -656,10 +667,14 @@ echo $?
 ## The following will fail if this is single-ended.
 samtools view -b -f 2 -o ${paired_name}.bam ${output} && samtools index ${paired_name}.bam
 bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
-##bamtools filter -tag XM:0 -in ${output} -out ${sorted_name}_nomismatch.bam &&
-## samtools index ${sorted_name}_nomismatch.bam
 !;
     }
+
+    unless ($options->{mismatch}) {
+        $jstring .= qq!bamtools filter -tag XM:0 -in ${output} -out ${sorted_name}_nomismatch.bam &&
+  samtools index ${sorted_name}_nomismatch.bam!;
+    }
+
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
 ## This job depended on: $options->{jdepends}!;

@@ -41,6 +41,10 @@ use Text::CSV_XS::TSV;
  cpus(4): Limit the number of cpus per job with this.
  modules('interproscan'): Environment module to load.
 
+=item C<Invocation>
+
+> cyoa --task annot --method interpro --input amino_acid_data.fasta
+
 =cut
 sub Interproscan {
     my ($class, %args) = @_;
@@ -115,6 +119,10 @@ cd \${start}
  library('viral'): Kraken2 database to classify against.
  jprefix(11): Prefix for the job name and output directory.
  modules('kraken'): Environment module to load.
+
+=item C<Invocation>
+
+> cyoa --task annot --method kraken --input read1.fastq.xz:read2.fastq.xz --library standard
 
 =cut
 sub Kraken {
@@ -191,6 +199,10 @@ sub Kraken {
  species('virus'): Set the species tag in the output files.
  jprefix('19'): Use this prefix for the job/output.
  modules('prokka'): Use this environment module.
+
+=item C<Invocation>
+
+> cyoa --task annot --method prokka --input assembled_genomic_sequence.fasta
 
 =cut
 sub Prokka {
@@ -310,8 +322,6 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
  ids: Set of IDs to explicitly extract from the trinotate output.
  fh: filehandle to read.
 
-=back
-
 =cut
 sub Trinotate_Extract_Annotations {
     my ($class, $datum, %args) = @_;
@@ -358,23 +368,19 @@ ${seq}
 
 =head2 C<Extract_Trinotate>
 
-The trinotate output format is a bit... unwieldy.  This seeks to parse out the
-useful information from it.
+ Parse the trinotate encoded blast results into a simpler table.
 
-=over
+ The trinotate output format is a bit... unwieldy.  This seeks to
+ parse out the useful information from it.
 
+=item C<Arguments>
 
-=item I<input> * Input csv file from trinotate.
+ input(required): Input csv file from trinotate.
+ output(interesting.fasta): Output for the parsed csv.
+ evalue(1e-10): Evalue cutoff for trinotate output.
+ identity(70): Minimum percent identity cutoff for trinotate output.
 
-=item I<output> (interesting.fasta) Output for the parsed csv.
-
-=item I<evalue> (1e-10) Evalue cutoff for trinotate output.
-
-=item I<identity> (70) Minimum percent identity cutoff for trinotate output.
-
-=back
-
-=head3 C<Invocation>
+=item C<Invocation>
 
 > cyoa --task assembly --method extract --input trinotate_output.csv
 
@@ -394,8 +400,7 @@ sub Extract_Trinotate {
     my $parser = Parse::CSV->new(
         handle => $input,
         sep_char => "\t",
-        names => 1,
-    );
+        names => 1,);
 
     my $count = 0;
     my $all_annotations = [];
@@ -416,8 +421,10 @@ sub Extract_Trinotate {
 
 =head2 C<Read_Write_Annotation>
 
-Called by Extract_Trinotate() to help write out the trinotate csv information
-into an easier-to-read format.
+ Read trinotate output and write out extracted annotations.
+
+ Called by Extract_Trinotate() to help write out the trinotate csv information
+ into an easier-to-read format.
 
 =cut
 sub Read_Write_Annotation {
@@ -601,16 +608,15 @@ sub Read_Write_Annotation {
 
 =head2 C<Transdecoder>
 
-$hpgl->Transdecoder() submits a trinity denovo sequence assembly and runs its
-default post-processing tools.
+ Run transdecoder on a transcriptome.
 
-=over
+ Submit a trinity denovo sequence assembly to transdecoder.
 
-=item I<input> * Output from trinity for post processing.
+=item C<Arguments>
 
-=back
+ input(required): Output from trinity for post processing.
 
-=head3 C<Invocation>
+=item C<Invocation>
 
 > cyoa --task assembly --method transdecoder --input trinity.fasta
 
@@ -659,15 +665,16 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
 
 =head2 C<Trinotate>
 
-Submit a trinity denovo sequence assembly to trinotate.
+ Submit a trinity denovo sequence assembly to trinotate.
 
-=over
+ In the time since writing this, I added a cheesy hack to allow it to
+ run on genomic assemblies as well.
 
-=item I<input> * Input fasta from trinity.
+=item C<Arguments>
 
-=back
+ input(required): Input fasta from trinity.
 
-=head3 C<Invocation>
+=item C<Invocation>
 
 > cyoa --task assembly --method trinotate --input trinity.fasta
 
@@ -749,16 +756,20 @@ cd \${start}
 
 =head2 C<Rosalind_Plus>
 
-Use prodigal to count up putative ORFs on the plus and minus strands.
-If the number of minus strand ORFs is larger than plus, reverse
-complement the sequence.
+ Attempt to ensure that the plus strand has the most putative ORFs.
 
-This function just puts the actual function which does the work onto
-the dependency chain.
+ Use prodigal to count up putative ORFs on the plus and minus strands.
+ If the number of minus strand ORFs is larger than plus, reverse
+ complement the sequence.  This function just puts the actual function
+ which does the work onto the dependency chain.
 
-Just a little note from a friend: "This is my formal proposal to start
-calling the 'Watson' and 'Crick' strands 'Rosalind' and 'Franklin'
-."
+ Just a little note from a friend: "This is my formal proposal to start
+ calling the 'Watson' and 'Crick' strands 'Rosalind' and 'Franklin'."
+
+=item C<Arguments>
+
+ input(required): Input assembly.
+ This should handle all the prodigal options too, FIXME!
 
 =cut
 sub Rosalind_Plus {
@@ -790,7 +801,7 @@ sub Rosalind_Plus {
 ";
     my $jstring = qq!
 use Bio::Adventure::Annotation;
-my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Rewrite(
+my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
   gff => '${input_gff}',
   input => '$options->{input}',
   jdepends => '$options->{jdepends}',
@@ -815,13 +826,15 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Rewrite(
     return($rewrite);
 }
 
-=head2 C<Rosalind_Rewrite>
+=head2 C<Rosalind_Plus_Worker>
 
-Does the actual work of rewriting a genome to put the majority ORFs on
-the plus strand.  Rosalind_Plus() calls this.
+ Read results from prodigal, count the +/- strands, and flip the
+ genome if the number of - is greater than +.  Does the actual work of
+ rewriting a genome to put the majority ORFs on the plus strand.
+ Rosalind_Plus() calls this.
 
 =cut
-sub Rosalind_Rewrite {
+sub Rosalind_Plus_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,

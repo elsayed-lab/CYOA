@@ -34,14 +34,26 @@ use Bio::Tools::GuessSeqFormat;
 
 =head2 C<Combine_CDS_Features>
 
-This is a generalized Feature-merger.  It attempts to keep a
-heirarchy of source priorities as well as maintain the annotations
-of the CDS predictions for the methods which provide useful or
-interesting information.
+ Merge features from multiple annotation sources.
 
-It currently has some tortured logic to allow one to choose the
-preferred annotation source and also set the first/second source.
-I am pretty sure this logic is redundant.
+ This is a generalized Feature-merger.  It attempts to keep a
+ heirarchy of source priorities as well as maintain the annotations
+ of the CDS predictions for the methods which provide useful or
+ interesting information.
+
+ It currently has some tortured logic to allow one to choose the
+ preferred annotation source and also set the first/second source.
+ I am pretty sure this logic is redundant.
+
+=item C<Arguments>
+
+ first: First annotation source.
+ first_name('prokka'): Set the source name from the first set.
+ second: Guess!
+ second_name('phanotate'): Set the source name for the second set.
+ dominant('first'): Choose the annotation source which wins when there is a disagreement.
+ notes: A hash of note annotations
+ keep_both(0): Keep the union of the sources.
 
 =cut
 sub Combine_CDS_Features {
@@ -160,14 +172,27 @@ sub Combine_CDS_Features {
 
 =head2 C<Merge_CDS_Predictions>
 
-This should set up a job which is able start a job capable of merging
-CDS/ORF predictions from prokka/prodigal and glimmer.  Note that
-prokka uses prodigal, but by having a separate merge for prodigal, it
-becomes possible to pull in the confidence estimate provided by
-prodigal as well as use a separate trainer or different parameters.
+ Master function used to merge multiple CDS annotation sources.
 
-This requires input genbank file from prokka, the gff features from
-prodigal, and the prediction file from glimmer3.
+ This should set up a job which is able start a job capable of merging
+ CDS/ORF predictions from prokka/prodigal and glimmer.  Note that
+ prokka uses prodigal, but by having a separate merge for prodigal, it
+ becomes possible to pull in the confidence estimate provided by
+ prodigal as well as use a separate trainer or different parameters.
+
+ This requires input genbank file from prokka, the gff features from
+ prodigal, and the prediction file from glimmer3.
+
+=item C<Arguments>
+
+ input(required): Prokka output annotations (e.g. untrained prodigal).
+ input_glimmer(''): Output file from a glimmer invocation.
+ input_phanotate(''): Output file from a phanotate invocation.
+ input_prodigal(''): Output file from a (trained) prodigal invocation.
+ primary_key('locus_tag'): Set the primary key for the hash of annotations.
+ jmem(8): Expected memory usage.
+ jprefix('19'): Prefix for the job name and output directories.
+
 
 =cut
 sub Merge_CDS_Predictions {
@@ -178,10 +203,9 @@ sub Merge_CDS_Predictions {
         input_glimmer => '',
         input_phanotate => '',
         input_prodigal => '',
+        primary_key => 'locus_tag',
         jmem => 8,
-        jprefix => '19',
-        primary_key => 'locus_tag',);
-
+        jprefix => '19',);
     ## Even though it is a bit redundant, record all the output filenames now
     ## so that they are easily accessible for the various downstream search tools.
     my $output_dir =  qq"outputs/$options->{jprefix}merge_cds_predictions";
@@ -262,31 +286,35 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
 
 =head2 C<Merge_CDS_Predictions_Worker>
 
-This does the actual work spawned by Merge_CDS_Predictions().
+ This does the actual work spawned by Merge_CDS_Predictions().
 
-In its current form it does the following:
-1.  Reads the phanotate tsv file into an array of SeqFeatures.
-2.  Reads the prokka gbk file into another array and splits it up
-    by type (source/other/cds/etc)
-3.  Reads the prodigal GFF file into an array of SeqFeatures.
-    (This may seem redundant with prokka, but I promise it is not,
-    partially because it pulls in the neat Shine-Dalgarno information,
-    and partially because this separate run is trained a little differently).
-4.  Reads the Glimmer predict file into yet another array of Features.
-5.  Runs the function Combine_CDS_Features() multiple times, each time
-    attempting to add a few more features and/or merge in the interesting
-    stuff.  This is a place where some logic should be added to allow one to
-    choose arbitrary sets of features rather than the currently hard-coded logic
-    to state that glimmer<prokka<prodigal<phanotate.
-6.  Pull the non-CDS and assembly features from prokka into the array.
-7.  Cleanup the names of the features so they are consistent across methods.
-8.  Write out the various output files of interest, including:  .fsa of the
-    assembly, .ffn of the nucleotide coding sequences, .faa of the amino
-    acid sequences, .gff of the features, .tbl of the features in the format
-    expected by tbl2asn(1).
-9.  Actually run tbl2asn in order to generate genbank flat files.
+ In its current form it does the following:
+ 1.  Reads the phanotate tsv file into an array of SeqFeatures.
+ 2.  Reads the prokka gbk file into another array and splits it up
+     by type (source/other/cds/etc)
+ 3.  Reads the prodigal GFF file into an array of SeqFeatures.
+     (This may seem redundant with prokka, but I promise it is not,
+     partially because it pulls in the neat Shine-Dalgarno information,
+     and partially because this separate run is trained a little differently).
+ 4.  Reads the Glimmer predict file into yet another array of Features.
+ 5.  Runs the function Combine_CDS_Features() multiple times, each time
+     attempting to add a few more features and/or merge in the interesting
+     stuff.  This is a place where some logic should be added to allow one to
+     choose arbitrary sets of features rather than the currently hard-coded logic
+     to state that glimmer<prokka<prodigal<phanotate.
+ 6.  Pull the non-CDS and assembly features from prokka into the array.
+ 7.  Cleanup the names of the features so they are consistent across methods.
+ 8.  Write out the various output files of interest, including:  .fsa of the
+     assembly, .ffn of the nucleotide coding sequences, .faa of the amino
+     acid sequences, .gff of the features, .tbl of the features in the format
+     expected by tbl2asn(1).
+ 9.  Actually run tbl2asn in order to generate genbank flat files.
 
-Currently it does not return anything useful, which is dumb.
+ Currently it does not return anything useful, which is dumb.
+
+=item C<Arguments>
+
+ I don't feel like typing this right now, the important ones are in Merge_CDS_Predictions().
 
 =cut
 sub Merge_CDS_Predictions_Worker {
@@ -404,8 +432,10 @@ sub Merge_CDS_Predictions_Worker {
 
 =head2 C<Predict_to_Features>
 
-This reads the .predict file producted by glimmer and sends the data
-to an array of SeqFeature::Generic's.
+ Read the nasty glimmer output format into something sensible.
+
+ This reads the .predict file producted by glimmer and sends the data
+ to an array of SeqFeature::Generic objects.
 
 =cut
 sub Predict_to_Features {
@@ -467,10 +497,12 @@ sub Predict_to_Features {
 
 =head2 C<Read_Phanotate_to_SeqFeatures>
 
-Either this or Predict_to_Features() should probably be renamed,
-because they do much the same; except of course this reads
-the phanotate tsv output file and sends it to an array of
-SeqFeatures.
+ Read Phanotate output into a set of features.
+
+ Either this or Predict_to_Features() should probably be renamed,
+ because they do much the same; except of course this reads
+ the phanotate tsv output file and sends it to an array of
+ SeqFeatures.
 
 =cut
 sub Read_Phanotate_to_SeqFeatures {
@@ -526,9 +558,11 @@ sub Read_Phanotate_to_SeqFeatures {
 
 =head2 C<Read_Prokka_Gbk_to_SeqFeatures>
 
-Read the genbank output from prokka into a set of SeqFeature's.
-This will be the basis for quite a few of the downstream methods
-along the way to creating a merged set of annotations.
+ Dump prokka genbank output into a seqfeature array.
+
+ Read the genbank output from prokka into a set of SeqFeature's.
+ This will be the basis for quite a few of the downstream methods
+ along the way to creating a merged set of annotations.
 
 =cut
 sub Read_Prokka_Gbk_to_SeqFeatures {
@@ -551,8 +585,10 @@ sub Read_Prokka_Gbk_to_SeqFeatures {
 
 =head2 C<Read_Prodigal_GFF_to_SeqFeatures>
 
-Read the gff output from prodigal into an array of SeqFeature's.  Collect the
-Shine-Dalgarno information and scores while at it.
+ Dump prodigal gff output into a seqfeature array.
+
+ Read the gff output from prodigal into an array of SeqFeature's.
+ Collect the Shine-Dalgarno information and scores while at it.
 
 =cut
 sub Read_Prodigal_GFF_to_SeqFeatures {
@@ -609,9 +645,11 @@ sub Read_Prodigal_GFF_to_SeqFeatures {
 
 =head2 C<Remove_Contig_Cruft>
 
-This takes the various contig IDs producted by prokka and friends and
-attempts to simplify/standardize them so that downstream reader methods
-will not get confused.
+ Standardize contig IDs upon merging them.
+
+ This takes the various contig IDs producted by prokka and friends and
+ attempts to simplify/standardize them so that downstream reader methods
+ will not get confused.
 
 =cut
 sub Remove_Contig_Cruft {
@@ -641,13 +679,15 @@ sub Remove_Contig_Cruft {
 
 =head2 C<Rename_Features>
 
-This function takes a big pile of features from different data sources
-(prokka/prodigal/glimmer/phanotate/aragorn/tnrascan) and attempts to give
-them a single set of canonical names.
+ Make a consistent set of feature names after merging multiple data sources.
 
-One detail worth noting, I decided to _not_ begin numbering again when
-going from one contig to another.  In addition, tRNA features have
-a separate number from CDS.
+ This function takes a big pile of features from different data sources
+ (prokka/prodigal/glimmer/phanotate/aragorn/tnrascan) and attempts to give
+ them a single set of canonical names.
+
+ One detail worth noting, I decided to _not_ begin numbering again when
+ going from one contig to another.  In addition, tRNA features have
+ a separate number from CDS.
 
 =cut
 sub Rename_Features {
@@ -766,8 +806,10 @@ sub Rename_Features {
 
 =head2 C<Separate_Prokka_Features>
 
-Given a pile of features extracted from a prokka annotation, pull them apart
-so that the assembly, genes, cds, etc may be addressed separately.
+ Separate prokka feature types into multiple data structures.
+
+ Given a pile of features extracted from a prokka annotation, pull them apart
+ so that the assembly, genes, cds, etc may be addressed separately.
 
 =cut
 sub Separate_Prokka_Features {
@@ -811,9 +853,11 @@ sub Separate_Prokka_Features {
 
 =head2 C<Write_CDS_from_SeqFeature>
 
-Given a pile of SeqFeatures, write out the individual sequences
-from it.  This will ideally write out a .faa of amino acids,
-.ffn of the CDS nucleotides, and a .tsv summarizing them.
+ What it says on the tin!
+
+ Given a pile of SeqFeatures, write out the individual sequences
+ from it.  This will ideally write out a .faa of amino acids,
+ .ffn of the CDS nucleotides, and a .tsv summarizing them.
 
 =cut
 sub Write_CDS_from_SeqFeatures {
@@ -913,8 +957,10 @@ sub Write_CDS_from_SeqFeatures {
 
 =head2 C<Write_Fsa_from_SeqFeature_Generic>
 
-Given an array of SeqFeature::Generic's, write out a .fsa
-assembly file.
+ Also what it says on the tin!
+
+ Given an array of SeqFeature::Generic's, write out a .fsa
+ assembly file.
 
 =cut
 sub Write_Fsa_from_SeqFeature_Generic {
@@ -943,10 +989,12 @@ sub Write_Fsa_from_SeqFeature_Generic {
 
 =head2 C<Write_Gbk>
 
-This function is a little bit of a misnomer, it does not actually
-write a Gbk file, but instead takes a .tbl file from Write_Tbl()
-and runs tbl2asn(1) on it; invoking a little logic on the way
-to hopefully make sure that the final result is sane.
+ This mostly runs tbl2asn.
+
+ This function is a little bit of a misnomer, it does not actually
+ write a Gbk file, but instead takes a .tbl file from Write_Tbl()
+ and runs tbl2asn(1) on it; invoking a little logic on the way
+ to hopefully make sure that the final result is sane.
 
 =cut
 sub Write_Gbk {
@@ -1013,7 +1061,7 @@ sub Write_Gbk {
 
 =head2 C<Write_Gff_from_SeqFeatures>
 
-Given an array of SeqFeatures, write out a hopefully useful .gff file.
+ Given an array of SeqFeatures, write out a hopefully useful .gff file.
 
 =cut
 sub Write_Gff_from_SeqFeatures {
@@ -1058,11 +1106,13 @@ sub Write_Gff_from_SeqFeatures {
     return($written);
 }
 
-=head2 C<Write_Tbl>
+=head2 C<Write_Tbl_from_SeqFeatures>
 
-This is basically just stealing a small piece of code from Torsten
-Seeman's prokka tool which is capable of writing a tbl file in
-preparation for running NCBI's tbl2sqn and generating a genbank file.
+ Write a .tbl file from some seqfeatures.
+
+ This is basically just stealing a small piece of code from Torsten
+ Seeman's prokka tool which is capable of writing a tbl file in
+ preparation for running NCBI's tbl2sqn and generating a genbank file.
 
 =cut
 sub Write_Tbl_from_SeqFeatures {
@@ -1142,8 +1192,8 @@ sub Write_Tbl_from_SeqFeatures {
 
 =head2 C<TAG>
 
-I just copy/pasted this outright from prokka so that the table writer
-will work properly.
+ I just copy/pasted this outright from prokka so that the table writer
+ will work properly.
 
 =cut
 sub TAG {

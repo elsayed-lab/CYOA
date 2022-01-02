@@ -19,30 +19,37 @@ use POSIX qw"ceil";
 
 =head1 NAME
 
-Bio::Adventure::Align_Blast - Perform Sequence alignments with the blast suite of tools.
+ Bio::Adventure::Align_Blast - Perform Sequence alignments with the blast suite of tools.
 
 =head1 SYNOPSIS
 
-The functions in this file work with the blast family.  They write the scripts, invoke them on
-the cluster, collect the results, and (optionally) parse them into simplified tables.
+ The functions in this file work with the blast family.  They write the scripts, invoke them on
+ the cluster, collect the results, and (optionally) parse them into simplified tables.
 
 =head1 METHODS
 
 =head2 C<Make_Blast_Job>
 
-This function is responsible for actually writing out an appropriate blast job.
-Hopefully, by the time this is called, all the appropriate options have been
-found.
+ Write a single blast job for the cluster.
 
-=over
+ This function is responsible for actually writing out an appropriate blast job.
+ Hopefully, by the time this is called, all the appropriate options have been
+ found.
 
-=item I<query> * Fasta file containing set of reads to search.
+ This is one of the older functions in CYOA and could really use some love.
 
-=item I<library> * Fasta file containing the library of sequences.
+=item C<Arguments>
 
-=item I<blast_format> (5: blastxml) Which format for the output?
-
-=back
+ blast_format(5): This needs to be one of the parseable formats, which seems
+  to change over time.
+ blast_tool('blastn'): Which blast tool to use
+ blast_params(''): Choose the appropriate arbitrary blast parameters here.
+ library(nr): Choose a blast database.
+ query(required): This ought to be changed to input.
+ align_jobs(40): How many jobs to create.
+ jdepends(''): What job does this depend upon?
+ jmem(24): Expected memory usage.
+ modules('blastdb', 'blast'): Load these environment modules.
 
 =cut
 sub Make_Blast_Job {
@@ -110,16 +117,15 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
 
 =head2 C<Merge_Parse_Blast>
 
-This invokes Concatenate_Searches() and Parse_Search() in order to get the final
-parsed table from a series of blast searches.
+ Merge multiple blast outputs and parse them into a table.
 
-=over
+ This invokes Concatenate_Searches() and Parse_Search() in order to get the final
+ parsed table from a series of blast searches.
 
-=item I<input> * File containing the blast output for merging and parsing.
+=item C<Arguments>
 
-=item I<output> * Output file to write out the concatenated/parsed data.
-
-=back
+ output(required): Output file into which to write the results.
+ jmem(8): Expected memory.
 
 =cut
 sub Merge_Parse_Blast {
@@ -148,25 +154,18 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
 
 =head2 C<Parse_Blast>
 
-Parse_Blast is responsible for parsing blast output, it makes some attempt to be
-flexible vis a vis different formatting.  It prints a table of each gene and
-some relevant statistics about the hits that were found.
+ Do the actual parsing of a blast result and print an easy-to-read table.
 
-=over
+ Parse_Blast is responsible for parsing blast output, it makes some attempt to be
+ flexible vis a vis different formatting.  It prints a table of each gene and
+ some relevant statistics about the hits that were found.
 
-=item I<input> * File containing a completed blast search output.
+=item C<Arguments>
 
-=item I<best_only> (FALSE) Print only the best hit for each sequence?
-
-=item I<evalue> (FALSE) Filter for only hits with a better evalue than this?
-
-=item I<search_type> (blastxml) Name of the format used.
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task align --method parseblast --input blast_output.txt.gz
+ input(required): Merged blast output.
+ best_only(0): Keep only the best hit for each query?
+ evalue(undef): Set an optional evalue cutoff.
+ search_type('blastxml'): This needs to be a parseable blast format.
 
 =cut
 sub Parse_Blast {
@@ -271,29 +270,29 @@ sub Parse_Blast {
 
 =head2 C<Run_Blast_Parse>
 
-This creates a blast library from 'library' and performs individual blast searches
-for every sequence in nt_query.fasta against it.  Finally, it writes a summary
-of the results in a set of tables.
+ Create a blast database and run blast on it.
 
-=over
+ This creates a blast library from 'library' and performs individual
+ blast searches for every sequence in nt_query.fasta against it.
+ Finally, it writes a summary of the results in a set of tables.
 
-=item I<query> * Fasta file containing sequences one wishes to search for.
+ Run_Parse_Blast() is rather slow because it uses Bio::SearchIO and
+ Bio::Tools::Run::StandAloneBlast which in turn calls blastall
+ separately for every sequence.  In many cases, the user will likely
+ prefer to use the the 'blastsplit' method.
 
-=item I<library> * Fasta file containing the library of known sequences to search.
+ In addition, this should have the blast parameters as an input
+ variable.
 
-=item I<evalue> (0.01) Filter for hits with a better value than this.
+=item C<Arguments>
 
-=back
+ input(required): Input sequences to search.
+ library(required): Library of sequences to search against.
+ blast_tool('blastp'): Use this blast tool.
+ evalue(0.01): Set an evalue cutoff.
+ output('blast_output.txt'): Output file to write.
+ modules('blast'): Which environment module to load.
 
-=head3 C<Invocation>
-
-> cyoa --task align --method blastparse --query query.fasta --library library.fasta
-
-=head3 C<Notes>
-
-Run_Parse_Blast() is rather slow because it uses Bio::SearchIO and Bio::Tools::Run::StandAloneBlast
-which in turn calls blastall separately for every sequence.  In many cases, the user will likely
-prefer to use the the 'blastsplit' method.
 
 =cut
 sub Run_Parse_Blast {
@@ -303,17 +302,12 @@ sub Run_Parse_Blast {
         required => ['input', 'library'],
         blast_tool => 'blastp',
         evalue => 0.01,
-        modules => ['blast'],
-        output => 'blast_output.txt',);
+        output => 'blast_output.txt',
+        modules => ['blast'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('blastp');
     die("Could not find blast in your PATH.") unless($check);
     my $query = $options->{input};
-##    print STDERR qq"Please note that this function calls blastall
-##separately for every sequence in the database.  As a result it is
-##not recommended fo use with large sequence libraries.  Instead use
-##the separate functions 'Run_Blast()' or 'Split_Align_Blast()'
-##followed by 'Parse_Blast()' which does these steps separately.";
     my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     my $library = $options->{library};
     my $number_hits = 0;
@@ -422,32 +416,26 @@ sub Run_Parse_Blast {
 
 =head2 C<Split_Align_Blast>
 
-Split apart a set of query sequences into $args{align_jobs} pieces and align
-them all separately.
+ Split up a pile of sequences and search them in parallel.
 
-=over
+ Split apart a set of query sequences into $args{align_jobs} pieces and align
+ them all separately.  This is the primary function to call when one
+ wants to run a whole lot of blast.
 
-=item I<query> * Fasta file containing the sequences for searching.
+=item C<Arguments>
 
-=item I<library> * Fasta file containing the library of sequences to search.
+ input(required): Fasta file containing the sequences for searching.
+ library(required): Fasta file containing the library of sequences to search.
+ e(10): Default parameters for blast (this should be blast_param)
+ blast_tool(blastn): Which blast method to invoke?
+ align_jobs(40): How many jobs to invoke?
+ align_parse(0): Start a parsing job upon completion?
+ blast_format(5: blastxml): Which blast format for the output?
+ best_only(0): Report only the best hits per search?
 
-=item I<param> (-e 10) Default parameters for blast (this should be blast_param)
+=item C<Invocation>
 
-=item I<blast_tool> (blastn) Which blast method to invoke?
-
-=item I<align_jobs> (40) How many jobs to invoke?
-
-=item I<align_parse> (FALSE) Start a parsing job upon completion?
-
-=item I<blast_format> (5: blastxml) Which blast format for the output?
-
-=item I<best_only> (FALSE) Report only the best hits per search?
-
-=back
-
-=head3 C<Invocation>
-
-> cyoa --task align --method blastsplit --query query.fasta --library library.fasta
+> cyoa --task align --method blastsplit --input query.fasta --library library.fasta
 
 =cut
 sub Split_Align_Blast {

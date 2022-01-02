@@ -312,12 +312,15 @@ sub Phagepromoter {
     my $input_paths = $class->Get_Paths($options->{input});
     my $comment = '## This is a script to run phagepromoter.';
     my $jstring = qq!start=\$(pwd)
+mkdir -p ${output_dir}
 cd ${output_dir}
 phagepromoter.py $options->{format} \\
   $input_paths->{fullpath} \\
   $options->{both_strands} $options->{cutoff} \\
   $options->{family} $options->{host} \\
-  $options->{phage_type} $options->{model}
+  $options->{phage_type} $options->{model} \\
+  2>phagepromoter.stderr 1>phagepromoter.stdout
+cd ${start}
 !;
     my $phanotate = $class->Submit(
         comment => $comment,
@@ -551,8 +554,9 @@ start=\$(pwd)
 cp $options->{input} ${output_dir}/
 cd ${output_dir}
 echo $input_paths->{filename} | RhoTermPredict_algorithm.py \\
-  2>${output_dir}/rhotermpredict.stderr \\
-  1>${output_dir}/rhotermpredict.stdout
+  2>rhotermpredict.stderr \\
+  1>rhotermpredict.stdout
+cd ${start}
 ?;
 
     my $rhoterm = $class->Submit(

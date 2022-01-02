@@ -557,7 +557,7 @@ sub Classify_Phage_Worker {
     my $blast_outfile = qq"$options->{output_blast}";
     my $final_fh = FileHandle->new(">$options->{output}");
     ## Print the tsv header: contig, description, taxon,length
-    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_family\thit_genus\n";
+    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_famil'y\thit_genus\n";
     my @params = (
         -e => $options->{evalue},
         -db_name => $options->{library},
@@ -735,15 +735,15 @@ sub Caical {
         $in->close();
     }
 
-    my $index = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+    my $index = qq"$options->{libdir}/codon_tables/${species}.txt";
     if (!-r $index) {
         my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
-            species => $options->{species});
+            species => $species);
     }
     my $test = ref($options->{suffixes});
     my @suffixes = split(/,/, $options->{suffixes});
     my $out_base = basename($options->{input}, @suffixes);
-    my $jname = qq"caical_${out_base}_vs_$options->{species}";
+    my $jname = qq"caical_${out_base}_vs_${species}";
     my $output_dir = qq"outputs/$options->{jprefix}${jname}";
     make_path($output_dir);
     my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
@@ -1270,8 +1270,17 @@ sub Restriction_Catalog_Worker {
       for my $en ($collection->each_enzyme()) {
           my $name = $en->name;
           my $site = $en->site;
+          if (!defined($site)) {
+              $site = '';
+          }
           my $overhang = $en->overhang_seq;
+          if (!defined($overhang)) {
+              $overhang = '';
+          }
           my $cuts = $analysis->cuts_by_enzyme($name);
+          if (!defined($cuts)) {
+              $cuts = 0;
+          }
           my @fragments = $analysis->fragments($en);
           $internal = {
               site => $site,

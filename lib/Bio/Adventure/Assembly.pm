@@ -46,6 +46,10 @@ no warnings 'experimental::try';
  jmem(12): Memory allocation on the cluster.
  modules('abyss'): Environment module to load.
 
+=item C<Invocation>
+
+> cyoa --task assemble --method abyss --input r1.fastq.xz:r2.fastq.xz
+
 =cut
 sub Abyss {
     my ($class, %args) = @_;
@@ -130,6 +134,10 @@ cd \${start}
  jmem(12): Memory allocated on the cluster.
  jprefix(14): job name/output directory prefix.
  modules('hisat', 'bbmap'): Environment modules loaded to run this.
+
+=item C<Invocation>
+
+> cyoa --task assem --method assemblyc --input r1.fastq.xz:r2.fastq.xz --library assembly.fasta
 
 =cut
 sub Assembly_Coverage {
@@ -228,6 +236,10 @@ samtools index ${output_dir}/coverage.bam \\
  jmem(2): Memory allocated on the cluster.
  jprefix(81): Default prefix for the job/directory.
  jname('collect'): Default jobname.
+
+=item C<Invocation>
+
+ This is really only invoked at the end of a pipeline.
 
 =cut
 sub Collect_Assembly {
@@ -378,6 +390,10 @@ Writing filtered contigs to $options->{output}
  coverage(0.2): Minimal relative coverage ratio allowed.
  output_log(''): Location to write the log of the tasks performed.
 
+=item C<Invocation>
+
+> cyoa --task ass --method unicyclerfil --input unicycler.fasta
+
 =cut
 sub Unicycler_Filter_Depth {
     my ($class, %args) = @_;
@@ -437,6 +453,10 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
  jprefix('13'): Added to the beginning of the job name.
  arbitrary(''): Add arbitrary arguments here.
  modules('shovill'): Use this environment module.
+
+=item C<Invocation>
+
+> cyoa --task ass --method shov --input r1.fastq.xz:r2.fastq.xz
 
 =cut
 sub Shovill {
@@ -510,6 +530,10 @@ fi
  jmem(80): Trinity is quite memory intensive.
  jprefix(60): Prefix for job name.
  modules('trinity'): Use this environment module.
+
+=item C<Invocation>
+
+> cyoa --task ass --method trinity --input assembly.fasta
 
 =cut
 sub Trinity {
@@ -587,6 +611,10 @@ sub Trinity {
  jname(trin_rsem): Name on the cluster.
  jprefix('61'): Job prefix.
  modules('rsem'): RSEM is used to quanify the transcripts.
+
+=item C<Invocation>
+
+> cyoa --task ass --method trinitypo --input trinity_assembly.fasta
 
 =cut
 sub Trinity_Post {
@@ -689,6 +717,10 @@ cd \${start}
  modules('trimomatic','bowtie2','spades','unicycer'): The environment
   module dependencies.
 
+=item C<Invocation>
+
+> cyoa --task ass --method unicycler --input r1.fastq.xz:r2.fastq.xz
+
 =cut
 sub Unicycler {
     my ($class, %args) = @_;
@@ -774,7 +806,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 
 =item C<Invocation>
 
- > cyoa --task assembly --method velvet --input forward.fastq.gz:reverse.fastq.gz
+> cyoa --task assembly --method velvet --input forward.fastq.gz:reverse.fastq.gz
 
 =cut
 sub Velvet {

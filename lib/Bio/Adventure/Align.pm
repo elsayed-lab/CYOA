@@ -16,17 +16,17 @@ use POSIX qw"ceil";
 
 =head1 NAME
 
-Bio::Adventure::Align - Functions shared by multiple sequence alignment methods.
+ Bio::Adventure::Align - Functions shared by multiple sequence alignment methods.
 
 =head1 SYNOPSIS
 
-These functions set up and clean up blast/fasta/etc searches. (I need to set up hmmer and friends).
+ These functions set up and clean up blast/fasta/etc searches. (I need to set up hmmer and friends).
 
 =head1 METHODS
 
 =head2 C<Cleanup>
 
-Cleans up the mess of temporary files/directories left behind by these tools.
+ Cleans up the mess of temporary files/directories left behind by these tools.
 
 =cut
 sub Cleanup {
@@ -37,8 +37,10 @@ sub Cleanup {
 
 =head2 C<Concatenate_Searches>
 
-This function waits until the cluster finishes processing all the blast jobs, then
-concatenates all the output files into one compressed file .
+ Bring together multiple parallel search results.
+
+ This function waits until the cluster finishes processing all the blast jobs, then
+ concatenates all the output files into one compressed file .
 
 =cut
 sub Concatenate_Searches {
@@ -70,7 +72,7 @@ rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${
 
 =head2 C<Duplicate_Remove>
 
-Get rid of duplicate sequences when writing out fasta files.
+ Get rid of duplicate sequences when writing out fasta files.
 
 =cut
 sub Duplicate_Remove {
@@ -127,10 +129,13 @@ sub Duplicate_Remove {
 
 =head2 C<Get_Split>
 
-Take the number of sequences in the query library and divides by the number of jobs to run,
-get the ceiling of that, and prints that many sequences to each file in split/ starting at 1000.
-(So, as long as you have <= 8,999 jobs PBS won't get confused by the difference between 099 and 100
-because they will be 1099 and 1100 instead.)
+ Split up sequences into even numbers for submitting in parallel.
+
+ Take the number of sequences in the query library and divides by the
+ number of jobs to run, get the ceiling of that, and prints that many
+ sequences to each file in split/ starting at 1000.  (So, as long as
+ you have <= 8,999 jobs PBS won't get confused by the difference
+ between 099 and 100 because they will be 1099 and 1100 instead.)
 
 =cut
 sub Get_Split {
@@ -152,7 +157,7 @@ sub Get_Split {
 
 =head2 Ids_to_Sequence
 
-Writes relatively nicely formatted fasta files given a genome and gff file.
+ Writes relatively nicely formatted fasta files given a genome and gff file.
 
 =cut
 sub Ids_to_Sequences {
@@ -199,7 +204,8 @@ $sequences{$seq}
 
 =head2 C<Make_Directories>
 
-Create sequential directories for each job and actually write the sequences using Bio::SeqIO
+ Create sequential directories for each job and actually write the
+ sequences using Bio::SeqIO
 
 =cut
 sub Make_Directories {
@@ -263,7 +269,7 @@ ${seq}
 
 =head2 C<Parse_Search>
 
-This passes off to other parsers depending on the input format.
+ This passes off to other parsers depending on the input format.
 
 =cut
 sub Parse_Search {

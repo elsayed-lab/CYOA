@@ -17,17 +17,17 @@ use String::Approx qw"amatch";
 
 =head1 NAME
 
-Bio::Adventure::Count - Perform Sequence alignments counting with HTSeq
+ Bio::Adventure::Count - Perform Sequence alignments counting with HTSeq
 
 =head1 SYNOPSIS
 
-These functions handle the counting of reads, primarily via htseq.
+ These functions handle the counting of reads, primarily via htseq.
 
 =head1 METHODS
 
 =head2 C<HT_Multi>
 
-Invoke htseq multiple times with options for counting different transcript types.
+ Invoke htseq multiple times with options for counting different transcript types.
 
 =item C<Arguments>
 
@@ -176,13 +176,15 @@ sub HT_Multi {
 
 =head2 C<HT_Types>
 
-Read the first 100k lines of a gff file and use that to guess at the most likely
-type of feature when invoking htseq.
+ Guess about most appropriate flags for htseq-count.
+
+ This function reads the first 100k lines of a gff file and use that
+ to guess at the most likely type of feature when invoking htseq.
 
 =item C<Arguments>
 
-  htseq_type('gene'): When set, this will just count that type.
-  htseq_id('ID'): Ditto, but the GFF tag for IDs.
+ htseq_type('gene'): When set, this will just count that type.
+ htseq_id('ID'): Ditto, but the GFF tag for IDs.
 
 =cut
 sub HT_Types {
@@ -190,8 +192,7 @@ sub HT_Types {
     my $options = $class->Get_Vars(
         args => \%args,
         htseq_type => 'gene',
-        htseq_id => 'ID',
-    );
+        htseq_id => 'ID',);
     my $my_type = $options->{htseq_type};
     my $my_id = $options->{htseq_id};
     print "Calling htseq with options for type: ${my_type} and tag: ${my_id}.\n";
@@ -277,9 +278,12 @@ sub HT_Types {
 
 =head2 C<HTSeq>
 
-Invoke htseq-count.  This should be able to automagically pick up
-other types of countable features and send the htseq-count results to
-a separate count file.
+ Run htseq-count on a sorted, indexed bam file.
+ 10.1093/bioinformatics/btu638
+
+ Invoke htseq-count.  This should be able to automagically pick up
+ other types of countable features and send the htseq-count results to
+ a separate count file.
 
 =item C<Arguments>
 
@@ -346,7 +350,6 @@ sub HTSeq {
     ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
     my $htseq_type_arg = '';
     my $htseq_id_arg = '';
-
     my $annotation = $gtf;
     if (!-r "${gtf}") {
         $annotation = $gff;
@@ -424,10 +427,13 @@ ${htseq_invocation}
 
 =head2 C<Jellyfish>
 
-Use jellyfish to count up all of the kmers in a set of sequence(s).
-This should also send the wacky fasta format fo counted sequences to a
-tsv of kmers and numbers, which should be a rather more tractable
-format with which to play.
+ Run jellyfish with multiple values of K on a fast(a|q) file(s).
+ 10.1093/bioinformatics/btr011
+
+ Use jellyfish to count up all of the kmers in a set of sequence(s).
+ This should also send the wacky fasta format fo counted sequences to a
+ tsv of kmers and numbers, which should be a rather more tractable
+ format with which to play.
 
 =item C<Arguments>
 
@@ -566,8 +572,10 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
 
 =head2 C<Jellyfish_Matrix>
 
-This function is responsible for actually converting the fasta output
-from jellyfish into tsv.  It is pretty quick and dirty.
+ Convert the jellyfish fasta format to a matrix-compatible tsv.
+
+ This function is responsible for actually converting the fasta output
+ from jellyfish into tsv.  It is pretty quick and dirty.
 
 =item C<Arguments>
 
@@ -617,9 +625,10 @@ sub Jellyfish_Matrix {
 
 =head2 C<Mi_Map>
 
-Given a set of alignments, map reads to mature/immature miRNA species.
-This function has not been used in a very long time and likely will
-require some work if I wish to use it again.
+ Map reads to mature/immature miRNA.
+
+ This function has not been used in a very long time and likely will
+ require some work if I wish to use it again.
 
 =item C<Arguments>
 
@@ -669,13 +678,14 @@ sub Mi_Map {
 
 =head2 C<Read_Mi>
 
-Read an miRNA database.
-This takes the fasta file from the mirbase and extracts the IDs and
-sequences.
+ Read an miRNA database.
+
+ This takes the fasta file from the mirbase and extracts the IDs and
+ sequences.
 
 =item C<Arguments>
 
-seqfile: The fasta file in question.
+ seqfile: The fasta file in question.
 
 =cut
 sub Read_Mi {
@@ -694,8 +704,8 @@ sub Read_Mi {
 
 =head2 C<Read_Mappings_Mi>
 
-Read an miRNA database and get the connections between the various IDs, mature
-sequences, and immature sequences.
+ Read an miRNA database and get the connections between the various IDs, mature
+ sequences, and immature sequences.
 
 =item C<Arguments>
 
@@ -739,7 +749,6 @@ sub Read_Mappings_Mi {
         next LOOP unless ($id =~ /^mmu/);
         my @hit_list = ();
         if (defined($mimap->{$id})) {
-            ##print "Found $id across the mappings.\n";
             my $new_id = $id;
             my $sequence = $seqdb->{$id}->{sequence};
             if ($mimap->{$id}->{hit_id}) {
@@ -776,7 +785,7 @@ sub Read_Mappings_Mi {
 
 =head2 C<Read_Bam_Mi>
 
-Read a bam file and cross reference it against an miRNA database.
+ Read a bam file and cross reference it against an miRNA database.
 
 =item C<Arguments>
 
@@ -823,7 +832,6 @@ sub Read_Bam_Mi {
             my $found_element = 0;
             my $element_length = scalar(@element_list);
             ## print "Found map, checking against ${element_length} mature RNAs.\n";
-
             foreach my $c (0 .. $#element_list) {
                 my $element_datum = $element_list[$c];
                 my $element_seq = $element_list[$c]->{sequence};
@@ -848,7 +856,7 @@ sub Read_Bam_Mi {
 
 =head2 C<Final_Print_Mi>
 
-Print out the final counts of miRNA mappings.
+ Print out the final counts of miRNA mappings.
 
 =item C<Arguments>
 
@@ -873,11 +881,13 @@ sub Final_Print_Mi {
 
 =head2 C<Count_Alignments>
 
-Count alignments across a host and parasite.  This function should
-give a sense of how many reads were single-mapped to the host and
-parasite along with multi-hits across both.  This was first used to
-distinguish between T. cruzi and human hits, ergo the 'Tc' as the
-default parasite pattern.
+ Compare alignments across species.
+
+ Count alignments across a host and parasite.  This function should
+ give a sense of how many reads were single-mapped to the host and
+ parasite along with multi-hits across both.  This was first used to
+ distinguish between T. cruzi and human hits, ergo the 'Tc' as the
+ default parasite pattern.
 
 =item C<Arguments>
 
@@ -917,7 +927,6 @@ sub Count_Alignments {
 
     my %group = ( para => 0, host => 0,);
     my %null_group = ( para => 0, host => 0,);
-
     my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam = Bio::DB::Sam->new(-bam => $options->{input},
                                 -fasta => $fasta,);
@@ -1042,19 +1051,21 @@ Multi-both: $result->{both_multi}\n";
 
 =head2 C<SLSearch>
 
-Use some simple pattern matching on a pile of reads to look for
-sequences of interest.  By default this looks for a portion of the
-spliced leader sequence from Leishmania major.  Having written and
-used this, I realized that it is ... dumb.  I should have used
-jellyfish and simply counted up the hits across a range of the SL.
-Doing this with jellyfish would also let me count up each window of
-the SL and plot a histogram of the occurrences, thus showing the
-optimal starting point to discriminate the SL as opposed to my ad hoc
-choice of position generated via repeated invocations of 'grep | wc'.
+ Search a pile of reads for the trypanosome spliced leader.
 
-With that in mind, this counts up the number of times a string of
-interest appears in the input files in the forward and RC directions,
-and prints that in an easy-to-read format.
+ Use some simple pattern matching on a pile of reads to look for
+ sequences of interest.  By default this looks for a portion of the
+ spliced leader sequence from Leishmania major.  Having written and
+ used this, I realized that it is ... dumb.  I should have used
+ jellyfish and simply counted up the hits across a range of the SL.
+ Doing this with jellyfish would also let me count up each window of
+ the SL and plot a histogram of the occurrences, thus showing the
+ optimal starting point to discriminate the SL as opposed to my ad hoc
+ choice of position generated via repeated invocations of 'grep | wc'.
+
+ With that in mind, this counts up the number of times a string of
+ interest appears in the input files in the forward and RC directions,
+ and prints that in an easy-to-read format.
 
 =item C<Arguments>
 
@@ -1101,7 +1112,7 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
 
 =head2 C<SLSearch_Worker>
 
-This function does the actual work for SLSearch().
+ This function does the actual work for SLSearch().
 
 =cut
 sub SLSearch_Worker {
