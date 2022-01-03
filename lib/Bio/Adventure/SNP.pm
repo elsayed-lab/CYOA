@@ -11,18 +11,18 @@ use Math::Round qw":all";
 
 =head1 NAME
 
-Bio::Adventure::SNP - Search for variant positions given an alignment and reference genome.
+ Bio::Adventure::SNP - Search for variant positions given an alignment and reference genome.
 
 =head1 SYNOPSIS
 
-The functions in this file handle the invocation of b/vcftools and mpileup to
-search for variant positions following an alignment.
+ The functions in this file handle the invocation of b/vcftools and mpileup to
+ search for variant positions following an alignment.
 
 =head1 METHODS
 
 =head2 C<Align_SNP_Search>
 
-Invoke bt2, samtools, vcfutils to seek variant positions.
+ Invoke bt2, samtools, vcfutils to seek variant positions.
 
 =cut
 sub Align_SNP_Search {
@@ -60,7 +60,7 @@ sub Align_SNP_Search {
 
 =head2 C<SNP_Search>
 
-Handle the invocation of vcfutils and such to seek high-confidence variants.
+ Handle the invocation of vcfutils and such to seek high-confidence variants.
 
 =cut
 sub SNP_Search {
@@ -162,7 +162,7 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
 
 =head2 C<CNP_Ratio>
 
-Given a table of variants and a genome, modify the genome to match the variants.
+ Given a table of variants and a genome, modify the genome to match the variants.
 
 =cut
 sub SNP_Ratio {
@@ -225,7 +225,7 @@ my \$result = \$h->Bio::Adventure::SNP::Make_SNP_Ratio(
 
 =head2 C<Make_SNP_Ratio>
 
-Given vcfutils output, make a simplified table of high-confidence variants.
+ Given vcfutils output, make a simplified table of high-confidence variants.
 
 =cut
 sub Make_SNP_Ratio {
@@ -393,6 +393,12 @@ sub Make_SNP_Ratio {
     return($count);
 }
 
+=head2 C<Snippy>
+
+ Snippy provides a fast variant search tool.
+ https://github.com/tseemann/snippy
+
+=cut
 sub Snippy {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(

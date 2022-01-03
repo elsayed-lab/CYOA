@@ -17,14 +17,17 @@ use File::ShareDir qw":ALL";
 
 =head1 NAME
 
-Bio::Adventure::Annotation - Do some searches to help annotate genes.
+ Bio::Adventure::Annotation - Do some searches to help annotate genes.
 
 =head1 SYNOPSIS
 
 =head2 C<Abricate>
 
-Invoke abricate, ask it for the set of available databases, and try them all against the
-full assembled contigs (not ORFs).
+ Abricate provides a series of blast-based searches for resistance databases.
+ https://github.com/tseemann/abricate
+
+ Invoke abricate, ask it for the set of available databases, and try them all against the
+ full assembled contigs (not ORFs).
 
 =cut
 sub Abricate {
@@ -98,9 +101,12 @@ abricate --summary ${output_dir}/*.tsv \\
 
 =head2 C<Resfinder>
 
-Resfinder provides a database of resistance genes and search function
-so that one may relatively quickly check a sequence database/assembly
-for potentially problematic genes/point mutations.
+ Perform a resfinder search.
+ 10.1093/jac/dkaa345
+
+ Resfinder provides a database of resistance genes and search function
+ so that one may relatively quickly check a sequence database/assembly
+ for potentially problematic genes/point mutations.
 
 =cut
 sub Resfinder {
@@ -150,9 +156,12 @@ run_resfinder.py -ifa $options->{input} \\
 
 =head2 C<Rgi>
 
-RGI is an alternative to Resfinder, I have not really explored it yet,
-but it appears to provide a somewhat more in-depth database of
-interesting genes than resfinder.  Its database structure is a bit unwieldy.
+ Perform a RGI search.
+ 10.1093/nar/gkz935
+
+ RGI is an alternative to Resfinder, I have not really explored it yet,
+ but it appears to provide a somewhat more in-depth database of
+ interesting genes than resfinder.  Its database structure is a bit unwieldy.
 
 =cut
 sub Rgi {

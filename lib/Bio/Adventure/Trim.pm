@@ -16,18 +16,21 @@ use File::Which qw"which";
 
 =head1 NAME
 
-Bio::Adventure::Trim - Use trimomatic/cutadapt/etc to trim libraries
+ Bio::Adventure::Trim - Use trimomatic/cutadapt/etc to trim libraries
 
 =head1 SYNOPSIS
 
-This file is responsible for invoking the various sequence trimmers.
+ This file is responsible for invoking the various sequence trimmers.
 
 =head1 METHODS
 
 =head2 C<Cutadapt>
 
-Use biopieces/cutadapt to attempt to remove sequence adapters from a library.
-This is most common used by me for ribosome profiling libraries.
+ Invoke cutadapt on a pile of sequence.
+ 10.14806/ej.17.1.200
+
+ Use biopieces/cutadapt to attempt to remove sequence adapters from a library.
+ This is most common used by me for ribosome profiling libraries.
 
 =cut
 sub Cutadapt {
@@ -144,7 +147,8 @@ xz -9e -f ${out_dir}/${basename}_untrimmed.${out_suffix}
 
 =head2 C<Racer>
 
-Use the RACER command from hitec to correct sequencer-based errors.
+ Use the RACER command from hitec to correct sequencer-based errors.
+ 10.1093/bioinformatics/btq653
 
 =cut
 sub Racer {
@@ -217,9 +221,12 @@ xz -9e -f ${output}
 
 =head2 C<Trimomatic>
 
-Call trimomatic to remove adapters/low quality sequences.  If $args{input} has a
-':' or ',' then this will assume the input is comprised of two pairwise files
-and will call 'Trimomatic_Pairwise()', otherwise 'Trimomatic_Single()'.
+ Invoke trimomatic to get sequencing data ready to play with.
+ 10.1093/bioinformatics/btu170
+
+ Call trimomatic to remove adapters/low quality sequences.  If $args{input} has a
+ ':' or ',' then this will assume the input is comprised of two pairwise files
+ and will call 'Trimomatic_Pairwise()', otherwise 'Trimomatic_Single()'.
 
 =cut
 sub Trimomatic {
@@ -242,7 +249,7 @@ sub Trimomatic {
 
 =head2 C<Trimomatic_Pairwise>
 
-Invoke trimomatic with parameters suitable for pairwise sequence libraries.
+ Invoke trimomatic with parameters suitable for pairwise sequence libraries.
 
 =cut
 sub Trimomatic_Pairwise {
@@ -387,7 +394,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
 
 =head2 C<Trimomatic_Single>
 
-Invoke trimomatic with parameters suitable for single-read sequence libraries.
+ Invoke trimomatic with parameters suitable for single-read sequence libraries.
 
 =cut
 sub Trimomatic_Single {

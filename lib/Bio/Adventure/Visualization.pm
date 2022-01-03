@@ -20,18 +20,18 @@ use File::ShareDir qw":ALL";
 
 =head2 C<CGView>
 
-Invoke cgview on an input genbank file in order to create a pretty
-picture of the genome.
+ Invoke cgview on an input genbank file and make a pretty picture.
+ 10.1093/nar/gkn179
 
-cgview has a few options which are of interest:
+ cgview has a few options which are of interest:
 
-linear: distinguish between a linear and circular genome. (linear)
-reading_frame: Show the reading frames (true)
-orfs: Print the ORFs (true)
-feature_labels: Print the features (true)
-gene_labels: Print the genes. (false)
+ linear: distinguish between a linear and circular genome. (linear)
+ reading_frame: Show the reading frames (true)
+ orfs: Print the ORFs (true)
+ feature_labels: Print the features (true)
+ gene_labels: Print the genes. (false)
 
-This invocation of cgview has it print both a svg and png copy of the sequence.
+ This invocation of cgview has it print both a svg and png copy of the sequence.
 
 =cut
 sub CGView {

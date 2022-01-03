@@ -22,6 +22,12 @@ use File::ShareDir qw":ALL";
 use IPC::Open2;
 use Symbol qw"gensym";
 
+=head2 C<RNAFold_Windows>
+
+ Run RNAFold on a rolling window across a sequence.
+ 10.1093/nar/gkn188
+
+=cut
 sub RNAFold_Windows {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -61,6 +67,11 @@ use Bio::Adventure::Structure;
     return($folder);
 }
 
+=head2 C<RNAFold_Windows_Worker
+
+ Does the actual work of rolling across a sequence and running rnafold.
+
+=cut
 sub RNAFold_Windows_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(

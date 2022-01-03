@@ -14,18 +14,21 @@ use File::Which qw"which";
 
 =head1 NAME
 
-Bio::Adventure::QA - Use trimomatic/cutadapt/etc to trim libraries
+ Bio::Adventure::QA - Use trimomatic/cutadapt/etc to trim libraries
 
 =head1 SYNOPSIS
 
-The functions here invoke various quality assurance programs.
+ The functions here invoke various quality assurance programs.
 
 =head1 METHODS
 
 =head2 C<Biopieces_Graph>
 
-Reads in a fastq file and uses biopieces to make some graphs describing the
-sequences therein.
+ Biopieces is an older but fun toolkit.
+ https://github.com/maasha/biopieces
+
+ Reads in a fastq file and uses biopieces to make some graphs describing the
+ sequences therein.
 
 =cut
 sub Biopieces_Graph {
@@ -107,7 +110,8 @@ less ${input} | read_fastq -i - -e base_33 |\\
 
 =head2 C<Fastqc>
 
-Invoke fastqc on some sequence files.
+ Invoke fastqc on some sequence files.
+ https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 
 =cut
 sub Fastqc {
@@ -129,8 +133,8 @@ sub Fastqc {
 
 =head2 C<Fastqc_Pairwise>
 
-Invoke fastq with options suitable for pairwise sequence data, separating the
-forward and reverse read outputs.
+ Invoke fastq with options suitable for pairwise sequence data, separating the
+ forward and reverse read outputs.
 
 =cut
 sub Fastqc_Pairwise {
@@ -203,7 +207,7 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
 
 =head2 C<Fastqc_Single>
 
-Invoke fastqc with options suitable for a single-ended reads.
+ Invoke fastqc with options suitable for a single-ended reads.
 
 =cut
 sub Fastqc_Single {

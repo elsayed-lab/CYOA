@@ -583,14 +583,6 @@ Writing filtered results to $options->{output}.
         -method_args => [ '-num_alignments' => $options->{topn},
                           '-num_threads' => $options->{jcpus}, ]);
 
-    ##my ($stdout, $stderr, @returns)  = capture {
-    ##    try {
-    ##        @blast_output = $search->run($query);
-    ##    } catch ($e) {
-    ##        warn "An error occurred: $e";
-    ##    }
-    ##};
-
     my $result_data = {};
     my $search_output = Bio::SearchIO->new(-file => $blast_outfile, -format => 'blast');
     ## Set some filters for the output.

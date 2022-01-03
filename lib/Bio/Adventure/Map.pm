@@ -17,9 +17,9 @@ use File::Which qw"which";
 
 =head1 SYNOPSIS
 
-use Bio::Adventure;
-my $hpgl = new Bio::Adventure;
-$hpgl->Bowtie();
+ use Bio::Adventure;
+ my $hpgl = new Bio::Adventure;
+ $hpgl->Bowtie();
 
 =head1 METHODS
 

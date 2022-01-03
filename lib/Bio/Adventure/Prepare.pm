@@ -10,26 +10,26 @@ use Text::CSV;
 
 =head1 NAME
 
-Bio::Adventure::Prepare - Get raw data ready for processing.
+ Bio::Adventure::Prepare - Get raw data ready for processing.
 
 =head1 SYNOPSIS
 
-use Bio::Adventure;
-my $hpgl = new Bio::Adventure;
-$hpgl->Prepare(csv => 'all_samples.csv');
+ use Bio::Adventure;
+ my $hpgl = new Bio::Adventure;
+ $hpgl->Prepare(csv => 'all_samples.csv');
 
 =head1 Methods
 
 =head2 C<Download_NCBI_Accession>
 
-Given an accession, download the fasta/genbank/etc file.
+ Given an accession, download the fasta/genbank/etc file.
 
-This function expects an input argument which is the NCBI accession.
-It currently expects to find that accession in the nucleotide database
-(which should be made a parameter).
+ This function expects an input argument which is the NCBI accession.
+ It currently expects to find that accession in the nucleotide database
+ (which should be made a parameter).
 
-A somewhat different implementation of this exists in Phage.pm where it
-is used to download an assembly.
+ A somewhat different implementation of this exists in Phage.pm where it
+ is used to download an assembly.
 
 =cut
 sub Download_NCBI_Accession {
@@ -93,10 +93,10 @@ sub Download_NCBI_Accession {
 
 =head2 C<Fastq_Dump>
 
-Invoke fastq_dump to download some data from sra.
+ Invoke fastq_dump to download some data from sra.
 
-This expects an input argument which is the individual sample accession.
-In its current form it will dump fastq files as paired reads.
+ This expects an input argument which is the individual sample accession.
+ In its current form it will dump fastq files as paired reads.
 
 =cut
 sub Fastq_Dump {
@@ -163,12 +163,12 @@ sub Fastq_Dump {
 
 =head2 C<Read_Samples>
 
-This function currently has no real use-case.  It should be merged with the
-xlsx reader/writer which is used by the assembly annotation merger in order
-to provide a more flexible system for dealing with sample sheets/etc.
+ This function currently has no real use-case.  It should be merged with the
+ xlsx reader/writer which is used by the assembly annotation merger in order
+ to provide a more flexible system for dealing with sample sheets/etc.
 
-With that in mind, this will dump an input csv file to a 2d hash and
-return that hash.
+ With that in mind, this will dump an input csv file to a 2d hash and
+ return that hash.
 
 =cut
 sub Read_Samples {

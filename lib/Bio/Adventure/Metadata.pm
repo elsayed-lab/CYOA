@@ -10,14 +10,16 @@ extends 'Bio::Adventure';
 
 =head1 C<Metadata>
 
-This package is intended to collect and collate data from other tools into some
-useful and readable formats.  Practically speaking, this mostly relates to
-the annotation pipelines, which gather data from many sources into a single
-genbank output file.
+ Collect results from other tools and merge them into a skeleton feature set.
 
-One other set of functions which I will move here include the various XYZ_Stats()
-functions which gather the stdout/stderr from various tools in order to write a
-csv summary.
+ This package is intended to collect and collate data from other tools into some
+ useful and readable formats.  Practically speaking, this mostly relates to
+ the annotation pipelines, which gather data from many sources into a single
+ genbank output file.
+
+ One other set of functions which I will move here include the various XYZ_Stats()
+ functions which gather the stdout/stderr from various tools in order to write a
+ csv summary.
 
 =cut
 
@@ -40,7 +42,22 @@ use Text::CSV_XS::TSV;
 
 =head2 C<Collect_Assembly>
 
-Collect the final files created by an assembly.
+ Collect the final files created by an assembly.
+
+ This makes a set of assumptions about the outputs from other tools
+ and copies them to a single output directory.
+
+=item C<Arguments>
+
+ input_fsa: Assembly created by Merge_Annotations().
+ input_genbank: Genbank file created at the same time.
+ input_stripped: Genbank file created by the stripped Merge_Annotations().
+ input_tsv: tsv file created by Merge_Annotations.
+ input_xlsx: xlsx file created at the same time.
+ input_faa: Amino acid fasta file created by Merge_CDS.
+ input_cds: CDS fasta file created by Merge_CDS.
+ jmem(2): Expected memory usage.
+ jprefix('81'): Prefix for output directory and jobname.
 
 =cut
 sub Collect_Assembly {
@@ -56,7 +73,7 @@ sub Collect_Assembly {
         input_faa => qq"outputs/19merge_cds_predictions/${start}.faa",
         input_cds => qq"outputs/19merge_cds_predictions/${start}.ffn",
         jmem => 2,
-        jprefix => 81,
+        jprefix => '81',
         jname => 'collect',);
     my $output_dir = File::Spec->rel2abs("../");
     if ($output_dir =~ /preprocessing$/) {
@@ -88,16 +105,13 @@ sub Collect_Assembly {
 
 =head2 C<Generate_Samplesheet>
 
-Use the extract_metadata() R function from hpgltools to create a
-sample sheet given an inital sheet containing (at least) the
-sample IDs for a series of samples within the current working
-directory.
+ Call extract_metadata() to create a global metadata xlsx file.
 
-extract_metadata() uses a set of predefined regular expressions
-in order to hunt for the various outputs from the tools I use
-for a given set of samples and pull out of them the lines/cells
-which contain data of interest vis a vis what happened when
-processing the samples.
+ extract_metadata() uses a set of predefined regular expressions
+ in order to hunt for the various outputs from the tools I use
+ for a given set of samples and pull out of them the lines/cells
+ which contain data of interest vis a vis what happened when
+ processing the samples.
 
 =cut
 sub Generate_Samplesheet {
@@ -132,8 +146,9 @@ meta_written <- gather_preprocessing_metadata("$options->{input}")
 
 =head2 C<Get_Aragorn>
 
-Extract the tRNA annotations from a file produced by aragorn.
-Aragorn's output is a peculiar text file.  Here is an example tRNA annotation from it:
+ Extract the tRNA annotations from a file produced by aragorn.
+
+ Aragorn's output is a peculiar text file.  Here is an example tRNA annotation from it:
 
 >1 length=40082 depth=1.00x circular=true
 9 genes found
@@ -146,10 +161,10 @@ ccac
 tcggcgttacagagggtctggaagctgtggtagagcttgtctttaagaaa
 ggtattgtt
 
-In this group, the first line is the contig containing the putative
-m/t/mt/tm RNA genes which follow.  The next line defines the gene
-with a number, name, position, score, and anticodon.  The final three
-lines are a fasta entry with the same information and the sequence.
+ In this group, the first line is the contig containing the putative
+ m/t/mt/tm RNA genes which follow.  The next line defines the gene
+ with a number, name, position, score, and anticodon.  The final three
+ lines are a fasta entry with the same information and the sequence.
 
 =cut
 sub Get_Aragorn {
@@ -282,11 +297,14 @@ sub Get_Aragorn {
 
 =head2 C<Kraken_Accession>
 
-Read the kraken_report.txt to extract the lowest common ancestor which has the most reads.
-In order to get the taxonomy ID while doing this, we will need to read
-the kraken output file which contains the status of each read; then
-extract the third column and find out which taxon (except 0) which
-has the most reads.  Once we have that taxonomy ID, we can go to
+ Parse the kraken_report text file.
+
+ Read the kraken_report.txt to extract the lowest common ancestor
+ which has the most reads. In order to get the taxonomy ID while doing
+ this, we will need to read the kraken output file which contains the
+ status of each read; then extract the third column and find out which
+ taxon (except 0) which has the most reads.  Once we have that
+ taxonomy ID, we use it to index a genome or other similar tasks.
 
 =cut
 sub Kraken_Best_Hit {
@@ -342,11 +360,12 @@ sub Kraken_Best_Hit {
 
 =head2 C<Merge_Annotations>
 
-Pull a series of annotation data sources into a single table of data.
-The resulting table should be useful for tbl2asn.
+ Collect the results from multiple database searches.
 
-This function basically just puts Merge_Annotations_Make_Gbk onto the
-dependency chain.
+ Pull a series of annotation data sources into a single table of data.
+ The resulting table should be useful for tbl2asn. This function
+ basically just puts Merge_Annotations_Make_Gbk onto the dependency
+ chain.
 
 =cut
 sub Merge_Annotations {
@@ -439,8 +458,8 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
 
 =head2 C<Merge_Annotations_Worker>
 
-This does the actual work of merging various annotation sources into a
-new and more interesting genbank file.
+ This does the actual work of merging various annotation sources into a
+ new and more interesting genbank file.
 
 =cut
 sub Merge_Annotations_Worker {
@@ -583,7 +602,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         primary_key => $options->{primary_key},
         output => $merged_data,
         input => $options->{input_tsv});
-
     if ($options->{input_trinotate} && -r $options->{input_trinotate}) {
         print $log_fh "Adding trinotate annotations from $options->{input_trinotate}.\n";
         ## 1b above, trinotate annotations.
@@ -594,7 +612,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     } else {
         print $log_fh "Not including trinotate annotations.\n";
     }
-
     if ($options->{input_interpro} && -r $options->{input_interpro}) {
         print $log_fh "Adding interproscan annotations from $options->{input_interpro}.\n";
         ## 1c above, information from interproscan.
@@ -607,7 +624,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     } else {
         print $log_fh "Not including interpro annotations.\n";
     }
-
     if ($options->{input_abricate} && -r $options->{input_abricate}) {
         print $log_fh "Adding abricate annotations from $options->{input_abricate}.\n";
         ## 1d above, resistance gene info provided by abricate.
@@ -618,7 +634,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     } else {
         print $log_fh "Not including abricate annotations.\n";
     }
-
     my $dtr_features;
     if ($options->{input_phageterm} && -r $options->{input_phageterm}) {
         ## Pull the direct-terminal-repeats from phageterm if they exist.
@@ -630,7 +645,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     } else {
         print $log_fh "Not adding phageterm DTRs.\n";
     }
-
     ## An array reference;
     my $aragorn_features;
     if ($options->{input_aragorn} && -r $options->{input_aragorn}) {
@@ -880,8 +894,10 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
 
 =head2 C<Merge_Trinotate>
 
-Given a hash of annotation data, read a trinotate tsv file and pull
-the information from it into that hash and pass it back to the caller.
+ Gather trinotate data.
+
+ Given a hash of annotation data, read a trinotate tsv file and pull
+ the information from it into that hash and pass it back to the caller.
 
 =cut
 sub Merge_Trinotate {
@@ -909,8 +925,10 @@ sub Merge_Trinotate {
 
 =head2 C<Merge_Abricate>
 
-Given a hash of annotation data, read the results from abricate and pull
-that information into the input hash and pass it back to the caller.
+ Gather Abricate results.
+
+ Given a hash of annotation data, read the results from abricate and pull
+ that information into the input hash and pass it back to the caller.
 
 =cut
 sub Merge_Abricate {
@@ -941,8 +959,10 @@ sub Merge_Abricate {
 
 =head2 C<Merge_Classifier>
 
-Given a hash of annotation data, read ICTV classification information
-and pass it back.
+ Gather taxonomy information.
+
+ Given a hash of annotation data, read ICTV classification information
+ and pass it back.
 
 =cut
 sub Merge_Classifier {
@@ -1032,8 +1052,10 @@ sub Merge_Classifier {
 
 =head2 C<Merge_Prodigal>
 
-Given a hash of annotation data, read some prodigal information and pass
-the information from it into that hash and pass it back to the caller.
+ Gather prodigal results.
+
+ Given a hash of annotation data, read some prodigal information and pass
+ the information from it into that hash and pass it back to the caller.
 
 =cut
 sub Merge_Prodigal {
@@ -1055,6 +1077,14 @@ sub Merge_Prodigal {
     return($merged_data);
 }
 
+=head2 C<Merge_Glimmer>
+
+ Gather glimmer results.
+
+ Given a hash of annotation data, read some glimmer information and pass
+ the information from it into that hash and pass it back to the caller.
+
+=cut
 sub Merge_Glimmer {
     ## Rewrite this to read the predict file.
     my (%args) = @_;
@@ -1077,8 +1107,10 @@ sub Merge_Glimmer {
 
 =head2 C<Merge_Interpro>
 
-Given a hash of annotation data, read an interpro tsv file and pull
-the information from it into that hash and pass it back to the caller.
+ Gather interproscan results.
+
+ Given a hash of annotation data, read an interpro tsv file and pull
+ the information from it into that hash and pass it back to the caller.
 
 =cut
 sub Merge_Interpro {
@@ -1111,10 +1143,9 @@ sub Merge_Interpro {
     return($merged_data);
 }
 
-=head2 C<Merge_Prokka>
+=head2 C<Merge_Start_Data>
 
-Given a hash of annotation data, read a prokka log and pull
-the information from it into that hash and pass it back to the caller.
+ Start the merging process from a tsv file.
 
 =cut
 sub Merge_Start_Data {
@@ -1165,9 +1196,11 @@ sub Merge_Start_Data {
 
 =head2 C<Write_XLSX>
 
-Given a pile of annotations in tabular format, send them to an xlsx
-file.  I chose a set of annotation sources and columns that I like,
-but if I were smarter I would make it mutable.
+ Write a metadata xlsx file.
+
+ Given a pile of annotations in tabular format, send them to an xlsx
+ file.  I chose a set of annotation sources and columns that I like,
+ but if I were smarter I would make it mutable.
 
 =cut
 sub Write_XLSX {
@@ -1236,45 +1269,6 @@ sub Write_XLSX {
   }
     push(@column_ids, 'aa_sequence');
     push(@column_ids, 'cds');
-    ##my @column_ids = (
-    ##    'locus_tag',
-    ##    'product',
-    ##    'start',
-    ##    'end',
-    ##    'strand',
-    ##    'length_bp',
-    ##    'COG',
-    ##    'EC_number',
-    ##    'trinity_phage_pep_BLASTX',
-    ##    'trinity_terminase_BLASTX',
-    ##    'trinity_sprot_Top_BLASTX_hit',
-    ##    'inter_Pfam',
-    ##    'trinity_Pfam',
-    ##    'inter_TIGRFAM',
-    ##    'inter_CDD',
-    ##    'inter_TMHMM',
-    ##    'trinity_TmHMM',
-    ##    'inter_signalp',
-    ##    'trinity_SignalP',
-    ##    'inter_Coils',
-    ##    'inter_ProSitePatterns',
-    ##    'trinity_RNAMMER',
-    ##    'trinity_eggnog',
-    ##    'trinity_Kegg',
-    ##    'trinity_gene_ontology_BLASTX',
-    ##    'trinity_gene_ontology_Pfam',
-    ##    'abricate_argannot',
-    ##    'abricate_card',
-    ##    'abricate_ecoh',
-    ##    'abricate_ecoli_vf',
-    ##    'abricate_megares',
-    ##    'abricate_ncbi',
-    ##    'abricate_plasmidfinder',
-    ##    'abricate_resfinder',
-    ##    'abricate_vfdb',
-    ##    'aaseq',
-    ##    'cds',);
-
     foreach my $locus_tag (sort keys %{$tsv_data}) {
         my @row;
         for my $col (@column_ids) {
@@ -1306,14 +1300,16 @@ sub Write_XLSX {
 
 =head2 C<BT1_Stats>
 
-Collect some alignment statistics from bowtie1.
+ Collect some alignment statistics from bowtie1.
 
-This uses a little creative grepping in order to extract information out of the STDERR file
-from bowtie, which happens to contain messages with the number of reads mapped etc.  The authors
-of bowtie2/tophat/hisat2/etc all continued to write error logs with similar messages, so this
-function is essentially the template for gathering statistics from all of those tools.
+ This uses a little creative grepping in order to extract information
+ out of the STDERR file from bowtie, which happens to contain messages
+ with the number of reads mapped etc.  The authors of
+ bowtie2/tophat/hisat2/etc all continued to write error logs with
+ similar messages, so this function is essentially the template for
+ gathering statistics from all of those tools.
 
-It requires the 'input' argument, which is the bowtie error file.
+ It requires the 'input' argument, which is the bowtie error file.
 
 =cut
 sub BT1_Stats {
@@ -1369,7 +1365,9 @@ echo "\$stat_string" >> ${stat_output}!;
 
 =head2 C<BT2_Stats>
 
-Collects alignment statistics from bowtie2.  It is mostly a copy/paste from BT1_Stats().
+ Collects alignment statistics from bowtie2.
+
+ This is mostly a copy/paste from BT1_Stats().
 
 =cut
 sub BT2_Stats {
@@ -1473,8 +1471,10 @@ echo "\${stat_string}" >> ${stat_output}!;
 
 =head2 C<Fastqc_Stats>
 
-Collect some information from the fastqc output files and present them in a
-simple-to-read csv file.
+ Collect fastqc results.
+
+ Collect some information from the fastqc output files and present them in a
+ simple-to-read csv file.
 
 =cut
 sub Fastqc_Stats {
@@ -1545,7 +1545,7 @@ echo "\$stat_string" >> ${stat_output}
 
 =head2 C<HT2_Stats>
 
-Collect alignment statistics from hisat 2.
+ Collect alignment statistics from hisat 2.
 
 =cut
 sub HT2_Stats {
@@ -1594,7 +1594,7 @@ echo "\$stat_string" >> ${output}!;
 
 =head2 C<Salmon_Stats>
 
-Collect some summary statistics from a salmon run.
+ Collect some summary statistics from a salmon run.
 
 =cut
 sub Salmon_Stats {
@@ -1641,8 +1641,8 @@ echo "\$stat_string" >> "${output}"!;
 
 =head2 C<Tophat_Stats>
 
-Collect alignment statistics from the accepted_hits.bam/unaligned.bam files
-generated by a tophat run.
+ Collect alignment statistics from the accepted_hits.bam/unaligned.bam files
+ generated by a tophat run.
 
 =cut
 sub Tophat_Stats {
@@ -1703,8 +1703,8 @@ echo "\$stat_string" >> "${output}"!;
 
 =head2 C<Trimomatic_Stats>
 
-Collect the trimming statistics from the output file 'trimomatic.out' and report
-them in a .csv file by library.
+ Collect the trimming statistics from the output file 'trimomatic.out' and report
+ them in a .csv file by library.
 
 =cut
 sub Trimomatic_Stats {

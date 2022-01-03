@@ -12,17 +12,14 @@ use File::Basename;
 
 =head2 C<Run_Gubbins>
 
-Invoke gubbins to search for optimal trees given an outgroup, starting tree, and MSA.
+ Invoke gubbins to search for optimal trees given an outgroup, starting tree, and MSA.
+ 10.1093/nar/gku1196
 
-=over
+=item C<Arguments>
 
-=item I<input> * Input fasta file.
-
-=item I<outgroup> * Name of an outgroup taxon.
-
-=item I<starting_tree> * Name of start tree.
-
-=back
+ input(required): Input fasta file.
+ outgroup(required): Name of an outgroup taxon.
+ starting_tree(required) Name of start tree.
 
 =cut
 sub Run_Gubbins {
