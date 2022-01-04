@@ -738,6 +738,7 @@ sub Caical {
     my $jname = qq"caical_${out_base}_vs_${species}";
     my $output_dir = qq"outputs/$options->{jprefix}${jname}";
     make_path($output_dir);
+
     my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
     my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
     my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
@@ -753,7 +754,6 @@ caical -g 11 \\
   -o3 ${expected_cai} \\
   2>${stderr} 1>${stdout}
 ?;
-
     my $job = $class->Submit(
         comment => $comment,
         output => $output_cai,
@@ -767,6 +767,29 @@ caical -g 11 \\
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload',);
     return($job);
+}
+
+## We may need to rewrite the input fasta file because caical
+## cries if a sequence is not %3 == 0.  If so, use this.
+sub Caical_CDS {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jmem => 4,
+        jprefix => '80',
+        modules => ['caical']);
+    my $seqio_in = Bio::SeqIO->new(-format => 'fasta', -file => $options->{input});
+    my $output_dir = qq"";
+    my $out_base = '';
+    my $cai_fasta = qq">${output_dir}/${out_base}_input.fasta";
+    my $seqio_out = Bio::SeqIO->new(-format => 'fasta', -file => $cai_fasta);
+  SEQS: while (my $seq = $seqio_in->next_seq) {
+      my $len = $seq->length;
+      if (($len % 3) == 0) {
+          $seqio_out->write($seq);
+      }
+  }
 }
 
 =head2 C<Make_Codon_Table>

@@ -320,7 +320,7 @@ phagepromoter.py $options->{format} \\
   $options->{family} $options->{host} \\
   $options->{phage_type} $options->{model} \\
   2>phagepromoter.stderr 1>phagepromoter.stdout
-cd ${start}
+cd \${start}
 !;
     my $phanotate = $class->Submit(
         comment => $comment,
@@ -556,7 +556,7 @@ cd ${output_dir}
 echo $input_paths->{filename} | RhoTermPredict_algorithm.py \\
   2>rhotermpredict.stderr \\
   1>rhotermpredict.stdout
-cd ${start}
+cd \${start}
 ?;
 
     my $rhoterm = $class->Submit(

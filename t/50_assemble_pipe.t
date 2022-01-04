@@ -8,12 +8,12 @@ use File::ShareDir qw"dist_file";
 use String::Diff qw"diff";
 
 my $start = getcwd();
-my $new = 'test_output';
+my $a = 'test_output';
 my $actual = '';
 my $expected = '';
 my $test_file = '';
-mkdir($new);
-chdir($new);
+mkdir($a);
+chdir($a);
 
 if (!defined($ENV{LESSOPEN})) {
     $ENV{LESSOPEN} = '| lesspipe %s';
@@ -49,8 +49,8 @@ TrimmomaticPE: Completed successfully
 ";
 $actual = qx"tail ${test_file}";
 unless(ok($expected eq $actual, 'Did trimomatic return expected results?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Look at the fastqc outputs
@@ -70,28 +70,28 @@ WARN\tOverrepresented sequences\t63
 PASS\tAdapter Content\t63
 ";
 unless(ok($expected eq $actual, 'Did fastqc return expected outputs?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check out the results from RACER, this assumes the output compile flag is set.
 $test_file = 'outputs/03racer/racer.stdout';
 ok(-f $test_file, 'The racer output was created.');
-$actual = qx"head ${test_file}";
-$expected = qq"New peak Memory = 19 MB. goodRead array added 19 MB.
-New peak Memory = 57 MB. readLocation array added 38 MB.
-New peak Memory = 61 MB. charReads array added 4 MB.
-New peak Memory = 67 MB. binReads array added 5 MB.
-reading input file...done reading input file
-Reads file processed. Successfully converted into binary file in 0 seconds.
-Total reads with > 50% N's = 0
-New peak Memory = 86 MB. counters array added 18 MB.
-New peak Memory = 109 MB. witness array added 23 MB.
-Genome length = 1000000
+$actual = qx"grep changed ${test_file} | head";
+$expected = qq"Number of changed positions\t\t62959
+Number of changed positions after\t7704
+Number of changed positions before\t55255
+Number of changed positions\t\t937
+Number of changed positions after\t934
+Number of changed positions before\t3
+Number of changed positions\t\t230
+Number of changed positions after\t227
+Number of changed positions before\t3
+Number of changed positions\t\t104
 ";
 unless(ok($expected eq $actual, 'Did racer return expected outputs?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Look at the standard kraken report.
@@ -110,8 +110,8 @@ d__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacterales|f__Ente
 d__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacterales|f__Morganellaceae\t425
 ";
 unless(ok($expected eq $actual, 'Did kraken provide the expected report?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## See if the kraken-based filter worked.
@@ -122,8 +122,8 @@ $expected = qq"Filtering out reads which map to GCF_002900365.1.
 Symlinking final output files to outputs/05filter_kraken_host
 ";
 unless(ok($expected eq $actual, 'Did kraken provide the expected filter log?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Look at the viral kraken results.
@@ -142,8 +142,8 @@ d__Viruses|k__Heunggongvirae|p__Uroviricota|c__Caudoviricetes|o__Caudovirales|f_
 d__Viruses|k__Heunggongvirae|p__Uroviricota|c__Caudoviricetes|o__Caudovirales|f__Autographiviridae|g__Kayfunavirus|s__Escherichia virus ST31\t9695
 ";
 unless(ok($expected eq $actual, 'Did kraken provide the expected filter log?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the unicycler outputs.
@@ -153,8 +153,8 @@ $actual = qx"head -n 1 ${test_file}";
 $expected = qq">1 length=40082 depth=1.00x circular=true
 ";
 unless(ok($expected eq $actual, 'Was the assembly created with expected size/depth?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Look at the filter_depth results.
@@ -168,8 +168,8 @@ The range of observed coverages is 1.00 <= x <= 1.00
 Writing 1 with normalized coverage: 1
 ";
 unless(ok($expected eq $actual, 'Is the depth log as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the phastaf results.
@@ -188,21 +188,21 @@ $expected = qq"1\t29601\t33485\tPHAGE_Cronob_Dev2_NC_023558-gi|651729639|ref|YP_
 1\t16380\t17240\tPHAGE_Cronob_Dev2_NC_023558-gi|651729625|ref|YP_009005135.1|\t94.4
 ";
 unless(ok($expected eq $actual, 'Is the depth log as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the ICTV results.
 $test_file = 'outputs/10classify_08filter_depth/ictv_filtered.tsv';
 ok(-f $test_file, 'The ICTV results exist.');
-$actual = qx"head -n 3 ${test_file}";
-$expected = qq"contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_family\thit_genus
-1\tlength=40082 coverage=1x circular=true\tDuplodnaviria Heunggongvirae Uroviricota Caudoviricetes Caudovirales Autographiviridae Kayfunavirus Citrobacter virus CR44b\tCitrobacter phage CR44b\t39207\t40082\tHG818823\tCitrobacter phage CR44b complete genome.\t3223\t0.0\t7029\tAutographiviridae\tKayfunavirus
-1\tlength=40082 coverage=1x circular=true\tDuplodnaviria Heunggongvirae Uroviricota Caudoviricetes Caudovirales Autographiviridae Kayfunavirus Escherichia virus ST31\tEscherichia phage ST31\t39693\t40082\tKY962008\tEscherichia phage ST31, complete genome.\t3013\t0.0\t6570\tAutographiviridae\tKayfunavirus
+$actual = qx"head -n 3 ${test_file} | awk '{print \$2}'";
+$expected = qq"query_description
+length=40082
+length=40082
 ";
 unless(ok($expected eq $actual, 'Is the depth log as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the Rosalindplus results.
@@ -214,8 +214,8 @@ If the Franklin strand is larger, flipping them.
 1 was unchanged and has 49 plus and 0 minus ORFs.
 ";
 unless(ok($expected eq $actual, 'Is the rosalindplus log as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the phageterm results.
@@ -224,8 +224,8 @@ ok(-f $test_file, 'The phageterm results exist.');
 $actual = qx"more ${test_file}";
 $expected = qq"DTR (short)";
 unless(ok($expected eq $actual, 'Are the phageterm results as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the coverage results.
@@ -236,8 +236,8 @@ $expected = qq"#ID\tAvg_fold\tLength\tRef_GC\tCovered_percent\tCovered_bases\tPl
 1\t1142.8501\t40082\t0.0000\t100.0000\t40082\t94321\t94610\t0.5010\t1117\t232.09\t0
 ";
 unless(ok($expected eq $actual, 'Is the coverage tsv as expected?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the terminase search results.
@@ -249,8 +249,8 @@ AZS06569.1\t551\tAZS06569\tterminase [Mycobacterium phage JacoRen57]\t26.4\t2.6\
 AUV61411.1\t503\tAUV61411\tlarge terminase [Pontimonas phage phiPsal1]\t32.5\t0.24\t32.5\t0\t1
 ";
 unless(ok($expected eq $actual, 'Did the terminase search return expected hits?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the prokka run.
@@ -269,8 +269,8 @@ CTCTATGCGGTAGGTCATCACATGAAAGTCGAAGACATTAACGATAACGTAGTGTTCGAC
 CCTGCGGCTGAAGAGGACTGCGAGTGA
 ";
 unless(ok($expected eq $actual, 'Did prokka return an expected contig?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the prodigal run.
@@ -289,8 +289,8 @@ TGTCTAATAGCTCGGATGTGGTCTGGTTTGAGGCTGAAGAGAGCGACGAAGAGGGTAAGTATTGGGTAGT
 TGACGCTAAAACGGGACTATTCGCTGAGCAAGCTATACCTCTTGAGGTCGCTATTGCATCTGCCAAAGAC
 ";
 unless(ok($expected eq $actual, 'Did prodigal return expected CDS predictions?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the glimmer run.
@@ -309,8 +309,8 @@ orf00019     2262     2411  +3     4.05
 orf00020     2447     2737  +2     2.27
 ";
 unless(ok($expected eq $actual, 'Did glimmer return expected CDS predictions?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the phanotate run.
@@ -324,8 +324,8 @@ $expected = qq"#id:\tgnl|Prokka|test_output_1
 477\t617\t+\tgnl|Prokka|test_output_1\t-0.07018008835792925643848556090\t
 ";
 unless(ok($expected eq $actual, 'Did phanotate return expected CDS predictions?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check the merge_cds.
@@ -344,8 +344,8 @@ test_output_0008\ttest_output_1\tCDS\t\t1178\t1225\t1\tglimmer\tVINYRVFESTPEGPD
 test_output_0009\ttest_output_1\tCDS\t\t1267\t1773\t1\tphanotate, score: -5930\tMERNADAYYELLNATVKAFNERVQYDEIAKGDDYHDALHEVVDGQVPHYYHEIFTVMAADGIDIEFEDSGLMPETKDVTRILQARIYEALYNGVSNSSDVVWFEAEESDEEGKYWVVDAKTGLFAEQAIPLEVAIASAKDLYAVGHHMKVEDINDNVVFDPAAEEDCE
 ";
 unless(ok($expected eq $actual, 'Did we get expected merged CDS?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## I messed up the jellyfish runs when standardizing the style.
@@ -368,8 +368,8 @@ $expected = qq"1 28869
 12 1
 ";
 unless(ok($expected eq $actual, 'Did we get expected jellyfish output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Check aragorn
@@ -380,8 +380,8 @@ $expected = qq">test_output_1
 0 genes found
 ";
 unless(ok($expected eq $actual, 'Did we get expected aragorn output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## I also broke the trnascan run...
@@ -394,8 +394,8 @@ number of bases tested (both strands)= 82522
 number of predicted tRNA=25
 ";
 unless(ok($expected eq $actual, 'Did we get expected trnascan output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Trinotate
@@ -407,8 +407,8 @@ test_output_0001\ttest_output_0001\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\
 test_output_0002\ttest_output_0002\t.\t.\t.\t.\t.\tCAJ29397.1^CAJ29397.1^Q:28-135,H:18-54^72.973%ID^E:1.74e-11^.^.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.
 ";
 unless(ok($expected eq $actual, 'Did we get expected trinotate output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Abricate
@@ -430,8 +430,8 @@ outputs/24abricate_19merge_cds_predictions/abricate_resfinder.tsv\t0
 outputs/24abricate_19merge_cds_predictions/abricate_vfdb.tsv\t0
 ";
 unless(ok($expected eq $actual, 'Did we get expected abricate output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## It turns out that every invocation of interproscan is different in pretty much every file...
@@ -451,8 +451,8 @@ ADKFIPVEWLREATVRLPSGILIPKKGVK
 ADKFIPVEWLREATVRLPSGILIPKKGVKK
 ";
 unless(ok($expected eq $actual, 'Did we get expected interproscan output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## merge annotations 1
@@ -470,9 +470,9 @@ Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abri
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
-unless(ok($expected eq $actual, 'Did we get expected interproscan output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+unless(ok($expected eq $actual, 'Did we get expected merge output?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## merge annotations 2
@@ -490,9 +490,9 @@ Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abri
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
-unless(ok($expected eq $actual, 'Did we get expected interproscan output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+unless(ok($expected eq $actual, 'Did we get expected merge output?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 ## Something something cgview...
@@ -502,9 +502,92 @@ $actual = qx"head -n 2 ${test_file}";
 $expected = qq!<?xml version="1.0" encoding="ISO-8859-1"?>
 <cgview backboneRadius="4000" backboneColor="rgb(102,102,102)" backboneThickness="40" featureSlotSpacing="10" labelLineLength="450" labelPlacementQuality="better" labelLineThickness="12" rulerPadding="130" tickThickness="18" shortTickThickness="18" arrowheadLength="60" rulerFont="SansSerif, plain, 130" rulerFontColor="rgb(0,0,0)" labelFont="SansSerif, plain, 130" isLinear="true" minimumFeatureLength="1.0" sequenceLength="41261" height="10000" width="10000" globalLabel="true" moveInnerLabelsToOuter="false" featureThickness="86.54" tickLength="45" useInnerLabels="true" shortTickColor="rgb(0,51,0)" longTickColor="rgb(0,51,0)" zeroTickColor="rgb(0,51,0)" showBorder="true" borderColor="black" backgroundColor="white" tickDensity="0.5">
 !;
-unless(ok($expected eq $actual, 'Did we get expected interproscan output?')) {
-    my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+unless(ok($expected eq $actual, 'Did we get expected cgview output?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
+}
+
+## This is not working currently.
+$test_file = 'outputs/29rnafold/test_output.fsa.tsv.xz';
+ok(-f $test_file, 'The rnafold output exists.');
+$actual = qx"less ${test_file} | head";
+$expected = qq!contig	start	end	A	U	G	C	GC	paired	bp_percent	mfe	mfe_bp	mfe_gc	structure
+test_output_1	-197	4	50	50	51	52	0.5124	73	0.3632	-63.90	-0.8753	-0.6204	..(((((....((((((((.((.....(((((...(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...))))).)))))...))))))))))..)))))....
+test_output_1	-194	7	50	50	51	52	0.5124	83	0.4129	-63.20	-0.7614	-0.6136	.........((((.((((((............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........))))).))))))))))....
+test_output_1	-191	10	48	52	50	53	0.5124	83	0.4129	-63.20	-0.7614	-0.6136	......((((.((((((............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........))))).)))))))))).......
+test_output_1	-188	13	50	51	51	51	0.5075	83	0.4129	-63.20	-0.7614	-0.6196	...((((.((((((............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........))))).))))))))))..........
+test_output_1	-185	16	51	50	50	52	0.5075	83	0.4129	-63.50	-0.7651	-0.6225	((((.((((((............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........))))).)))))))))).............
+test_output_1	-182	19	50	51	48	54	0.5075	91	0.4527	-58.40	-0.6418	-0.5725	..((((((............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........))))).))))))....................
+test_output_1	-179	22	51	51	48	53	0.5025	87	0.4328	-57.60	-0.6621	-0.5703	..........((((...(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))(((((........)))))((((....))))........))))......
+test_output_1	-176	25	50	53	47	53	0.4975	81	0.4030	-58.90	-0.7272	-0.5890	..............(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...))))).(((((...((((.(((.((((....)))).))....).))))...)))))
+test_output_1	-173	28	50	51	47	55	0.5075	79	0.3930	-61.30	-0.7759	-0.6010	...........(((((...((((((.....((((.....((......)).....))))..((((((.((((((.(((....(((((.((.((...((((...)))).)).)).)))))))).))))))))).)))))))))...)))))((((((...((((.(((.((((....)))).))....).))))...))))))..
+!;
+unless(ok($expected eq $actual, 'Did we get expected rnafold output?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
+}
+
+## Restriction catalog...
+$test_file = 'outputs/30re_catalog/re_catalog.tsv';
+ok(-f $test_file, 'The restriction endonuclease catalog exists.');
+$actual = qx"head ${test_file}";
+$expected = qq!RE	Site	Overhang	Cuts
+AasI	GACNNNN^NNGTC	NN	30
+AatI	AGG^CCT		1
+AatII	GACGT^C	ACGT	13
+AauI	T^GTACA	GTAC	9
+Acc113I	AGT^ACT		1
+Acc16I	TGC^GCA		10
+Acc65I	G^GTACC	GTAC	1
+AccB1I	G^GYRCC	GYRC	13
+AccB7I	CCANNNN^NTGG	NNN	3
+!;
+unless(ok($expected eq $actual, 'Did we get expected restriction enzyme counts?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
+}
+
+## This is not working currently.
+$test_file = 'outputs/31caical_test_output_vs_GCF_002900365.1/test_output_cai.txt';
+
+## Phagepromoter
+$test_file = 'outputs/32phagepromoter/output.fasta';
+ok(-f $test_file, 'The phagepromoter output file exists.');
+$actual = qx"head ${test_file}";
+$expected = qq!>test_output_1:4118 host complement(69..98) score=0.716
+TTGACCATCGGTCCAACCTTATGATAGACT
+>test_output_1:4106 host complement(324..352) score=0.898
+TTGACTACAGTAGCTAAGGTCAGTAGAGT
+>test_output_1:4093 host complement(569..598) score=0.716
+TTGACCATCGGTCCAACCTTATGATAGACT
+>test_output_1:52 host (1036..1065) score=0.828
+TTGACAAGCAGTAACGATGAGATGTAAGCT
+>test_output_1:56 host (1134..1160) score=0.51
+AATGCTCTTTAACAATCTGGATAAACT
+!;
+unless(ok($expected eq $actual, 'Did we get expected phage promoters?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
+}
+
+## Rhotermination prediction
+$test_file = 'outputs/33rhotermpredict_26mergeannot/predictions_coordinates_test_output_1.csv';
+ok(-f $test_file, 'The rhotermpredict output file exists.');
+$actual = qx"head ${test_file}";
+$expected = qq!Region\tStart RUT\tEnd RUT\tStrand
+T1\t0\t78\tplus
+T2\t321\t399\tplus
+T3\t700\t778\tplus
+T4\t928\t1006\tplus
+T5\t1631\t1709\tplus
+T6\t2293\t2371\tplus
+T7\t2854\t2932\tplus
+T8\t3125\t3203\tplus
+T9\t3622\t3700\tplus
+!;
+unless(ok($expected eq $actual, 'Did we get expected rhotermpredict output?')) {
+    my ($e, $a) = diff($expected, $actual);
+    diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
 chdir($start);

@@ -89,6 +89,8 @@ sub RNAFold_Windows_Worker {
     ## Put the data here!  First key is location, second is structure/mfe.
     my $output = $options->{output};
     my $out_dir = dirname($output);
+    my $log = FileHandle->new(">${out_dir}/rnafold.log");
+    print $log "Starting rolling window fold of $options->{input} with length $options->{length} and step $options->{step}.\n";
     my $out_txt = basename($output, ('.xz'));
     my $out_txt_path = qq"${out_dir}/${out_txt}";
     make_path($out_dir);
@@ -98,7 +100,14 @@ sub RNAFold_Windows_Worker {
     my $length = $options->{length};
     my $step = $options->{step};
     my $in = FileHandle->new("less $options->{input} |");
-    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $seqio;
+    if ($options->{input} =~ /\.fasta|\.fsa/) {
+        $seqio = Bio::SeqIO->new(-format => 'fasta', -fh => $in);
+    } elsif ($options->{input} =~ /\.gb|\.gbff|\.gbk|\.gbf/) {
+        $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    } else {
+        die("I do not understand the format for $options->{input}");
+    }
     my $results = {};
     my $reader = gensym();
     my $writer = gensym();
@@ -126,6 +135,7 @@ sub RNAFold_Windows_Worker {
       my $bp_count = 0;
       my $bp_percent = 0;
       my $key = qq"${id}_${start}_${end}";
+      print "TESTME: $key\n";
     STEP: while ($continue) {
         if ($end > $post_length) {
             $start = $start - $post_length;

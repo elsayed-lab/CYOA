@@ -1126,7 +1126,7 @@ sub Phage_Assemble {
     print "\nRunning caical against the assumed host.\n";
     my $caical = $class->Bio::Adventure::Phage::Caical(
         jdepends => $last_job,
-        input => $merge->{output_fsa},
+        input => $cds_merge->{output_cds},
         species => 'host_species.txt',
         jprefix => $prefix,
         jname => 'restrict',);
