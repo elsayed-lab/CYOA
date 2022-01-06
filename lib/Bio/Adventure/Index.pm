@@ -52,7 +52,7 @@ sub BT1_Index {
   2>bt1_index.stderr 1>bt1_index.stdout
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species}
-in $options->{libdir}/$options->{libtype}/indexes!;
+## in $options->{libdir}/$options->{libtype}/indexes!;
     my $bt1_index = $class->Submit(
         comment => $comment,
         jname => qq"bt1idx_${species}",
@@ -100,7 +100,7 @@ sub BT2_Index {
   2>bt2_index.stderr 1>bt2_index.stdout
 !;
     my $comment = qq!## Generating bowtie2 indexes for species: ${species}
-in $options->{libdir}/${libtype}/indexes!;
+## in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -148,7 +148,7 @@ cd \$start
     my $index_fa = qq"${basedir}/${species}.fa";
 
     my $comment = qq!## Generating bwa indexes for species: ${species}
-in $options->{libdir}/$options->{libtype}/indexes!;
+## in $options->{libdir}/$options->{libtype}/indexes!;
     my $bwa_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -327,7 +327,7 @@ hisat2-build $options->{input} \\
   2>hisat2_index.stderr 1>hisat2_index.stdout
 !;
     my $comment = qq!## Generating hisat2 indexes for species: ${species}
-in $options->{libdir}/${libtype}/indexes!;
+## in $options->{libdir}/${libtype}/indexes!;
     my $indexer = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -367,7 +367,7 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
   2>kallisto_index.stderr 1>kallisto_index.stdout
 !;
     my $comment = qq!## Generating kallisto indexes for species: ${species}
-in $options->{libdir}/${libtype}/indexes!;
+## in $options->{libdir}/${libtype}/indexes!;
     my $ka_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -486,7 +486,7 @@ otherwise a decoy-less index will be generated.");
     }
 
     my $comment = qq!## Generating salmon indexes for species: ${species}
-in $options->{libdir}/${libtype}/indexes!;
+## in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},

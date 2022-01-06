@@ -55,6 +55,7 @@ my %module_build_args = (
             'Log::Log4perl' => '0',
             'Math::Round' => '0',
             'Modern::Perl' => '0',
+	    'LWP::Protocol::https' => '0',
             'Parse::CSV' => '0',
             'PerlIO' => '0',
             'PerlIO::gzip' => '0',
