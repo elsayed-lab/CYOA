@@ -890,6 +890,8 @@ If the Franklin strand is larger, flipping them.
   TESTLOOP: while (my $seq = $read_fasta->next_seq) {
       my $id = $seq->id;
       my $test = $orf_count->{$id};
+      $test->{plus} = 0 if (!defined($test->{plus}));
+      $test->{minus} = 0 if (!defined($test->{minus}));
       if ($test->{plus} >= $test->{minus}) {
           ## Then leave this contig alone.
           $write_fasta->write_seq($seq);

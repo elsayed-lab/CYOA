@@ -602,6 +602,7 @@ sub Train_Prodigal {
     my $job_name = $class->Get_Job_Name();
     my $kingdom_string = '';
     my $output_dir = qq"$options->{libdir}/hmm";
+    my $made = make_path($output_dir);
     my $output = qq"${output_dir}/$options->{species}_gc$options->{gcode}.training";
     my $comment = '## This is a script to train prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}

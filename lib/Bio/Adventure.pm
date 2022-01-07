@@ -265,6 +265,7 @@ has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has cpus => (is => 'rw', default => 4); ## Number of processors to request in jobs
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
+has debug => (is => 'rw', default => 0); ## Print debugging information.
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
@@ -404,13 +405,8 @@ $VERSION = '20151101';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
-
-if (!defined($ENV{LESSOPEN})) {
-    $ENV{LESSOPEN} = '| lesspipe %s';
-}
-if (!defined($ENV{LESS})) {
-    $ENV{LESS} = '--buffers 0';
-}
+$ENV{LESS} = '--buffers 0';
+my $lessopen = Get_Lesspipe();
 
 =over
 
@@ -555,6 +551,30 @@ sub BUILD {
     }
     $class->{methods_to_run} = Get_TODOs(%{$class->{variable_getopt_overrides}});
     return $args;
+}
+
+=head2 C<Get_Lesspipe>
+
+ Do the equivalent of $(eval lesspipe)
+
+ On my computer, lesspipe returns:
+ export LESSOPEN="| /usr/bin/lesspipe %s";
+ export LESSCLOSE="/usr/bin/lesspipe %s %s";
+ So, I want to split on = and pull the pieces.
+
+=cut
+sub Get_Lesspipe {
+    my $lesspipe = FileHandle->new("lesspipe |");
+    my $result = {};
+    while (my $line = <$lesspipe>) {
+        chomp $line;
+        my ($var, $string) = split(/=/, $line);
+        $var =~ s/export\s+//g;
+        $string =~ s/"|\;//g;
+        $ENV{$var} = $string;
+        $result->{$var} = $string;
+    }
+    return($result);
 }
 
 =head2 C<Get_Paths>

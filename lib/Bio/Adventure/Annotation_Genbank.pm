@@ -340,10 +340,13 @@ sub Merge_CDS_Predictions_Worker {
 
     ## Start gathering features from each of the annotation methods:
     ## Phanotate first.
+    print "TESTME: $options->{debug}\n";
+    print "Reading phanotate seqfeatures.\n";
     my $phanotate_features_ref = Read_Phanotate_to_SeqFeatures(input => $options->{input_phanotate});
     my @phanotate_features = @{$phanotate_features_ref};
     ## Follow that up with prokka, keep in mind that prokka provides
     ## features of multiple types, the genes, cds, source, and others.
+    print "Reading prokka seqfeatures.\n";
     my ($pfeat, $pseq, $seqids) = Read_Prokka_Gbk_to_SeqFeatures(input => $options->{input});
     my @prokka_sequences = @{$pseq};
     my @sequence_ids = @{$seqids};
