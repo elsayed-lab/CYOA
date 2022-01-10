@@ -41,13 +41,13 @@ sub Submit {
         jname => 'unknown');
     ## For arguments to bash, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
-    my $bash_log = qq"$options->{logdir}/outputs/$options->{jname}.out";
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
+    my $bash_log = 'outputs/log.txt';
 
     ## Remove the need for two functions that do the same thing except one for perl and one for bash
     if ($options->{language} eq 'perl') {
@@ -56,7 +56,7 @@ sub Submit {
 use strict;
 use FileHandle;
 use Bio::Adventure;
-my \$out = FileHandle->new(">>outputs/log.txt");
+my \$out = FileHandle->new(">>${bash_log}");
 my \$d = qx'date';
 print \$out "###Started $script_file at \${d}";
 chdir("$options->{basedir}");
@@ -104,20 +104,20 @@ $args{jstring}" if ($options->{verbose});
 
     my $script_start = qq?#!/usr/bin/env bash
 
-echo "####Started ${script_file} at \$(date)" >> outputs/log.txt
+echo "####Started ${script_file} at \$(date)" >> ${bash_log}
 ${module_string}
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
-echo "###Job status:\$?" >> outputs/log.txt
-echo "###Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "###Job status:\$?" >> ${bash_log}
+echo "###Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${bash_log}
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
 
     ## The following lines used to be in the shell script postscript
     ## Copying the full job into the log is confusing, removing this at least temporarily.
-    ##echo "####This job consisted of the following:" >> outputs/log.txt
-    ##cat "\$0" >> outputs/log.txt
+    ##echo "####This job consisted of the following:" >> ${bash_log}
+    ##cat "\$0" >> ${bash_log}
 
     $script_end .= qq!
 !;

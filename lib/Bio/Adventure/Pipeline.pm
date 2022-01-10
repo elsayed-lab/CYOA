@@ -1154,6 +1154,16 @@ sub Phage_Assemble {
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\nUsing bacphlip to classify this phage.\n";
+    my $bacphlip = $class->Bio::Adventure::Phage::Bacphlip(
+        jdepends => $last_job,
+        input => $merge->{output_fsa},
+        jprefix => $prefix,
+        jname => 'bacphlip',);
+    $last_job = $bacphlip->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nCollecting output files.\n";
     my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
         jdepends => $last_job,
@@ -1170,31 +1180,41 @@ sub Phage_Assemble {
     sleep(0.2);
 
     my $ret = {
-        trim => $trim,
-        fastqc => $fastqc,
-        correction => $correct,
-        kraken_standard => $kraken_std,
-        host_filter => $filter,
-        kraken_viral => $kraken,
-        assembly => $assemble,
-        depth_filter => $depth_filtered,
-        phastaf => $phastaf,
-        ictv => $ictv,
-        rosalindplus => $rosalindplus,
-        phageterm => $phageterm,
-        terminase_reorder => $termreorder,
-        prokka => $prokka,
-        prodigal => $prodigal,
-        glimmer => $glimmer,
-        cds_merge => $cds_merge,
-        aragorn => $aragorn,
-        jellyfish => $jelly,
-        trinotate => $trinotate,
-        abricate => $abricate,
-        interproscan => $interpro,
-        cgview => $cgview,
-        merge_qualities => $merge,
-        merge_unmodified => $merge2,
+        '01trim' => $trim,
+        '02fastqc' => $fastqc,
+        '03correction' => $correct,
+        '04kraken_standard' => $kraken_std,
+        '05host_filter' => $filter,
+        '06kraken_viral' => $kraken,
+        '07assembly' => $assemble,
+        '08depth_filter' => $depth_filtered,
+        '09phastaf' => $phastaf,
+        '10ictv' => $ictv,
+        '11rosalindplus' => $rosalindplus,
+        '12phageterm' => $phageterm,
+        '13coverage' => $coverage,
+        '14terminase_reorder' => $termreorder,
+        '15prokka' => $prokka,
+        '16prodigal' => $prodigal,
+        '17glimmer' => $glimmer,
+        '18phanotate' => $phanotate,
+        '19cds_merge' => $cds_merge,
+        '20jellyfish' => $jelly,
+        '21aragorn' => $aragorn,
+        '22trnascan' => $trnascan,
+        '23trinotate' => $trinotate,
+        '24abricate' => $abricate,
+        '25interproscan' => $interpro,
+        '26merge_qualities' => $merge,
+        '27merge_unmodified' => $merge2,
+        '28cgview' => $cgview,
+        '29rnafold' => $vienna,
+        '30research' => $re_search,
+        '31caical' => $caical,
+        '32phagepromoter' => $phagepromoter,
+        '33rhopredict' => $rhopredict,
+        '34bacphlip' => $bacphlip,
+        '35collect' => $collect,
     };
     return($ret)
 }

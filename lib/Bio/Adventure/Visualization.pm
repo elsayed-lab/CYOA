@@ -113,7 +113,7 @@ cgview -i ${xml_output} \\
         jstring => $jstring,
         modules => $options->{modules},
         output => $output_file,
-        xml_output => $xml_output,
+        output_xml => $xml_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},

@@ -66,14 +66,17 @@ sub Aragorn {
     my $aragorn_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}aragorn";
+    my $output_file = qq"${output_dir}/aragorn.txt";
+    my $stdout = qq"${output_dir}/aragorn.stdout";
+    my $stderr = qq"${output_dir}/aragorn.stderr";
     my $species_string = '';
     my $comment = '## This is a script to run aragorn.';
     my $jstring = qq!mkdir -p ${output_dir} && \\
   aragorn $options->{arbitrary} \\
-    -o ${output_dir}/aragorn.txt \\
+    -o ${output_file} \\
     $options->{input} \\
-    2>${output_dir}/aragorn.stderr \\
-    1>${output_dir}/aragorn.stdout
+    2>${stderr} \\
+    1>${stdout}
 !;
     my $aragorn = $class->Submit(
         cpus => 6,
@@ -84,10 +87,12 @@ sub Aragorn {
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},
-        output => qq"${output_dir}/aragorn.txt",
+        output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        jqueue => 'workstation',
+        stderr => $stderr,
+        stdout => $stdout);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload',);
     return($aragorn);
@@ -311,6 +316,7 @@ sub Phagepromoter {
     my $output_file = qq"${output_dir}/${job_name}_phagepromoter.tsv";
     my $input_paths = $class->Get_Paths($options->{input});
     my $comment = '## This is a script to run phagepromoter.';
+    my $output_fasta = qq"${output_dir}/output.fasta";
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 cd ${output_dir}
@@ -331,6 +337,7 @@ cd \${start}
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_file}.xz",
+        output_fasta => $output_fasta,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
@@ -547,8 +554,8 @@ sub Rho_Predict {
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
     my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_$input_paths->{dirname}";
-    my $output_file = qq"${output_dir}/predictions_coordinates_seqname.csv";
-    my $info_file = qq"${output_dir}/info_about_predictions_seqname.csv";
+    my $output_file = qq"${output_dir}/predictions_coordinates_$input_paths->{dirname}_1.csv";
+    my $info_file = qq"${output_dir}/info_about_predictions_$input_paths->{dirname}.csv";
     my $jstring = qq?mkdir -p ${output_dir}
 start=\$(pwd)
 cp $options->{input} ${output_dir}/
@@ -566,7 +573,7 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
-        output_file => $output_file,
+        output => $output_file,
         output_info => $info_file,);
     return($rhoterm);
 }
@@ -670,11 +677,14 @@ sub tRNAScan {
     my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
     my $species_string = '';
     my $comment = '## This is a script to run trnascan.';
+    my $stdout = qq"${output_dir}/trnascan.stdout";
+    my $stderr = qq"${output_dir}/trnascan.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 $options->{tool} $options->{arbitrary} \\
   -o ${output_file} \\
   $options->{input} \\
-  2>${output_dir}/trnascan.stderr 1>${output_dir}/trnascan.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
     my $trnascan = $class->Submit(
         cpus => 6,
@@ -688,7 +698,9 @@ $options->{tool} $options->{arbitrary} \\
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        jqueue => 'workstation',
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($trnascan);

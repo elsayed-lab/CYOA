@@ -172,11 +172,13 @@ sub Fastqc_Pairwise {
     ## outputs/${jprefix}fastqc/xxx_fastqc...
     my $modified_inputname = basename($r1, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
     my $final_output = qq"${outdir}/${modified_inputname}";
-
+    my $stdout = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stdout";
+    my $stderr = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stderr";
+    my $txtfile = qq"${outdir}/r1_fastqc/summary.txt";
     my $jstring = qq!mkdir -p ${outdir} && \\
   fastqc --extract -o ${outdir} <(less ${r1}) <(less ${r2}) \\
-  2>outputs/${jname}-$options->{filtered}_fastqc.out 1>&2
-
+  2>${stderr} \\
+  1>${stdout}
 ## Note that because I am using a subshell, fastqc will assume that the inputs
 ## are /dev/fd/xx (usually 63 or 64).
 ## We can likely cheat and get the subshell fd with this:
@@ -187,7 +189,6 @@ echo \${badname}
 mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_inputname}.html
 mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_inputname}.zip
 mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
-
 !;
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
@@ -201,7 +202,10 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        output => qq"$options->{jprefix}fastqc.html",);
+        output => qq"$options->{jprefix}fastqc.html",
+        txtfile => $txtfile,
+        stdout => $stdout,
+        stderr => $stderr);
     return($fqc);
 }
 

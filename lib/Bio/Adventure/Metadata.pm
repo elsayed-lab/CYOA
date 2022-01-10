@@ -389,7 +389,9 @@ sub Merge_Annotations {
         product_signalp => 'trinity_SignalP',
         suffix => '',
         jmem => 12,
-        jprefix => '15',);
+        jprefix => '15',
+        modules => ['ncbi_tools/6.1']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
 
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
     if ($options->{suffix}) {
@@ -401,7 +403,7 @@ sub Merge_Annotations {
     my $output_gbf = qq"${output_dir}/${output_name}.gbf";
     my $output_tbl = qq"${output_dir}/${output_name}.tbl";
     my $output_gbk = qq"${output_dir}/${output_name}.gbk";
-
+    my $output_log = qq"${output_dir}/${output_name}_runlog.txt";
     my $jstring = qq?
 use Bio::Adventure::Annotation;
 my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
@@ -446,6 +448,7 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         output_gbk => $output_gbk,
         output_tbl => $output_tbl,
         output_xlsx => $output_xlsx,
+        output_log => $output_log,
         primary_key => $options->{primary_key},
         keep_genes => $options->{keep_genes},
         locus_tag => $options->{locus_tag},
@@ -453,6 +456,8 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         suffix => $options->{suffix},);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($merge_job);
 }
 

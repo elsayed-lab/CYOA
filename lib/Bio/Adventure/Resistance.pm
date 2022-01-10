@@ -59,19 +59,21 @@ sub Abricate {
     my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_name}";
     my $species_string = '';
     my $comment = '## This is a script to run abricate.';
+    my $stderr = qq"${output_dir}/abricate.stderr";
+    my $output_txt = qq"${output_dir}/abricate_summary.txt";
     my $jstring = qq!mkdir -p ${output_dir}
 ## First get the list of available databases:
 dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
 for db in \${dbs}; do
   abricate $options->{input} --db \${db} --nopath --noheader \\
   --minid ${identity} --mincov ${coverage} \\
-  2>${output_dir}/abricate_\${db}.stderr \\
+  2>>${stderr} \\
   1>${output_dir}/abricate_\${db}.tsv
   cat ${output_dir}/abricate_\${db}.tsv >> ${output_dir}/abricate_combined.tsv
 done
 abricate --summary ${output_dir}/*.tsv \\
-  2>${output_dir}/abricate_summary.stderr \\
-  1>${output_dir}/abricate_summary.txt
+  2>>${stderr} \\
+  1>${output_txt}
 !;
 
     my $abricate = $class->Submit(
@@ -94,7 +96,7 @@ abricate --summary ${output_dir}/*.tsv \\
         output_ncbi => qq"${output_dir}/abricate_ncbi.tsv",
         output_plasmidfinder => qq"${output_dir}/abricate_plasmidfinder.tsv",
         output_resfinder => qq"${output_dir}/abricate_resfinder.tsv",
-        output_summary => qq"${output_dir}/abricate_summary.txt",
+        output_txt => ${output_txt},
         output_vfdb => qq"${output_dir}/abricate_vfdb.tsv",);
     return($abricate);
 }

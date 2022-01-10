@@ -38,7 +38,7 @@ sub RNAFold_Windows {
         jname => 'vienna',
         required => ['input'],
         modules => ['vienna']);
-    my $output_name = basename($options->{input}, ('.gbk'));
+    my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
     my $output_dir = qq"outputs/$options->{jprefix}rnafold";
     my $output = qq"${output_dir}/${output_name}.tsv.xz";
     my $comment = '## Iterate over a sequence with RNAfold.';

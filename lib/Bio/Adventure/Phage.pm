@@ -27,385 +27,183 @@ use File::ShareDir qw":ALL";
 use Text::CSV qw"csv";
 use WWW::Mechanize;
 
-=head2 C<Get_DTR>
+=head2 C<Bacphlip>
 
- Extract the direct-terminal-repeats from a phageterm run.
+ Predict lytic vs. lysogenic phages via gene-based ML.
 
- Given the lengths we go in order to make phageterm actually run
- successfully, it makes some sense that we should also have to work
- to get the resulting direct terminal repeats from it.  This function
- seeks to extract them.  It reads the resulting fasta file and creates
- a SeqFeature from it.
-
- This is slightly complicated by the fact that we cannot trust
- phageterm to write a single copy, two, three, or four on the ends of
- the assembly; but instead it adds a variable number depending on the
- type of DTR.  As a result, this function includes a regex-based
- search of the output assembly to find the n copies of the DTR and set
- the DTR features accordingly.
-
-=item C<Arguments>
-
- input_fsa: Fasta file of the reorganized genome produced by
-  phageterm.
- input_dtr: Smaller fasta file containing the dtr sequence.
+ Bacphlip seeks to use a set of training-generated gene and
+ COG-defined categories in order to initialize a classifier which,
+ given a single-contig assembly, searches all reading frames, looks
+ for hits associated with lytic/lysogenic phages, and defines the most
+ likely category thereof.
+ It is therefore a cousin to the question I have been posed by
+ the people at WRAIR.  Much more encouraging to my eyes, the author
+ did a beautiful job of documenting his code and methodologies.  I am
+ reasonably certain I can use this work to learn how to actually
+ perform similar tasks in other contexts; as a result, I think any
+ real ML tasks I succeed in will, by definition, require a reference
+ to this.
 
 =cut
-sub Get_DTR {
-    my ($class, %args) = @_;
-    my $input_fsa = $args{input_fsa};
-    my $input_dtr = $args{input_dtr};
-    my $log_fh = $args{log_fh};
-    my $dtr_type_file = $input_dtr;
-    $dtr_type_file =~ s/_dtr\.fasta/_nrt\.txt/g;
-    return(undef) unless (-r $args{input_fsa});
-    return(undef) unless (-r $args{input_dtr});
-    return(undef) unless (-f $dtr_type_file);
-
-    my $dtr_type_read = FileHandle->new("<${dtr_type_file}");
-    my $dtr_type = '';
-    while (my $line = <$dtr_type_read>) {
-        chomp $line;
-        $dtr_type = $line;
-    }
-    $dtr_type_read->close();
-    print $log_fh "Got DTR type: ${dtr_type}.\n";
-
-    my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
-    my $dtr_sequence = '';
-    my $dtr_length = 0;
-    my $dtr_id = '';
-  DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
-      next DTR unless(defined($dtr_seq->id));
-      $dtr_id = $dtr_seq->id;
-      $dtr_sequence = $dtr_seq->seq;
-      $dtr_length = $dtr_seq->length;
-  }
-
-    my @dtr_features = ();
-    my $fsa_read = Bio::SeqIO->new(-file => $input_fsa, -format => 'Fasta');
-  FSA: while (my $genome_seq = $fsa_read->next_seq()) {
-      my $contig_sequence = $genome_seq->seq;
-      my $contig_id = $genome_seq->id;
-    DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
-        my $dtr_end = pos($contig_sequence);
-        my $dtr_start = $dtr_end - ($dtr_length - 1);
-        my $dtr_feature = Bio::SeqFeature::Generic->new(
-            -primary => 'misc_feature',
-            -seq_id => $contig_id,
-            -source => 'PhageTerm',
-            -start => $dtr_start,
-            -end => $dtr_end,
-            -strand => +1,
-            -score => undef,
-            -frame => 0,
-            -tag => {
-                'product' => 'Direct Terminal Repeat',
-                'inference' => 'COORDINATES:profile:PhageTerm',
-                'note' => qq"DTR type: ${dtr_type}",
-            },);
-        push(@dtr_features, $dtr_feature);
-    } ## End matching on this contig
-  } ## End iterating over teh contigs
-    return(\@dtr_features);
-}
-
-=head2 C<Filter_Host_Kraken>
-
- Set the host species to the most represented by kraken, and filter.
-
- This function reads the results of a standard kraken run and pulls out
- the most represented species.  It then goes to NCBI and crawls to
- find a reference genome for that species, downloads it, and indexes
- it.  Finally, it runs hisat2 using the reads and this downloaded
- genome as a reference.  Then the unaligned reads are hopefully only
- from the phage and not the host bacterium.
-
-=item C<Arguments>
-
- input(required): The kraken report.
- input_fastq(required): The trimmed/corrected reads.
- jdepends(''): Job this depends upon.
- jmem(8): Expected memory usage.
- jprefix('06'): Job/directory prefix.
-
-=cut
-sub Filter_Host_Kraken {
+sub Bacphlip {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'input_fastq'],
-        jdepends => '',
-        jmem => 8,
-        jprefix => '06',);
-    my $comment = '## Use kraken results to choose a host species to filter against.';
-    my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
-    make_path($output_dir);
-    my $out_r1_name = 'r1_host_filtered.fastq.xz';
-    my $out_r2_name = 'r2_host_filtered.fastq.xz';
-    my $output_files = qq"${output_dir}/${out_r1_name}:${output_dir}/${out_r2_name}";
-    my $jstring = qq!
-use Bio::Adventure;
-use Bio::Adventure::Phage;
-my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
-  output => '${output_files}',
-  output_dir => '${output_dir}',
-  input => '$options->{input}',
-  input_fastq => '$options->{input_fastq}',
-  jdepends => '$options->{jdepends}',
-  jname => 'kraken_host',
-  jprefix => '$options->{jprefix}',);
-!;
-    my $host = $class->Submit(
-        input => $options->{input},
-        input_fastq => $options->{input_fastq},
-        output => $output_files,
-        output_dir => $output_dir,
+        required => ['input'],
+        jmem => 12,
+        jname => 'bacphlip',
+        jprefix => '80',
+        modules => ['bacphlip'],
+        executables => ['bacphlip'],);
+    my $loaded = $class->Module_Loader(
+        modules => $options->{modules},
+        executables => $options->{executables},);
+    my @suffixes = split(/,/, $options->{suffixes});
+    my $out_base = basename($options->{input}, @suffixes);
+    my $in_base = basename($options->{input});
+    my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
+    my $output = qq"${output_dir}/${in_base}.bacphlip";
+    my $output_hmm = qq"${output_dir}/${in_base}.hmmsearch";
+    my $output_frames = qq"${output_dir}/${in_base}.6frame";
+    my $output_tsv = qq"${output_dir}/${in_base}.hmmsearch.tsv";
+    my $stderr = qq"${output_dir}/${out_base}.stderr";
+    my $stdout = qq"${output_dir}/${out_base}.stdout";
+    my $comment = qq'## Running bacphlip using $options->{input}.';
+    my $jstring = qq?mkdir -p ${output_dir}
+cp $options->{input} ${output_dir}
+start=\$(pwd)
+cd ${output_dir}
+bacphlip -f -i ${in_base} \\
+  2>${out_base}.stderr \\
+  1>${out_base}.stdout
+cd \${start}
+?;
+    my $job = $class->Submit(
         comment => $comment,
+        output => $output,
+        output_hmm => $output_hmm,
+        output_frames => $output_frames,
+        output_tsv => $output_tsv,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
-        jname => 'hostfilter',
+        jname => $options->{jname},
         jprefix => $options->{jprefix},
-        jstring => $jstring,
-        language => 'perl',
-        shell => '/usr/bin/env perl',);
-    return($host);
+        jstring => $jstring,);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload',);
+    return($job);
 }
 
-=head2 C<Filter_Kraken_Worker>
+=head2 C<Caical>
 
- Do the work for Filter_Kraken().
+ Use caical against a reference species.
+ 10.1186/1745-6150-3-38
 
- This does the actual work for the previous function.
+ It takes a bit of hunting on their web server to find the actual
+ script they use, it is somewhere at the bottom.  Once found, with a
+ little work it can be made to run successfully.  This script does
+ just that, given an input set of ORFs and host species, it will
+ create a codon usage table of the host and run caical of the input
+ against it.
+
+ The caical perl script comes with a fair number of arguments, this
+ just blindly uses the defaults.
 
 =item C<Arguments>
 
- input(required): The kraken report file.
- output(required): The unaligned reads produced by hisat2.
- jname(krakenfilter): Job name (maybe not needed?)
- type(species): Which element from the kraken report to extract?
+ input(required): Input set of CDS sequences.
+ species(required): Reference species to query.
+ jmem(4): Expected memory.
+ jprefix(80): Jobname/directory prefix.
+ modules(caical): Environment module to load.
 
 =cut
-sub Filter_Kraken_Worker {
+sub Caical {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'output'],
-        jname => 'krakenfilter',
-        type => 'species',);
+        required => ['input', 'species'],
+        jmem => 4,
+        jprefix => '80',
+        modules => ['caical']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('caical');
+    die('Could not find caical in your PATH.') unless($check);
 
-    my $separator;
-    if ($options->{type} eq 'domain') {
-        $separator = 'd__';
-    } elsif ($options->{type} eq 'phylum') {
-        $separator = 'p__';
-    } elsif ($options->{type} eq 'class') {
-        $separator = 'c__';
-    } elsif ($options->{type} eq 'order') {
-        $separator = 'o__';
-    } elsif ($options->{type} eq 'family') {
-        $separator = 'f__';
-    } elsif ($options->{type} eq 'genus') {
-        $separator = 'g__';
-    } elsif ($options->{type} eq 'species') {
-        $separator = 's__';
-    } else {
-        $separator = 's__';
-    }
-
-    my $output_dir = $options->{output_dir};
-    my $out = FileHandle->new(">${output_dir}/kraken_filter.log");
-    my $in = FileHandle->new("<$options->{input}");
-    print $out "Starting search for best kraken host strain.\n";
-    print $out "Reading kraken report: $options->{input}.\n";
-    my %species_observed = ();
-    my $most_species = '';
-    my $most_observations = 0;
-    my $line_count = 0;
-    while (my $line = <$in>) {
-        chomp $line;
-        next unless ($line =~ m/$separator/);
-        $line_count++;
-        my ($entry, $number) = split(/\t/, $line);
-        my ($stuff, $species) = split(/$separator/, $entry);
-        $species_observed{$species} = $number;
-        if ($number > $most_observations) {
-            $most_species = $species;
-            $most_observations = $number
-        }
-    }
-    foreach my $s (keys %species_observed) {
-        print $out "$options->{type} ${s} was observed $species_observed{$s} times.\n";
-    }
-    print $out "\n";
-    $species_observed{most} = {
-        species => $most_species,
-        observations => $most_observations, };
-    print $out "The most observed species was: ${most_species}.\n";
-    my $escaped_species = $most_species;
-    $escaped_species =~ s/\s/\+/g;
-
-    my $host_species;
-    if (-f 'host_species.txt') {
-        my $host_file = FileHandle->new("<host_species.txt");
-        while (my $line = <$host_file>) {
+    my $species = $options->{species};
+    ## Then the species argument is a filename, so pull the species from it.
+    if (-r $species) {
+        my $in = FileHandle->new("<$species");
+        while (my $line = <$in>) {
             chomp $line;
-            $host_species = $line;
+            $species = $line;
         }
-        $host_file->close();
-        print $out "The host_species.txt file already exists and suggests using ${host_species}.\n";
+        $in->close();
     }
 
-    if (!defined($host_species)) {
-        my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
-        my $mech = WWW::Mechanize->new(autocheck => 1);
-        print $out "Searching ${search_url} for appropriate download links.\n";
-        my $search_data = $mech->get($search_url);
-        my @search_links = $mech->find_all_links(
-            tag => 'a', text_regex => qr/ASM/i);
-        my $first_hit = $search_links[0];
-        my ($assembly_link, $assembly_title) = @{$first_hit};
-        my $accession = basename($assembly_link);
-        my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
-        if (-r $downloaded_file) {
-            print $out "The file: ${downloaded_file} already exists.\n";
-        } else {
-            my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
-            print $out "Searching ${assembly_url} for appropriate download links.\n";
-            my $assembly_data = $mech->get($assembly_url);
-            my @download_links = $mech->find_all_links(
-                tag => 'a', text_regex => qr/FTP/i);
-          LINKS: foreach my $l (@download_links) {
-              my ($download_url, $download_title) = @{$l};
-              if ($download_title eq 'FTP directory for GenBank assembly') {
-                  my $ftp_followed = $mech->follow_link(url => $download_url);
-                  my @download_links = $mech->find_all_links(
-                      tag => 'a', text_regex => qr/gbff.gz$/i);
-                  print $out "Final download link: $download_links[0][0].\n";
-                  my $download_followed = $mech->follow_link(url => $download_links[0][0]);
-                  my $output = FileHandle->new(">${downloaded_file}");
-                  my $printed = $mech->response->content();
-                  print $output $printed;
-                  $output->close();
-                  last LINKS;
-              }
-          } ## End looking at links hopefully containing an assembly.
-        } ## End of when the download file does not exist.
-
-        print $out "Writing a new host_species.txt file with: ${accession}.\n";
-        my $host = FileHandle->new(">host_species.txt");
-        print $host qq"${accession}\n";
-        $host->close();
-        $host_species = $accession;
-
-        ## Convert the assembly to fasta/gff/etc.
-        print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
-        my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
-    } ## End checking if the host_species was defined.
-
-    my $cyoa_shell = Bio::Adventure->new(cluster => 0);
-    my $index_input = qq"$options->{libdir}/$options->{libtype}/${host_species}.fasta";
-    my $index_location = qq"$options->{libdir}/$options->{libtype}/indexes/${host_species}.1.ht2";
-    if (! -f $index_location) {
-        my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $index_input);
-        ## Check to see if there is a text file containing the putative host species
-        ## If it does not exist, write it with the species name.
+    my $index = qq"$options->{libdir}/codon_tables/${species}.txt";
+    if (!-r $index) {
+        my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
+            species => $species);
     }
-    ## Now perform the filter using our temp_cyoa.
-    my $jprefix = $options->{jprefix} + 1;
-    print $out "Filtering out reads which map to ${host_species}.\n";
-    my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
-        input => $options->{input_fastq},
-        jprefix => $jprefix,
-        do_htseq => 0,
-        species => $host_species,);
-    my $filtered_reads = $filter->{unaligned_comp};
-    my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
-    $in_r1 = File::Spec->rel2abs($in_r1);
-    $in_r2 = File::Spec->rel2abs($in_r2);
-    my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
-    print $out "Symlinking final output files to $options->{output_dir}\n";
-    if (! -f $out_r1) {
-        my $s1 = symlink($in_r1, $out_r1);
-    }
-    if (! -f $out_r2) {
-        my $s2 = symlink($in_r2, $out_r2);
-    }
-    return(%species_observed);
+    my $test = ref($options->{suffixes});
+    my @suffixes = split(/,/, $options->{suffixes});
+    my $out_base = basename($options->{input}, @suffixes);
+    my $jname = qq"caical_${out_base}_vs_${species}";
+    my $output_dir = qq"outputs/$options->{jprefix}${jname}";
+    make_path($output_dir);
+
+    my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
+    my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
+    my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
+    my $stderr = qq"${output_dir}/${out_base}.stderr";
+    my $stdout = qq"${output_dir}/${out_base}.stdout";
+    my $comment = qq'## Running caical against ${species}.';
+    my $jstring = qq?mkdir -p ${output_dir}
+caical -g 11 \\
+  -f $options->{input} \\
+  -h ${index} \\
+  -o1 ${output_cai} \\
+  -o2 ${random_sequences} \\
+  -o3 ${expected_cai} \\
+  2>${stderr} 1>${stdout}
+?;
+    my $job = $class->Submit(
+        comment => $comment,
+        output => $output_cai,
+        output_random => $random_sequences,
+        output_expected => $expected_cai,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload',);
+    return($job);
 }
 
-=head2 C<Download_NCBI_Assembly_UID>
-
- Perform a web crawl to download a reference genome from NCBI.
-
- In theory, the various entrez modules should make downloading
- genomes/etc from NCBI relatively easy.  In practice, they are a right
- pain in the arse.  I fought for hours with them to download reference
- genomes and only ever got it working about 1 time in 4.  So, I
- decided to say 'screw it' and write a simple web crawler to do it
- instead.
-
-=item C<Arguments>
-
- uid: a UID to download.
-
-=cut
-sub Download_NCBI_Assembly_UID {
-    my %args = @_;
-    my $out_fh = $args{out};
-
-    ## If this assembly has not already been downloaded, get it.
-    my $mech = WWW::Mechanize->new(autocheck => 1);
-    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly?LinkName=genome_assembly&from_uid=$args{uid}";
-    my $data = $mech->get($url);
-    my @links = $mech->find_all_links(
-        tag => 'a', text_regex => qr/ASM/i);
-  FIRST: for my $k (@links) {
-      my ($url2, $title2) = @{$k};
-  }
-    my $first = $links[0];
-    my $title = '';
-    ($url, $title) = @{$first};
-    my $accession = basename($url);
-    return($accession);
-}
-
-=head2 C<Download_NCBI_Assembly_Accession>
-
- Perform a web crawl to download a reference genome from NCBI.  This
- is similar in idea to the download_uid function above, but the logic
- is slightly different to get an accession.
-
-=cut
-sub Download_NCBI_Assembly_Accession {
-    my %args = @_;
-    my $out_fh = $args{out};
-    my $accession = $args{accession};
-    ## If this assembly has not already been downloaded, get it.
-    my $mech = WWW::Mechanize->new(autocheck => 1);
-    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
-    print $out_fh "Searching ${url} for appropriate download links.\n";
-
-    my $data = $mech->get($url);
-    my @links = $mech->find_all_links(
-        tag => 'a', text_regex => qr/FTP/i);
-    my $title;
-  LINKS: foreach my $l (@links) {
-      ($url, $title) = @{$l};
-      if ($title eq 'FTP directory for GenBank assembly') {
-          my $followed = $mech->follow_link(url => $url);
-          my @final = $mech->find_all_links(
-              tag => 'a', text_regex => qr/gbff.gz$/i);
-          print $out_fh "Final download link: $final[0][0].\n";
-          my $final_followed = $mech->follow_link(url => $final[0][0]);
-          my $output = FileHandle->new(">$args{file}");
-          my $printed = $mech->response->content();
-          print $output $printed;
-          $output->close();
-          last LINKS;
+## We may need to rewrite the input fasta file because caical
+## cries if a sequence is not %3 == 0.  If so, use this.
+sub Caical_CDS {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jmem => 4,
+        jprefix => '80',
+        modules => ['caical']);
+    my $seqio_in = Bio::SeqIO->new(-format => 'fasta', -file => $options->{input});
+    my $output_dir = qq"";
+    my $out_base = '';
+    my $cai_fasta = qq">${output_dir}/${out_base}_input.fasta";
+    my $seqio_out = Bio::SeqIO->new(-format => 'fasta', -file => $cai_fasta);
+  SEQS: while (my $seq = $seqio_in->next_seq) {
+      my $len = $seq->length;
+      if (($len % 3) == 0) {
+          $seqio_out->write($seq);
       }
-  } ## End looking at links hopefully containing an assembly.
-    return($title);
+  }
 }
 
 =head2 C<Classify_Phage>
@@ -442,7 +240,6 @@ sub Classify_Phage {
         jmem => 12,
         jprefix => '18',
         modules => ['blastdb', 'blast'],);
-
 
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}classify_${input_dir}";
@@ -680,116 +477,386 @@ Writing filtered results to $options->{output}.
     return($result_data);
 }
 
-=head2 C<Caical>
+=head2 C<Download_NCBI_Assembly_UID>
 
- Use caical against a reference species.
- 10.1186/1745-6150-3-38
+ Perform a web crawl to download a reference genome from NCBI.
 
- It takes a bit of hunting on their web server to find the actual
- script they use, it is somewhere at the bottom.  Once found, with a
- little work it can be made to run successfully.  This script does
- just that, given an input set of ORFs and host species, it will
- create a codon usage table of the host and run caical of the input
- against it.
-
- The caical perl script comes with a fair number of arguments, this
- just blindly uses the defaults.
+ In theory, the various entrez modules should make downloading
+ genomes/etc from NCBI relatively easy.  In practice, they are a right
+ pain in the arse.  I fought for hours with them to download reference
+ genomes and only ever got it working about 1 time in 4.  So, I
+ decided to say 'screw it' and write a simple web crawler to do it
+ instead.
 
 =item C<Arguments>
 
- input(required): Input set of CDS sequences.
- species(required): Reference species to query.
- jmem(4): Expected memory.
- jprefix(80): Jobname/directory prefix.
- modules(caical): Environment module to load.
+ uid: a UID to download.
 
 =cut
-sub Caical {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input', 'species'],
-        jmem => 4,
-        jprefix => '80',
-        modules => ['caical']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('caical');
-    die('Could not find caical in your PATH.') unless($check);
+sub Download_NCBI_Assembly_UID {
+    my %args = @_;
+    my $out_fh = $args{out};
 
-    my $species = $options->{species};
-    ## Then the species argument is a filename, so pull the species from it.
-    if (-r $species) {
-        my $in = FileHandle->new("<$species");
-        while (my $line = <$in>) {
-            chomp $line;
-            $species = $line;
-        }
-        $in->close();
-    }
-
-    my $index = qq"$options->{libdir}/codon_tables/${species}.txt";
-    if (!-r $index) {
-        my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
-            species => $species);
-    }
-    my $test = ref($options->{suffixes});
-    my @suffixes = split(/,/, $options->{suffixes});
-    my $out_base = basename($options->{input}, @suffixes);
-    my $jname = qq"caical_${out_base}_vs_${species}";
-    my $output_dir = qq"outputs/$options->{jprefix}${jname}";
-    make_path($output_dir);
-
-    my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
-    my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
-    my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
-    my $stderr = qq"${output_dir}/${out_base}.stderr";
-    my $stdout = qq"${output_dir}/${out_base}.stdout";
-    my $comment = qq'## Running caical against ${species}.';
-    my $jstring = qq?mkdir -p ${output_dir}
-caical -g 11 \\
-  -f $options->{input} \\
-  -h ${index} \\
-  -o1 ${output_cai} \\
-  -o2 ${random_sequences} \\
-  -o3 ${expected_cai} \\
-  2>${stderr} 1>${stdout}
-?;
-    my $job = $class->Submit(
-        comment => $comment,
-        output => $output_cai,
-        output_random => $random_sequences,
-        output_expected => $expected_cai,
-        jdepends => $options->{jdepends},
-        jmem => $options->{jmem},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
-    return($job);
+    ## If this assembly has not already been downloaded, get it.
+    my $mech = WWW::Mechanize->new(autocheck => 1);
+    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly?LinkName=genome_assembly&from_uid=$args{uid}";
+    my $data = $mech->get($url);
+    my @links = $mech->find_all_links(
+        tag => 'a', text_regex => qr/ASM/i);
+  FIRST: for my $k (@links) {
+      my ($url2, $title2) = @{$k};
+  }
+    my $first = $links[0];
+    my $title = '';
+    ($url, $title) = @{$first};
+    my $accession = basename($url);
+    return($accession);
 }
 
-## We may need to rewrite the input fasta file because caical
-## cries if a sequence is not %3 == 0.  If so, use this.
-sub Caical_CDS {
+=head2 C<Download_NCBI_Assembly_Accession>
+
+ Perform a web crawl to download a reference genome from NCBI.  This
+ is similar in idea to the download_uid function above, but the logic
+ is slightly different to get an accession.
+
+=cut
+sub Download_NCBI_Assembly_Accession {
+    my %args = @_;
+    my $out_fh = $args{out};
+    my $accession = $args{accession};
+    ## If this assembly has not already been downloaded, get it.
+    my $mech = WWW::Mechanize->new(autocheck => 1);
+    my $url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
+    print $out_fh "Searching ${url} for appropriate download links.\n";
+
+    my $data = $mech->get($url);
+    my @links = $mech->find_all_links(
+        tag => 'a', text_regex => qr/FTP/i);
+    my $title;
+  LINKS: foreach my $l (@links) {
+      ($url, $title) = @{$l};
+      if ($title eq 'FTP directory for GenBank assembly') {
+          my $followed = $mech->follow_link(url => $url);
+          my @final = $mech->find_all_links(
+              tag => 'a', text_regex => qr/gbff.gz$/i);
+          print $out_fh "Final download link: $final[0][0].\n";
+          my $final_followed = $mech->follow_link(url => $final[0][0]);
+          my $output = FileHandle->new(">$args{file}");
+          my $printed = $mech->response->content();
+          print $output $printed;
+          $output->close();
+          last LINKS;
+      }
+  } ## End looking at links hopefully containing an assembly.
+    return($title);
+}
+
+=head2 C<Filter_Host_Kraken>
+
+ Set the host species to the most represented by kraken, and filter.
+
+ This function reads the results of a standard kraken run and pulls out
+ the most represented species.  It then goes to NCBI and crawls to
+ find a reference genome for that species, downloads it, and indexes
+ it.  Finally, it runs hisat2 using the reads and this downloaded
+ genome as a reference.  Then the unaligned reads are hopefully only
+ from the phage and not the host bacterium.
+
+=item C<Arguments>
+
+ input(required): The kraken report.
+ input_fastq(required): The trimmed/corrected reads.
+ jdepends(''): Job this depends upon.
+ jmem(8): Expected memory usage.
+ jprefix('06'): Job/directory prefix.
+
+=cut
+sub Filter_Host_Kraken {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
-        jmem => 4,
-        jprefix => '80',
-        modules => ['caical']);
-    my $seqio_in = Bio::SeqIO->new(-format => 'fasta', -file => $options->{input});
-    my $output_dir = qq"";
-    my $out_base = '';
-    my $cai_fasta = qq">${output_dir}/${out_base}_input.fasta";
-    my $seqio_out = Bio::SeqIO->new(-format => 'fasta', -file => $cai_fasta);
-  SEQS: while (my $seq = $seqio_in->next_seq) {
-      my $len = $seq->length;
-      if (($len % 3) == 0) {
-          $seqio_out->write($seq);
-      }
+        required => ['input', 'input_fastq'],
+        jdepends => '',
+        jmem => 8,
+        jprefix => '06',);
+    my $comment = '## Use kraken results to choose a host species to filter against.';
+    my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
+    make_path($output_dir);
+    my $out_r1_name = 'r1_host_filtered.fastq.xz';
+    my $out_r2_name = 'r2_host_filtered.fastq.xz';
+    my $output_files = qq"${output_dir}/${out_r1_name}:${output_dir}/${out_r2_name}";
+    my $log = qq"${output_dir}/kraken_filter.log";
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
+  output => '${output_files}',
+  output_dir => '${output_dir}',
+  input => '$options->{input}',
+  input_fastq => '$options->{input_fastq}',
+  jdepends => '$options->{jdepends}',
+  jname => 'kraken_host',
+  jprefix => '$options->{jprefix}',);
+!;
+    my $host = $class->Submit(
+        input => $options->{input},
+        input_fastq => $options->{input_fastq},
+        output => $output_files,
+        output_dir => $output_dir,
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => 'hostfilter',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        log => $log,
+        shell => '/usr/bin/env perl',);
+    return($host);
+}
+
+=head2 C<Filter_Kraken_Worker>
+
+ Do the work for Filter_Kraken().
+
+ This does the actual work for the previous function.
+
+=item C<Arguments>
+
+ input(required): The kraken report file.
+ output(required): The unaligned reads produced by hisat2.
+ jname(krakenfilter): Job name (maybe not needed?)
+ type(species): Which element from the kraken report to extract?
+
+=cut
+sub Filter_Kraken_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'output'],
+        jname => 'krakenfilter',
+        type => 'species',);
+    my $separator;
+    if ($options->{type} eq 'domain') {
+        $separator = 'd__';
+    } elsif ($options->{type} eq 'phylum') {
+        $separator = 'p__';
+    } elsif ($options->{type} eq 'class') {
+        $separator = 'c__';
+    } elsif ($options->{type} eq 'order') {
+        $separator = 'o__';
+    } elsif ($options->{type} eq 'family') {
+        $separator = 'f__';
+    } elsif ($options->{type} eq 'genus') {
+        $separator = 'g__';
+    } elsif ($options->{type} eq 'species') {
+        $separator = 's__';
+    } else {
+        $separator = 's__';
+    }
+
+    my $output_dir = $options->{output_dir};
+    my $out = FileHandle->new(">${output_dir}/kraken_filter.log");
+    my $in = FileHandle->new("<$options->{input}");
+    print $out "Starting search for best kraken host strain.\n";
+    print $out "Reading kraken report: $options->{input}.\n";
+    my %species_observed = ();
+    my $most_species = '';
+    my $most_observations = 0;
+    my $line_count = 0;
+    while (my $line = <$in>) {
+        chomp $line;
+        next unless ($line =~ m/$separator/);
+        $line_count++;
+        my ($entry, $number) = split(/\t/, $line);
+        my ($stuff, $species) = split(/$separator/, $entry);
+        $species_observed{$species} = $number;
+        if ($number > $most_observations) {
+            $most_species = $species;
+            $most_observations = $number
+        }
+    }
+    foreach my $s (keys %species_observed) {
+        print $out "$options->{type} ${s} was observed $species_observed{$s} times.\n";
+    }
+    print $out "\n";
+    $species_observed{most} = {
+        species => $most_species,
+        observations => $most_observations, };
+    print $out "The most observed species was: ${most_species}.\n";
+    my $escaped_species = $most_species;
+    $escaped_species =~ s/\s/\+/g;
+
+    my $host_species;
+    if (-f 'host_species.txt') {
+        my $host_file = FileHandle->new("<host_species.txt");
+        while (my $line = <$host_file>) {
+            chomp $line;
+            $host_species = $line;
+        }
+        $host_file->close();
+        print $out "The host_species.txt file already exists and suggests using ${host_species}.\n";
+    }
+
+    if (!defined($host_species)) {
+        my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
+        my $mech = WWW::Mechanize->new(autocheck => 1);
+        print $out "Searching ${search_url} for appropriate download links.\n";
+        my $search_data = $mech->get($search_url);
+        my @search_links = $mech->find_all_links(
+            tag => 'a', text_regex => qr/ASM/i);
+        my $first_hit = $search_links[0];
+        my ($assembly_link, $assembly_title) = @{$first_hit};
+        my $accession = basename($assembly_link);
+        my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
+        if (-r $downloaded_file) {
+            print $out "The file: ${downloaded_file} already exists.\n";
+        } else {
+            my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
+            print $out "Searching ${assembly_url} for appropriate download links.\n";
+            my $assembly_data = $mech->get($assembly_url);
+            my @download_links = $mech->find_all_links(
+                tag => 'a', text_regex => qr/FTP/i);
+          LINKS: foreach my $l (@download_links) {
+              my ($download_url, $download_title) = @{$l};
+              if ($download_title eq 'FTP directory for GenBank assembly') {
+                  my $ftp_followed = $mech->follow_link(url => $download_url);
+                  my @download_links = $mech->find_all_links(
+                      tag => 'a', text_regex => qr/gbff.gz$/i);
+                  print $out "Final download link: $download_links[0][0].\n";
+                  my $download_followed = $mech->follow_link(url => $download_links[0][0]);
+                  my $output = FileHandle->new(">${downloaded_file}");
+                  my $printed = $mech->response->content();
+                  print $output $printed;
+                  $output->close();
+                  last LINKS;
+              }
+          } ## End looking at links hopefully containing an assembly.
+        } ## End of when the download file does not exist.
+
+        print $out "Writing a new host_species.txt file with: ${accession}.\n";
+        my $host = FileHandle->new(">host_species.txt");
+        print $host qq"${accession}\n";
+        $host->close();
+        $host_species = $accession;
+
+        ## Convert the assembly to fasta/gff/etc.
+        print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
+        my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
+    } ## End checking if the host_species was defined.
+
+    my $cyoa_shell = Bio::Adventure->new(cluster => 0);
+    my $index_input = qq"$options->{libdir}/$options->{libtype}/${host_species}.fasta";
+    my $index_location = qq"$options->{libdir}/$options->{libtype}/indexes/${host_species}.1.ht2";
+    if (! -f $index_location) {
+        my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $index_input);
+        ## Check to see if there is a text file containing the putative host species
+        ## If it does not exist, write it with the species name.
+    }
+    ## Now perform the filter using our temp_cyoa.
+    my $jprefix = $options->{jprefix} + 1;
+    print $out "Filtering out reads which map to ${host_species}.\n";
+    my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
+        input => $options->{input_fastq},
+        jprefix => $jprefix,
+        do_htseq => 0,
+        species => $host_species,);
+    my $filtered_reads = $filter->{unaligned_comp};
+    my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
+    $in_r1 = File::Spec->rel2abs($in_r1);
+    $in_r2 = File::Spec->rel2abs($in_r2);
+    my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
+    print $out "Symlinking final output files to $options->{output_dir}\n";
+    if (! -f $out_r1) {
+        my $s1 = symlink($in_r1, $out_r1);
+    }
+    if (! -f $out_r2) {
+        my $s2 = symlink($in_r2, $out_r2);
+    }
+    return(%species_observed);
+}
+
+=head2 C<Get_DTR>
+
+ Extract the direct-terminal-repeats from a phageterm run.
+
+ Given the lengths we go in order to make phageterm actually run
+ successfully, it makes some sense that we should also have to work
+ to get the resulting direct terminal repeats from it.  This function
+ seeks to extract them.  It reads the resulting fasta file and creates
+ a SeqFeature from it.
+
+ This is slightly complicated by the fact that we cannot trust
+ phageterm to write a single copy, two, three, or four on the ends of
+ the assembly; but instead it adds a variable number depending on the
+ type of DTR.  As a result, this function includes a regex-based
+ search of the output assembly to find the n copies of the DTR and set
+ the DTR features accordingly.
+
+=item C<Arguments>
+
+ input_fsa: Fasta file of the reorganized genome produced by
+  phageterm.
+ input_dtr: Smaller fasta file containing the dtr sequence.
+
+=cut
+sub Get_DTR {
+    my ($class, %args) = @_;
+    my $input_fsa = $args{input_fsa};
+    my $input_dtr = $args{input_dtr};
+    my $log_fh = $args{log_fh};
+    my $dtr_type_file = $input_dtr;
+    $dtr_type_file =~ s/_dtr\.fasta/_nrt\.txt/g;
+    return(undef) unless (-r $args{input_fsa});
+    return(undef) unless (-r $args{input_dtr});
+    return(undef) unless (-f $dtr_type_file);
+
+    my $dtr_type_read = FileHandle->new("<${dtr_type_file}");
+    my $dtr_type = '';
+    while (my $line = <$dtr_type_read>) {
+        chomp $line;
+        $dtr_type = $line;
+    }
+    $dtr_type_read->close();
+    print $log_fh "Got DTR type: ${dtr_type}.\n";
+
+    my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
+    my $dtr_sequence = '';
+    my $dtr_length = 0;
+    my $dtr_id = '';
+  DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
+      next DTR unless(defined($dtr_seq->id));
+      $dtr_id = $dtr_seq->id;
+      $dtr_sequence = $dtr_seq->seq;
+      $dtr_length = $dtr_seq->length;
   }
+
+    my @dtr_features = ();
+    my $fsa_read = Bio::SeqIO->new(-file => $input_fsa, -format => 'Fasta');
+  FSA: while (my $genome_seq = $fsa_read->next_seq()) {
+      my $contig_sequence = $genome_seq->seq;
+      my $contig_id = $genome_seq->id;
+    DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
+        my $dtr_end = pos($contig_sequence);
+        my $dtr_start = $dtr_end - ($dtr_length - 1);
+        my $dtr_feature = Bio::SeqFeature::Generic->new(
+            -primary => 'misc_feature',
+            -seq_id => $contig_id,
+            -source => 'PhageTerm',
+            -start => $dtr_start,
+            -end => $dtr_end,
+            -strand => +1,
+            -score => undef,
+            -frame => 0,
+            -tag => {
+                'product' => 'Direct Terminal Repeat',
+                'inference' => 'COORDINATES:profile:PhageTerm',
+                'note' => qq"DTR type: ${dtr_type}",
+            },);
+        push(@dtr_features, $dtr_feature);
+    } ## End matching on this contig
+  } ## End iterating over teh contigs
+    return(\@dtr_features);
 }
 
 =head2 C<Make_Codon_Table>
@@ -1171,6 +1238,7 @@ sub Phastaf {
         my $removed = rmtree($output_dir);
     }
     my $comment = '## This is a script to run phastaf.';
+    my $coords = qq"${output_dir}/diamond.coords";
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
@@ -1182,6 +1250,7 @@ phastaf --force --outdir ${output_dir} \\
     my $output_file = qq"${output_dir}/something.txt";
     my $phastaf = $class->Submit(
         cpus => $options->{cpus},
+        coordinates => $coords,
         output => $output_file,
         comment => $comment,
         jdepends => $options->{jdepends},
@@ -1387,6 +1456,7 @@ sub Terminase_ORF_Reorder {
     my $comment = qq"## This should use the predicted prodigal ORFs to search against a
 ## local terminase sequence database.  Then for each contig, move the best
 ## terminase hit to the front of the sequence.\n";
+    my $output_tsv = qq"${output_dir}/$options->{library}_summary.tsv";
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
@@ -1411,6 +1481,7 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         query => $prodigal_cds,
         output => $final_output,
         output_dir => $output_dir,
+        output_tsv => $output_tsv,
         test_file => $options->{test_file},
         shell => '/usr/bin/env perl',
         language => 'perl',

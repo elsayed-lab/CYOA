@@ -150,9 +150,7 @@ sub Assembly_Coverage {
         jprefix => 14,
         modules => ['hisat', 'bbmap'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-
     my $job_name = $class->Get_Job_Name();
-
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}assembly_coverage_${outname}";
     my $input_string = '';
@@ -168,30 +166,38 @@ sub Assembly_Coverage {
     my $comment = qq!## This is a script to remap the reads against an assembly
 ## and calculate the coverage by contig.
 !;
+    my $stdout = qq"${output_dir}/coverage.stdout";
+    my $stderr = qq"${output_dir}/coverage.stderr";
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 hisat2-build $options->{library} ${output_dir}/coverage_test \\
-  2>${output_dir}/coverage_hisat_index.stderr 1>${output_dir}/coverage_hisat_index.stdout
+  2>${stderr} \\
+  1>${stdout}
 hisat2 -x ${output_dir}/coverage_test -q \\
   ${input_string} -S ${output_dir}/coverage.sam \\
-  2>${output_dir}/coverage_hisat.stderr 1>${output_dir}/coverage_hisat.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 pileup.sh in=${output_dir}/coverage.sam \\
   out=${output_dir}/coverage.tsv \\
   basecov=${output_dir}/base_coverage.tsv \\
   covwindow=100 \\
   k=19 \\
   overwrite=true \\
-  2>${output_dir}/pileup.stderr 1>${output_dir}/pileup.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 samtools view -u -t $options->{library} \\
   -S ${output_dir}/coverage.sam -o ${output_dir}/coverage.bam \\
-  2>${output_dir}/coverage_samtools.stderr 1>${output_dir}/coverage_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 rm ${output_dir}/coverage.sam
 samtools sort -l 9 ${output_dir}/coverage.bam \\
   -o ${output_dir}/coverage_sorted.bam \\
-  2>>${output_dir}/coverage_samtools.stderr 1>>${output_dir}/coverage_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 mv ${output_dir}/coverage_sorted.bam ${output_dir}/coverage.bam
 samtools index ${output_dir}/coverage.bam \\
-  2>>${output_dir}/coverage_samtools.stderr 1>>${output_dir}/coverage_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 !;
     my $coverage = $class->Submit(
         cpus => 6,
@@ -206,8 +212,11 @@ samtools index ${output_dir}/coverage.bam \\
         modules => $options->{modules},
         output => qq"${output_dir}/coverage.txt",
         output_bam => qq"${output_dir}/coverage.bam",
+        output_tsv => qq"${output_dir}/coverage.tsv",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},);
+        postscript => $options->{postscript},
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($coverage);
@@ -276,6 +285,71 @@ cp $options->{input_tsv} ${output_dir}
         jmem => $options->{jmem},
         output => $output_dir,);
     return($collect);
+}
+
+=head2 C<Unicycler_Filter_Depth>
+
+ Parse unicycler contig headers, extract relative coverage, and filter.
+
+ Filter (for the moment only) a unicycler assembly by the ratio of the
+ highest depth observed vs. the depth of each contig.  If that ratio
+ falls below options->{coverage} then that contig should be dropped.
+ The remaining contigs should be depth normalized to <=1. If there is
+ only 1 contig, just return it with depth set to 1.  This should be
+ trivially improved to handle other assembly methods by using the
+ coverage calculation script above.
+
+=item C<Arguments>
+
+ input(required): Fasta assembly from unicycler to test.
+ output(''): Set of filtered contigs.
+ coverage(0.2): Minimal relative coverage ratio allowed.
+ output_log(''): Location to write the log of the tasks performed.
+
+=item C<Invocation>
+
+> cyoa --task ass --method unicyclerfil --input unicycler.fasta
+
+=cut
+sub Unicycler_Filter_Depth {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        coverage => 0.2,  ## The ratio of each sequence's coverage / the maximum coverage observed.
+        jmem => 4,
+        jprefix => '13',
+        output => 'final_assembly.fasta',);
+    my $job_name = $class->Get_Job_Name();
+    my $outname = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
+    my $output_log = qq"${output_dir}/filter_depth.log";
+    my $output = qq"${output_dir}/$options->{output}";
+    my $comment = '## This is a submission script for a depth filter.';
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Assembly;
+my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
+  coverage => '$options->{coverage}',
+  input => '$options->{input}',
+  output => '${output}',
+  output_log => '${output_log}',);
+!;
+    my $depth_filtered = $class->Submit(
+        jdepends => $options->{jdepends},
+        comment => $comment,
+        jmem => $options->{jmem},
+        jname => qq"filter_depth_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        language => 'perl',
+        output => $output,
+        output_log => $output_log,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        shell => '/usr/bin/env perl',);
+    return($depth_filtered);
 }
 
 =head2 C<Unicycler_Filter_Worker>
@@ -369,71 +443,6 @@ Writing filtered contigs to $options->{output}
     $log->close();
     $output_contigs->close();
     return($final_coverage_data);
-}
-
-=head2 C<Unicycler_Filter_Depth>
-
- Parse unicycler contig headers, extract relative coverage, and filter.
-
- Filter (for the moment only) a unicycler assembly by the ratio of the
- highest depth observed vs. the depth of each contig.  If that ratio
- falls below options->{coverage} then that contig should be dropped.
- The remaining contigs should be depth normalized to <=1. If there is
- only 1 contig, just return it with depth set to 1.  This should be
- trivially improved to handle other assembly methods by using the
- coverage calculation script above.
-
-=item C<Arguments>
-
- input(required): Fasta assembly from unicycler to test.
- output(''): Set of filtered contigs.
- coverage(0.2): Minimal relative coverage ratio allowed.
- output_log(''): Location to write the log of the tasks performed.
-
-=item C<Invocation>
-
-> cyoa --task ass --method unicyclerfil --input unicycler.fasta
-
-=cut
-sub Unicycler_Filter_Depth {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        coverage => 0.2,  ## The ratio of each sequence's coverage / the maximum coverage observed.
-        jmem => 4,
-        jprefix => '13',
-        output => 'final_assembly.fasta',);
-    my $job_name = $class->Get_Job_Name();
-    my $outname = basename(cwd());
-    my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
-    my $output_log = qq"${output_dir}/filter_depth.log";
-    my $output = qq"${output_dir}/$options->{output}";
-    my $comment = '## This is a submission script for a depth filter.';
-    my $jstring = qq!
-use Bio::Adventure;
-use Bio::Adventure::Assembly;
-my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
-  coverage => '$options->{coverage}',
-  input => '$options->{input}',
-  output => '${output}',
-  output_log => '${output_log}',);
-!;
-    my $depth_filtered = $class->Submit(
-        jdepends => $options->{jdepends},
-        comment => $comment,
-        jmem => $options->{jmem},
-        jname => qq"filter_depth_${job_name}",
-        jprefix => $options->{jprefix},
-        jqueue => 'workstation',
-        jstring => $jstring,
-        language => 'perl',
-        output => $output,
-        output_log => $output_log,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        shell => '/usr/bin/env perl',);
-    return($depth_filtered);
 }
 
 =head2 C<Shovill>
@@ -755,6 +764,8 @@ less $in[1] | gzip > ${output_dir}/r2.fastq.gz
 ";
     }
     my $comment = '## This is a unicycler submission script.';
+    my $stdout = qq"${output_dir}/unicycler_${outname}.stdout";
+    my $stderr = qq"${output_dir}/unicycler_${outname}.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ${ln_string}
 unicycler $options->{arbitrary} \\
@@ -762,8 +773,8 @@ unicycler $options->{arbitrary} \\
   --min_fasta_length $options->{min_length} \\
   ${input_string} \\
   -o ${output_dir} \\
-  2>${output_dir}/unicycler_${outname}.stderr \\
-  1>${output_dir}/unicycler_${outname}.stdout
+  2>${stderr} \\
+  1>${stdout}
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
 rm -f r1.fastq.gz r2.fastq.gz
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
@@ -782,7 +793,9 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         postscript => $options->{postscript},
         output => qq"${output_dir}/${outname}_final_assembly.fasta",
         output_gfa => qq"${output_dir}/assembly.gfa",
-        output_log => qq"${output_dir}/unicycler.log",);
+        output_log => qq"${output_dir}/unicycler.log",
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($unicycler);

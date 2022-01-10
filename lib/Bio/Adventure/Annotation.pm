@@ -74,6 +74,8 @@ sub Interproscan {
     my $output_dir = qq"outputs/$options->{jprefix}interproscan_${input_dirname}";
     my $comment = qq!## This is a interproscan submission script
 !;
+    my $stdout = qq"${output_dir}/interproscan.stdout";
+    my $stderr = qq"${output_dir}/interproscan.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
@@ -94,11 +96,13 @@ cd \${start}
         jmem => 16,
         modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
-        output_gff => qq"${output_dir}/${input_dirname}.faa.gff3",
+        output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'large',
+        stdout => $stdout,
+        stderr => $stderr,
         walltime => '144:00:00',);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -150,13 +154,15 @@ sub Kraken {
     }
     my $comment = qq!## This is a kraken2 submission script
 !;
+    my $stdout = qq"${output_dir}/kraken.stdout";
+    my $stderr = qq"${output_dir}/kraken.stderr";
     my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
   --report ${output_dir}/kraken_report.txt --use-mpa-style \\
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-  2>${output_dir}/kraken.stderr \\
-  1>${output_dir}/kraken.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
     my $kraken = $class->Submit(
         cpus => 6,
@@ -170,7 +176,9 @@ sub Kraken {
         postscript => $options->{postscript},
         jqueue => 'large',
         modules => $options->{modules},
-        output => qq"${output_dir}/kraken_report.txt",);
+        output => qq"${output_dir}/kraken_report.txt",
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($kraken);
@@ -703,9 +711,11 @@ sub Trinotate {
     ## So create the output directory, and use that.
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
-    my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa'));
+    my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa', '.ffn'));
     $output_name = qq"${output_name}.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate";
+    my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
+    my $stderr = qq"${output_dir}/trinotate_${job_name}.stderr";
     $output_dir .= qq"$input_paths->{dirname}" if (defined($input_paths->{dirname}));
     my $comment = qq!## This is a trinotate submission script
 !;
@@ -748,7 +758,8 @@ cd \${start}
         postscript => $options->{postscript},
         jqueue => 'large',
         jwalltime => '144:00:00',
-        );
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($trinotate);
@@ -810,6 +821,7 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
   output => '${output_file}',
   output_dir => '${output_dir}',);
 !;
+    my $log = qq"${output_dir}/final_assembly.log";
     my $rewrite = $class->Submit(
         comment => $comment_string,
         gff => $options->{gff},
@@ -820,6 +832,7 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
+        log => $log,
         output => $output_file,
         output_dir => $output_dir,
         shell => '/usr/bin/env perl',);

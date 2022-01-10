@@ -177,6 +177,8 @@ sub Racer {
     my $output_dir = qq"outputs/$options->{jprefix}racer";
     my @created = make_path($output_dir);
     my @output_files;
+    my $stdout = qq"${output_dir}/racer.stdout";
+    my $stderr = qq"${output_dir}/racer.stderr";
     foreach my $c (0 .. $#input_list) {
         my $name = File::Temp::tempnam($output_dir, 'racer');
         my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
@@ -186,11 +188,10 @@ sub Racer {
   ${name}.fastq \\
   ${output} \\
   $options->{length} \\
-  1>${output_dir}/racer.stdout \\
-  2>${output_dir}/racer.stderr &&
+  1>>${stdout} \\
+  2>>${stderr} &&
   rm ${name}.fastq
 xz -9e -f ${output}
-
 ";
     }
     my $output = '';
@@ -213,7 +214,9 @@ xz -9e -f ${output}
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        output => $output,);
+        output => $output,
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($racer);
@@ -320,6 +323,8 @@ sub Trimomatic_Pairwise {
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
+    my $stdout = qq"${output_dir}/${basename}-trimomatic.stdout";
+    my $stderr = qq"${output_dir}/${basename}-trimomatic.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
@@ -330,8 +335,8 @@ ${exe} \\
   ${r2op} ${r2ou} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
-  1>${output_dir}/${basename}-trimomatic.stdout \\
-  2>${output_dir}/${basename}-trimomatic.stderr
+  1>${stdout} \\
+  2>${stderr}
 excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.stdout)
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
@@ -342,8 +347,8 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
     ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50\\
-    1>${output_dir}/${basename}-trimomatic.stdout \\
-    2>${output_dir}/${basename}-trimomatic.sterr
+    1>${stdout} \\
+    2>${stderr}
 fi
 sleep 10
 mv ${r1op} ${r1o}
@@ -377,7 +382,9 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},);
+        postscript => $options->{postscript},
+        stdout => $stdout,
+        stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $new_prefix = qq"$options->{jprefix}_1";

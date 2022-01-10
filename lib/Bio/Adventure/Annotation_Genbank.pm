@@ -205,7 +205,9 @@ sub Merge_CDS_Predictions {
         input_prodigal => '',
         primary_key => 'locus_tag',
         jmem => 8,
-        jprefix => '19',);
+        jprefix => '19',
+        modules => ['ncbi_tools/6.1']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     ## Even though it is a bit redundant, record all the output filenames now
     ## so that they are easily accessible for the various downstream search tools.
     my $output_dir =  qq"outputs/$options->{jprefix}merge_cds_predictions";
@@ -230,6 +232,7 @@ sub Merge_CDS_Predictions {
     my $output_tsv = qq"${output_dir}/${output_basename}.tsv";
     ## After we do the various annotation searches, we will add
     ## the metadata template file (sbt), the tsv, and xlsx outputs.
+    my $output_log = qq"${output_dir}/${output_basename}_runlog.txt";
     my $comment = '## This will hopefully merge CDS predictions from prodigal/glimmer/prokka.';
 
     my $jstring = qq?
@@ -252,6 +255,7 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
   output_gbf => '${output_gbf}', ## .gbf, initial genbank file.
   output_gbk => '${output_gbk}', ## .gbk, cleaned genbank file.
   output_tsv => '${output_tsv}', ## .tsv
+  output_log => '${output_log}', ## Run log
   primary_key => '$options->{primary_key}',);
 ?;
     my $merge_orfs = $class->Submit(
@@ -277,10 +281,13 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
         output_gbf => $output_gbf,
         output_gbk => $output_gbk,
         output_tsv => $output_tsv,
+        output_log => $output_log,
         primary_key => $options->{primary_key},
         shell => '/usr/bin/env perl',);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($merge_orfs);
 }
 

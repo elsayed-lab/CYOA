@@ -1428,10 +1428,17 @@ sub Module_Loader {
     }
     my @mod_lst;
     my $mod_class = ref($args{modules});
+    my @test_lst;
     if ($mod_class eq 'SCALAR') {
         push(@mod_lst, $args{modules});
     } elsif ($mod_class eq 'ARRAY') {
         @mod_lst = @{$args{modules}};
+    } elsif ($mod_class eq 'HASH') {
+        my %mods = %{$args{modules}};
+        @mod_lst = keys %mods;
+        for my $k (@mod_lst) {
+            push(@test_lst, $mods{$k});
+        }
     } elsif (!$mod_class) {
         push(@mod_lst, $args{modules});
     } else {
@@ -1463,13 +1470,26 @@ sub Module_Loader {
             };
         };
         $count++;
+    } ## End iterating over every mod in the list
+
+    if (defined($args{executables})) {
+        @test_lst = @{$args{executables}};
     }
-    return($count);
+
+    ## If we got a set of test programs, check that they are in the PATH:
+    if (scalar(@test_lst) > 0) {
+        for my $exe (@test_lst) {
+            my $check = which($exe);
+            die(qq"Could not find ${exe} in the PATH.") unless ($check);
+        }
+    }
+    return(\@mod_lst);
 }
 
 =item C<Read_Genome_Fasta>
 
-Read a fasta file and return the chromosomes.
+Read
+a fasta file and return the chromosomes.
 
 =cut
 sub Read_Genome_Fasta {

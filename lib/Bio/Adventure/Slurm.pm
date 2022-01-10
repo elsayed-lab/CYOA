@@ -47,7 +47,7 @@ sub Submit {
     my $depends_prefix = '--dependency=afterok';
     ## For arguments to sbatch, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
-    my $sbatch_log = qq"$options->{logdir}/$options->{jname}.sbatchout";
+    my $sbatch_log = qq"outputs/log.txt";
 
     my $depends_string = "";
     if ($options->{jdepends}) {
@@ -70,7 +70,7 @@ sub Submit {
 use strict;
 use FileHandle;
 use Bio::Adventure;
-my \$out = FileHandle->new(">>outputs/log.txt");
+my \$out = FileHandle->new(">>${sbatch_log}");
 my \$d = qx'date';
 print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
@@ -149,7 +149,7 @@ ${perl_file}
         }
     }
     $script_start .= qq?
-echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> outputs/log.txt
+echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 ?;
     if ($module_string ne '') {
         $script_start .= qq"
@@ -158,24 +158,24 @@ ${module_string}
     }
     my $script_end = qq!
 ## The following lines give status codes and some logging
-echo "## Job status: \$? " >> outputs/log.txt
-echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> outputs/log.txt
+echo "## Job status: \$? " >> ${sbatch_log}
+echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${sbatch_log}
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
 
     ## The following lines used to be in the shell script postscript
     ## Copying the full job into the log is confusing, removing this at least temporarily.
-    ##echo "####This job consisted of the following:" >> outputs/log.txt
-    ##cat "\$0" >> outputs/log.txt
+    ##echo "####This job consisted of the following:" >> ${sbatch_log}
+    ##cat "\$0" >> ${sbatch_log}
 
     $script_end .= qq!
 walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}')
-echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> outputs/log.txt
+echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
 maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch")
-echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> outputs/log.txt
+echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
 avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch")
-echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> outputs/log.txt
+echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> ${sbatch_log}
 !;
 
     my $total_script_string = "";
