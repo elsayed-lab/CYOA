@@ -1343,13 +1343,13 @@ if [ -r "outputs/trimomatic_stats.csv" ]; then
   original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
   original_reads=\${original_reads_tmp:-0}
 fi
-reads_tmp=\$(grep "^# reads processed" ${bt_input} | awk -F: '{print \$2}' | sed 's/ //g')
+reads_tmp=\$( { grep "^# reads processed" ${bt_input} || test \$? = 1; } | awk -F: '{print \$2}' | sed 's/ //g')
 reads=\${reads_tmp:-0}
-one_align_tmp=\$(grep "^# reads with at least one reported" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
+one_align_tmp=\$( { grep "^# reads with at least one reported" ${bt_input} || test \$? = 1; } | awk -F": " '{print \$2}' | sed 's/ .*//g')
 one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep "^# reads that failed to align" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
+failed_tmp=\$( { grep "^# reads that failed to align" ${bt_input} || test \$? = 1; } | awk -F": " '{print \$2}' | sed 's/ .*//g')
 failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep "^# reads with alignments sampled" ${bt_input} | awk -F": " '{print \$2}' | sed 's/ .*//g')
+sampled_tmp=\$( { grep "^# reads with alignments sampled" ${bt_input} || test \$? = 1; } | awk -F": " '{print \$2}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
@@ -1394,13 +1394,13 @@ sub BT2_Stats {
 if [ \! -e "${output}" ]; then
     echo "original reads, single hits, failed reads, multi-hits, rpm" > ${output}
 fi
-original_reads_tmp=\$(grep " reads; of these" "${bt_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
+original_reads_tmp=\$( { grep " reads; of these" "${bt_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
 original_reads=\${original_reads_tmp:-0}
-one_align_tmp=\$(grep " aligned exactly 1 time" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
+one_align_tmp=\$( { grep " aligned exactly 1 time" "${bt_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
 one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep " aligned 0 times" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
+failed_tmp=\$( { grep " aligned 0 times" "${bt_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
 failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep " aligned >1 times" "${bt_input}" | awk '{print \$1}' | sed 's/ .*//g')
+sampled_tmp=\$( { grep " aligned >1 times" "${bt_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
 rpm=\${rpm_tmp:-0}
@@ -1451,11 +1451,11 @@ if [ -r "outputs/trimomatic_stats.csv" ]; then
     original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
     original_reads=\${original_reads_tmp:-0}
 fi
-reads_tmp=\$(grep "^Total reads: " ${aln_input} | awk '{print \$3}' | sed 's/ //g')
+reads_tmp=\$( { grep "^Total reads: " ${aln_input} || test \$? = 1; } | awk '{print \$3}' | sed 's/ //g')
 reads=\${reads_tmp:-0}
-aln_aligned_tmp=\$(grep "^Mapped reads" ${aln_input} | awk '{print \$3}' | sed 's/ .*//g')
+aln_aligned_tmp=\$( { grep "^Mapped reads" ${aln_input} || test \$? = 1; } | awk '{print \$3}' | sed 's/ .*//g')
 aln_aligned=\${aln_aligned_tmp:-0}
-mem_aligned_tmp=\$(grep "^Mapped reads" ${mem_input} | awk '{print \$3}' | sed 's/ .*//g')
+mem_aligned_tmp=\$( { grep "^Mapped reads" ${mem_input} || test \$? = 1; } | awk '{print \$3}' | sed 's/ .*//g')
 mem_aligned=\${mem_aligned_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
@@ -1508,25 +1508,25 @@ sub Fastqc_Stats {
 if [ \! -r "${stat_output}" ]; then
   echo "name,total_reads,poor_quality,per_quality,per_base_content,per_sequence_gc,per_base_n,per_seq_length,over_rep,adapter_content,kmer_content" > $stat_output
 fi
-total_reads_tmp=\$(grep "^Total Sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
+total_reads_tmp=\$( { grep "^Total Sequences" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 total_reads=\${total_reads_tmp:-0}
-poor_quality_tmp=\$(grep "^Sequences flagged as poor quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
+poor_quality_tmp=\$( { grep "^Sequences flagged as poor quality" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 poor_quality=\${poor_quality_tmp:-0}
-per_quality_tmp=\$(grep "Per base sequence quality" ${input_file} | awk -F '\\\\t' '{print \$2}')
+per_quality_tmp=\$( { grep "Per base sequence quality" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 per_quality=\${per_quality_tmp:-0}
-per_base_content_tmp=\$(grep "Per base sequence content" ${input_file} | awk -F '\\\\t' '{print \$2}')
+per_base_content_tmp=\$( { grep "Per base sequence content" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 per_base_content=\${per_base_content_tmp:-0}
-per_sequence_gc_tmp=\$(grep "Per sequence GC content" ${input_file} | awk -F '\\\\t' '{print \$2}')
+per_sequence_gc_tmp=\$( { grep "Per sequence GC content" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 per_sequence_gc=\${per_sequence_gc_tmp:-0}
-per_base_n_tmp=\$(grep "Per base N content" ${input_file} | awk -F '\\\\t' '{print \$2}')
+per_base_n_tmp=\$( { grep "Per base N content" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 per_base_n=\${per_base_n_tmp:-0}
-per_seq_length_tmp=\$(grep "Sequence Length Distribution" ${input_file} | awk -F '\\\\t' '{print \$2}')
+per_seq_length_tmp=\$( { grep "Sequence Length Distribution" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 per_seq_length=\${per_seq_length_tmp:-0}
-over_rep_tmp=\$(grep "Overrepresented sequences" ${input_file} | awk -F '\\\\t' '{print \$2}')
+over_rep_tmp=\$( { grep "Overrepresented sequences" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 over_rep=\${over_rep_tmp:-0}
-adapter_content_tmp=\$(grep "Adapter Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
+adapter_content_tmp=\$( { grep "Adapter Content" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 adapter_content=\${adapter_content_tmp:-0}
-kmer_content_tmp=\$(grep "Kmer Content" ${input_file} | awk -F '\\\\t' '{print \$2}')
+kmer_content_tmp=\$( { grep "Kmer Content" ${input_file} || test \$? = 1; } | awk -F '\\\\t' '{print \$2}')
 kmer_content=\${kmer_content_tmp:-0}
 
 stat_string=\$(printf "$options->{jname},%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" "\${total_reads}" "\${poor_quality}" "\${per_quality}" "\${per_base_content}" "\${per_sequence_gc}" "\${per_base_n}" "\${per_seq_length}" "\${over_rep}" "\${adapter_content}" "\${kmer_content}")
@@ -1572,13 +1572,13 @@ sub HT2_Stats {
 if [ \! -e "${output}" ]; then
     echo "id, original reads, single hits, failed reads, multi-hits, rpm" > ${output}
 fi
-original_reads_tmp=\$(grep " reads; of these" "${ht_input}" 2>/dev/null | awk '{print \$1}' | sed 's/ //g')
+original_reads_tmp=\$( { grep " reads; of these" "${ht_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
 original_reads=\${original_reads_tmp:-0}
-one_align_tmp=\$(grep " aligned exactly 1 time" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+one_align_tmp=\$( { grep " aligned exactly 1 time" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
 one_align=\${one_align_tmp:-0}
-failed_tmp=\$(grep " aligned 0 times" "${ht_input}" | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
+failed_tmp=\$( { grep " aligned 0 times" "${ht_input}" || test \$? = 1; } | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
 failed=\${failed_tmp:-0}
-sampled_tmp=\$(grep " aligned >1 times" "${ht_input}" | awk '{print \$1}' | sed 's/ .*//g')
+sampled_tmp=\$( { grep " aligned >1 times" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
 rpm=\${rpm_tmp:-0}
@@ -1618,15 +1618,15 @@ sub Salmon_Stats {
 if [ \! -r "${output}" ]; then
   echo "basename,species,fragments,assigned,consistent,inconsistent,bias" > ${output}
 fi
-reads_tmp=\$(grep "num_compatible" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
+reads_tmp=\$( { grep "num_compatible" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 reads=\${reads_tmp:-0}
-aligned_tmp=\$(grep "num_assigned" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
+aligned_tmp=\$( { grep "num_assigned" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 aligned=\${aligned_tmp:-0}
-consistent_tmp=\$(grep "concordant" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
+consistent_tmp=\$( { grep "concordant" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 consistent=\${consistent_tmp:-0}
-inconsistent_tmp=\$(grep "inconsistent" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
+inconsistent_tmp=\$( { grep "inconsistent" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 inconsistent=\${inconsistent_tmp:-0}
-bias_tmp=\$(grep "mapping_bias" $options->{input} | awk '{print \$2}' | sed 's/\,//g')
+bias_tmp=\$( { grep "mapping_bias" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 bias=\${bias_tmp:-0}
 stat_string=\$(printf "$options->{jbasename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
 echo "\$stat_string" >> "${output}"!;
@@ -1683,11 +1683,11 @@ if [ -r "outputs/trimomatic_stats.csv" ]; then
   original_reads_tmp=\$(tail -n 1 outputs/trimomatic_stats.csv | awk -F, '{print \$2}')
   original_reads=\${original_reads_tmp:-0}
 fi
-reads_tmp=\$(grep "^reads_in " ${read_info} | awk -F= '{print \$2}' | sed 's/ //g')
+reads_tmp=\$( { grep "^reads_in " ${read_info} || test \$? = 1; } | awk -F= '{print \$2}' | sed 's/ //g')
 reads=\${reads_tmp:-0}
-aligned_tmp=\$(grep "^Total reads" ${accepted_output} | awk '{print \$3}' | sed 's/ .*//g')
+aligned_tmp=\$( { grep "^Total reads" ${accepted_output} || test \$? = 1; } | awk '{print \$3}' | sed 's/ .*//g')
 aligned=\${aligned_tmp:-0}
-failed_tmp=\$(grep "^Total reads" ${unaccepted_output} | awk '{print \$3}' | sed 's/ .*//g')
+failed_tmp=\$( { grep "^Total reads" ${unaccepted_output} || test \$? = 1; } | awk '{print \$3}' | sed 's/ .*//g')
 failed=\${failed_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
@@ -1717,11 +1717,11 @@ sub Trimomatic_Stats {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        input => 'trimomatic.stdout',
         jmem => 1,
         output_dir => 'outputs',);
     ## Dereferencing the options to keep a safe copy.
     my $basename = $options->{basename};
-    my $input_file = qq"$options->{output_dir}/${basename}-trimomatic.out";
     my $jname = 'trimst';
     $jname = $options->{jname} if ($options->{jname});
     my $comment = qq!## This is a stupidly simple job to collect trimomatic statistics!;
@@ -1730,11 +1730,11 @@ sub Trimomatic_Stats {
 if [ \! -r ${stat_output} ]; then
   echo "total_reads,surviving_reads,dropped_reads" > ${stat_output}
 fi
-total_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$3}')
+total_reads_tmp=\$( { grep "^Input Reads" $options->{input} || test \$? = 1; } | awk '{print \$3}')
 total_reads=\${total_reads_tmp:-0}
-surviving_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$5}')
+surviving_reads_tmp=\$( { grep "^Input Reads" $options->{input} || test \$? = 1; } | awk '{print \$5}')
 surviving_reads=\${surviving_reads_tmp:-0}
-dropped_reads_tmp=\$(grep "^Input Reads" ${input_file} | awk '{print \$8}')
+dropped_reads_tmp=\$( { grep "^Input Reads" $options->{input} || test \$? = 1; } | awk '{print \$8}')
 dropped_reads=\${dropped_reads_tmp:-0}
 
 stat_string=\$(printf "${basename},%s,%s,%s" "\${total_reads}" "\${surviving_reads}" "\${dropped_reads}")
@@ -1747,15 +1747,15 @@ echo "\$stat_string" >> ${stat_output}
 if [ \! -r ${stat_output} ]; then
   echo "total_reads,surviving_both,surviving_forward,surviving_reverse,dropped_reads" > ${stat_output}
 fi
-total_reads_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$4}')
+total_reads_tmp=\$( { grep "^Input Read Pairs" $options->{input} || test \$? = 1; } | awk '{print \$4}')
 total_reads=\${total_reads_tmp:-0}
-surviving_both_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$7}')
+surviving_both_tmp=\$( { grep "^Input Read Pairs" $options->{input} || test \$? = 1; } | awk '{print \$7}')
 surviving_both=\${surviving_both_tmp:-0}
-surviving_forward_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$12}')
+surviving_forward_tmp=\$( { grep "^Input Read Pairs" $options->{input} || test \$? = 1; } | awk '{print \$12}')
 surviving_forward=\${surviving_forward_tmp:-0}
-surviving_reverse_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$17}')
+surviving_reverse_tmp=\$( { grep "^Input Read Pairs" $options->{input} || test \$? = 1; } | awk '{print \$17}')
 surviving_reverse=\${surviving_reverse_tmp:-0}
-dropped_reads_tmp=\$(grep "^Input Read Pairs" ${input_file} | awk '{print \$20}')
+dropped_reads_tmp=\$( { grep "^Input Read Pairs" $options->{input} || test \$? = 1; } | awk '{print \$20}')
 dropped_reads=\${dropped_reads_tmp:-0}
 
 stat_string=\$(printf "${basename},%s,%s,%s,%s,%s" "\${total_reads}" "\${surviving_both}" "\${surviving_forward}" "\${surviving_reverse}" "\${dropped_reads}")
@@ -1765,7 +1765,7 @@ echo "\$stat_string" >> ${stat_output}
     my $stats = $class->Submit(
         comment => $comment,
         cpus => 1,
-        input => $input_file,
+        input => $options->{input},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => $jname,

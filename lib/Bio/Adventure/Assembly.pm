@@ -854,7 +854,7 @@ sub Velvet {
     2>${output_dir}/velvetg_${job_name}.stderr \\
     1>${output_dir}/velvetg_${job_name}.stdout
   new_params=\$(velvet-estimate-exp_cov.pl ${output_dir}/stats.txt \|
-    grep velvetg parameters \|
+    { grep velvetg parameters || test \$? = 1; } \|
     sed 's/velvetg parameters: //g')
   ##velvetg ${output_dir} \${new_params} -read_trkg yes -amos_file yes \\
   ##  2>${output_dir}/second_velvetg.txt 2>&1

@@ -123,7 +123,7 @@ ${perl_file}
     my $nice_string = '';
     $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
 
-    my $script_start = qq?#!/usr/bin/env bash
+    my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
 #SBATCH --chdir=$options->{basedir}
@@ -135,6 +135,8 @@ ${perl_file}
 #SBATCH --mem=$options->{jmem}G
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}
+set -o errexit
+set -o pipefail
 ?;
     if ($options->{array_string}) {
         $script_start .= qq"#SBATCH --array=$options->{array_string}
@@ -170,12 +172,14 @@ echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it to
     ##cat "\$0" >> ${sbatch_log}
 
     $script_end .= qq!
-walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}')
-echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
-maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch")
-echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
-avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch")
-echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> ${sbatch_log}
+if [ -x "$(command -v sstat)" ]; then
+  walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]} 2>/dev/null')
+  echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
+  maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch" 2>/dev/null)
+  echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
+  avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch" 2>/dev/null)
+  echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> ${sbatch_log}
+fi
 !;
 
     my $total_script_string = "";
