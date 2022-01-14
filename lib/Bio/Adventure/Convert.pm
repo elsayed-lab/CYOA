@@ -630,7 +630,7 @@ sub Samtools {
     my $paired_name = $sorted_name;
     $paired_name =~ s/\-sorted/\-paired/g;
     ## Add a samtools version check because *sigh*
-    my $samtools_version = qx"samtools 2>&1 | grep Version";
+    my $samtools_version = qx"samtools 2>&1 | grep 'Version'";
     ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output}  \\

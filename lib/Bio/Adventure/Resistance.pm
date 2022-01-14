@@ -63,7 +63,7 @@ sub Abricate {
     my $output_txt = qq"${output_dir}/abricate_summary.txt";
     my $jstring = qq!mkdir -p ${output_dir}
 ## First get the list of available databases:
-dbs=\$(abricate --list | grep -v "^DATABASE" | awk '{print \$1}')
+dbs=\$(abricate --list | { grep -v "^DATABASE" || test \$? = 1; } | awk '{print \$1}')
 for db in \${dbs}; do
   abricate $options->{input} --db \${db} --nopath --noheader \\
   --minid ${identity} --mincov ${coverage} \\

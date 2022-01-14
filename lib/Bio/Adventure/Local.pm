@@ -103,25 +103,14 @@ $args{jstring}" if ($options->{verbose});
     }
 
     my $script_start = qq?#!/usr/bin/env bash
-
+set -o errexit
+set -o pipefail
 echo "####Started ${script_file} at \$(date)" >> ${bash_log}
 ${module_string}
 ?;
     my $script_end = qq!## The following lines give status codes and some logging
 echo "###Job status:\$?" >> ${bash_log}
-echo "###Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${bash_log}
-!;
-    ## It turns out that if a job was an array (-t) job, then the following does not work because
-    ## It doesn't get filled in properly by qstat -f...
-
-    ## The following lines used to be in the shell script postscript
-    ## Copying the full job into the log is confusing, removing this at least temporarily.
-    ##echo "####This job consisted of the following:" >> ${bash_log}
-    ##cat "\$0" >> ${bash_log}
-
-    $script_end .= qq!
-!;
-
+echo "###Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${bash_log}!;
     if ($options->{verbose}) {
         print qq"The job is:
 $args{jstring}

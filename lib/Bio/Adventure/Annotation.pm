@@ -726,7 +726,7 @@ ln -sf $input_paths->{fullpath} .
 if [ -f $input_paths->{filename}.gene_trans_map ]; then
   ln -sf $input_paths->{filename}.gene_trans_map .
 else
-  ids=\$(grep "^>" $input_paths->{fullpath} | sed 's/>//g' | awk '{print \$1}')
+  ids=\$({ grep "^>" $input_paths->{fullpath} || test \$? = 1; } | sed 's/>//g' | awk '{print \$1}')
   rm -f $input_paths->{filename}.gene_trans_map
   for i in \${ids}; do
     echo "\${i}	\${i}" >> $input_paths->{filename}.gene_trans_map
