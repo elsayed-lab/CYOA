@@ -226,6 +226,7 @@ sub Prokka {
         kingdom => 'bacteria',
         locus_tag => 'unknownphage',
         species => 'virus',
+        jmem => 12,
         jprefix => '19',
         modules => ['prokka'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -289,6 +290,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         cpus => 6,
         comment => $comment,
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => "prokka_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,

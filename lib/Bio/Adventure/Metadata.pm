@@ -68,6 +68,8 @@ sub Collect_Assembly {
         input_fsa => qq"outputs/25mergeannot/${start}.fsa",
         input_genbank => qq"outputs/25mergeannot/${start}.gbk",
         input_stripped => qq"outputs/26mergeannot/${start}_stripped.gbk",
+        input_tbl => qq"outputs/25mergeannot/${start}.tbl",
+        input_tbl_stripped => qq"outputs/26mergeannot/${start}_stripped.tbl",
         input_tsv => qq"outputs/25mergeannot/${start}.tsv",
         input_xlsx => qq"outputs/25mergeannot/${start}.xlsx",
         input_faa => qq"outputs/19merge_cds_predictions/${start}.faa",
@@ -87,6 +89,8 @@ sub Collect_Assembly {
     $jstring .= qq"cp $options->{input_fsa} ${output_dir}/\n" if ($options->{input_fsa});
     $jstring .= qq"cp $options->{input_genbank} ${output_dir}/\n" if ($options->{input_genbank});
     $jstring .= qq"cp $options->{input_stripped} ${output_dir}/\n" if ($options->{input_stripped});
+    $jstring .= qq"cp $options->{input_tbl} ${output_dir}/\n" if ($options->{input_tbl});
+    $jstring .= qq"cp $options->{input_tbl_stripped} ${output_dir}/\n" if ($options->{input_tbl_stripped});
     $jstring .= qq"cp $options->{input_tsv} ${output_dir}/\n" if ($options->{input_tsv});
     $jstring .= qq"cp $options->{input_xlsx} ${output_dir}/\n" if ($options->{input_xlsx});
     $jstring .= qq"cp $options->{input_faa} ${output_dir}/\n" if ($options->{input_faa});
@@ -209,7 +213,6 @@ sub Get_Aragorn {
           $counter = 1;
           ($number, $type, $coords, $unknown, $anticodon) = split(/\s+/, $line);
           ($start, $end) = split(/\,/, $coords);
-          ## print "TESTME PRE: $start\n";
           my $complement = $start;
           $complement =~ s/^(\w*).*$/$1/g;
           $strand = '+1';
@@ -218,7 +221,6 @@ sub Get_Aragorn {
           }
 
           $start =~ s/^\w*\[(\d+)$/$1/g;
-          ## print "TESTME POST: $start\n";
           $end =~ s/\]//g;
           $anticodon =~ s/\(//g;
           $anticodon =~ s/\)//g;
@@ -715,7 +717,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             my @loci = $feat->get_tag_values('locus_tag');
             $locus = $loci[0];
             my $new_info = $merged_data->{$locus};
-            ## print "TESTME: $contig $locus\n";
             ## Pull out some sequence information to send back to $merged_data
             $merged_data->{$locus}->{start} = $feat->start;
             $merged_data->{$locus}->{end} = $feat->end;

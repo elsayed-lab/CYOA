@@ -347,7 +347,6 @@ sub Merge_CDS_Predictions_Worker {
 
     ## Start gathering features from each of the annotation methods:
     ## Phanotate first.
-    print "TESTME: $options->{debug}\n";
     print "Reading phanotate seqfeatures.\n";
     my $phanotate_features_ref = Read_Phanotate_to_SeqFeatures(input => $options->{input_phanotate});
     my @phanotate_features = @{$phanotate_features_ref};

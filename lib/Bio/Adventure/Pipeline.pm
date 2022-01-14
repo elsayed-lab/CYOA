@@ -1170,6 +1170,8 @@ sub Phage_Assemble {
         input_fsa => $merge->{output_fsa},
         input_genbank => $merge->{output_gbk},
         input_stripped => $merge2->{output_gbk},
+        input_tbl => $merge->{output_tbl},
+        input_tbl_stripped => $merge2->{output_tbl},
         input_tsv => $merge->{output_tsv},
         input_xlsx => $merge->{output_xlsx},
         input_faa => $cds_merge->{output_faa},
