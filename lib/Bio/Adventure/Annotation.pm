@@ -316,6 +316,72 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
     return($prokka);
 }
 
+sub Transposonpsi {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        input_faa => '',
+        jprefix => '21',
+        jmem => 8,
+        cpus => 4,
+        modules => ['transposonpsi'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('transposonPSI.pl');
+    die('Could not find transposonPSI in your PATH.') unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+
+    my $interproscan_exe_dir = dirname($check);
+    ## Hey, don't forget abs_path requires a file which already exists.
+    my $input_filename = basename($options->{input});
+    my $output_filename = qq"${input_filename}.tsv";
+    my $input_dir = dirname($options->{input});
+    my $input_dirname = basename($input_dir);
+    my $input_path = abs_path($input_dir);
+    $input_path = qq"${input_path}/${input_filename}";
+    my $output_dir = qq"outputs/$options->{jprefix}interproscan_${input_dirname}";
+    my $comment = qq!## This is a interproscan submission script
+!;
+    my $stdout = qq"${output_dir}/interproscan.stdout";
+    my $stderr = qq"${output_dir}/interproscan.stderr";
+    my $jstring = qq!mkdir -p ${output_dir}
+start=\$(pwd)
+cd ${output_dir}
+perl -pe 's/\\*//g' ${input_path} > ${input_filename}
+interproscan.sh -i ${input_filename} \\
+  2>interproscan.stderr \\
+  1>interproscan.stdout
+ln -sf ${output_filename} interproscan.tsv
+cd \${start}
+!;
+    my $interproscan = $class->Submit(
+        cpus => 8,
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => "interproscan_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 16,
+        modules => $options->{modules},
+        output => qq"${output_dir}/interproscan.tsv",
+        output_gff => qq"${output_dir}/${input_filename}.gff3",
+        output_tsv => qq"${output_dir}/interproscan.tsv",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        jqueue => 'large',
+        stdout => $stdout,
+        stderr => $stderr,
+        walltime => '144:00:00',);
+
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($interproscan);
+
+}
+
 =head2 C<Extract_Annotations>
 
  Pull apart the encoded trinotate annotations into a more readable format.

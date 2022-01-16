@@ -490,7 +490,7 @@ sub Merge_Annotations_Worker {
         product_transmembrane => 'inter_TMHMM',
         product_signalp => 'inter_signal',
         suffix => '',
-        template_sbt => '/bio/reference/tbl2asn_template.sbt',
+        template_sbt => '',
         jprefix => '15',);
 
     my $high_confidence = undef;
@@ -595,6 +595,10 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## to be filled in, ideally with some information from the classifier.
     my $final_sbt = qq"${output_dir}/${output_name}.sbt";
     print $log_fh "Checking for ICTV classification data from $options->{input_classifier}.\n";
+    my $input_sbt = $args{template_sbt};
+    unless (-r $input_sbt) {
+        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+    }
     my $taxonomy_information = {};
     ($merged_data, $taxonomy_information) = Merge_Classifier(
         input => $options->{input_classifier},
