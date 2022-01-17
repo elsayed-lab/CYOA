@@ -884,6 +884,8 @@ sub Make_Codon_Table {
         required => ['species'],
         jprefix => '80',);
     my $out_table = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+    my $out_dir = dirname($out_table);
+    my $made = make_path($out_dir) unless (-d $out_dir);
 
     ## I have a few suffixes for writing genbank files.
     my @potential_suffixes = ('gbff', 'gbk', 'gbf', 'gb', 'genbank');
