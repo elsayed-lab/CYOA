@@ -337,7 +337,7 @@ ${exe} \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
   1>${stdout} \\
   2>${stderr}
-excepted=\$(grep "Exception" ${output_dir}/${basename}-trimomatic.stdout)
+excepted=\$( { grep "Exception" "${output_dir}/${basename}-trimomatic.stdout" || test \$? = 1; } )
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
   ${exe} \\
@@ -394,6 +394,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
         pairwise => 1,
+        input => $stdout,
         output_dir => $output_dir,);
     $trim->{stats} = $trim_stats;
     return($trim);
