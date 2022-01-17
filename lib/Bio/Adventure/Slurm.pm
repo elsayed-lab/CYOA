@@ -47,7 +47,7 @@ sub Submit {
     my $depends_prefix = '--dependency=afterok';
     ## For arguments to sbatch, start with the defaults in the constructor in $class
     ## then overwrite with any application specific requests from %args
-    my $sbatch_log = qq"outputs/log.txt";
+    my $sbatch_log = 'outputs/log.txt';
 
     my $depends_string = "";
     if ($options->{jdepends}) {

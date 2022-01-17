@@ -135,7 +135,6 @@ sub RNAFold_Windows_Worker {
       my $bp_count = 0;
       my $bp_percent = 0;
       my $key = qq"${id}_${start}_${end}";
-      print "TESTME: $key\n";
     STEP: while ($continue) {
         if ($end > $post_length) {
             $start = $start - $post_length;
