@@ -1054,7 +1054,8 @@ sub Write_Gbk {
     print $log_fh qq"Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_result = undef;
-    if ($run_sed) {
+    if ($run_sed && -r qq"${out_basedir}/${out_basefile}.gbf") {
+        print "TESTME: Running sed\n";
         my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' \\
   ${out_basedir}/${out_basefile}.gbf | \\
   sed 's/product=\"_/product=\"/g' > $args{output_gbk}";

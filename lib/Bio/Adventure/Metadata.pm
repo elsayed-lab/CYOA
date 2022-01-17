@@ -394,6 +394,8 @@ sub Merge_Annotations {
         jprefix => '15',
         modules => ['ncbi_tools/6.1']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('tbl2asn');
+    die('Could not find tbl2asn in your PATH.') unless($check);
 
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
     if ($options->{suffix}) {
@@ -606,11 +608,10 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         input => $options->{input_classifier},
         output => $merged_data,
         primary_key => $options->{primary_key},
-        template_sbt => $options->{template_sbt},
+        template_sbt => $input_sbt,
         template_out => $final_sbt,
         wanted_levels => 'order,family,genus',);
     print $log_fh "Wrote ${final_sbt} with variables filled in.\n";
-
     $merged_data = Merge_Start_Data(
         primary_key => $options->{primary_key},
         output => $merged_data,
@@ -879,12 +880,27 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     print $log_fh "tbl2asn uses the full assembly: $options->{input_fsa}, the tbl file ${output_tbl},
 and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_dir}/${output_name}.gbf.\n";
     my $tbl2asn_comment = qq"Annotated using $EXE $VERSION from $URL; Most similar taxon to this strain: $taxonomy_information->{taxon}";
-    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y '${tbl2asn_comment}'" .
-        " -Z ${output_dir}/${output_name}.err -t ${final_sbt} -i ${output_fsa} 1>${output_dir}/tbl2asn.stdout 2>${output_dir}/tbl2asn.stderr";
+    my $sbt_parameter = '';
+    if (-r $final_sbt) {
+        $sbt_parameter = qq"-t ${final_sbt}";
+    }
+    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} \\
+  -N ${accver} -y '${tbl2asn_comment}' \\
+  -Z ${output_dir}/${output_name}.err ${sbt_parameter} \\
+  -i ${output_fsa} \\
+  1>${output_dir}/tbl2asn.stdout \\
+  2>${output_dir}/tbl2asn.stderr";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
-    my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
-    my $sed_result = qx"${sed_command}";
+    if (-r ${output_gbf}) {
+        print "Running sed to clean up the gbf and copy to gbk.\n";
+        my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
+        my $sed_result = qx"${sed_command}";
+    } elsif (-r ${output_gbk}) {
+        print "The gbk file already exists.\n";
+    } else {
+        print "Neither the gbf nor gbk file exists, that is bad.\n";
+    }
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
     print $log_fh "Writing final xlsx file of the annotations to ${output_xlsx}.\n";
