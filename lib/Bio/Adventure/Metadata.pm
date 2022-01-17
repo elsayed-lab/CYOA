@@ -884,7 +884,9 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' ${output_gbf} | sed 's/product=\"_/product=\"/g' > ${output_gbk}";
-    my $sed_result = qx"${sed_command}";
+    if (-r ${output_gbf}) {
+        my $sed_result = qx"${sed_command}";
+    }
 
     ## Now lets pull everything from the merged data and make a hopefully pretty xlsx file.
     print $log_fh "Writing final xlsx file of the annotations to ${output_xlsx}.\n";
