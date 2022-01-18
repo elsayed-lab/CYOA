@@ -602,6 +602,8 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
     } elsif (!-r $input_sbt) {
         $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+    } else {
+        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_unmodified.sbt');
     }
     my $taxonomy_information = {};
     ($merged_data, $taxonomy_information) = Merge_Classifier(
@@ -884,12 +886,7 @@ and modified template sbt file: ${final_sbt} to write a new gbf file: ${output_d
     if (-r $final_sbt) {
         $sbt_parameter = qq"-t ${final_sbt}";
     }
-    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} \\
-  -N ${accver} -y '${tbl2asn_comment}' \\
-  -Z ${output_dir}/${output_name}.err ${sbt_parameter} \\
-  -i ${output_fsa} \\
-  1>${output_dir}/tbl2asn.stdout \\
-  2>${output_dir}/tbl2asn.stderr";
+    my $tbl_command = qq"tbl2asn -V b -c f -S F -a r10k -l paired-ends ${tbl2asn_m_option} -N ${accver} -y '${tbl2asn_comment}' -Z ${output_dir}/${output_name}.err ${sbt_parameter} -i ${output_fsa} 1>${output_dir}/tbl2asn.stdout 2>${output_dir}/tbl2asn.stderr";
     print $log_fh "Running ${tbl_command}\n";
     my $tbl2asn_result = qx"${tbl_command}";
     if (-r ${output_gbf}) {
