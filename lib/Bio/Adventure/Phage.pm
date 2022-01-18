@@ -708,11 +708,9 @@ sub Filter_Kraken_Worker {
         my $first_hit = $search_links[0];
         my ($assembly_link, $assembly_title) = @{$first_hit};
         my $accession = basename($assembly_link);
-        print "TESTME: $accession\n";
         if ($accession =~ /\,/) {
             my @multiple = split(/\,/, $accession);
             $accession = $multiple[0];
-            print "TESTME, There were multiple, using: $accession instead.\n";
         }
         my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
         if (-r $downloaded_file) {
