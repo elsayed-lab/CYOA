@@ -83,7 +83,10 @@ perl -pe 's/\\*//g' ${input_path} > ${input_filename}
 interproscan.sh -i ${input_filename} \\
   2>interproscan.stderr \\
   1>interproscan.stdout
-ln -sf ${output_filename} interproscan.tsv
+if [[ -f interproscan.tsv ]]; then
+  rm interproscan.tsv
+fi
+ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
@@ -354,7 +357,10 @@ perl -pe 's/\\*//g' ${input_path} > ${input_filename}
 interproscan.sh -i ${input_filename} \\
   2>interproscan.stderr \\
   1>interproscan.stdout
-ln -sf ${output_filename} interproscan.tsv
+if [[ -f interproscan.tsv ]]; then
+  rm interproscan.tsv
+fi
+ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
@@ -785,24 +791,26 @@ sub Trinotate {
     my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
     my $stderr = qq"${output_dir}/trinotate_${job_name}.stderr";
     $output_dir .= qq"$input_paths->{dirname}" if (defined($input_paths->{dirname}));
+    my $expected_config = qq"${trinotate_exe_dir}/auto/$options->{config}";
+    $expected_config = qq"${trinotate_exe_dir}/auto/conf.txt" unless (-r $expected_config);
     my $comment = qq!## This is a trinotate submission script
 !;
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-ln -sf $input_paths->{fullpath} .
-if [ -f $input_paths->{filename}.gene_trans_map ]; then
-  ln -sf $input_paths->{filename}.gene_trans_map .
+ln -sf "$input_paths->{fullpath}" .
+rm -f "./$input_paths->{filename}.gene_trans_map"
+if [[ -f "$input_paths->{filename}.gene_trans_map" ]]; then
+  ln -sf "$input_paths->{filename}.gene_trans_map" .
 else
   ids=\$({ grep "^>" $input_paths->{fullpath} || test \$? = 1; } | sed 's/>//g' | awk '{print \$1}')
-  rm -f $input_paths->{filename}.gene_trans_map
   for i in \${ids}; do
     echo "\${i}	\${i}" >> $input_paths->{filename}.gene_trans_map
   done
 fi
 
 ${trinotate_exe_dir}/auto/$options->{trinotate} \\
-  --conf ${trinotate_exe_dir}/auto/$options->{config} \\
+  --conf ${expected_config} \\
   --Trinotate_sqlite ${trinotate_exe_dir}/sample_data/Trinotate.boilerplate.sqlite \\
   --transcripts $input_paths->{filename} \\
   --gene_to_trans_map $input_paths->{filename}.gene_trans_map \\

@@ -215,7 +215,7 @@ $expected = qq"1\t29601\t33485\tPHAGE_Cronob_Dev2_NC_023558-gi|651729639|ref|YP_
 1\t21351\t22379\tPHAGE_Citrob_CR44b_NC_023576-gi|589286980|ref|YP_009007173.1|\t98.8
 1\t16380\t17240\tPHAGE_Cronob_Dev2_NC_023558-gi|651729625|ref|YP_009005135.1|\t94.4
 ";
-$comparison = ok($expected eq $actual, 'Checking depth filter result:');
+$comparison = ok($expected eq $actual, 'Checking phastaf result:');
 if ($comparison) {
     print "Passed.\n";
 } else {
@@ -242,12 +242,11 @@ if ($comparison) {
 
 ## Check the Rosalindplus results.
 $test_file = $assemble->{'11rosalindplus'}->{log};
-$comparison = ok(-f $test_file, qq"Checking Rosalindplus output:_file}");
+$comparison = ok(-f $test_file, qq"Checking Rosalindplus output: ${test_file}");
 print "Passed.\n" if ($comparison);
-$actual = qx"more ${test_file}";
+$actual = qx"head -n 2 ${test_file}";
 $expected = qq"Counting ORFs on the current Rosalind and Franklin strand.
 If the Franklin strand is larger, flipping them.
-1 was unchanged and has 49 plus and 0 minus ORFs.
 ";
 $comparison = ok($expected eq $actual, 'Is the rosalindplus log as expected?');
 if ($comparison) {
@@ -541,20 +540,12 @@ if ($comparison) {
 ## It turns out that every invocation of interproscan is different in pretty much every file...
 ## interproscan
 ## $test_file = 'outputs/25interproscan_19merge_cds_predictions/test_output.faa.gff3';
-$test_file = $assemble->{'25interproscan'}->{output_gff};
-$comparison = ok(-f $test_file, qq"Checking interproscan output gff: ${test_file}");
+$test_file = $assemble->{'25interproscan'}->{output_tsv};
+$comparison = ok(-f $test_file, qq"Checking interproscan output tsv: ${test_file}");
 print "Passed.\n" if ($comparison);
-$actual = qx"sort ${test_file} | head";
-$expected = qq"AAESSAGNAKDSEDEARRIAESIKASGLIGYITRRSFENGFNVTTWNEVLLWEADGGYYR
-AALQAKDFKAITDAIWNAKPFVPAGVVSAASLKDRTREAMLKAETEGLMFSSCTTLNAMT
-AALSTVMSMGLAGIYYMA
-AAPWLLAAV
-ACP
-ACPSFDLQRWLSTNELV
-ADDAAFATVMRTMTDLSFFAKNAYMGVQNLTEIGGMLARGNVRALLHGVPMFRDLAFRNK
-ADDAAFATVMRTMTDLSFFAKNAYMGVQNLTEIGGMLARGNVRALLHGVPMFRDLAFRNK
-ADKFIPVEWLREATVRLPSGILIPKKGVK
-ADKFIPVEWLREATVRLPSGILIPKKGVKK
+$actual = qx"awk '{print \$1}' $test_file | sort | uniq | head -n 2";
+$expected = qq"test_output_0001
+test_output_0005
 ";
 $comparison = ok($expected eq $actual, 'Checking interproscan result:');
 if ($comparison) {
