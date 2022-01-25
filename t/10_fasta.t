@@ -42,9 +42,10 @@ my $run_fasta = $cyoa->Bio::Adventure::Align_Fasta::Split_Align_Fasta(
     parse => 0,);
 ok($run_fasta, 'Run Split_Align_Fasta.');
 
-my $parsed_file = 'outputs/fasta_phix_cds_nt_phix/phix_cds_nt_vs_phix.parsed.txt';
+## my $parsed_file = 'outputs/fasta_phix_cds_nt_phix/phix_cds_nt_vs_phix.parsed.txt';
+my $parsed_file = $run_fasta->{output};
 ## Caveat: every fasta36 run will give slightly different E-values due to the usage of rand().
-my $expected = qq"Name
+my $expected = qq"Query length
 1406
 1406
 136
@@ -56,7 +57,9 @@ my $expected = qq"Name
 312
 ";
 
-$actual = qx"less ${parsed_file} | awk '{print \$2}' | head";
+my $test_cmd = qq"less ${parsed_file} | awk -F '	' '{print \$2}' | head";
+$actual = qx"${test_cmd}";
+
 unless(ok($expected eq $actual, 'Is the resulting table of hits expected?')) {
     my($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");

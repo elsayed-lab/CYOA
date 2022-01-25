@@ -68,7 +68,7 @@ sub SNP_Search {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'gff_tag', 'gff_type'],
-        modules => ['bowtie2', 'samtools'],
+        modules => ['bowtie2', 'samtools', 'bcftools'],
         varfilter => 0,
         vcf_cutoff => 5,
         vcf_minpct => 0.8,);

@@ -444,6 +444,7 @@ sub Trimomatic_Single {
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
+    my $stdout = qq"${output_dir}/${basename}-trimomatic.stdout";
     my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
@@ -452,7 +453,7 @@ ${exe} \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
-  1>${output_dir}/${basename}-trimomatic.stdout 2>&1
+  1>${output} 2>&1
 xz -9e -f ${output}
 ln -sf ${output}.xz r1_trimmed.fastq.xz
 !;
@@ -471,6 +472,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
                                     action => 'unload');
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
+        input => $stdout,
         jdepends => $trim->{job_id},
         jname => qq"trst_${job_name}",
         jprefix => '06',

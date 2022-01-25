@@ -47,6 +47,7 @@ sub Concatenate_Searches {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        workdir => '',
         jmem => 8,);
     my $workdir = $options->{workdir};
     my $finished = 0;
@@ -66,7 +67,7 @@ rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${
         jmem => $options->{jmem},
         jstring => $jstring,
         jprefix => $options->{jprefix},
-        output => qq"${output}",);
+        output => $output,);
     return($concatenate);
 }
 
