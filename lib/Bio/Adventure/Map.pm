@@ -980,9 +980,15 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         $hisat_job->{htseq} = $htmulti;
     }  ## End checking if we should do htseq
 
+    my $htseq_out = '';
+    if (ref($hisat_job->{htseq}) eq 'ARRAY') {
+        $htseq_out = $hisat_job->{htseq}->[0]->{output};
+    } else {
+        $htseq_out = $hisat_job->{htseq}->{output};
+    }
     my $stats = $class->Bio::Adventure::Metadata::HT2_Stats(
         ht_input => $error_file,
-        count_table => $hisat_job->{htseq}->[0]->{output},
+        count_table => $htseq_out,
         jdepends => $hisat_job->{job_id},
         jname => qq"hisat2st_${suffix_name}",
         jprefix => $new_jprefix,

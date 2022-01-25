@@ -465,7 +465,7 @@ salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${specie
         }
         my $decoy_location = qq"$options->{libdir}/${libtype}/${species}_decoys.fasta";
         $decoy_copy_string = qq!less $options->{input} > ${decoy_location} && less ${species_file} >> ${decoy_location}
-less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' > ${decoy_location}.txt
+less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy_location}.txt
 !;
         $index_input = $decoy_location;
         $index_string = qq!
