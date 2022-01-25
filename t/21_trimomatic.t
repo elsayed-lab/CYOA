@@ -19,7 +19,6 @@ my $trimmer = $cyoa->Bio::Adventure::Trim::Trimomatic_Single(input => $input_fil
 ok($trimmer, 'Run Trimomatic');
 
 my $csv_file = $trimmer->{stats}->{output};
-
 ok(my $actual = $cyoa->Last_Stat(input => $csv_file),
    'Collect Trimomatic Statistics');
 

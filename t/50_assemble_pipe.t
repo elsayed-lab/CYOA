@@ -543,9 +543,8 @@ if ($comparison) {
 $test_file = $assemble->{'25interproscan'}->{output_tsv};
 $comparison = ok(-f $test_file, qq"Checking interproscan output tsv: ${test_file}");
 print "Passed.\n" if ($comparison);
-$actual = qx"awk '{print \$1}' $test_file | sort | uniq | head -n 2";
+$actual = qx"awk '{print \$1}' $test_file | sort | uniq | head -n 1";
 $expected = qq"test_output_0001
-test_output_0005
 ";
 $comparison = ok($expected eq $actual, 'Checking interproscan result:');
 if ($comparison) {

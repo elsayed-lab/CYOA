@@ -23,11 +23,8 @@ ok($cyoa->Bio::Adventure::QA::Fastqc_Single(input => $input_file),
 ok(-r 'scripts/01fqc_test_forward_Bio-Adventure.sh',
    'Fastqc script exists?');
 
-ok(qx"fastqc --help", 'Can run fastqc?');
-
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
-
 my $expected = 'fqc_test_forward_Bio-Adventure,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
 unless(ok($expected eq $actual,
           'Are the fastqc results the expected value?')) {
