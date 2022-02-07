@@ -785,6 +785,7 @@ sub Phage_Assemble {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        host_filter => 1,
         host_species => '');
     my $prefix = sprintf("%02d", 0);
     my $final_locustag = basename(cwd());
@@ -828,16 +829,22 @@ sub Phage_Assemble {
     $last_job = $kraken_std->{job_id};
     sleep(0.2);
 
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Using Kraken results to filter likely host sequences.\n";
-    my $filter = $class->Bio::Adventure::Phage::Filter_Host_Kraken(
-        jdepends => $last_job,
-        input => $kraken_std->{output},
-        input_fastq => $correct->{output},
-        jprefix => $prefix,
-        jname => 'krakenfilter',);
-    $last_job = $filter->{job_id};
-    sleep(0.2);
+    my $filter = {};
+    if ($options->{host_filter}) {
+        $prefix = sprintf("%02d", ($prefix + 1));
+        print "\n${prefix}: Using Kraken results to filter likely host sequences.\n";
+        $filter = $class->Bio::Adventure::Phage::Filter_Host_Kraken(
+            jdepends => $last_job,
+            input => $kraken_std->{output},
+            input_fastq => $correct->{output},
+            jprefix => $prefix,
+            jname => 'krakenfilter',);
+        $last_job = $filter->{job_id};
+        sleep(0.2);
+    } else {
+        print "\n: Not performing host filter.\n";
+        $filter->{output} = $correct->{output};
+    }
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Classifying sequences with Kraken using the viral database.\n";

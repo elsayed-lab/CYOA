@@ -248,6 +248,12 @@ fi
         use Data::Dumper;
         print Dumper $job;
     }
+
+    ## Take a moment to reset the shell and language
+    ##$parent->{language} = 'bash';
+    ##$parent->{shell} = '/usr/bin/env bash';
+    my $reset = Bio::Adventure::Reset_Vars($parent);
+
     return($job);
 }
 

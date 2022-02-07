@@ -281,6 +281,7 @@ has gff_tag => (is => 'rw', default => 'gene_id'); ## Likely redundant with htse
 ## Notably the interCDS for bacterial genomes.
 has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole gff file, otherwise use that suffix.
 has help => (is => 'rw', default => undef); ## Ask for help?
+has host_filter => (is => 'rw', default => 1);  ## When performing an assembly, do a host filter?
 has htseq_args => (is => 'rw', default => ' --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union '); ## Most likely htseq options
 has htseq_id => (is => 'rw', default => 'ID'); ## Default htseq ID tag
 has htseq_stranded => (is => 'rw', default => 'no'); ## Use htseq stranded options?
@@ -465,14 +466,14 @@ sub BUILD {
         }
     }
     ## Figure out what kind of cluster we are using, if any.
-    my $queue_test = My_Which('sbatch');
-    if ($queue_test) {
+    my $torque_test = My_Which('qsub');
+    my $slurm_test = My_Which('sbatch');
+    if ($slurm_test) {
         $class->{cluster} = 'slurm';
+    } elsif ($torque_test) {
+        $class->{cluster} = 'torque';
     } else {
-        $queue_test = My_Which('qsub');
-        if ($queue_test) {
-            $class->{cluster} = 'torque';
-        }
+        $class->{cluster} = 'bash';
     }
 
     ## Make a log of command line arguments passed.
@@ -1366,6 +1367,25 @@ sub Get_Vars {
     $class->{variable_current_state} = \%returned_vars;
     return(\%returned_vars);
 }
+
+=item C<Reset_Vars>
+
+  Make sure that the environment is returned to a useful default state when perturbed.
+
+=cut
+sub Reset_Vars {
+    my ($class, %args) = @_;
+    $class->{language} = 'bash';
+    $class->{shell} = '/usr/bin/env bash';
+    $class->{jmem} = 12;
+    $class->{jnice} = 10;
+    $class->{jqueue} = 'workstation';
+    $class->{jwalltime} = '10:00:00';
+    $class->{jstring} = '';
+    $class->{jdepends} = undef;
+    $class->{jbasename} = undef;
+}
+
 
 =item C<Set_Vars>
 

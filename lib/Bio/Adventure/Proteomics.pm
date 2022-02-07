@@ -97,12 +97,12 @@ module add openms
 sub Comet {
 
     my $jstring = qq!comet
-  -Pparameters/comet_${DDA_METHOD}_params.txt \
-  ${comet_input} \
+  -Pparameters/comet_${DDA_METHOD}_params.txt \\
+  ${comet_input} \\
   2>>"${comet_input}.log" 1>&2
-RefreshParser \
-  ${refresh_input} \
-  "${REFDB}" \
+RefreshParser \\
+  ${refresh_input} \\
+  "${REFDB}" \\
   2>"${refresh_input}_refreshparser.out" 1>&2
 
 !;
@@ -113,12 +113,12 @@ RefreshParser \
 sub Merge_Xinteract {
 
     my $jstring = qq!
-xinteract \
-    "-d${DECOY_STRING}" \
-    -OARPpd \
-    -Ow \
-    "-N${FDR_RESULT}" \
-    ${PEPXML_INPUTS} \
+xinteract \\
+    "-d${DECOY_STRING}" \\
+    -OARPpd \\
+    -Ow \\
+    "-N${FDR_RESULT}" \\
+    ${PEPXML_INPUTS} \\
     2>"${FDR_RESULT}.log" 1>&2
 !;
 
@@ -129,10 +129,10 @@ xinteract \
 sub Merge_Peptide_Identifications {
 
     my $jstring = qq!
-InterProphetParser \
-    "DECOY=${DECOY_STRING}" \
-    "${FDR_RESULT}" \
-    "${IPP_RESULT}" \
+InterProphetParser \\
+    "DECOY=${DECOY_STRING}" \\
+    "${FDR_RESULT}" \\
+    "${IPP_RESULT}" \\
     2>"${IPP_RESULT}.log" 1>&2
 !;
 }
@@ -140,13 +140,13 @@ InterProphetParser \
 sub Standardize_FDR_Mayu {
 
     my $jstring = qq!
-Mayu.pl \
-    -A "${IPP_RESULT}" \
-    -C "${REFDB}" \
-    -E "${DECOY_STRING}" \
-    -G "${CONFIDENCE_CUTOFF}" \
-    -H 101 \
-    -I "${CLEAVAGES}" \
+Mayu.pl \\
+    -A "${IPP_RESULT}" \\
+    -C "${REFDB}" \\
+    -E "${DECOY_STRING}" \\
+    -G "${CONFIDENCE_CUTOFF}" \\
+    -H 101 \\
+    -I "${CLEAVAGES}" \\
     2>"${MAYU_RESULT}" 1>&2
 !;
 }
@@ -154,13 +154,13 @@ Mayu.pl \
 sub Create_Spectral_Libraries {
 
     my $jstring = qq?
-spectrast \
-    "-cN${SPECTRAL_BASENAME}" \
-    "-cI${DDA_METHOD}" \
-    -cf "Protein! ~ ${DECOY_STRING}" \
-    "-cP${IPPP}" \
-    -c_IRR \
-    "${IPP_RESULT}" \
+spectrast \\
+    "-cN${SPECTRAL_BASENAME}" \\
+    "-cI${DDA_METHOD}" \\
+    -cf "Protein! ~ ${DECOY_STRING}" \\
+    "-cP${IPPP}" \\
+    -c_IRR \\
+    "${IPP_RESULT}" \\
     2>"${IPP_RESULT}.out" 1>&2
 ?;
 }
@@ -168,11 +168,11 @@ spectrast \
 sub Make_Consensus_Libraries {
 
     my $jstring = qq?
-spectrast \
-    "-cN${CONSENSUS}" \
-    "-cI${DDA_METHOD}" \
-    -cAC \
-    "${SPECTRAL_LIBRARY}" \
+spectrast \\
+    "-cN${CONSENSUS}" \\
+    "-cI${DDA_METHOD}" \\
+    -cAC \\
+    "${SPECTRAL_LIBRARY}" \\
     2>"${SPECTRAL_LIBRARY}.out" 1>&2
 ?;
 }
@@ -186,19 +186,19 @@ echo "Writing spectrast tsv files with spectrast2tsv."
 echo "Making a consensus library specific for ${MZ_WINDOWS} windows."
 echo "The input is: ${CONSENSUS}.sptxt"
 echo "The output is: ${CONSENSUS}_${MZ_WINDOWS}.tsv"
-spectrast2tsv.py \
-    -l 350,2000 \
-    -s b,y \
-    -x 1,2 \
-    -o 4 \
-    -n 6 \
-    -p "${CONFIDENCE_CUTOFF}" \
-    -d \
-    -e \
-    -w "windows/acquisition_${MZ_WINDOWS}.txt" \
-    -k openswath \
-    -a "${CONSENSUS}_${MZ_WINDOWS}.tsv" \
-    "${CONSENSUS}.sptxt" \
+spectrast2tsv.py \\
+    -l 350,2000 \\
+    -s b,y \\
+    -x 1,2 \\
+    -o 4 \\
+    -n 6 \\
+    -p "${CONFIDENCE_CUTOFF}" \\
+    -d \\
+    -e \\
+    -w "windows/acquisition_${MZ_WINDOWS}.txt" \\
+    -k openswath \\
+    -a "${CONSENSUS}_${MZ_WINDOWS}.tsv" \\
+    "${CONSENSUS}.sptxt" \\
     2>"${CONSENSUS}_spectrast.log" 1>&2
 !;
 }
@@ -210,31 +210,31 @@ echo "Converting spectral libraries to TraML."
 rm -f "${CONSENSUS}_${MZ_WINDOWS}.TraML"
 echo "The input is: ${CONSENSUS}_${MZ_WINDOWS}.tsv"
 echo "The output is: ${CONSENSUS}_${MZ_WINDOWS}.TraML"
-TargetedFileConverter \
-    -in "${CONSENSUS}_${MZ_WINDOWS}.tsv" \
-    -in_type tsv \
-    -out "${CONSENSUS}_${MZ_WINDOWS}.TraML" \
+TargetedFileConverter \\
+    -in "${CONSENSUS}_${MZ_WINDOWS}.tsv" \\
+    -in_type tsv \\
+    -out "${CONSENSUS}_${MZ_WINDOWS}.TraML" \\
     -out_type TraML
 
 echo "Converting spectral libraries to TraML."
 rm -f "${CONSENSUS}_${MZ_WINDOWS}.TraML"
 echo "The input is: ${CONSENSUS}_${MZ_WINDOWS}.tsv"
 echo "The output is: ${CONSENSUS}_${MZ_WINDOWS}.TraML"
-TargetedFileConverter \
-    -in "${CONSENSUS}_${MZ_WINDOWS}.tsv" \
-    -in_type tsv \
-    -out "${CONSENSUS}_${MZ_WINDOWS}.TraML" \
+TargetedFileConverter \\
+    -in "${CONSENSUS}_${MZ_WINDOWS}.tsv" \\
+    -in_type tsv \\
+    -out "${CONSENSUS}_${MZ_WINDOWS}.TraML" \\
     -out_type TraML
 
 echo "Converting the Tuberculist libraries to pqp."
 TUBERCULIST_TRAML="results/05spectral_libraries/Mtb_TubercuList-R27_iRT_UPS_noMox_noMC_sall_osw_decoy.TraML"
 echo "The input is: ${TUBERCULIST_TRAML}"
 echo "The output is: ${TUBERCULIST_PQP}"
-TargetedFileConverter \
-    -in "${TUBERCULIST_TRAML}" \
-    -in_type TraML \
-    -out "${TUBERCULIST_PQP}" \
-    -out_type pqp \
+TargetedFileConverter \\
+    -in "${TUBERCULIST_TRAML}" \\
+    -in_type TraML \\
+    -out "${TUBERCULIST_PQP}" \\
+    -out_type pqp \\
     2>"${TUBERCULIST_PQP}_convert.log" 1>&2
 
 !;
@@ -264,21 +264,21 @@ echo "Generating decoys for ${CONSENSUS}_${MZ_WINDOWS}"
 echo "Optimizing the consensus library."
 echo "The input is: ${CONSENSUS_TRAML}"
 echo "The output is: ${OPTIMIZED_TRAML}"
-OpenSwathAssayGenerator \
-     -in "${CONSENSUS_TRAML}" \
-     -out "${OPTIMIZED_TRAML}" \
-     -swath_windows_file "windows/openswath_${MZ_WINDOWS}.txt" \
-     -enable_ipf \
-     -unimod_file "parameters/unimod.xml" \
+OpenSwathAssayGenerator \\
+     -in "${CONSENSUS_TRAML}" \\
+     -out "${OPTIMIZED_TRAML}" \\
+     -swath_windows_file "windows/openswath_${MZ_WINDOWS}.txt" \\
+     -enable_ipf \\
+     -unimod_file "parameters/unimod.xml" \\
      2>"${OPTIMIZED_TRAML}.log" 1>&2
 echo "Adding decoys."
 echo "The input is: ${OPTIMIZED_TRAML}"
 echo "The output is: ${DECOY_TRAML}"
-OpenSwathDecoyGenerator \
-    -in "${OPTIMIZED_TRAML}" \
-    -out "${DECOY_TRAML}" \
-    -decoy_tag "${DECOY_STRING}" \
-    -method shuffle \
+OpenSwathDecoyGenerator \\
+    -in "${OPTIMIZED_TRAML}" \\
+    -out "${DECOY_TRAML}" \\
+    -decoy_tag "${DECOY_STRING}" \\
+    -method shuffle \\
     2>"${DECOY_TRAML}.log" 1>&2
 grep "${TEST}" "${DECOY_TRAML}" | head
 
@@ -286,19 +286,19 @@ echo "Converting decoy-added libraries back to tsv for examination later."
 rm -f "${CONSENSUS}_${MZ_WINDOWS}_decoy.tsv"
 echo "The input is: ${DECOY_TRAML}"
 echo "The output is: ${TRANSITION_PREFIX}.tsv"
-TargetedFileConverter \
-    -in "${DECOY_TRAML}" \
-    -in_type TraML \
-    -out "${TRANSITION_PREFIX}.tsv" \
-    -out_type tsv \
+TargetedFileConverter \\
+    -in "${DECOY_TRAML}" \\
+    -in_type TraML \\
+    -out "${TRANSITION_PREFIX}.tsv" \\
+    -out_type tsv \\
     2>"${TRANSITION_PREFIX}_convert_tsv.log" 1>&2
 echo "Converting libraries with decoys for ${TRANSITION_PREFIX} to pqp."
 echo "The input is: ${DECOY_TRAML}"
 echo "The output is: ${TRANSITION_PREFIX}.pqp"
-TargetedFileConverter \
-    -in "${TRANSITION_PREFIX}.tsv" \
-    -in_type tsv \
-    -out_type pqp \
+TargetedFileConverter \\
+    -in "${TRANSITION_PREFIX}.tsv" \\
+    -in_type tsv \\
+    -out_type pqp \\
     -out "${TRANSITION_PREFIX}.pqp"
 echo "Transition library for openswathworkflow is: ${TRANSITION_PREFIX}.pqp"
 grep "${TEST}" "${TRANSITION_PREFIX}.tsv" | head
@@ -354,36 +354,36 @@ do
     pyprophet_output_prefix="${PYPROPHET_OUTDIR}_${type}/${name}_${DDA_METHOD}"
     echo "Deleting previous swath output file: ${swath_output_prefix}.osw"
     rm -f "${swath_output_prefix}.osw"
-    OpenSwathWorkflow \
-        -ini "parameters/openms_${VERSION}.ini" \
-        -in "${in_mzxml}" \
-        -swath_windows_file "windows/openswath_${name}.txt" \
-        -tr "${TRANSITION_PREFIX}.pqp" \
-        -out_osw "${swath_output_prefix}.osw" \
+    OpenSwathWorkflow \\
+        -ini "parameters/openms_${VERSION}.ini" \\
+        -in "${in_mzxml}" \\
+        -swath_windows_file "windows/openswath_${name}.txt" \\
+        -tr "${TRANSITION_PREFIX}.pqp" \\
+        -out_osw "${swath_output_prefix}.osw" \\
         2>"${swath_output_prefix}_osw.log" 1>&2
     echo "Scoring individual swath run: ${swath_output_prefix}"
-    pyprophet \
-        score \
-        --level ms1 \
-        --in "${swath_output_prefix}.osw" \
-        --out "${pyprophet_output_prefix}.osw" \
+    pyprophet \\
+        score \\
+        --level ms1 \\
+        --in "${swath_output_prefix}.osw" \\
+        --out "${pyprophet_output_prefix}.osw" \\
         2>>"${pyprophet_output_prefix}_ms1.log" 1>&2
-    pyprophet \
-        score \
-        --level ms2 \
-        --in "${pyprophet_output_prefix}.osw" \
-        --out "${pyprophet_output_prefix}.osw" \
+    pyprophet \\
+        score \\
+        --level ms2 \\
+        --in "${pyprophet_output_prefix}.osw" \\
+        --out "${pyprophet_output_prefix}.osw" \\
         2>>"${pyprophet_output_prefix}_ms2.log" 1>&2
-    pyprophet \
-        protein \
-        --in "${pyprophet_output_prefix}.osw" \
-        --context run-specific \
+    pyprophet \\
+        protein \\
+        --in "${pyprophet_output_prefix}.osw" \\
+        --context run-specific \\
         2>>"${pyprophet_output_prefix}_protein.log" 1>&2
     echo "Exporting individual swath run: to ${pyprophet_output_prefix}.tsv"
-    pyprophet \
-        export \
-        --in "${pyprophet_output_prefix}.osw" \
-        --out "${pyprophet_output_prefix}.tsv" \
+    pyprophet \\
+        export \\
+        --in "${pyprophet_output_prefix}.osw" \\
+        --out "${pyprophet_output_prefix}.tsv" \\
         2>>"${pyprophet_output_prefix}_export.log" 1>&2
 done
 
@@ -391,14 +391,14 @@ type="our"
 echo "Creating final aligned matrix for the ${type} library."
 echo "The inputs are the tsv files in: ${SWATH_OUTDIR}_${type}"
 echo "The output is: ${TRIC_OUTDIR}_${lib}/${SEARCH_METHOD}_${DDA_METHOD}.tsv"
-feature_alignment.py \
-    --force \
-    --target_fdr "${CONFIDENCE_CUTOFF}" \
-    --max_fdr_quality "${CONFIDENCE_CUTOFF}" \
-    --in ./${SWATH_OUTDIR}_${lib}/*.tsv \
-    --out "${TRIC_OUTDIR}_${lib}/${SEARCH_METHOD}_${DDA_METHOD}.tsv" \
-    --out_matrix "${TRIC_OUTDIR}_${lib}/${DDA_METHOD}_outmatrix.tsv" \
-    --out_meta "${TRIC_OUTDIR}_${lib}/${DDA_METHOD}_meta.tsv" \
+feature_alignment.py \\
+    --force \\
+    --target_fdr "${CONFIDENCE_CUTOFF}" \\
+    --max_fdr_quality "${CONFIDENCE_CUTOFF}" \\
+    --in ./${SWATH_OUTDIR}_${lib}/*.tsv \\
+    --out "${TRIC_OUTDIR}_${lib}/${SEARCH_METHOD}_${DDA_METHOD}.tsv" \\
+    --out_matrix "${TRIC_OUTDIR}_${lib}/${DDA_METHOD}_outmatrix.tsv" \\
+    --out_meta "${TRIC_OUTDIR}_${lib}/${DDA_METHOD}_meta.tsv" \\
     2>"${TRIC_OUTDIR}_${lib}/${SEARCH_METHOD}_${DDA_METHOD}.log" 1>&2
 tail "${TRIC_OUTDIR}_${lib}/${SEARCH_METHOD}_${DDA_METHOD}.log"
 
@@ -425,12 +425,12 @@ do
     pyprophet_output_prefix="${pypdir}/${name}_vs_${VERSION}_${TYPE}_${DDA_METHOD}_dia"
     echo "Deleting previous swath output file: ${tb_output_prefix}.osw"
     rm -f "${tb_output_prefix}.osw"
-    OpenSwathWorkflow \
-        -ini "parameters/openms_${VERSION}.ini" \
-        -in "${in_mzxml}" \
-        -swath_windows_file "windows/openswath_${name}.txt" \
-        -tr "${TUBERCULIST_PQP}" \
-        -out_osw "${tb_output_prefix}.osw" \
+    OpenSwathWorkflow \\
+        -ini "parameters/openms_${VERSION}.ini" \\
+        -in "${in_mzxml}" \\
+        -swath_windows_file "windows/openswath_${name}.txt" \\
+        -tr "${TUBERCULIST_PQP}" \\
+        -out_osw "${tb_output_prefix}.osw" \\
         2>"${tb_output_prefix}_osw.log" 1>&2
     if [[ "$?" -ne "0" ]]; then
         echo "OpenSwathWorkflow for ${name} failed."
@@ -438,30 +438,30 @@ do
 
     rm -f "${tb_output_prefix}_scored.osw"
     echo "Scoring individual swath run: ${tb_output_prefix}"
-    pyprophet \
-        score \
-        --level ms1 \
-        --in "${tb_output_prefix}.osw" \
-        --out "${pyprophet_output_prefix}_scored.osw" \
+    pyprophet \\
+        score \\
+        --level ms1 \\
+        --in "${tb_output_prefix}.osw" \\
+        --out "${pyprophet_output_prefix}_scored.osw" \\
         2>>"${pyprophet_output_prefix}_pyprophet_ms1.log" 1>&2
     if [[ "$?" -ne "0" ]]; then
         echo "MS1 scoring ${pyprophet_output_prefix}_scored.osw failed."
     fi
 
-    pyprophet \
-        score \
-        --level ms2 \
-        --in "${pyprophet_output_prefix}_scored.osw" \
-        --out "${pyprophet_output_prefix}_scored.osw" \
+    pyprophet \\
+        score \\
+        --level ms2 \\
+        --in "${pyprophet_output_prefix}_scored.osw" \\
+        --out "${pyprophet_output_prefix}_scored.osw" \\
         2>>"${pyprophet_output_prefix}_pyprophet_ms2.log" 1>&2
     if [[ "$?" -ne "0" ]]; then
         echo "MS2 scoring ${pyprophet_output_prefix}_scored.osw failed."
     fi
 
-    pyprophet \
-        protein \
-        --in "${pyprophet_output_prefix}_scored.osw" \
-        --context run-specific \
+    pyprophet \\
+        protein \\
+        --in "${pyprophet_output_prefix}_scored.osw" \\
+        --context run-specific \\
         2>>"${pyprophet_output_prefix}_pyprophet_protein.log" 1>&2
     if [[ "$?" -ne "0" ]]; then
         echo "Protein scoring ${pyprophet_output_prefix}_scored.osw failed."
@@ -469,10 +469,10 @@ do
 
     rm -f "${pyprophet_output_prefix}_scored.tsv"
     echo "Exporting individual swath run: to ${pyprophet_output_prefix}_scored.tsv"
-    pyprophet \
-        export \
-        --in "${pyprophet_output_prefix}_scored.osw" \
-        --out "${pyprophet_output_prefix}_scored.tsv" \
+    pyprophet \\
+        export \\
+        --in "${pyprophet_output_prefix}_scored.osw" \\
+        --out "${pyprophet_output_prefix}_scored.tsv" \\
         2>>"${pyprophet_output_prefix}_pyprophet_export.log" 1>&2
     ## ok something is fubar, the stupid tsv files are being written in the cwd as run_filename.tsv
     ## No matter what I do
@@ -484,13 +484,13 @@ done
 
 tric_tb="${TRIC_OUTDIR}_tuberculist"
 mkdir -p "${tric_tb}"
-feature_alignment.py \
-    --force \
-    --in "./${pypdir}/"*.tsv \
-    --out "${tric_tb}/${SEARCH_METHOD}_${DDA_METHOD}.tsv" \
-    --out_matrix "${tric_tb}/${DDA_METHOD}_outmatrix.tsv" \
-    --out_meta "${tric_tb}/${DDA_METHOD}_meta.tsv"
-2>"${tric_tb}/feature_alignment.err" \
+feature_alignment.py \\
+    --force \\
+    --in "./${pypdir}/"*.tsv \\
+    --out "${tric_tb}/${SEARCH_METHOD}_${DDA_METHOD}.tsv" \\
+    --out_matrix "${tric_tb}/${DDA_METHOD}_outmatrix.tsv" \\
+    --out_meta "${tric_tb}/${DDA_METHOD}_meta.tsv" \\
+ 2>"${tric_tb}/feature_alignment.err" \\
  1>"${tric_tb}/feature_alignment.out"
 echo "Wrote final output to ${tric_tb}/${SEARCH_METHOD}_${DDA_METHOD}.tsv"
 

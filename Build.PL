@@ -55,7 +55,7 @@ my %module_build_args = (
             'Log::Log4perl' => '0',
             'Math::Round' => '0',
             'Modern::Perl' => '0',
-	    'LWP::Protocol::https' => '0',
+            'LWP::Protocol::https' => '0',
             'Parse::CSV' => '0',
             'PerlIO' => '0',
             'PerlIO::gzip' => '0',
@@ -87,7 +87,7 @@ my %fallback_build_requires = (
     "Test::More" => "0.88"
     );
 
-unless ( eval { Module::Build->VERSION(0.4004) } ) {
+unless (eval { Module::Build->VERSION(0.4004) }) {
     delete $module_build_args{test_requires};
     $module_build_args{build_requires} = \%fallback_build_requires;
 }
