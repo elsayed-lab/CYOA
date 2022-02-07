@@ -301,10 +301,10 @@ sub Trimomatic_Pairwise {
     $r1b = basename($r1b, @suff);
     my $r2b = basename($r2, @suff);
     $r2b = basename($r2b, @suff);
-    my $reader = qq"${r1} ${r2}";
-    if ($r1 =~ /\.xz$/) {
-        $reader = qq"<(less ${r1}) <(less ${r2})";
-    }
+    ##my $reader = qq"${r1} ${r2}";
+    ##if ($r1 =~ /\.xz$/) {
+    my $reader = qq"<(less ${r1}) <(less ${r2})";
+    ##}
     my $r1o = qq"${r1b}-trimmed.fastq";
     my $r1op = qq"${r1b}-trimmed_paired.fastq";
     my $r1ou = qq"${r1b}-trimmed_unpaired.fastq";

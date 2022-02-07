@@ -105,6 +105,7 @@ $args{jstring}" if ($options->{verbose});
     my $script_start = qq?#!/usr/bin/env bash
 set -o errexit
 set -o pipefail
+export LESS='--buffers 0'
 echo "####Started ${script_file} at \$(date)" >> ${bash_log}
 ${module_string}
 ?;

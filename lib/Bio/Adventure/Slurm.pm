@@ -109,6 +109,7 @@ close(\$out);
         ## qq"${perl_file} && rm $options->{option_file}\n";
         $options->{jstring} = qq"set -o errexit
 set -o pipefail
+export LESS='--buffers 0'
 
 ${perl_file}
 
@@ -137,6 +138,7 @@ ${perl_file}
 #SBATCH --output=${sbatch_log}
 set -o errexit
 set -o pipefail
+export LESS='--buffers 0'
 ?;
     if ($options->{array_string}) {
         $script_start .= qq"#SBATCH --array=$options->{array_string}
