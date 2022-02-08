@@ -58,6 +58,40 @@ sub Align_SNP_Search {
     return($search);
 }
 
+=head2 C<Freebayes_SNP_Search>
+
+ Invoke freebayes to create and filter a set of variant positions.
+ arXiv:1207.3907
+
+=cut
+sub Freebayes_SNP_Search {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species', 'input',],
+        jmem => 24,
+        jprefix => '40',
+        modules => ['freebayes', 'bcftools', 'vcftools'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('freebayes');
+    die('Could not find freebayes in your PATH.') unless($check);
+    my $input_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $freebayes_dir = qq"outputs/$options->{jprefix}freebayes_$options->{species}";
+    my $output_file = qq"${freebayes_dir}/$options->{species}.vcf";
+    my $stderr = qq"${freebayes_dir}/$options->{species}.stderr";
+
+    my $comment = qq!## This is a freebayes search for variant against ${input_fasta}!;
+    my $jstring = qq!
+mkdir -p ${freebayes_dir}
+freebayes -f ${input_fasta} \\
+  $options->{input} \\
+  1>${output_file} \\
+  2>${stderr}
+!;
+
+
+}
+
 =head2 C<SNP_Search>
 
  Handle the invocation of vcfutils and such to seek high-confidence variants.
