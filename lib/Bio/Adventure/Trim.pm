@@ -394,7 +394,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
         pairwise => 1,
-        input => $stdout,
+        input => $stderr,
         output_dir => $output_dir,);
     $trim->{stats} = $trim_stats;
     return($trim);
@@ -473,7 +473,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
                                     action => 'unload');
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
-        input => $stdout,
+        input => $stderr,
         jdepends => $trim->{job_id},
         jname => qq"trst_${job_name}",
         jprefix => '06',
