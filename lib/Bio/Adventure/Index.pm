@@ -179,7 +179,9 @@ sub Check_Blastdb {
         args => \%args,
         blast_tool => 'blastn',
         type => 'prot',
-        required => ['input'],);
+        required => ['input'],
+        modules => ['blast'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $libname = basename($options->{input}, '.fasta');
     ## First check for the relevant library in $ENV{BLASTDB}
     ## If it isn't there, make one in basedir/blastdb/
@@ -451,7 +453,7 @@ sub Salmon_Index {
     my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
     my $species_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
 
-    if (!-f $copied_location) {
+    if (!-r $copied_location) {
         cp($options->{input}, $copied_location);
     }
     my $decoy_copy_string = qq'';
