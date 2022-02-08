@@ -445,6 +445,7 @@ sub Trimomatic_Single {
 ## cutadapt provides an alternative to this tool.
 ## The original sequence data is recompressed and saved in the sequences/ directory.!;
     my $stdout = qq"${output_dir}/${basename}-trimomatic.stdout";
+    my $stderr = qq"${output_dir}/${basename}-trimomatic.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
 ${exe} \\
@@ -453,7 +454,7 @@ ${exe} \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:50 \\
-  1>${output} 2>&1
+  1>${stdout} 2>${stderr}
 xz -9e -f ${output}
 ln -sf ${output}.xz r1_trimmed.fastq.xz
 !;
