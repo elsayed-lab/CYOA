@@ -347,8 +347,7 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
         output => $output,
         output_log => $output_log,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        shell => '/usr/bin/env perl',);
+        postscript => $options->{postscript},);
     return($depth_filtered);
 }
 

@@ -114,7 +114,6 @@ ${perl_file}
 
 ## At least in theory, this rm should not happen if the script run successfully.
 ## For the moment, however, I will not run it so that I can continue testing my scripts.
-## rm $parent->{option_file}
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
@@ -248,10 +247,7 @@ fi
     }
 
     ## Take a moment to reset the shell and language
-    ##$parent->{language} = 'bash';
-    ##$parent->{shell} = '/usr/bin/env bash';
-    my $reset = Bio::Adventure::Reset_Vars($parent);
-
+    my $reset = Bio::Adventure::Reset_Vars($class);
     return($job);
 }
 

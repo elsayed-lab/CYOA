@@ -282,10 +282,7 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
         output_gbk => $output_gbk,
         output_tsv => $output_tsv,
         output_log => $output_log,
-        primary_key => $options->{primary_key},
-        shell => '/usr/bin/env perl',);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
+        primary_key => $options->{primary_key},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($merge_orfs);

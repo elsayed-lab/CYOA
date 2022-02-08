@@ -910,8 +910,7 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         language => 'perl',
         log => $log,
         output => $output_file,
-        output_dir => $output_dir,
-        shell => '/usr/bin/env perl',);
+        output_dir => $output_dir,);
     return($rewrite);
 }
 

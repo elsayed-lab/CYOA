@@ -171,7 +171,7 @@ fi
         print Dumper $job;
     }
     ## Reset the environment in case we left any cruft behind
-    my $reset = Bio::Adventure::Reset_Vars($parent);
+    my $reset = Bio::Adventure::Reset_Vars($class);
     return($job);
 }
 

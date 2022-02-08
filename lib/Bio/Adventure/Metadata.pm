@@ -456,7 +456,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         primary_key => $options->{primary_key},
         keep_genes => $options->{keep_genes},
         locus_tag => $options->{locus_tag},
-        shell => '/usr/bin/env perl',
         suffix => $options->{suffix},);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
