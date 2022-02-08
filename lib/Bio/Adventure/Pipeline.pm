@@ -843,7 +843,7 @@ sub Phage_Assemble {
         sleep(0.2);
     } else {
         print "\n: Not performing host filter.\n";
-        $filter->{output} = $correct->{output};
+        $filter = $correct;
     }
 
     $prefix = sprintf("%02d", ($prefix + 1));

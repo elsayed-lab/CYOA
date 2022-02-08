@@ -444,8 +444,7 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
         jname => 'parse_search',
         jstring => $jstring,
         jprefix => '93',
-        language => 'perl',
-        shell => '/usr/bin/env perl',);
+        language => 'perl',);
     $parse_job->{align} = $alignment;
     $parse_job->{concat} = $concat_job;
     return($parse_job);

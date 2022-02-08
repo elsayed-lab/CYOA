@@ -1700,16 +1700,16 @@ sub Submit {
         }
         ## I think this might be required as per:
         ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
-        $Storable::Deparse = 1;
-        $Storable::Eval = 1;
-        $option_file = File::Temp->new(
-            TEMPLATE => 'optionsXXXX',
-            DIR => $option_directory,
-            UNLINK => 0,
-            SUFFIX => '.pdata',);
-        my $option_filename = $option_file->filename;
-        $options->{option_file} = $option_filename;
-        $class->{option_file} = $option_filename;
+        ##$Storable::Deparse = 1;
+        ##$Storable::Eval = 1;
+        ##$option_file = File::Temp->new(
+        ##    TEMPLATE => 'optionsXXXX',
+        ##    DIR => $option_directory,
+        ##    UNLINK => 0,
+        ##    SUFFIX => '.pdata',);
+        ##my $option_filename = $option_file->filename;
+        ##$options->{option_file} = $option_filename;
+        ##$class->{option_file} = $option_filename;
         ## Code references are invalid for these things...
         ## Why is it that periodically I get this error?
         ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?

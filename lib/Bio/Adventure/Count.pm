@@ -550,8 +550,7 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
         jprefix => $new_prefix,
         jstring => $jstring,
         output => $matrix_file,
-        language => 'perl',
-        shell => '/usr/bin/env perl',);
+        language => 'perl',);
     $jelly->{matrix_job} = $matrix_job;
 
     my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
@@ -1103,8 +1102,7 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
         jname => 'slsearch',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        language => 'perl',
-        shell => '/usr/bin/env perl',);
+        language => 'perl',);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     return($slsearch);

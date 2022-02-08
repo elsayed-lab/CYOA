@@ -60,8 +60,7 @@ use Bio::Adventure::Structure;
         step => $options->{step},
         jstring => $jstring,
         comment => $comment,
-        language => 'perl',
-        shell => '/usr/bin/env perl',);
+        language => 'perl',);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     return($folder);

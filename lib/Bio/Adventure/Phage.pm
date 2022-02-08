@@ -282,8 +282,7 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         output_blast => $output_blast,
         output_dir => $output_dir,
         output_log => $output_log,
-        topn => $options->{topn},
-        shell => '/usr/bin/env perl',);
+        topn => $options->{topn},);
     return($cjob);
 }
 
@@ -610,8 +609,7 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        log => $log,
-        shell => '/usr/bin/env perl',);
+        log => $log,);
     return($host);
 }
 
@@ -1049,15 +1047,12 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         output_type => $dtr_type_file,
         output_dtr => $dtr_sequence_file,
         test_file => $dtr_test_file,
-        shell => 'usr/bin/env perl',
         language => 'perl',
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'phageterm',
         jstring => $jstring,);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
     return($phageterm_run);
 }
 
@@ -1327,8 +1322,7 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
         language => 'perl',
         library => $options->{library},
         modules => $options->{modules},
-        output => $re_output,
-        shell => '/usr/bin/env perl',);
+        output => $re_output,);
     return($re_job);
 }
 
@@ -1489,7 +1483,6 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         output_dir => $output_dir,
         output_tsv => $output_tsv,
         test_file => $options->{test_file},
-        shell => '/usr/bin/env perl',
         language => 'perl',
         comment => $comment,
         jdepends => $options->{jdepends},
