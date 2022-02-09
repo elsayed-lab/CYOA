@@ -829,7 +829,7 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
 mv Trinotate.tsv ${output_name}
 rm -f *.ok *.out *.outfmt6 *.cmds *.log
 rm -rf TMHMM_* $input_paths->{filename}.ffn.trans*
-cd ${start}
+cd \${start}
 !;
     my $trinotate = $class->Submit(
         cpus => 6,
