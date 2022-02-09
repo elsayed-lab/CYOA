@@ -107,14 +107,8 @@ close(\$out);
         chmod(0775, $perl_file);
         ## If I get this working properly, change this to:
         ## qq"${perl_file} && rm $options->{option_file}\n";
-        $options->{jstring} = qq"set -o errexit
-set -o pipefail
-export LESS='--buffers 0'
-
+        $options->{jstring} = qq"
 ${perl_file}
-
-## At least in theory, this rm should not happen if the script run successfully.
-## For the moment, however, I will not run it so that I can continue testing my scripts.
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
