@@ -502,6 +502,7 @@ prodigal ${train_string} \\
   -f gbk -o ${gbk_file} \\
   2>${output_dir}/prodigal_gbk.stderr \\
   1>${output_dir}/prodigal_gbk.stdout
+sleep 3
 !;
     my $prodigal = $class->Submit(
         cpus => 1,
