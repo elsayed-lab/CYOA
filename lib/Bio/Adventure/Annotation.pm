@@ -87,6 +87,7 @@ if [[ -f interproscan.tsv ]]; then
   rm interproscan.tsv
 fi
 ln -sf "${output_filename}" interproscan.tsv
+rm -rf temp
 cd \${start}
 !;
     my $interproscan = $class->Submit(
@@ -799,7 +800,7 @@ sub Trinotate {
 start=\$(pwd)
 cd ${output_dir}
 ln -sf "$input_paths->{fullpath}" .
-rm -f "./$input_paths->{filename}.gene_trans_map"
+rm -f "$input_paths->{filename}.gene_trans_map"
 if [[ -f "$input_paths->{filename}.gene_trans_map" ]]; then
   ln -sf "$input_paths->{filename}.gene_trans_map" .
 else
@@ -809,16 +810,20 @@ else
   done
 fi
 
+cp ${trinotate_exe_dir}/Trinotate.sqlite /tmp/$input_paths->{filename}.sqlite
 ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --conf ${expected_config} \\
-  --Trinotate_sqlite ${trinotate_exe_dir}/sample_data/Trinotate.boilerplate.sqlite \\
+  --Trinotate_sqlite /tmp/$input_paths->{filename}.sqlite
   --transcripts $input_paths->{filename} \\
   --gene_to_trans_map $input_paths->{filename}.gene_trans_map \\
   --CPU 6 \\
   2>trinotate_${job_name}.stderr \\
   1>trinotate_${job_name}.stdout
 mv Trinotate.tsv ${output_name}
-cd \${start}
+rm -f /tmp/$input_paths->{filename}.sqlite
+rm -f *.ok *.out *.outfmt6 *.cmds *.log
+rm -rf TMHMM_* $input_paths->{filename}.ffn.trans*
+cd ${start}
 !;
     my $trinotate = $class->Submit(
         cpus => 6,
