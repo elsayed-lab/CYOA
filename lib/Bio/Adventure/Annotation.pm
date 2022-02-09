@@ -796,7 +796,14 @@ sub Trinotate {
     $expected_config = qq"${trinotate_exe_dir}/auto/conf.txt" unless (-r $expected_config);
     my $comment = qq!## This is a trinotate submission script
 !;
-    my $jstring = qq!mkdir -p ${output_dir}
+    my $jstring = qq!
+function cleanup {
+  echo "Removing /tmp/$input_paths->{filename}.sqlite"
+  rm  -f /tmp/$input_paths->{filename}.sqlite
+}
+trap cleanup EXIT
+
+mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
 ln -sf "$input_paths->{fullpath}" .
@@ -820,7 +827,6 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   2>trinotate_${job_name}.stderr \\
   1>trinotate_${job_name}.stdout
 mv Trinotate.tsv ${output_name}
-rm -f /tmp/$input_paths->{filename}.sqlite
 rm -f *.ok *.out *.outfmt6 *.cmds *.log
 rm -rf TMHMM_* $input_paths->{filename}.ffn.trans*
 cd ${start}
