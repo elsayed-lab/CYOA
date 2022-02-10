@@ -742,7 +742,7 @@ sub Unicycler {
         mode => 'bold',
         jmem => 24,
         jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler'],);
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'pilon'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
     die('Could not find unicycler in your PATH.') unless($check);
@@ -781,7 +781,7 @@ if unicycler $options->{arbitrary} \\
   ${input_string} \\
   -o ${output_dir} \\
   2>${stderr} \\
-  1>${stdout} ; then
+  1>${stdout}; then
     echo "unicycler passed."
 else
   ${backup_string}
@@ -791,7 +791,7 @@ else
     ${input_string} \\
     -o ${output_dir} \\
     2>${stderr}_backup \\
-    1>${stdout}_backup ; then
+    1>${stdout}_backup
 fi
 
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta

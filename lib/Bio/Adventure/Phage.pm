@@ -682,6 +682,7 @@ sub Filter_Kraken_Worker {
         species => $most_species,
         observations => $most_observations, };
     print $out "The most observed species was: ${most_species}.\n";
+    print STDOUT "The most observed species was: ${most_species}.\n";
     my $escaped_species = $most_species;
     $escaped_species =~ s/\s/\+/g;
 
@@ -769,10 +770,16 @@ sub Filter_Kraken_Worker {
     $in_r2 = File::Spec->rel2abs($in_r2);
     my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
     print $out "Symlinking final output files to $options->{output_dir}\n";
-    if (! -f $out_r1) {
+    unlink $out_r1 if (-l $out_r1);
+    unlink $out_r2 if (-l $out_r2);
+    if (-e $out_r1) {
+        print "The file: $out_r1 already exists.\n";
+    } else {
         my $s1 = symlink($in_r1, $out_r1);
     }
-    if (! -f $out_r2) {
+    if (-e $out_r2) {
+        print "The file: $out_r2 already exists.\n";
+    } else {
         my $s2 = symlink($in_r2, $out_r2);
     }
     return(%species_observed);
