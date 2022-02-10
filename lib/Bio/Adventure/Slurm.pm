@@ -130,8 +130,14 @@ ${perl_file}
 #SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}
 set -o errexit
+set -o errtrace
 set -o pipefail
 export LESS='--buffers 0'
+err() {
+    echo "Error occurred:"
+    awk 'NR>L-4 && NR<L+4 { printf "%-5d%3s%s\n",NR,(NR==L\?">>>":""),$0 }' L=$1 $0
+}
+trap 'err $LINENO' ERR
 ?;
     if ($options->{array_string}) {
         $script_start .= qq"#SBATCH --array=$options->{array_string}

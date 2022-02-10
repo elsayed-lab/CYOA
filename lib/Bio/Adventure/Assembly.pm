@@ -735,6 +735,7 @@ sub Unicycler {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        backup => 'r1.fastq.xz:r2.fastq.xz',
         arbitrary => '',
         depth => 20,
         min_length => 1000,
@@ -751,15 +752,22 @@ sub Unicycler {
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
     my $input_string = '';
     my $ln_string = '';
+    my $backup_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz -2 ${output_dir}/r2.fastq.gz";
         $ln_string = qq"less $in[0] | gzip > ${output_dir}/r1.fastq.gz
 less $in[1] | gzip > ${output_dir}/r2.fastq.gz
 ";
+        my @backups = split(/\:|\;|\,|\s+/, $options->{backup});
+        $backup_string = qq"less $backups[0] | gzip > ${output_dir}/r1.fastq.gz
+less $backups[1] | gzip > ${output_dir}/r2.fastq.gz
+";
     } else {
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz";
         $ln_string = qq"less $options->{input} | gzip > ${output_dir}/r1.fastq.gz
+";
+        $backup_string = qq"less $options->{backup} | gzip > ${output_dir}/r1.fastq.gz
 ";
     }
     my $comment = '## This is a unicycler submission script.';
@@ -767,13 +775,25 @@ less $in[1] | gzip > ${output_dir}/r2.fastq.gz
     my $stderr = qq"${output_dir}/unicycler_${outname}.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ${ln_string}
-unicycler $options->{arbitrary} \\
+if unicycler $options->{arbitrary} \\
   --mode $options->{mode} \\
   --min_fasta_length $options->{min_length} \\
   ${input_string} \\
   -o ${output_dir} \\
   2>${stderr} \\
-  1>${stdout}
+  1>${stdout} ; then
+    echo "unicycler passed."
+else
+  ${backup_string}
+  unicycler $options->{arbitrary} \\
+    --mode $options->{mode} \\
+    --min_fasta_length $options->{min_length} \\
+    ${input_string} \\
+    -o ${output_dir} \\
+    2>${stderr}_backup \\
+    1>${stdout}_backup ; then
+fi
+
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
 rm -f r1.fastq.gz r2.fastq.gz
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta

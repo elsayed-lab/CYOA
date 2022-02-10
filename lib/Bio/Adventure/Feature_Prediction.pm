@@ -489,19 +489,22 @@ sub Prodigal {
 
     my $comment = '## This is a script to run prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
-prodigal ${train_string} \\
+if prodigal ${train_string} \\
   -i $options->{input} \\
   -a ${translated_file} \\
   -d ${cds_file} \\
   -s ${scores_file} \\
   -f gff -o ${gff_file} \\
   2>${output_dir}/prodigal_gff.stderr \\
-  1>${output_dir}/prodigal_gff.stdout
-prodigal ${train_string} \\
-  -i $options->{input} \\
-  -f gbk -o ${gbk_file} \\
-  2>${output_dir}/prodigal_gbk.stderr \\
-  1>${output_dir}/prodigal_gbk.stdout
+  1>${output_dir}/prodigal_gff.stdout ; then
+  prodigal ${train_string} \\
+    -i $options->{input} \\
+    -f gbk -o ${gbk_file} \\
+    2>${output_dir}/prodigal_gbk.stderr \\
+    1>${output_dir}/prodigal_gbk.stdout
+else
+  echo "Prodigal failed, perhaps the contig was too short?"
+fi
 sleep 3
 !;
     my $prodigal = $class->Submit(
