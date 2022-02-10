@@ -356,6 +356,7 @@ has qsub_dependsarray => (is => 'rw', default => 'depend=afterokarray:'); ## Str
 has qsub_path => (is => 'rw', default => My_Which('qsub'));
 has qual => (is => 'rw', default => undef); ## cutadapt quality string
 has query => (is => 'rw', default => undef); ## Used for searches when input is already taken, most likely blast/fasta
+has restart => (is => 'rw', default => 0); ## Restart job(s) in the middle of a group
 has riboanchor => (is => 'rw', default => 'start'); ## When correcting, use the start or end position as an anchor
 has riboasite => (is => 'rw', default => 1); ## Count riboseq A site positions?
 has ribopsite => (is => 'rw', default => 1); ## Count riboseq P site positions?

@@ -56,6 +56,24 @@ sub Submit {
     if (!defined($options->{jname})) {
         $options->{jname} = $class->Get_Job_Name();
     }
+    my $jname = qq"$options->{jprefix}$options->{jname}";
+    my $finished_file = qq"outputs/logs/${jname}.finished";
+    my $job = {};
+    foreach my $k (keys %args) {
+        next if ($k eq 'jstring');
+        next if ($k eq 'comment');
+        $job->{$k} = $args{$k};
+    }
+    my @wanted_vars = ('basedir', 'cpus', 'depends_string', 'input',
+                       'jname', 'jmem', 'jqueue', 'jwalltime', 'output');
+    foreach my $w (@wanted_vars) {
+        $job->{$w} = $options->{$w} if (!defined($job->{$w}));
+    }
+    if ($options->{restart} && -e $finished_file) {
+        print "The restart option is on, and this job appears to have finished.\n";
+        return($job);
+    }
+
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
@@ -112,8 +130,6 @@ ${perl_file}
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
-    my $jname = qq"$options->{jprefix}$options->{jname}";
-
     my $nice_string = '';
     $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
 
@@ -128,7 +144,7 @@ ${perl_file}
 #SBATCH --job-name=${jname}
 #SBATCH --mem=$options->{jmem}G
 #SBATCH --cpus-per-task=$options->{cpus}
-#SBATCH --output=${sbatch_log}
+#SBATCH --output=${sbatch_log}.sbatch
 set -o errexit
 set -o errtrace
 set -o pipefail
@@ -181,6 +197,8 @@ if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch" 2>/dev/null)
   echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> ${sbatch_log}
 fi
+## Adding a little logic to have skip finished jobs.
+touch ${finished_file}
 !;
 
     my $total_script_string = "";
@@ -226,22 +244,10 @@ fi
         print ", depending on $options->{jdepends}.";
     }
     print "\n";
-    $job = {
-        job_id => $job_id,
-        log => $sbatch_log,
-        pid => $sbatch_pid,
-        script_file => $script_file,
-    };
-    foreach my $k (keys %args) {
-        next if ($k eq 'jstring');
-        next if ($k eq 'comment');
-        $job->{$k} = $args{$k};
-    }
-    my @wanted_vars = ('basedir', 'cpus', 'depends_string', 'input',
-                       'jname', 'jmem', 'jqueue', 'jwalltime', 'output');
-    foreach my $w (@wanted_vars) {
-        $job->{$w} = $options->{$w} if (!defined($job->{$w}));
-    }
+    $job->{log} = $sbatch_log;
+    $job->{job_id} = $job_id;
+    $job->{pid} = $sbatch_pid;
+    $job->{script_file} = $script_file;
 
     if ($options->{verbose}) {
         use Data::Dumper;

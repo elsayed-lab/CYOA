@@ -820,7 +820,7 @@ fi
 cp ${trinotate_exe_dir}/Trinotate.sqlite /tmp/$input_paths->{filename}.sqlite
 ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --conf ${expected_config} \\
-  --Trinotate_sqlite /tmp/$input_paths->{filename}.sqlite
+  --Trinotate_sqlite /tmp/$input_paths->{filename}.sqlite \\
   --transcripts $input_paths->{filename} \\
   --gene_to_trans_map $input_paths->{filename}.gene_trans_map \\
   --CPU 6 \\
