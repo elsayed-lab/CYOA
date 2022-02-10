@@ -135,9 +135,9 @@ set -o pipefail
 export LESS='--buffers 0'
 err() {
     echo "Error occurred:"
-    awk 'NR>L-4 && NR<L+4 { printf "%-5d%3s%s\n",NR,(NR==L\?">>>":""),$0 }' L=$1 $0
+    awk 'NR>L-4 && NR<L+4 { printf "\%-5d\%3s\%s\n",NR,(NR==L\?">>>":""),\$0 }' L=\$1 \$0
 }
-trap 'err $LINENO' ERR
+trap 'err \$LINENO' ERR
 ?;
     if ($options->{array_string}) {
         $script_start .= qq"#SBATCH --array=$options->{array_string}
