@@ -761,7 +761,7 @@ less $in[1] | gzip > ${output_dir}/r2.fastq.gz
 ";
         my @backups = split(/\:|\;|\,|\s+/, $options->{backup});
         $backup_string = qq"less $backups[0] | gzip > ${output_dir}/r1.fastq.gz
-less $backups[1] | gzip > ${output_dir}/r2.fastq.gz
+  less $backups[1] | gzip > ${output_dir}/r2.fastq.gz
 ";
     } else {
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz";
@@ -782,16 +782,24 @@ if unicycler $options->{arbitrary} \\
   -o ${output_dir} \\
   2>${stderr} \\
   1>${stdout}; then
+
     echo "unicycler passed."
 else
+
   ${backup_string}
-  unicycler $options->{arbitrary} \\
+  if unicycler $options->{arbitrary} \\
     --mode $options->{mode} \\
     --min_fasta_length $options->{min_length} \\
     ${input_string} \\
     -o ${output_dir} \\
     2>${stderr}_backup \\
-    1>${stdout}_backup
+    1>${stdout}_backup; then
+
+    echo "Second unicycler attempt passed."
+  else
+
+    echo "Both unicycler attempts failed."
+  fi
 fi
 
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta

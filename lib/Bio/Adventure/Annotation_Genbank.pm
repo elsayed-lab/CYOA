@@ -156,17 +156,40 @@ sub Combine_CDS_Features {
             }
             $finished_first{$first_threep} = 1;
             $finished_second{$first_threep} = 1;
+
+            ## Important note here
+            ## There is a missing piece of logic
+            ## I have not taken into account the occasion when we have:
+            ##        -------------------  phanotate
+            ##             ----            glimmer
+            ##   nor
+            ##        ------------------- phanotate
+            ##        -----               glimmer  (which should never happen)
+            ##   nor
+            ##        ------------------- phanotate
+            ##                     ------ glimmer  (which is unlikely but possible)
+
+        } elsif ($first_start < $second_start && $first_end >= $second_end) {
+            print "The second feature is inside the first.  Skipping it.\n";
+            print "This feature is from $second_fivep to $second_threep\n";
+            $finished_second{$second_threep} = 1;
+            next SECOND;
+        } elsif ($first_start <= $second_start && $first_end > $second_end) {
+            print "The second feature is inside the first.  Skipping it.\n";
+            print "This feature is from $second_fivep to $second_threep\n";
+            $finished_second{$second_threep} = 1;
+            next SECOND;
         } else {
             $finished_second{$second_threep} = 1;
             ## my $second_tag = $second_cds->add_tag_value('note', qq"cds_prediction: ${second_name}");
             push(@merged_cds, $second_cds);
         }
-    } ## End inner iteration
+    } ## End inner iteration (SECOND)
       if (!defined($finished_first{$first_threep})) {
           push(@merged_cds, $first_cds);
     }
       my $merged_cds_length = scalar(@merged_cds);
-  }
+  } ## End outer iteration (FIRST)
     return(\@merged_cds);
 }
 
@@ -716,10 +739,10 @@ sub Rename_Features {
     my %orfs_by_contig = ();
     my @renamed = ();
   RENAME: for my $n (@features) {
+      $count++;
       if ($n->primary_tag eq 'source') {
           next RENAME;
       }
-      $count++;
       my $display_number = sprintf("%04d", $count);
       $contig_id = $n->seq_id();
       my $display_name = qq"${prefix}_${display_number}";
@@ -762,6 +785,7 @@ sub Rename_Features {
       push(@renamed, $n);
   } ## End of the rename loop.
 
+    $count++;
     ## Final step in addressing phageterm-annoying features,
     ## Pick up the modified feature and stick it on the end of the list.
     if (defined($terminal_feature)) {
@@ -1052,7 +1076,6 @@ sub Write_Gbk {
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_result = undef;
     if ($run_sed && -r qq"${out_basedir}/${out_basefile}.gbf") {
-        print "TESTME: Running sed\n";
         my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' \\
   ${out_basedir}/${out_basefile}.gbf | \\
   sed 's/product=\"_/product=\"/g' > $args{output_gbk}";

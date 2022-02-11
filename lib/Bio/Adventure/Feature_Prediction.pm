@@ -320,15 +320,21 @@ sub Phagepromoter {
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 cd ${output_dir}
-phagepromoter.py $options->{format} \\
+if phagepromoter.py $options->{format} \\
   $input_paths->{fullpath} \\
   $options->{both_strands} $options->{cutoff} \\
   $options->{family} $options->{host} \\
   $options->{phage_type} $options->{model} \\
-  2>phagepromoter.stderr 1>phagepromoter.stdout
+  2>phagepromoter.stderr 1>phagepromoter.stdout; then
+
+   echo "phagepromoter passed."
+else
+
+  echo "phagepromoter failed, probably because there is more than one contig."
+fi
 cd \${start}
 !;
-    my $phanotate = $class->Submit(
+    my $phagepromoter = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
@@ -343,7 +349,7 @@ cd \${start}
         jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    return($phanotate);
+    return($phagepromoter);
 }
 
 =head2 C<Phanotate>

@@ -149,9 +149,10 @@ set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='--buffers 0'
+script="\$(pwd)/\$0"
 err() {
     echo "Error occurred:"
-    awk 'NR>L-4 && NR<L+4 { printf "\%-5d\%3s\%s\\n",NR,(NR==L\?">>>":""),\$0 }' L=\$1 \$0
+    awk 'NR>L-4 && NR<L+4 { printf "\%-5d\%3s\%s\\n",NR,(NR==L\?">>>":""),\$script }' L=\$1 \$script
 }
 trap 'err \$LINENO' ERR
 ?;
@@ -230,7 +231,6 @@ fi
         $job_id = $line;
         $job_id =~ s/^.*Submitted batch job (\d+)/$1/g;
     }
-    my $job;
     if (!defined($job_id)) {
         warn("The job id did not get defined.  sbatch likely failed.");
         return(undef);

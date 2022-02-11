@@ -382,6 +382,115 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
     return($ka_index);
 }
 
+=head2 C<Make_Codon_Table>
+
+ Assist caical by creating a codon table for an arbitrary species in
+ the expected format.
+
+ Given a reference assembly, print out a codon table for use with a
+ codon adapatation calculator.  I wrote a little piece of code which
+ works from a fasta/gff pair, but currently it is dumb.  I ought to
+ improve its logging and have it return a useful/interesting data
+ structure.
+
+=cut
+sub Make_Codon_Table {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['species'],
+        jprefix => '80',);
+    my $out_table = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+    my $out_dir = dirname($out_table);
+    my $made = make_path($out_dir) unless (-d $out_dir);
+
+    ## I have a few suffixes for writing genbank files.
+    my @potential_suffixes = ('gbff', 'gbk', 'gbf', 'gb', 'genbank');
+    my @compressions = ('gz', 'xz', 'bz2');
+    my $in_gbff = '';
+  POTENTIAL: for my $potential (@potential_suffixes) {
+      my $start = qq"$options->{libdir}/$options->{libtype}/$options->{species}.${potential}";
+      if (-r $start) {
+          $in_gbff = $start;
+          last POTENTIAL;
+      }
+      for my $c (@compressions) {
+          my $comp_test = qq"${start}.${c}";
+          if (-r $comp_test) {
+              $in_gbff = $comp_test;
+              last POTENTIAL;
+          }
+      }
+  }
+    ## The table already exists, move on -- or maybe I should have it overwrite?
+    if (-r $out_table) {
+        return(1);
+  }
+
+    ## This is a little dumb, but an easy way to think through writing out the table.
+    ## E.g. I will do a for(for(for())) over these to get the 64 codons.
+    my @first = ('T', 'C', 'A', 'G');
+    my @second = ('T', 'C', 'A', 'G');
+    my @third = ('T', 'C', 'A', 'G');
+
+    ## Set up the pieces which will hold the data of interest.
+    my $total_codons = 0;
+    my %codon_counts = ();
+    my $in = FileHandle->new("less ${in_gbff} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $seq_count = 0;
+  SEQ: while (my $seq = $seqio->next_seq) {
+      $seq_count++;
+      ## print "Starting sequence $seq_count\n";
+      my @feature_list = $seq->get_SeqFeatures();
+      my $f_count = 0;
+    FEAT: for my $f (@feature_list) {
+        next FEAT unless ($f->primary_tag eq 'CDS');
+        $f_count++;
+        ## print "Feature: $f_count\n";
+        my $sequence_string = $f->seq->seq;
+        my $trans = $f->seq->translate->seq;
+        my @seq_str = split(//, $sequence_string);
+        my @tr_str = split(//, $trans);
+      CHOMP: while (scalar(@tr_str) > 0) {
+          my $amino = shift @tr_str;
+          my $nt1 = shift @seq_str;
+          my $nt2 = shift @seq_str;
+          my $nt3 = shift @seq_str;
+          my $codon = qq"${nt1}${nt2}${nt3}";
+          if (defined($codon_counts{$codon})) {
+              $codon_counts{$codon}++;
+          } else {
+              $codon_counts{$codon} = 1;
+          }
+          $total_codons++;
+      } ## Done pulling apart the sequence arrays.
+    } ## Iterating over the features in this sequence.
+  } ## End going through the sequences of the assembly.
+    $in->close();
+
+    if ($total_codons == 0) {
+        print "This failed: $options->{species}\n";
+        return(undef);
+    }
+    my $divisor = 1000.0 / $total_codons;
+    my $table = FileHandle->new(">${out_table}");
+    for my $f (@first) {
+        for my $s (@second) {
+            my $string = '';
+            for my $t (@third) {
+                my $codon = qq"${f}${s}${t}";
+                my $per_thousand = sprintf("%.1f", $codon_counts{$codon} * $divisor);
+                $string .= qq"${codon} ${per_thousand}($codon_counts{$codon})   ";
+
+            }
+            print $table qq"${string}\n";
+        }
+        print $table "\n";
+    }
+    $table->close();
+}
+
 =item C<RSEM_Index
 
  Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
