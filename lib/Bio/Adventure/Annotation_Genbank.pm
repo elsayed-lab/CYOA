@@ -94,14 +94,20 @@ sub Combine_CDS_Features {
       my $first_strand = $first_cds->strand();
       my $first_start = $first_cds->start();
       my $first_end = $first_cds->end();
+
       my ($first_fivep, $first_threep) = ($first_start, $first_end);
       if ($first_strand < 0) {
           ($first_fivep, $first_threep) = ($first_end, $first_start);
       }
+
       ## Get the set of tags and the locus tag specifically
       my @first_tags = $first_cds->get_all_tags();
       my @locus_tags = $first_cds->get_tag_values('locus_tag');
     SECOND: for my $second_cds (@second) {
+        ## Another filtering opportunity presents itself here.
+        my $second_contig = $second_cds->seq_id();
+        ## Make sure we are dealing with the same contig.
+        next SECOND unless ($second_contig eq $first_contig);
         ## We do not have to think about the type of these features.
         my $second_strand = $second_cds->strand();
         my $second_start = $second_cds->start;
@@ -113,6 +119,7 @@ sub Combine_CDS_Features {
         if (defined($finished_second{$second_threep})) {
             next SECOND;
         }
+
         my $first_length = scalar(@first);
         my $second_length = scalar(@second);
         if ($count < $first_length) {
@@ -156,18 +163,63 @@ sub Combine_CDS_Features {
             }
             $finished_first{$first_threep} = 1;
             $finished_second{$first_threep} = 1;
+
+            ## Important note here
+            ## There is a missing piece of logic
+            ## I have not taken into account the occasion when we have:
+            ##        -------------------  phanotate
+            ##             ----            glimmer
+            ##   nor
+            ##        ------------------- phanotate
+            ##        -----               glimmer  (which should never happen)
+            ##   nor
+            ##        ------------------- phanotate
+            ##                     ------ glimmer  (which is unlikely but possible)
+
+        } elsif ($first_start < $second_start && $first_end >= $second_end) {
+            print "The second feature is inside the first.  Skipping it.\n";
+            print "1st start   2nd start         2nd end   1st end\n";
+            print "$first_start  $second_start         $second_end  $first_end\n";
+            $finished_second{$second_threep} = 1;
+            next SECOND;
+        } elsif ($first_start <= $second_start && $first_end > $second_end) {
+            print "The second feature is inside the first.  Skipping it.\n";
+            print "1st_start  2nd_start      2nd_end  1st_end\n";
+            print "$first_start  $second_start         $second_end  $first_end\n";
+            $finished_second{$second_threep} = 1;
+            next SECOND;
         } else {
             $finished_second{$second_threep} = 1;
             ## my $second_tag = $second_cds->add_tag_value('note', qq"cds_prediction: ${second_name}");
             push(@merged_cds, $second_cds);
         }
-    } ## End inner iteration
+    } ## End inner iteration (SECOND)
       if (!defined($finished_first{$first_threep})) {
           push(@merged_cds, $first_cds);
     }
       my $merged_cds_length = scalar(@merged_cds);
-  }
+  } ## End outer iteration (FIRST)
     return(\@merged_cds);
+}
+
+sub Filter_Edge_Features {
+    my %args = @_;
+    my @features = @{$args{features}};
+    my $source = $args{source};
+    my @new_features;
+    my $count = 0;
+    for my $f (@features) {
+        my $contig_id = $f->seq_id;
+        my $contig = $source->{$contig_id};
+        my $good_feature = Query_Edge_Feature(feature => $f, contig => $contig);
+        if ($good_feature) {
+            print "Keeping this feature!\n";
+            push(@new_features, $f);
+        } else {
+            print "Dropping bad feature!\n";
+        }
+    }
+    return(\@new_features);
 }
 
 =head2 C<Merge_CDS_Predictions>
@@ -365,10 +417,23 @@ sub Merge_CDS_Predictions_Worker {
     my $glimmer_features_ref = Predict_to_Features(in => $options->{input_glimmer});
     my @glimmer_features = @{$glimmer_features_ref};
 
-    my $first_merged = Combine_CDS_Features(first => \@phanotate_features, second => \@prokka_cds);
-    my $second_merged = Combine_CDS_Features(first => $first_merged, second => \@glimmer_features);
-    my $final_merged_ref = Combine_CDS_Features(
-        first => $second_merged, second => \@prodigal_features, notes => 'both',);
+    ## Add a filter for bad Edge features
+    ## print "TESTME: Filtering phanotate features for bad edges.\n";
+    my $phanotate_filtered = Filter_Edge_Features(features => \@phanotate_features,
+                                                  source => \%source_features);
+    ##my $prokka_cds_filtered = Filter_Edge_Features(features => \@prokka_cds,
+    ##                                               source => \%source_features);
+    ## print "TESTME: Filtering glimmer features for bad edges.\n";
+    my $glimmer_filtered = Filter_Edge_Features(features => \@glimmer_features,
+                                                source => \%source_features);
+    ## print "TESTME: Filtering prodgial for bad edges.\n";
+    my $prodigal_filtered = Filter_Edge_Features(features => \@prodigal_features,
+                                                 source => \%source_features);
+
+    my $first_merged = Combine_CDS_Features(first => $phanotate_filtered, second => \@prokka_cds);
+    my $second_merged = Combine_CDS_Features(first => $first_merged, second => $glimmer_filtered,);
+    my $final_merged_ref = Combine_CDS_Features(first => $second_merged, second => $prodigal_filtered,
+                                                notes => 'both');
     my @final_merged = @{$final_merged_ref};
 
     ## Now we should have a data structure containing:
@@ -499,6 +564,50 @@ sub Predict_to_Features {
   } ## End iterating over every line of the glimmer3 output.
     $glimmer_in->close();
     return(\@glimmer_features);
+}
+
+sub Query_Edge_Feature {
+    my %args = @_;
+    my $feature = $args{feature};
+    my $contig = $args{contig};
+    ## This is a test for weirdo features from phanotate/prodigal.
+    ## I think the answer lies in a piece of the scoring provided by prodigal:
+    ## Here is an annotation line from progial:
+    ## >gnl|Prokka|EPr2_1_1 # 1 # 117 # 1 # ID=1_1;partial=10;start_type=Edge;rbs_motif=None;rbs_spacer=None;gc_cont=0.504
+    ## I think therefore the easiest solution is to query if the start is 1 and the amino acid is not 'M'.
+    my $start = $feature->start;
+    my $end = $feature->end;
+    my $strand = $feature->strand;
+    my $contig_sequence = $contig->seq;
+    my $contig_length = length($contig_sequence);
+    ## print "TESTME: $start $end $strand\n";
+    ## Another peculiar edge case:
+    ## Sometimes a feature is picked up which is a little before the origin and continues after the origin.
+    ## e.g. the strand may be +1, the start is ~ 100nt before 0 and the end is ~ 100nt after 0.
+    my $straddles = 0;
+    $straddles = 1 if ($start > $end);
+    if ($straddles) {
+        print "This feature straddles the origin east and is problematic for genbank.\n";
+        return(0);
+    }
+
+    my $feature_seq = $contig_sequence->trunc($start, $end);
+    $feature_seq = $feature_seq->revcom if ($strand < 0);
+    my $amino_acids = $feature_seq->translate->seq;
+    my $first_amino = substr($amino_acids, 0, 1);
+    my $edge = 0;
+    $edge = 1 if ($start == 1 && $strand > 0);
+    $edge = 1 if ($end == $contig_length && $strand < 0);
+
+    my $ret = 1;
+    my $not_start_codon = 1;
+    $not_start_codon = 0 if ($first_amino eq 'M' or $first_amino eq 'L');
+    ## print "The start is $start and the first amino acid is $first_amino\n";
+    if ($edge && $not_start_codon) {
+        print "TESTME: This feature starts at 1 and not with 'M|L'! and should be skipped\n";
+        $ret = 0;
+    }
+    return($ret);
 }
 
 =head2 C<Read_Phanotate_to_SeqFeatures>
@@ -716,10 +825,10 @@ sub Rename_Features {
     my %orfs_by_contig = ();
     my @renamed = ();
   RENAME: for my $n (@features) {
+      $count++;
       if ($n->primary_tag eq 'source') {
           next RENAME;
       }
-      $count++;
       my $display_number = sprintf("%04d", $count);
       $contig_id = $n->seq_id();
       my $display_name = qq"${prefix}_${display_number}";
@@ -762,6 +871,7 @@ sub Rename_Features {
       push(@renamed, $n);
   } ## End of the rename loop.
 
+    $count++;
     ## Final step in addressing phageterm-annoying features,
     ## Pick up the modified feature and stick it on the end of the list.
     if (defined($terminal_feature)) {
@@ -1052,7 +1162,6 @@ sub Write_Gbk {
     my $tbl2asn_result = qx"${tbl_command}";
     my $sed_result = undef;
     if ($run_sed && -r qq"${out_basedir}/${out_basefile}.gbf") {
-        print "TESTME: Running sed\n";
         my $sed_command = qq"sed 's/COORDINATES: profile/COORDINATES:profile/' \\
   ${out_basedir}/${out_basefile}.gbf | \\
   sed 's/product=\"_/product=\"/g' > $args{output_gbk}";

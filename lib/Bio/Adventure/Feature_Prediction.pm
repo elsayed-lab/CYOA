@@ -320,15 +320,21 @@ sub Phagepromoter {
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 cd ${output_dir}
-phagepromoter.py $options->{format} \\
+if phagepromoter.py $options->{format} \\
   $input_paths->{fullpath} \\
   $options->{both_strands} $options->{cutoff} \\
   $options->{family} $options->{host} \\
   $options->{phage_type} $options->{model} \\
-  2>phagepromoter.stderr 1>phagepromoter.stdout
+  2>phagepromoter.stderr 1>phagepromoter.stdout; then
+
+   echo "phagepromoter passed."
+else
+
+  echo "phagepromoter failed, probably because there is more than one contig."
+fi
 cd \${start}
 !;
-    my $phanotate = $class->Submit(
+    my $phagepromoter = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
@@ -343,7 +349,7 @@ cd \${start}
         jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    return($phanotate);
+    return($phagepromoter);
 }
 
 =head2 C<Phanotate>
@@ -439,12 +445,15 @@ sub Prodigal {
         gcode => '11',
         output_dir => undef,
         prodigal_outname => undef,
+        edge => 0,
         jmem => 8,
         jprefix => '17',
         modules => ['prodigal'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prodigal');
     die('Could not find prodigal in your PATH.') unless($check);
+    my $edge_string = ' -c ';
+    $edge_string = '' if ($options->{edge});
 
     my $inputs = $class->Get_Paths($options->{input});
     my $job_name = $class->Get_Job_Name();
@@ -489,7 +498,7 @@ sub Prodigal {
 
     my $comment = '## This is a script to run prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
-if prodigal ${train_string} \\
+if prodigal ${train_string} ${edge_string} \\
   -i $options->{input} \\
   -a ${translated_file} \\
   -d ${cds_file} \\
@@ -497,7 +506,7 @@ if prodigal ${train_string} \\
   -f gff -o ${gff_file} \\
   2>${output_dir}/prodigal_gff.stderr \\
   1>${output_dir}/prodigal_gff.stdout ; then
-  prodigal ${train_string} \\
+  prodigal ${edge_string} ${train_string} \\
     -i $options->{input} \\
     -f gbk -o ${gbk_file} \\
     2>${output_dir}/prodigal_gbk.stderr \\

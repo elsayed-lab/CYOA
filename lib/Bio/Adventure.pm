@@ -1379,6 +1379,7 @@ sub Reset_Vars {
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     $class->{jmem} = 12;
+    $class->{jname} = 'undefined';
     $class->{jnice} = 10;
     $class->{jqueue} = 'workstation';
     $class->{jwalltime} = '10:00:00';

@@ -118,6 +118,7 @@ cd \${start}
  modules(caical): Environment module to load.
 
 =cut
+
 sub Caical {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
@@ -129,13 +130,75 @@ sub Caical {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('caical');
     die('Could not find caical in your PATH.') unless($check);
+    my $test = ref($options->{suffixes});
+    my @suffixes = split(/,/, $options->{suffixes});
+    my $species = $options->{species};
+    my $out_base = basename($options->{input}, @suffixes);
+    my $jname = qq"caical_${out_base}_vs_${species}";
+    my $output_dir = qq"outputs/$options->{jprefix}${jname}";
+    make_path($output_dir);
+    my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
+    my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
+    my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
+    my $stderr = qq"${output_dir}/${out_base}.stderr";
+    my $stdout = qq"${output_dir}/${out_base}.stdout";
+    my $comment = qq'## Running caical against ${species}.';
 
+    my $jstring = qq!use Bio::Adventure::Phage;
+my \$result = \$h->Bio::Adventure::Phage::Caical_Worker(
+  input => '$options->{input}',
+  random_sequences => '$random_sequences',
+  expected_cai => '$expected_cai',
+  species => '$options->{species}',
+  jdepends => '$options->{jdepends}',
+  jname => '${jname}',
+  jprefix => '$options->{jprefix}',
+  output => '${output_cai}',
+  stdout => '${stdout}',
+  stderr => '${stderr}',
+  output_dir => '${output_dir}',);
+!;
+    my $cai = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        random_sequences => $random_sequences,
+        expected_cai => $expected_cai,
+        species => $species,
+        jdepends => $options->{jdepends},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        output => $output_cai,
+        stdout => $stdout,
+        stderr => $stderr,
+        language => 'perl',
+        output_dir => $output_dir);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload',);
+    return($cai);
+}
+
+sub Caical_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jmem => 4,
+        random_sequences => '',
+        expected_cai => '',
+        output => '',
+        jprefix => '80',
+        modules => ['caical']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('caical');
+    die('Could not find caical in your PATH.') unless($check);
     my $species = $options->{species};
     ## Then the species argument is a filename, so pull the species from it.
     if (-r $species) {
         my $in = FileHandle->new("<$species");
         while (my $line = <$in>) {
             chomp $line;
+            next if ($line =~ /^\s*$/);
             $species = $line;
         }
         $in->close();
@@ -143,44 +206,22 @@ sub Caical {
 
     my $index = qq"$options->{libdir}/codon_tables/${species}.txt";
     if (!-r $index) {
-        my $wrote_index = $class->Bio::Adventure::Phage::Make_Codon_Table(
+        my $written = $class->Bio::Adventure::Index::Make_Codon_Table(
             species => $species);
     }
-    my $test = ref($options->{suffixes});
-    my @suffixes = split(/,/, $options->{suffixes});
-    my $out_base = basename($options->{input}, @suffixes);
-    my $jname = qq"caical_${out_base}_vs_${species}";
-    my $output_dir = qq"outputs/$options->{jprefix}${jname}";
-    make_path($output_dir);
 
-    my $output_cai = qq"${output_dir}/${out_base}_cai.txt";
-    my $random_sequences = qq"${output_dir}/${out_base}_random_sequences.txt";
-    my $expected_cai = qq"${output_dir}/${out_base}_expected.txt";
-    my $stderr = qq"${output_dir}/${out_base}.stderr";
-    my $stdout = qq"${output_dir}/${out_base}.stdout";
-    my $comment = qq'## Running caical against ${species}.';
-    my $jstring = qq?mkdir -p ${output_dir}
-caical -g 11 \\
+    my $jstring = qq?caical -g 11 \\
   -f $options->{input} \\
   -h ${index} \\
-  -o1 ${output_cai} \\
-  -o2 ${random_sequences} \\
-  -o3 ${expected_cai} \\
-  2>${stderr} 1>${stdout}
+  -o1 $options->{output} \\
+  -o2 $options->{random_sequences} \\
+  -o3 $options->{expected_cai} \\
+  2>$options->{stderr} 1>$options->{stdout}
 ?;
-    my $job = $class->Submit(
-        comment => $comment,
-        output => $output_cai,
-        output_random => $random_sequences,
-        output_expected => $expected_cai,
-        jdepends => $options->{jdepends},
-        jmem => $options->{jmem},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jstring => $jstring,);
+    my $ran_caical = qx"$jstring";
     $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
-    return($job);
+                                    action => 'unload');
+    return($ran_caical);
 }
 
 ## We may need to rewrite the input fasta file because caical
@@ -866,115 +907,6 @@ sub Get_DTR {
     } ## End matching on this contig
   } ## End iterating over teh contigs
     return(\@dtr_features);
-}
-
-=head2 C<Make_Codon_Table>
-
- Assist caical by creating a codon table for an arbitrary species in
- the expected format.
-
- Given a reference assembly, print out a codon table for use with a
- codon adapatation calculator.  I wrote a little piece of code which
- works from a fasta/gff pair, but currently it is dumb.  I ought to
- improve its logging and have it return a useful/interesting data
- structure.
-
-=cut
-sub Make_Codon_Table {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['species'],
-        jprefix => '80',);
-    my $out_table = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
-    my $out_dir = dirname($out_table);
-    my $made = make_path($out_dir) unless (-d $out_dir);
-
-    ## I have a few suffixes for writing genbank files.
-    my @potential_suffixes = ('gbff', 'gbk', 'gbf', 'gb', 'genbank');
-    my @compressions = ('gz', 'xz', 'bz2');
-    my $in_gbff = '';
-  POTENTIAL: for my $potential (@potential_suffixes) {
-      my $start = qq"$options->{libdir}/$options->{libtype}/$options->{species}.${potential}";
-      if (-r $start) {
-          $in_gbff = $start;
-          last POTENTIAL;
-      }
-      for my $c (@compressions) {
-          my $comp_test = qq"${start}.${c}";
-          if (-r $comp_test) {
-              $in_gbff = $comp_test;
-              last POTENTIAL;
-          }
-      }
-  }
-    ## The table already exists, move on -- or maybe I should have it overwrite?
-    if (-r $out_table) {
-        return(1);
-  }
-
-    ## This is a little dumb, but an easy way to think through writing out the table.
-    ## E.g. I will do a for(for(for())) over these to get the 64 codons.
-    my @first = ('T', 'C', 'A', 'G');
-    my @second = ('T', 'C', 'A', 'G');
-    my @third = ('T', 'C', 'A', 'G');
-
-    ## Set up the pieces which will hold the data of interest.
-    my $total_codons = 0;
-    my %codon_counts = ();
-    my $in = FileHandle->new("less ${in_gbff} |");
-    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
-    my $seq_count = 0;
-  SEQ: while (my $seq = $seqio->next_seq) {
-      $seq_count++;
-      ## print "Starting sequence $seq_count\n";
-      my @feature_list = $seq->get_SeqFeatures();
-      my $f_count = 0;
-    FEAT: for my $f (@feature_list) {
-        next FEAT unless ($f->primary_tag eq 'CDS');
-        $f_count++;
-        ## print "Feature: $f_count\n";
-        my $sequence_string = $f->seq->seq;
-        my $trans = $f->seq->translate->seq;
-        my @seq_str = split(//, $sequence_string);
-        my @tr_str = split(//, $trans);
-      CHOMP: while (scalar(@tr_str) > 0) {
-          my $amino = shift @tr_str;
-          my $nt1 = shift @seq_str;
-          my $nt2 = shift @seq_str;
-          my $nt3 = shift @seq_str;
-          my $codon = qq"${nt1}${nt2}${nt3}";
-          if (defined($codon_counts{$codon})) {
-              $codon_counts{$codon}++;
-          } else {
-              $codon_counts{$codon} = 1;
-          }
-          $total_codons++;
-      } ## Done pulling apart the sequence arrays.
-    } ## Iterating over the features in this sequence.
-  } ## End going through the sequences of the assembly.
-    $in->close();
-
-    if ($total_codons == 0) {
-        print "This failed: $options->{species}\n";
-        return(undef);
-    }
-    my $divisor = 1000.0 / $total_codons;
-    my $table = FileHandle->new(">${out_table}");
-    for my $f (@first) {
-        for my $s (@second) {
-            my $string = '';
-            for my $t (@third) {
-                my $codon = qq"${f}${s}${t}";
-                my $per_thousand = sprintf("%.1f", $codon_counts{$codon} * $divisor);
-                $string .= qq"${codon} ${per_thousand}($codon_counts{$codon})   ";
-
-            }
-            print $table qq"${string}\n";
-        }
-        print $table "\n";
-    }
-    $table->close();
 }
 
 =head2 C<Phageterm>

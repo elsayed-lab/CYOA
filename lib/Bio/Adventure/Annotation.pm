@@ -809,7 +809,7 @@ cd ${output_dir}
 ln -sf "$input_paths->{fullpath}" .
 rm -f "$input_paths->{filename}.gene_trans_map"
 if [[ -f "$input_paths->{filename}.gene_trans_map" ]]; then
-  ln -sf "$input_paths->{filename}.gene_trans_map" .
+  echo "The gene to transcript map already exists."
 else
   ids=\$({ grep "^>" $input_paths->{fullpath} || test \$? = 1; } | sed 's/>//g' | awk '{print \$1}')
   for i in \${ids}; do
