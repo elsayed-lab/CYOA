@@ -410,8 +410,6 @@ $XZ_DEFAULTS = '-9e';
 $ENV{LESS} = '--buffers 0';
 my $lessopen = Get_Lesspipe();
 
-=over
-
 =item C<Help>
 
     Help() always gives 0.
@@ -1146,7 +1144,7 @@ sub Get_TODOs {
     return(\@methods_to_run);
 }
 
-=item C<Get_Input>
+=head2 C<Get_Input>
 
     Get_Input() attempts to standardize the inputs passed to Bio::Adventure.
     It returns a stringified and standard representation of the likely
@@ -1193,7 +1191,7 @@ sub Get_Input {
     return($input);
 }
 
-=item C<Get_Vars>
+=head2 C<Get_Vars>
 
   Handle the peculiar mix of instance options held in $class->{options},
   the set of arguments passed to %args, a list of required and potentially
@@ -1390,7 +1388,7 @@ sub Reset_Vars {
 }
 
 
-=item C<Set_Vars>
+=head2 C<Set_Vars>
 
   Handle the peculiar mix of instance options held in $class->{options},
   the set of arguments passed to %args, a list of required and potentially
@@ -1509,10 +1507,9 @@ sub Module_Loader {
     return(\@mod_lst);
 }
 
-=item C<Read_Genome_Fasta>
+=head2 C<Read_Genome_Fasta>
 
-Read
-a fasta file and return the chromosomes.
+Read a fasta file and return the chromosomes.
 
 =cut
 sub Read_Genome_Fasta {
@@ -1551,7 +1548,7 @@ sub Read_Genome_Fasta {
     return($chromosomes);
 }
 
-=item C<Read_Genome_GFF>
+=head2 C<Read_Genome_GFF>
 
 Read a GFF file and extract the annotation information from it.
 
@@ -1778,11 +1775,6 @@ The following comprises the set of strings you may feed it as 'methods':\n";
     $class->Help();
     return(0);
 }
-
-## Make empty functions for the stuff provided by Bio::Adventure::
-
-
-=back
 
 =head1 AUTHOR - atb
 
