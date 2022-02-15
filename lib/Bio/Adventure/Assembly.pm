@@ -146,9 +146,9 @@ sub Assembly_Coverage {
         args => \%args,
         required => ['input', 'library'],
         ## input is the corrected/filtered reads, library is the assembly
-        jmem => 12,
+        jmem => 18,
         jprefix => 14,
-        modules => ['hisat', 'bbmap'],);
+        modules => ['hisat', 'samtools', 'bbmap'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());

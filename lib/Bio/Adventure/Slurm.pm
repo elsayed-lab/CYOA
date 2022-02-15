@@ -136,6 +136,7 @@ ${perl_file}
     my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL
 #SBATCH --mail-type=NONE
+#SBATCH --open-mode=append
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --partition=$options->{jpartition}
 #SBATCH --qos=$options->{jqueue} ${nice_string}
