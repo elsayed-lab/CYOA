@@ -328,9 +328,11 @@ has logdir => (is => 'rw', default => 'outputs/logs'); ## place to dump logs
 has loghost => (is => 'rw', default => 'localhost'); ## Host to which to send logs
 has mapper => (is => 'rw', default => 'hisat'); ## Use this aligner if none was chosen.
 has mature_fasta => (is => 'rw', default => undef); ## Database of mature miRNA sequences to search
+has maximum => (is => 'rw', default => undef);  ## catchall maximum threshold
 has maxlength => (is => 'rw', default => 42); ## Maximum sequence length when trimming
 has method => (is => 'rw', default => undef);
 has mi_genome => (is => 'rw', default => undef); ## Set a miRbase genome to hunt for mature miRNAs
+has minimum => (is => 'rw', default => undef); ## catchall minimum threshold
 has minlength => (is => 'rw', default => 8); ## Minimum length when trimming
 has mirbase_data => (is => 'rw', default => undef); ## miRbase annotation dataset.
 has modules => (is => 'rw', default => undef); ## Environment modules to load
@@ -409,8 +411,6 @@ $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $ENV{LESS} = '--buffers 0';
 my $lessopen = Get_Lesspipe();
-
-=over
 
 =item C<Help>
 
@@ -1146,7 +1146,7 @@ sub Get_TODOs {
     return(\@methods_to_run);
 }
 
-=item C<Get_Input>
+=head2 C<Get_Input>
 
     Get_Input() attempts to standardize the inputs passed to Bio::Adventure.
     It returns a stringified and standard representation of the likely
@@ -1193,7 +1193,7 @@ sub Get_Input {
     return($input);
 }
 
-=item C<Get_Vars>
+=head2 C<Get_Vars>
 
   Handle the peculiar mix of instance options held in $class->{options},
   the set of arguments passed to %args, a list of required and potentially
@@ -1371,6 +1371,25 @@ sub Get_Vars {
     return(\%returned_vars);
 }
 
+sub Load_Vars {
+    my ($class, %args) = @_;
+    my $num_changed = 0;
+    for my $varname (keys %args) {
+        if ($varname eq 'input') {
+            local $Storable::Eval = 1;
+            my $input_options = lock_retrieve($args{$varname});
+            for my $opt (keys %{$input_options}) {
+                $num_changed ++;
+                $class->{$opt} = $input_options->{$opt};
+            }
+        } else {
+            $num_changed++;
+            $class->{$varname} = $args{$varname};
+        }
+    }
+    return($num_changed);
+}
+
 =item C<Reset_Vars>
 
   Make sure that the environment is returned to a useful default state when perturbed.
@@ -1391,7 +1410,7 @@ sub Reset_Vars {
 }
 
 
-=item C<Set_Vars>
+=head2 C<Set_Vars>
 
   Handle the peculiar mix of instance options held in $class->{options},
   the set of arguments passed to %args, a list of required and potentially
@@ -1510,49 +1529,50 @@ sub Module_Loader {
     return(\@mod_lst);
 }
 
-=item C<Read_Genome_Fasta>
+=head2 C<Read_Genome_Fasta>
 
-Read
-a fasta file and return the chromosomes.
+Read a fasta file and return the chromosomes.
 
 =cut
 sub Read_Genome_Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $chromosomes = {};
+    ## FIXME: This should be removed and I need to
+    ## ensure that all calls use either fasta or genome.
     if (!defined($options->{genome})) {
         if (defined($options->{fasta})) {
-            $options = $class->Set_Vars(genome => $options->{fasta});
+            $options->{genome} = $options->{fasta};
         }
     }
     my $fasta_name = basename($options->{genome}, ['.fasta']);
     my $genome_file = qq"$options->{basedir}/${fasta_name}.pdata";
-    if (-r $genome_file) {
-        $chromosomes = lock_retrieve($genome_file);
-    } else {
-        my $input_genome = Bio::SeqIO->new(-file => $options->{genome}, -format => 'Fasta');
-        while (my $genome_seq = $input_genome->next_seq()) {
-            next unless(defined($genome_seq->id));
-            my $id = $genome_seq->id;
-            my $sequence = $genome_seq->seq;
-            my $length = $genome_seq->length;
-            my $empty_forward = [];
-            my $empty_reverse = [];
-            for my $c (0 .. $length) {
-                $empty_forward->[$c] = 0;
-                $empty_reverse->[$c] = 0;
-            }
-            $chromosomes->{$id}->{forward} = $empty_forward;
-            $chromosomes->{$id}->{sequence} = $sequence;
-            $chromosomes->{$id}->{reverse} = $empty_reverse;
-            $chromosomes->{$id}->{obj} = $genome_seq;
-        } ## End reading each chromosome
-        my $stored = lock_store($chromosomes, $genome_file);
-    } ## End checking for a .pdata file
+    ##if (-r $genome_file) {
+    ##    $chromosomes = lock_retrieve($genome_file);
+    ##} else {
+    my $input_genome = Bio::SeqIO->new(-file => $options->{genome}, -format => 'Fasta');
+    while (my $genome_seq = $input_genome->next_seq()) {
+        next unless(defined($genome_seq->id));
+        my $id = $genome_seq->id;
+        my $sequence = $genome_seq->seq;
+        my $length = $genome_seq->length;
+        my $empty_forward = [];
+        my $empty_reverse = [];
+        for my $c (0 .. $length) {
+            $empty_forward->[$c] = 0;
+            $empty_reverse->[$c] = 0;
+        }
+        $chromosomes->{$id}->{forward} = $empty_forward;
+        $chromosomes->{$id}->{sequence} = $sequence;
+        $chromosomes->{$id}->{reverse} = $empty_reverse;
+        $chromosomes->{$id}->{obj} = $genome_seq;
+    } ## End reading each chromosome
+    ## my $stored = lock_store($chromosomes, $genome_file);
+    ##} ## End checking for a .pdata file
     return($chromosomes);
 }
 
-=item C<Read_Genome_GFF>
+=head2 C<Read_Genome_GFF>
 
 Read a GFF file and extract the annotation information from it.
 
@@ -1562,90 +1582,90 @@ sub Read_Genome_GFF {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['gff'],
-        feature_type => 'exon',
-        id_tag => 'gene_id');
-    my $feature_type = $options->{feature_type};
-    my $id_tag = $options->{id_tag};
+        gff_type => 'gene',
+        gff_tag => 'locus_tag');
     my $annotation_in = Bio::Tools::GFF->new(-file => "$options->{gff}", -gff_version => 3);
-    my $gff_out = { stats => { chromosomes => [],
-                               lengths => [],
-                               feature_names => [],
-                               cds_starts => [],
-                               cds_ends => [],
-                               inter_starts => [],
-                               inter_ends => [],
-                    },};
-    my $gff_name = basename($args{gff}, ['.gff']);
-    my $genome_file = qq"$options->{basedir}/${gff_name}.pdata";
-    print "Reading $options->{gff}, seeking features tagged (last column ID) $id_tag,
- type (3rd column): $feature_type.\n";
-    if (-r $genome_file && !$options->{debug}) {
-        $gff_out = lock_retrieve($genome_file);
-    } else {
-        print "Starting to read gff: $args{gff}\n" if ($class->{debug});
-        my $hits = 0;
-        my @chromosome_list = @{$gff_out->{stats}->{chromosomes}};
-        my @feature_names = @{$gff_out->{stats}->{feature_names}};
-        my @cds_starts = @{$gff_out->{stats}->{cds_starts}};
-        my @inter_starts = @{$gff_out->{stats}->{inter_starts}};
-        my @cds_ends = @{$gff_out->{stats}->{cds_ends}};
-        my @inter_ends = @{$gff_out->{stats}->{inter_ends}};
-        my $start = 1;
-        my $old_start = 1;
-        my $end = 1;
-        my $old_end = 1;
-      LOOP: while(my $feature = $annotation_in->next_feature()) {
-          next LOOP unless ($feature->{_primary_tag} eq $feature_type);
-          $hits++;
-          my $location = $feature->{_location};
-          $old_start = $start;
-          $old_end = $end;
-          $start = $location->start();
-          $end = $location->end();
-          my $strand = $location->strand();
-          my @ids = $feature->each_tag_value($id_tag);
-          my $id = "";
-          my $gff_chr = $feature->{_gsf_seq_id};
-          my $gff_string = $annotation_in->gff_string($feature);
-          foreach my $i (@ids) {
-              $i =~ s/^cds_//g;
-              $i =~ s/\-\d+$//g;
-              $id .= "$i ";
-          }
-          $id =~ s/\s+$//g;
-          my @gff_information = split(/\t+/, $gff_string);
-          my $description_string = $gff_information[8];
-          my $orf_chromosome = $gff_chr;
-          ## Add the chromosome to the list of chromosomes if it is not there already.
-          push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
-          push(@feature_names, $id);
-          push(@cds_starts, $start);
-          push(@inter_starts, $old_start+1);
-          push(@cds_ends, $end);
-          ##push(@inter_ends, $old_start-1);
-          push(@inter_ends, $start-1);
-          my $annot = {
-              id => $id,
-              start => $start, ## Genomic coordinate of the start codon
-              end => $end, ## And stop codon
-              strand => $strand,
-              description_string => $description_string,
-              chromosome => $gff_chr,
-          };
-          $gff_out->{$gff_chr}->{$id} = $annot;
-      } ## End looking at every gene in the gff file
-        $gff_out->{stats}->{chromosomes} = \@chromosome_list;
-        $gff_out->{stats}->{feature_names} = \@feature_names;
-        $gff_out->{stats}->{cds_starts} = \@cds_starts;
-        $gff_out->{stats}->{cds_ends} = \@cds_ends;
-        $gff_out->{stats}->{inter_starts} = \@inter_starts;
-        $gff_out->{stats}->{inter_ends} = \@inter_ends;
-        print STDERR "Not many hits were observed, do you have the right feature type?  It is: ${feature_type}\n" if ($hits < 1000);
-        if (-f $genome_file) {
-            unlink($genome_file);
-        }
-        my $stored = lock_store($gff_out, $genome_file);
-    } ## End looking for the gff data file
+    my $gff_out = {stats => {
+        chromosomes => [],
+        lengths => [],
+        feature_names => [],
+        cds_starts => [],
+        cds_ends => [],
+        inter_starts => [],
+        inter_ends => [],
+                   },
+    };
+    my $gff_name = basename($options->{gff}, ['.gff']);
+    ##my $genome_file = qq"$options->{basedir}/${gff_name}.pdata";
+    print "Reading $options->{gff}, seeking features tagged (last column ID) $options->{gff_tag},
+ type (3rd column): $options->{gff_type}.\n";
+    ##if (-r $genome_file && !$options->{debug}) {
+    ##    $gff_out = lock_retrieve($genome_file);
+    ##} else {
+    print "Starting to read gff: $options->{gff}\n" if ($class->{debug});
+    my $hits = 0;
+    my @chromosome_list = @{$gff_out->{stats}->{chromosomes}};
+    my @feature_names = @{$gff_out->{stats}->{feature_names}};
+    my @cds_starts = @{$gff_out->{stats}->{cds_starts}};
+    my @inter_starts = @{$gff_out->{stats}->{inter_starts}};
+    my @cds_ends = @{$gff_out->{stats}->{cds_ends}};
+    my @inter_ends = @{$gff_out->{stats}->{inter_ends}};
+    my $start = 1;
+    my $old_start = 1;
+    my $end = 1;
+    my $old_end = 1;
+  LOOP: while(my $feature = $annotation_in->next_feature()) {
+      next LOOP unless ($feature->{_primary_tag} eq $options->{gff_type});
+      $hits++;
+      my $location = $feature->{_location};
+      $old_start = $start;
+      $old_end = $end;
+      $start = $location->start();
+      $end = $location->end();
+      my $strand = $location->strand();
+      my @ids = $feature->each_tag_value($options->{gff_tag});
+      my $id = "";
+      my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_string = $annotation_in->gff_string($feature);
+      foreach my $i (@ids) {
+          $i =~ s/^cds_//g;
+          $i =~ s/\-\d+$//g;
+          $id .= "$i ";
+      }
+      $id =~ s/\s+$//g;
+      my @gff_information = split(/\t+/, $gff_string);
+      my $description_string = $gff_information[8];
+      my $orf_chromosome = $gff_chr;
+      ## Add the chromosome to the list of chromosomes if it is not there already.
+      push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
+      push(@feature_names, $id);
+      push(@cds_starts, $start);
+      push(@inter_starts, $old_start+1);
+      push(@cds_ends, $end);
+      ##push(@inter_ends, $old_start-1);
+      push(@inter_ends, $start-1);
+      my $annot = {
+          id => $id,
+          start => $start, ## Genomic coordinate of the start codon
+          end => $end, ## And stop codon
+          strand => $strand,
+          description_string => $description_string,
+          chromosome => $gff_chr,
+      };
+      $gff_out->{$gff_chr}->{$id} = $annot;
+  } ## End looking at every gene in the gff file
+    $gff_out->{stats}->{chromosomes} = \@chromosome_list;
+    $gff_out->{stats}->{feature_names} = \@feature_names;
+    $gff_out->{stats}->{cds_starts} = \@cds_starts;
+    $gff_out->{stats}->{cds_ends} = \@cds_ends;
+    $gff_out->{stats}->{inter_starts} = \@inter_starts;
+    $gff_out->{stats}->{inter_ends} = \@inter_ends;
+    print STDERR "Not many hits were observed, do you have the right feature type?  It is: $options->{gff_type}\n" if ($hits < 1000);
+    ##if (-f $genome_file) {
+    ##        unlink($genome_file);
+    ##    }
+    ##    my $stored = lock_store($gff_out, $genome_file);
+## } ## End looking for the gff data file
     return($gff_out);
 }
 
@@ -1702,33 +1722,33 @@ sub Submit {
         }
         ## I think this might be required as per:
         ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
-        ##$Storable::Deparse = 1;
-        ##$Storable::Eval = 1;
-        ##$option_file = File::Temp->new(
-        ##    TEMPLATE => 'optionsXXXX',
-        ##    DIR => $option_directory,
-        ##    UNLINK => 0,
-        ##    SUFFIX => '.pdata',);
-        ##my $option_filename = $option_file->filename;
-        ##$options->{option_file} = $option_filename;
-        ##$class->{option_file} = $option_filename;
+        $Storable::Deparse = 1;
+        $Storable::Eval = 1;
+        $option_file = File::Temp->new(
+            TEMPLATE => 'optionsXXXX',
+            DIR => $option_directory,
+            UNLINK => 0,
+            SUFFIX => '.pdata',);
+        my $option_filename = $option_file->filename;
+        $options->{option_file} = $option_filename;
+        $class->{option_file} = $option_filename;
         ## Code references are invalid for these things...
         ## Why is it that periodically I get this error?
         ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?
-        ##my %saved_options = ();
-        ##SAVED: foreach my $k (keys %{$options}) {
-        ##    my $r = ref($options->{$k});
-        ##    next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
-        ##    $saved_options{$k} = $options->{$k};
-        ##}
-        ##try {
-        ##    my $stored = lock_store(\%saved_options, $option_file);
-        ##} catch ($e) {
-        ##    warn "An error occurred when storing the options: $e";
-        ##    print "HERE ARE THE OPTIONS:\n";
-        ##    use Data::Dumper;
-        ##    print Dumper \%saved_options;
-        ##}
+        my %saved_options = ();
+        SAVED: foreach my $k (keys %{$options}) {
+            my $r = ref($options->{$k});
+            next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
+            $saved_options{$k} = $options->{$k};
+        }
+        try {
+            my $stored = lock_store(\%saved_options, $option_file);
+        } catch ($e) {
+            warn "An error occurred when storing the options: $e";
+            print "HERE ARE THE OPTIONS:\n";
+            use Data::Dumper;
+            print Dumper \%saved_options;
+        }
     }
     my $runner;
     if ($class->{sbatch_path}) {
@@ -1779,11 +1799,6 @@ The following comprises the set of strings you may feed it as 'methods':\n";
     $class->Help();
     return(0);
 }
-
-## Make empty functions for the stuff provided by Bio::Adventure::
-
-
-=back
 
 =head1 AUTHOR - atb
 

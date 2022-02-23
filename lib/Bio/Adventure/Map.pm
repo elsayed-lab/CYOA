@@ -782,6 +782,7 @@ sub Hisat2 {
         libtype => 'genome',
         jmem => 24,
         jprefix => '40',
+        maximum => undef,
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
@@ -807,7 +808,9 @@ sub Hisat2 {
     }
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
+    $hisat_args .= qq" -k $options->{maximum} " if (defined($options->{maximum}));
     my $prefix_name = 'hisat2';
+    $prefix_name .= qq"_k$options->{maximum}" if (defined($options->{maximum}));
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {

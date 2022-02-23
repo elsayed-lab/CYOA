@@ -94,17 +94,12 @@ print \$out "## Started $script_file at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
-##        if ($options->{option_file}) {
-##            $perl_start .= qq!
-##use Storable qw "lock_retrieve";
-##local \$Storable::Eval = 1;
-##use FileHandle;
-#### Pull options from the option file: $parent->{option_file}
-##my \$options = lock_retrieve('$parent->{option_file}');
-##\$h->{options} = \$options;
-##my \$result;
-##!;
-##        }
+        if (defined($parent->{option_file})) {
+            $perl_start .= qq!
+## Pull options from the option file: $parent->{option_file}
+my \$loaded = \$h->Load_Vars(input => '$parent->{option_file}');
+!;
+        }
         my $perl_end = qq!## The following lines give status codes and some logging
 my \$jobid = "";
 \$jobid = \$ENV{SLURM_JOBID} if (\$ENV{SLURM_JOBID});
@@ -179,8 +174,8 @@ ${module_string}
     }
     my $script_end = qq!
 ## The following lines give status codes and some logging
-echo "## Job status: \$? " >> ${sbatch_log}
-echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${sbatch_log}
+echo "Job status: \$? " >> ${sbatch_log}
+echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${sbatch_log}
 !;
     ## It turns out that if a job was an array (-t) job, then the following does not work because
     ## It doesn't get filled in properly by qstat -f...
@@ -192,12 +187,11 @@ echo "## \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it to
 
     $script_end .= qq!
 if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
-  walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}' 2>/dev/null)
-  echo "#### walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
+  walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}' | head -n 1 2>/dev/null)
+  echo "  walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
   maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch" 2>/dev/null)
-  echo "#### maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
-  avecpu=\$(sstat --format=AveCPU -n "\${SLURM_JOBID}.batch" 2>/dev/null)
-  echo "#### average cpu used by \${SLURM_JOBID} was: \${avecpu:-null}" >> ${sbatch_log}
+  echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
+  echo "" >> ${sbatch_log}
 fi
 ## Adding a little logic to have skip finished jobs.
 touch ${finished_file}
