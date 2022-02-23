@@ -1,9 +1,10 @@
 #!/usr/bin/env perl
+use Cwd qw"abs_path";
+BEGIN { unshift(@INC, abs_path('lib'))}
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
-use Cwd;
 
 use File::Basename;
 use Getopt::Long qw"GetOptionsFromArray";
