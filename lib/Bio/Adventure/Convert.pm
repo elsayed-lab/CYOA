@@ -613,7 +613,7 @@ sub Samtools {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jmem => 12,
+        jmem => 16,
         jname => 'sam',
         jprefix => '',
         paired => 1,
