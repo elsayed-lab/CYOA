@@ -780,8 +780,10 @@ sub Hisat2 {
         htseq_id => 'ID',
         count => 1,
         libtype => 'genome',
-        jmem => 24,
+        jmem => 48,
         jprefix => '40',
+        maximum => undef,
+        jwalltime => '72:00:00',
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
@@ -807,7 +809,9 @@ sub Hisat2 {
     }
     my $hisat_args = '';
     $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
+    $hisat_args .= qq" -k $options->{maximum} " if (defined($options->{maximum}));
     my $prefix_name = 'hisat2';
+    $prefix_name .= qq"_k$options->{maximum}" if (defined($options->{maximum}));
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
     my $suffix_name = $prefix_name;
     if ($options->{jname}) {
@@ -863,11 +867,11 @@ sub Hisat2 {
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
-    my $aligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_aldis_$options->{species}_$options->{libtype}.fastq";
-    my $unaligned_discordant_filename = qq"${hisat_dir}/$options->{jbasename}_unaldis_$options->{species}_$options->{libtype}.fastq";
-    my $aligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_alcon_$options->{species}_$options->{libtype}.fastq";
-    my $unaligned_concordant_filename = qq"${hisat_dir}/$options->{jbasename}_unalcon_$options->{species}_$options->{libtype}.fastq";
-    my $sam_filename = qq"${hisat_dir}/$options->{jbasename}_$options->{species}_$options->{libtype}.sam";
+    my $aligned_discordant_filename = qq"${hisat_dir}/aldis_$options->{species}_$options->{libtype}.fastq";
+    my $unaligned_discordant_filename = qq"${hisat_dir}/unaldis_$options->{species}_$options->{libtype}.fastq";
+    my $aligned_concordant_filename = qq"${hisat_dir}/alcon_$options->{species}_$options->{libtype}.fastq";
+    my $unaligned_concordant_filename = qq"${hisat_dir}/unalcon_$options->{species}_$options->{libtype}.fastq";
+    my $sam_filename = qq"${hisat_dir}/$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
 hisat2 -x ${hisat_reflib} ${hisat_args} \\
   -p ${cpus} \\
@@ -922,7 +926,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $xz_jname = qq"xz_${suffix_name}";
-    my $comp = $class->Bio::Adventure::Compress::Recompress(
+    my $comp = $class->Bio::Adventure::Compress::Compress(
         jname => $xz_jname,
         input => qq"${aligned_filenames}:${unaligned_filenames}",
         jdepends => $hisat_job->{job_id});

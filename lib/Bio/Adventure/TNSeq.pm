@@ -648,7 +648,7 @@ sub Run_Essentiality {
     $input_wig = qq"${output_dir}/${input_wig}";
     my $gff = qq"$options->{libdir}/genome/$options->{species}.gff";
     my $output_file = qq"tn_hmm-${output}.csv";
-    my $error_file =  qq"tn_hmm-${output}.err";
+    my $error_file =  qq"tn_hmm-${output}.stderr";
     my $comment = qq"## Performing tn_hmm on ${input_wig} using ${gff}\n";
     my $jstring = qq!## This only works with python 2.7.9
 eval \$(modulecmd bash purge)
@@ -683,7 +683,7 @@ process_segments.py -f ${output_dir}/${output_file} \\
         ## The inputs for this are:
         ##   1. the tas file for either cds or intercds provided by count_tas
         my $output_file = qq"mh_ess-${output}_m${param}.csv";
-        my $error_file = qq"mh_ess-${output}_m${param}.err";
+        my $error_file = qq"mh_ess-${output}_m${param}.stderr";
         $jstring = qq!## This only works with python 2.7.9
 eval \$(modulecmd bash purge)
 eval \$(modulecmd bash add Python2/2.7.9)
@@ -1028,7 +1028,7 @@ sub Transit_TPP {
     my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
 
-    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${tpp_basename}.err";
+    my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${tpp_basename}.stderr";
     my $comment = qq!## This is a transit preprocessing alignment of $options->{input} against
 ## ${tpp_genome} using arguments: ${tpp_args}.
 !;

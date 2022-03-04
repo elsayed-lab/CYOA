@@ -613,7 +613,7 @@ sub Samtools {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jmem => 12,
+        jmem => 16,
         jname => 'sam',
         jprefix => '',
         paired => 1,
@@ -634,7 +634,7 @@ sub Samtools {
     ## Start out assuming we will use the new samtools syntax.
     my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output}  \\
-  2>${output}.err 1>${output}.out && \\";
+  2>${output}.stderr 1>${output}.stdout && \\";
     my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam \\
   2>${sorted_name}.stderr \\
   1>${sorted_name}.stdout && \\";
