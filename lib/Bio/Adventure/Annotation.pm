@@ -913,13 +913,13 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         comment => $comment_string,
         gff => $options->{gff},
         input => $options->{input},
+        job_log => $log,
         jdepends => $options->{jdepends},
         jmem => 8,
         jname => $options->{jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        log => $log,
         output => $output_file,
         output_dir => $output_dir,);
     return($rewrite);

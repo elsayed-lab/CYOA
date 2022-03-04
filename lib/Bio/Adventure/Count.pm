@@ -397,8 +397,10 @@ ${htseq_invocation}
   ${htseq_input} \\
   ${annotation} \\
   2>${error} \\
-  1>${output} && \\
-    xz -f -9e ${output} 2>${error}.xz 1>${output}.xz
+  1>${output}
+xz -f -9e ${output} \\
+  2>${error}.xz \\
+  1>${output}.xz
 !;
     $output = qq"${output}.xz";
     my $comment = qq!## Counting the number of hits in ${htseq_input} for each feature found in ${annotation}

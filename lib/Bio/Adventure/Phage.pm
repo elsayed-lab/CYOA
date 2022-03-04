@@ -641,6 +641,7 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
     my $host = $class->Submit(
         input => $options->{input},
         input_fastq => $options->{input_fastq},
+        job_log => $log,
         output => $output_files,
         output_dir => $output_dir,
         comment => $comment,
@@ -649,8 +650,7 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         jname => 'hostfilter',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        language => 'perl',
-        log => $log,);
+        language => 'perl',);
     return($host);
 }
 
@@ -673,6 +673,7 @@ sub Filter_Kraken_Worker {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'output'],
+        job_log => 'filter_kraken.log',
         jname => 'krakenfilter',
         type => 'species',);
     my $separator;
@@ -695,7 +696,7 @@ sub Filter_Kraken_Worker {
     }
 
     my $output_dir = $options->{output_dir};
-    my $out = FileHandle->new(">${output_dir}/kraken_filter.log");
+    my $out = FileHandle->new(">$options->{job_log}");
     my $in = FileHandle->new("<$options->{input}");
     print $out "Starting search for best kraken host strain.\n";
     print $out "Reading kraken report: $options->{input}.\n";

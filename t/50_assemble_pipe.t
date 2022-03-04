@@ -126,7 +126,7 @@ if ($comparison) {
 }
 
 ## See if the kraken-based filter worked.
-$test_file = $assemble->{'05host_filter'}->{log};
+$test_file = $assemble->{'05host_filter'}->{job_log};
 $comparison = ok(-f $test_file, qq"Checking kraken filter output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"tail -n 2 ${test_file}";
@@ -241,7 +241,7 @@ if ($comparison) {
 }
 
 ## Check the Rosalindplus results.
-$test_file = $assemble->{'11rosalindplus'}->{log};
+$test_file = $assemble->{'11rosalindplus'}->{job_log};
 $comparison = ok(-f $test_file, qq"Checking Rosalindplus output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 2 ${test_file}";
@@ -337,10 +337,7 @@ $test_file = $assemble->{'16prodigal'}->{output_cds};
 $comparison = ok(-f $test_file, qq"Checking prodigal output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
-$expected = qq">gnl|Prokka|test_output_1_1 # 1 # 117 # 1 # ID=1_1;partial=10;start_type=Edge;rbs_motif=None;rbs_spacer=None;gc_cont=0.504
-TCTCACAGTTCAAGAACCTCAAGTCTCCCCATAGGCCCTCTTTCAGTCCAGACCAAAGGCCCTACCCCAG
-TCTATCATAAGGTTGGACCGATGGTCAAGACTTCAGGTCAACGATAG
->gnl|Prokka|test_output_1_2 # 1267 # 1773 # 1 # ID=1_2;partial=00;start_type=ATG;rbs_motif=GGAG/GAGG;rbs_spacer=5-10bp;gc_cont=0.489
+$expected = qq">gnl|Prokka|test_output_1_2 # 1267 # 1773 # 1 # ID=1_2;partial=00;start_type=ATG;rbs_motif=GGAG/GAGG;rbs_spacer=5-10bp;gc_cont=0.489
 ATGGAACGTAACGCTGACGCATACTATGAGCTGCTGAATGCAACCGTTAAAGCATTTAACGAGCGTGTTC
 AGTACGACGAAATAGCTAAAGGTGATGACTACCATGATGCGCTGCATGAAGTCGTAGACGGTCAGGTTCC
 GCACTATTACCACGAGATCTTCACGGTGATGGCTGCTGATGGTATTGACATTGAGTTTGAAGACTCTGGG
@@ -407,16 +404,16 @@ $test_file = $assemble->{'19cds_merge'}->{output_tsv};
 $comparison = ok(-f $test_file, qq"Checking CDS merge output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
-$expected = qq"locus_tag\tcontig\ttype\tsource\tstart\tend\tstrand\tcds_prediciton\taa_sequence
-test_output_0001\ttest_output_1\tCDS\t\t1\t117\t1\tphanotate, score: -1.25\tSHSSRTSSLPIGPLSVQTKGPTPVYHKVGPMVKTSGQR
-test_output_0002\ttest_output_1\tCDS\t\t131\t265\t1\tglimmer\tVVVETIGWDYWLSLSLLLAAGVTAGSQWVGWVETLVCSLVSQCN
-test_output_0003\ttest_output_1\tCDS\t\t183\t302\t1\tphanotate, score: -0.218\tLLLALLLEVSGSGGSRLSYALWSLSVINAIMVTIHERKT
-test_output_0004\ttest_output_1\tCDS\t\t305\t352\t-1\tglimmer\tLTTVAKVSRVASAMN
-test_output_0005\ttest_output_1\tCDS\t\t477\t617\t1\tphanotate, score: -0.0702\tLDQKFETTSHSSRTSSLPIGPLSVQTKGPTPVYHKVGPMVKTSGQR
-test_output_0006\ttest_output_1\tCDS\t\t1052\t1129\t1\tglimmer\tMRCKLYHIEATVATNTELVYLKSSD
-test_output_0007\ttest_output_1\tCDS\t\t888\t1148\t-1\tphanotate, score: -0.107\tLLKSIPFSQRTSGRPVQCWSPPLLRCGTAYISSLLLVNYFLSSACCSYDLSGCLLNRDDPASSLSGCCRVVLTEAIKPQSRPIVNM
-test_output_0008\ttest_output_1\tCDS\t\t1178\t1225\t1\tglimmer\tVINYRVFESTPEGPD
-test_output_0009\ttest_output_1\tCDS\t\t1267\t1773\t1\tphanotate, score: -5930\tMERNADAYYELLNATVKAFNERVQYDEIAKGDDYHDALHEVVDGQVPHYYHEIFTVMAADGIDIEFEDSGLMPETKDVTRILQARIYEALYNGVSNSSDVVWFEAEESDEEGKYWVVDAKTGLFAEQAIPLEVAIASAKDLYAVGHHMKVEDINDNVVFDPAAEEDCE
+$expected = qq"locus_tag	contig	type	source	start	end	strand	cds_prediciton	aa_sequence
+test_output_0001	test_output_1	CDS		131	265	1	glimmer	VVVETIGWDYWLSLSLLLAAGVTAGSQWVGWVETLVCSLVSQCN
+test_output_0002	test_output_1	CDS		183	302	1	phanotate, score: -0.218	LLLALLLEVSGSGGSRLSYALWSLSVINAIMVTIHERKT
+test_output_0003	test_output_1	CDS		305	352	-1	glimmer	LTTVAKVSRVASAMN
+test_output_0004	test_output_1	CDS		477	617	1	phanotate, score: -0.0702	LDQKFETTSHSSRTSSLPIGPLSVQTKGPTPVYHKVGPMVKTSGQR
+test_output_0005	test_output_1	CDS		888	1148	-1	phanotate, score: -0.107	LLKSIPFSQRTSGRPVQCWSPPLLRCGTAYISSLLLVNYFLSSACCSYDLSGCLLNRDDPASSLSGCCRVVLTEAIKPQSRPIVNM
+test_output_0006	test_output_1	CDS		1178	1225	1	glimmer	VINYRVFESTPEGPD
+test_output_0007	test_output_1	CDS		1267	1773	1	phanotate, score: -5930	MERNADAYYELLNATVKAFNERVQYDEIAKGDDYHDALHEVVDGQVPHYYHEIFTVMAADGIDIEFEDSGLMPETKDVTRILQARIYEALYNGVSNSSDVVWFEAEESDEEGKYWVVDAKTGLFAEQAIPLEVAIASAKDLYAVGHHMKVEDINDNVVFDPAAEEDCE
+test_output_0008	test_output_1	CDS		1773	1928	1	phanotate, score: -6.33	MVTYGLCQHHVTNARIMVKTGQLNHDATMCLLKAVYEGRKLIHNSLHAEDK
+test_output_0009	test_output_1	CDS		1931	2056	1	phanotate, score: -4.91	MYQITYNSEQAFYEGCYEMMKRGACYVANHHSLTITLTGGY
 ";
 $comparison = ok($expected eq $actual, 'Checking CDS merge result:');
 if ($comparison) {
@@ -481,7 +478,7 @@ $actual = qx"tail -n 4 ${test_file}";
 $expected = qq"number of sequences= 1
 number of bases tested (one strand)=41261
 number of bases tested (both strands)= 82522
-number of predicted tRNA=25
+number of predicted tRNA=236
 ";
 $comparison = ok($expected eq $actual, 'Checking trnascan result:');
 if ($comparison) {
@@ -497,9 +494,9 @@ $test_file = $assemble->{'23trinotate'}->{output};
 $comparison = ok(-f $test_file, qq"Checking trinotate output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 3 ${test_file}";
-$expected = qq"#gene_id\ttranscript_id\tsprot_Top_BLASTX_hit\tRNAMMER\tprot_id\tprot_coords\tsprot_Top_BLASTP_hit\tphage_pep_BLASTX\tterminase_BLASTX\tphage_pep_BLASTP\tPfam\tSignalP\tTmHMM\teggnog\tKegg\tgene_ontology_BLASTX\tgene_ontology_BLASTP\tgene_ontology_Pfam\ttranscript\tpeptide
-test_output_0001\ttest_output_0001\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.
-test_output_0002\ttest_output_0002\t.\t.\t.\t.\t.\tCAJ29397.1^CAJ29397.1^Q:28-135,H:18-54^72.973%ID^E:1.74e-11^.^.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.
+$expected = qq"#gene_id	transcript_id	sprot_Top_BLASTX_hit	RNAMMER	prot_id	prot_coords	sprot_Top_BLASTP_hit	phage_pep_BLASTX	terminase_BLASTX	phage_pep_BLASTP	Pfam	SignalP	TmHMM	eggnog	Kegg	gene_ontology_BLASTX	gene_ontology_BLASTP	gene_ontology_Pfam	transcript	peptide
+test_output_0001	test_output_0001	.	.	.	.	.	CAJ29397.1^CAJ29397.1^Q:28-135,H:18-54^72.973%ID^E:1.74e-11^.^.	.	.	.	.	.	.	.	.	.	.	.	.
+test_output_0002	test_output_0002	.	.	.	.	.	CAJ29397.1^CAJ29397.1^Q:3-83,H:27-54^85.714%ID^E:8.59e-10^.^.	.	.	.	.	.	.	.	.	.	.	.	.
 ";
 $comparison = ok($expected eq $actual, 'Checking trinotate results:');
 if ($comparison) {
@@ -678,15 +675,15 @@ $comparison = ok(-f $test_file, qq"Checking caical output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
 $expected = qq!NAME	CAI
->test_output_0001	 0.590
->test_output_0002	 0.625
->test_output_0003	 0.669
->test_output_0004	 0.602
->test_output_0005	 0.592
->test_output_0006	 0.769
->test_output_0007	 0.683
->test_output_0008	 0.680
->test_output_0009	 0.692
+>test_output_0001	 0.625
+>test_output_0002	 0.669
+>test_output_0003	 0.602
+>test_output_0004	 0.592
+>test_output_0005	 0.683
+>test_output_0006	 0.680
+>test_output_0007	 0.692
+>test_output_0008	 0.647
+>test_output_0009	 0.667
 !;
 $comparison = ok($expected eq $actual, 'Checking caical results:');
 if ($comparison) {

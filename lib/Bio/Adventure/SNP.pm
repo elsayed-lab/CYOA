@@ -36,21 +36,20 @@ sub Align_SNP_Search {
         htseq_type => 'gene',
         modules => ['bowtie2', 'samtools'],
         vcf_cutoff => 5,
-        vcf_minpct => 0.8,
-        );
+        vcf_minpct => 0.8,);
 
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
     my $query_base = basename(${query}, (".bam"));
     $query = qq"${query_home}/${query_base}";
-    print "About to start Bowtie2 search against of $query against $options->{species}.\n";
+    print "About to start Bowtie2 search against of ${query} against $options->{species}.\n";
     my $bt2_job = $class->Bio::Adventure::Map::Bowtie2(
-        htseq_type => "exon",
+        htseq_type => 'exon',
         input => $query,
         species => $options->{species},);
     my $bamfile = $bt2_job->{samtools}->{output};
-    print "About to start SNP search of $bamfile against $options->{species}\n";
+    print "About to start SNP search of ${bamfile} against $options->{species}\n";
     my $search = $class->Bio::Adventure::SNP::SNP_Search(
         gff_tag => $options->{htseq_id},
         gff_type => $options->{htseq_type},
@@ -151,14 +150,15 @@ sub SNP_Search {
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
         jprefix => '80',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13',
+                    'samtools/1.13', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('samtools');
     die('Could not find samtools in your PATH.') unless($check);
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
-    my $query_base = basename(${query}, (".bam"));
+    my $query_base = basename(${query}, ('.bam'));
     $query = qq"${query_home}/${query_base}";
 
     my $varfilter = $options->{varfilter};
@@ -167,16 +167,16 @@ sub SNP_Search {
 
     my $vcfutils_dir = qq"outputs/vcfutils_$options->{species}";
     my $pileup_input = qq"${vcfutils_dir}/${query_base}.bam";
-    my $pileup_error = qq"${vcfutils_dir}/${query_base}_pileup.err";
+    my $pileup_error = qq"${vcfutils_dir}/${query_base}_pileup.stderr";
     my $pileup_output = qq"${vcfutils_dir}/${query_base}_pileup.vcf";
-    my $filter_error = qq"${vcfutils_dir}/${query_base}_varfilter.err";
+    my $filter_error = qq"${vcfutils_dir}/${query_base}_varfilter.stderr";
     my $filter_output = qq"${vcfutils_dir}/${query_base}_filtered.vcf";
     my $call_output = qq"${vcfutils_dir}/${query_base}_summary.vcf";
-    my $call_error = qq"${vcfutils_dir}/${query_base}_summary.err";
+    my $call_error = qq"${vcfutils_dir}/${query_base}_summary.stderr";
     my $final_output = qq"${vcfutils_dir}/${query_base}.bcf";
-    my $final_error = qq"${vcfutils_dir}/${query_base}_bcf.err";
+    my $final_error = qq"${vcfutils_dir}/${query_base}_bcf.stderr";
     my $jstring = qq!mkdir -p ${vcfutils_dir}
-echo "Started samtools sort at \$(date)" >> ${vcfutils_dir}/vcfutils_$options->{species}.out
+echo "Started samtools sort at \$(date)" >> ${vcfutils_dir}/vcfutils_$options->{species}.stdout
 !;
     unless (-r "${pileup_input}") {
         if ($query =~ m/sorted/) {
@@ -211,7 +211,8 @@ bcftools index ${final_output} 2>${vcfutils_dir}/bcftools_index.err
 echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.out
 !;
 
-    my $comment_string = '## Use samtools, bcftools, and vcfutils to get some idea about how many variant positions are in the data.';
+    my $comment_string = qq"## Use samtools, bcftools, and vcfutils to get some
+## idea about how many variant positions are in the data.";
     my $pileup = $class->Submit(
         comment => $comment_string,
         jdepends => $options->{jdepends},
@@ -260,14 +261,14 @@ sub SNP_Ratio {
         jprefix => '80',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13',
+                    'samtools/1.13', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $check = which('bcftools');
     die('Could not find bcftools in your PATH.') unless($check);
     my $print_input = $options->{input};
-    my $output_base = basename($print_input, ('.bcf'));
     my $output_dir = dirname($print_input);
-    my $print_output = qq"${output_dir}/${output_base}";
+    my $print_output = qq"${output_dir}";
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $jname = qq"parsesnp";
     my $comment_string = qq!
@@ -275,25 +276,31 @@ sub SNP_Ratio {
 ##  This should read the file:
 ## ${print_input}
 ##  and provide 4 new files:
-## ${print_output}_count.txt
-## ${print_output}_all.txt
-## ${print_output}_pct.txt
-## and a modified genome: ${print_output}_modified.fasta
+## ${print_output}/count.txt
+## ${print_output}/all_tags.txt
+## and a modified genome: ${print_output}/modified.fasta
 !;
 
+    my $output_all = qq"${print_output}/all_tags.txt";
+    my $output_count = qq"${print_output}/count.txt";
+    my $output_genome = qq"${print_output}/modified.fasta";
+    my $output_by_gene = qq"${print_output}/variants_by_gene.txt";
+    my $output_pkm = qq"${print_output}/pkm.txt";
     my $jstring = qq"
 use Bio::Adventure::SNP;
-my \$result = \$h->Bio::Adventure::SNP::Make_SNP_Ratio(
+my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
   input => '$print_input',
-  output => '$print_output',
-  output_count => '${print_output}_count.txt',
-  output_genome => '${print_output}_modified.fasta',
-  output_pct => '${print_output}_pct.txt',
   species => '$options->{species}',
   vcf_cutoff => '$options->{vcf_cutoff}',
   vcf_minpct => '$options->{vcf_minpct}',
   gff_tag => '$options->{gff_tag}',
   gff_type => '$options->{gff_type}',
+  output_dir => '$output_dir',
+  output => '${output_all}',
+  output_count => '${output_count}',
+  output_genome => '${output_genome}',
+  output_by_gene => '${output_by_gene}',
+  output_pkm => '${output_pkm}',
 );
 ";
 
@@ -307,10 +314,12 @@ my \$result = \$h->Bio::Adventure::SNP::Make_SNP_Ratio(
         jstring => $jstring,
         jwalltime => '10:00:00',
         language => 'perl',
-        output => $print_output,
-        output_count => qq"${print_output}_count.txt",
-        output_genome => qq"${print_output}_modified.fasta",
-        output_pct => qq"${print_output}_pct.txt",);
+        output_dir => $output_dir,
+        output => $output_all,
+        output_count => $output_count,
+        output_genome => $output_genome,
+        output_by_gene => $output_by_gene,
+        output_pkm => $output_pkm,);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -327,7 +336,7 @@ my \$result = \$h->Bio::Adventure::SNP::Make_SNP_Ratio(
  generation of a new haplotype/genome is separate.
 
 =cut
-sub Make_SNP_Ratio {
+sub SNP_Ratio_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -337,26 +346,25 @@ sub Make_SNP_Ratio {
         min_depth => 5,
         min_value => 0.8,
         max_value => undef,
-        method => 'mpileup',
+        method => 'freebayes',
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
+        output => 'all.txt',
+        output_count => 'count.txt',
+        output_genome => 'new_genome.fasta',
+        output_by_gene => 'counts_by_gene.txt',
+        output_pkm => 'by_gene_length.txt',
+        output_dir => 'outputs/40freebayes',
+        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13',
+                    'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
-    my $input = $options->{input};
-    my $output_base = $options->{output};
     my $species = $options->{species};
-    my $genome = "$options->{libdir}/$options->{libtype}/${species}.fasta";
-    my $gff = "$options->{libdir}/$options->{libtype}/${species}.gff";
+    my $genome = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $gff = qq"$options->{libdir}/$options->{libtype}/${species}.gff";
     print "Reading gff: ${gff}, extracting type: $options->{gff_type} features tagged $options->{gff_tag}.\n";
-    my $in = FileHandle->new("bcftools view ${input} |");
-    my $all_out_file = qq"${output_base}_$options->{method}_$options->{chosen_tag}_all.txt";
-    my $all_out = FileHandle->new(">${all_out_file}");
-
-    if ($options->{method} eq 'mpileup') {
-        print $all_out qq"chr_pos_ref_alt\tdiff_count\tdepth\tobservation\n";
-    } elsif ($options->{method} eq 'freebayes') {
-        print $all_out qq"chr_pos_ref_alt\tdepth\tobservation\n";
-    }
+    my $in_bcf = FileHandle->new("bcftools view $options->{input} |");
+    print "The large matrix of data will be written to: $options->{output}\n";
+    my $all_out = FileHandle->new(">$options->{output}");
 
     ## Ok, so I want to simplify the vcf output so that I can create a pseudo
     ## count table of every potential SNP position I want to create a 2 column
@@ -367,6 +375,43 @@ sub Make_SNP_Ratio {
     ## DP4 column which is comma separated: #forward-ref, #reverse-ref, #forward-alt, #reverse-alt
     ## If that, then sum all 4 and only take those greater than x (20?), then take
     ## forward-alt+reverse-alt/(sum of all) to get simple SNP ratio
+    ## I am going to change my writer of the all.txt file so that it prints out the
+    ## values of every observed tag.  For now I am just going to hard-code the order,
+    ## but it should not be difficult to parse this out of the header lines of the
+    ## bcf file.
+    my @mpileup_tag_order = (
+        'NS', 'DP', 'DPB', 'AC', 'AN', 'AF', 'RO', 'AO',
+        'PRO', 'PAO', 'QR', 'QA', 'PQR', 'PQA', 'SRF', 'SRR', 'SAF',
+        'SAR', 'SRP', 'SAP', 'AB', 'ABP', 'RUN', 'RPP', 'RPPR', 'RPL',
+        'RPR', 'EPP', 'EPPR', 'DPRA', 'ODDS', 'GTI', 'TYPE', 'CIGAR',
+        'NUMALT', 'LEN', 'MQM', 'MQMR', 'PAIRED', 'PAIREDR', 'MIN_DP',
+        'END', 'GT', 'GQ', 'GL', 'DP', 'AD', 'RO', 'QR', 'AO', 'QA',
+        'MIN_DP', 'snp_pct');
+    my @freebayes_tag_order = (
+        'NS', 'DP', 'DPB', 'AC', 'AN', 'AF', 'RO', 'AO',
+        'PRO', 'PAO', 'QR', 'QA', 'PQR', 'PQA', 'SRF', 'SRR', 'SAF',
+        'SAR', 'SRP', 'SAP', 'AB', 'ABP', 'RUN', 'RPP', 'RPPR', 'RPL',
+        'RPR', 'EPP', 'EPPR', 'DPRA', 'ODDS', 'GTI', 'TYPE', 'CIGAR',
+        'NUMALT', 'LEN', 'MQM', 'MQMR', 'PAIRED', 'PAIREDR', 'MIN_DP',
+        'END', 'GT', 'GQ', 'GL', 'DP', 'AD', 'RO', 'QR', 'AO', 'QA',
+        'MIN_DP');
+    ## Make a data structure containing arrays for the set of observed tags in the vcf file.
+    ## It should be an array which ends at length of the number of bcf entries.
+    my @tag_order = ();
+    if ($options->{method} eq 'freebayes') {
+        @tag_order = @freebayes_tag_order;
+    } else {
+        @tag_order = @mpileup_tag_order;
+    }
+    ## Here is the global structure
+    my @tag_observations = ();
+    ## Use this little hash to decide what tags to write to the final tsv file.
+    my %num_observed = ();
+    for my $k (@tag_order) {
+        $num_observed{$k} = 0;
+    }
+    ## Then fill it with a hash of the tags from @tag_order
+    ## The following hash will be over written.
 
     ## There is a problem with the above, when I wrote it I assumed that all tools which
     ## boil down to a bcf file would have the same tags describing the quality of the
@@ -432,7 +477,7 @@ sub Make_SNP_Ratio {
     print "Reading bcf file.\n";
     my $count = 0; ## Use this to count the positions changed in the genome.
     my $num_variants = 0; ## Use this to count the variant positions of reasonably high confidence.
-  READER: while (my $line = <$in>) {
+  READER: while (my $line = <$in_bcf>) {
       next READER if ($line =~ /^#/);
       ## When using samtools mpileup with the -t LIST, we get some extra
       ## fields at the end which are called tags and tag_info here.
@@ -447,217 +492,202 @@ sub Make_SNP_Ratio {
       my $snp_pct = 0.0;
       my $all_sum = 0;
       my $diff_sum = 0;
-      foreach my $element (@info_list) {
-          my ($element_type, $element_value) = split(/=/, $element);
-          if ($options->{method} eq 'mpileup' && $element_type eq $options->{chosen_tag}) {
-              ## Add some logic for the DP4 tag, which is a composite of multiple numbers.
-              if ($options->{chosen_tag} eq 'DP4') {
-                  my ($same_forward, $same_reverse, $alt_forward, $alt_reverse) = split(/,/, $element_value);
-                  $diff_sum = $alt_forward + $alt_reverse;
-                  $all_sum = $same_forward + $same_reverse + $diff_sum;
-                  $snp_pct = ($alt_forward + $alt_reverse) / $all_sum;
-                  $snp_pct = nearest(0.01, $snp_pct);
-                  ## End checking for DP4 when using mpileup
-              } else {
-                  $snp_pct = nearest(0.01, $element_value);
-              }
-          } elsif ($options->{method} eq 'freebayes' && $element_type eq $options->{chosen_tag}) {
-              $snp_pct = nearest(0.01, $element_value);
-          }
+      my %individual_tags = (position => $snp_id);
+    TAGS: foreach my $element (@info_list) {
+        my ($element_type, $element_value) = split(/=/, $element);
 
-          ## Get the coverage
-          if ($element_type eq $options->{coverage_tag}) {
-              $all_sum = $element_value;
-          }
-
-      } ## End iterating over the final tag of the bcf line
-
-      if (defined($options->{min_depth})) {
-          next READER if ($all_sum < $options->{min_depth});
-      }
-
-      ## Check that both min and max are defined.
-      if (defined($options->{min_value}) && defined($options->{max_value})) {
-          if ($snp_pct >= $options->{min_value} &&
-              $snp_pct <= $options->{max_value}) {
-              $num_variants++;
-              if ($options->{method} eq 'mpileup') {
-                  print $all_out qq"${snp_id}\t${diff_sum}\t${all_sum}\t${snp_pct}\n";
-              } elsif ($options->{method} eq 'freebayes') {
-                  print $all_out qq"${snp_id}\t${all_sum}\t${snp_pct}\n";
-              }
-          }
-      } elsif (defined($options->{min_value})) {
-          ## Then look to see if min_value is defined
-          if ($snp_pct >= $options->{min_value}) {
-              $num_variants++;
-              if ($options->{method} eq 'mpileup') {
-                  print $all_out qq"${snp_id}\t${diff_sum}\t${all_sum}\t${snp_pct}\n";
-              } elsif ($options->{method} eq 'freebayes') {
-                  print $all_out qq"${snp_id}\t${all_sum}\t${snp_pct}\n";
-              }
-          }
-          ## And the maximum value filter
-      } elsif (defined($options->{max_value})) {
-          if ($snp_pct <= $options->{min_value}) {
-              $num_variants++;
-              if ($options->{method} eq 'mpileup') {
-                  print $all_out qq"${snp_id}\t${diff_sum}\t${all_sum}\t${snp_pct}\n";
-              } elsif ($options->{method} eq 'freebayes') {
-                  print $all_out qq"${snp_id}\t${all_sum}\t${snp_pct}\n";
-              }
-          }
-      } else {
-          ## Neither are defined, then just report the observation.
-          if ($options->{method} eq 'mpileup') {
-              print $all_out qq"${snp_id}\t${diff_sum}\t${all_sum}\t${snp_pct}\n";
-          } elsif ($options->{method} eq 'freebayes') {
-              print $all_out qq"${snp_id}\t${all_sum}\t${snp_pct}\n";
-          }
-      }
+        ## At this point, add some post-processing for tags which are multi-element.
+        if ($options->{method} eq 'mpileup' && $element_type eq 'DP4') {
+            my ($same_forward, $same_reverse, $alt_forward, $alt_reverse) = split(/,/, $element_value);
+            $diff_sum = $alt_forward + $alt_reverse;
+            $all_sum = $same_forward + $same_reverse + $diff_sum;
+            $snp_pct = ($alt_forward + $alt_reverse) / $all_sum;
+            $snp_pct = nearest(0.01, $snp_pct);
+            $individual_tags{snp_pct} = $snp_pct;
+        }
+        $individual_tags{$element_type} = $element_value;
+        if (!defined($num_observed{$element_type})) {
+            $num_observed{$element_type} = 1;
+            push(@tag_order, $element_type);
+        } else {
+            $num_observed{$element_type}++;
+        }
+    } ## End iterating over the tags in the data.
+      push(@tag_observations, \%individual_tags);
   } ## End reading the bcf file.
-    print "Finished reading bcf file, recorded ${num_variants} variant positions.\n";
-    $in->close();
-    $all_out->close();
-    print "Reading genome, extracting variant positions, writing a new genome.\n";
-    if ($num_variants > 0) {
-        my $input_genome = $class->Bio::Adventure::Read_Genome_Fasta(
-            %args,
-            fasta => $genome,);
-        my $input_data = FileHandle->new("<${all_out_file}");
-        my $annotations = $class->Bio::Adventure::Read_Genome_GFF(
-            gff => $gff,
-            gff_tag => $options->{gff_tag},
-            gff_type => $options->{gff_type},
-            %args);
-        my $output_by_gene = FileHandle->new(">${output_base}_hits_by_gene.txt");
-        my $vars_by_gene = {};
-        my $all_count = 0;
-
-        ## Make a copy of the genome so that we can compare before/after the mutation(s)
-        my %original_genome;
-        for my $chr_key (keys %{$input_genome}) {
-            my %internal = %{$input_genome->{$chr_key}};
-            $original_genome{$chr_key} = \%internal;
+    $in_bcf->close();
+    ## Now we should have a big array full of little hashes
+    my @used_tags = ('position', );
+    ## First collect the set of tags of interest.
+    my $header_line = "position\t";
+    for my $k (@tag_order) {
+        if ($num_observed{$k} > 0) {
+            push(@used_tags, $k);
+            $header_line .= "$k\t";
         }
+    }
+    $header_line =~ s/\t$/\n/;
+    ## Write out the observations, starting with a header line comprised of the position information
+    ## followed by the tags.
+    print $all_out qq"${header_line}\n";
+    print "Reading genome.\n";
+    my $input_genome = $class->Bio::Adventure::Read_Genome_Fasta(
+        %args, fasta => $genome,);
+    my $annotations = $class->Bio::Adventure::Read_Genome_GFF(
+        gff => $gff, gff_tag => $options->{gff_tag},
+        gff_type => $options->{gff_type}, %args);
+    my $output_by_gene = FileHandle->new(">$options->{output_by_gene}");
+    print $output_by_gene qq"gene\tchromosome\tposition\tfrom_to\taa_subst\n";
+    my $vars_by_gene = {};
+    my $all_count = 0;
+    ## Make a copy of the genome so that we can compare before/after the mutation(s)
+    my %original_genome;
+    for my $chr_key (keys %{$input_genome}) {
+        my %internal = %{$input_genome->{$chr_key}};
+        $original_genome{$chr_key} = \%internal;
+    }
 
-      READER: while (my $line = <$input_data>) {
-          $all_count++;
-          next READER if ($all_count == 1);  ## Skip the first line.
-          chomp $line;
-          $count = $count++;
-          my ($position_data, $count) = split(/\t/, $line);
-          ## LmxM.28_1042130_G_A
-          my ($chr, $pos, $orig, $alt, $rest);
-          ($chr, $rest) = split(/_pos_/, $position_data);
-          $chr =~ s/^chr_//g;
-          ($pos, $rest) = split(/_ref_/, $rest);
-          ($orig, $alt) = split(/_alt_/, $rest);
-          ## First pull the entire contig sequence.
-          my $tmp_seq = $input_genome->{$chr}->{sequence};
-          ## Give it a useful name, extract the length.
-          my $initial_search_seq = $tmp_seq;
-          my $chromosome_length = length($initial_search_seq);
-          ## Search a little bit of context, create a new copy of the contig to
-          ## replace the nucleotide of interest.
-          my $found_nt = substr($initial_search_seq, $pos - 2, 5);
-          my $replace_seq = $tmp_seq;
-          ## Swap out the reference with the alt, $replace_seq gets the new data.
-          ## Make a new variable so we can see the change, and
-          ## replace the contig in the reference database.
-          my $final_test_seq = $replace_seq;
-          my $test_nt =  substr($final_test_seq, $pos - 2, 5);
-          print "Original region at pos: $pos are: $found_nt, changing $orig to $alt.  Now they are $test_nt. for chr: $chr\n";
-          $input_genome->{$chr}->{sequence} = $replace_seq;
-
-          if (!defined($annotations->{$chr})) {
-              print "$chr was not defined in the annotations database.\n";
-          } else {
-              my %tmp = %{$annotations->{$chr}};
-              foreach my $gene_id (keys %tmp) {
-                  my $gene = $tmp{$gene_id};
-                  if (ref($gene) eq 'HASH') {
-                      $vars_by_gene->{$gene->{id}}->{length} = $gene->{end} - $gene->{start};
-                      if ($gene->{start} <= $pos &&
-                          $gene->{end} >= $pos) {
-                          if (!defined($vars_by_gene->{$gene->{id}}->{count})) {
-                              $vars_by_gene->{$gene->{id}}->{count} = 1;
-                          } else {
-                              $vars_by_gene->{$gene->{id}}->{count} = $vars_by_gene->{$gene->{id}}->{count} + 1;
-                          }
-                          ## Print the nucleotide changed by this position along with the amino acid substitution
-                          my $old_chr_string = $original_genome{$chr}{sequence};
-                          my $new_chr_string = $input_genome->{$chr}->{sequence};
-                          my $original_chr = Bio::Seq->new(-display_id => $chr, -seq => $original_genome{$chr}{sequence});
-                          my $new_chr = Bio::Seq->new(-display_id => $chr, -seq => $input_genome->{$chr}->{sequence});
-
-                          my $relative_position;
-                          if ($gene->{strand} > 0) {
-                              $relative_position = $pos - $gene->{start};
-                          } else {
-                              $relative_position = $gene->{end} - $pos;
-                          }
-                          my $relative_aminos = floor($relative_position / 3);
-
-                          my $original_cds = $original_chr->trunc($gene->{start}, $gene->{end});
-                          my $new_cds = $new_chr->trunc($gene->{start}, $gene->{end});
-                          if ($gene->{strand} < 0) {
-                              $original_cds = $original_cds->revcom;
-                              $new_cds = $new_cds->revcom;
-                          }
-                          my $original_aa = $original_cds->translate;
-                          my $new_aa = $new_cds->translate;
-                          my $original_aa_string = $original_aa->seq;
-                          my $new_aa_string = $new_aa->seq;
-
-                          my $original_aa_position = substr($original_aa_string, $relative_aminos, 1);
-                          my $new_aa_position = substr($new_aa_string, $relative_aminos, 1);
-                          my $aa_delta_string = qq"${original_aa_position}${relative_aminos}${new_aa_position}";
-                          print $output_by_gene qq"$gene->{id}\t$chr\t$pos\t${orig}_${alt}\t${aa_delta_string}\n";
-                      }
-                  }
-              }
+    print "Filtering variant observations and writing a new genome.\n";
+    my $shifters = 0;
+  SHIFTER: while (scalar(@tag_observations)) {
+      my $datum = shift(@tag_observations);
+      $shifters++;
+      ## Now decide if we actually want to write this difference into
+      ## a new genome and record it
+      my $chosen = $options->{chosen_tag};
+      my $depth_tag = $options->{coverage_tag};
+      my $min_depth = $options->{min_depth};
+      if (defined($min_depth)) {
+          next SHIFTER if ($datum->{$depth_tag} < $min_depth);
+      }
+      if (defined($chosen) && defined($datum->{chosen})) {
+          if (defined($options->{min_value}) && defined($options->{max_value})) {
+              next SHIFTER if ($datum->{chosen} > $options->{max_value} ||
+                               $datum->{chosen} < $options->{min_value});
+          } elsif (defined($options->{min_value})) {
+              next SHIFTER if ($datum->{chosen} < $options->{min_value});
+          } elsif (defined($options->{max_value})) {
+              next SHIFTER if ($datum->{chosen} > $options->{max_value});
           }
       }
-        $input_data->close();
-        $output_by_gene->close();
-        my $var_by_gene = FileHandle->new(">${output_base}_var_by_genelen.txt");
-        foreach my $geneid (keys %{$vars_by_gene}) {
-            my $gene_ratio = 0;
-            my $good = 1;
-            if (! $vars_by_gene->{$geneid}->{count}) {
-                $good = 0;
-            }
-            if (! $vars_by_gene->{$geneid}->{length}) {
-                $good = 0;
-            }
-            if (! $vars_by_gene->{$geneid}->{length}) {
-                $good = 0;
-            }
-            if ($good) {
-                $gene_ratio = ($vars_by_gene->{$geneid}->{count} / $vars_by_gene->{$geneid}->{length}) * 1000.0;
-            }
-            print $var_by_gene "$geneid\t$gene_ratio\n";
-        }
-        $var_by_gene->close();
 
-        my $output_genome = FileHandle->new(">${output_base}_modified.fasta");
-        foreach my $ch (sort keys %{$input_genome}) {
-            ## my $formatted = $text->format($input_genome->{$ch}->{sequence});
-            print $output_genome ">${ch}\n";
-            ## Take from: https://www.biostars.org/p/70448/
-            foreach my $seq_line (unpack('(a[80])*', $input_genome->{$ch}->{sequence})) {
-                print $output_genome "$seq_line\n";
-            }
-            ##${formatted}
-            ##";
+      ## Now fill in the line of data for every tag that was used.
+      my $datum_line = '';
+      for my $j (@used_tags) {
+          my $info = 'NA';
+          $info = $datum->{$j} if (defined($datum->{$j}));
+          $datum_line .= "${info}\t";
+      }
+      $datum_line =~ s/\t$/\n/;
+      ## print "WRITING: $datum_line\n";
+      print $all_out $datum_line;
+
+      my $position_data = $datum->{position};
+      my ($chr, $pos, $orig, $alt, $rest);
+      ($chr, $rest) = split(/_pos_/, $position_data);
+      $chr =~ s/^chr_//g;
+      ($pos, $rest) = split(/_ref_/, $rest);
+      ($orig, $alt) = split(/_alt_/, $rest);
+      ## First pull the entire contig sequence.
+      my $starting_seq = $input_genome->{$chr}->{sequence};
+      ## Give it a useful name, extract the length.
+      my $initial_search_seq = $starting_seq;
+      my $chromosome_length = length($initial_search_seq);
+      ## Search a little bit of context, create a new copy of the contig to
+      ## replace the nucleotide of interest.
+      my $found_nt = substr($initial_search_seq, $pos - 2, 5);
+      my $replace_seq = $starting_seq;
+      my $replaced = substr($replace_seq, $pos - 1, 1, $alt);
+      ## Swap out the reference with the alt, $replace_seq gets the new data.
+      ## Make a new variable so we can see the change, and
+      ## replace the contig in the reference database.
+      my $final_test_seq = $replace_seq;
+      my $test_nt = substr($final_test_seq, $pos - 2, 5);
+      ## print "Original region at pos: ${pos} are: ${found_nt}, changing ${orig} to ${alt}.  Now they are ${test_nt}. for chr: ${chr}\n";
+      $input_genome->{$chr}->{sequence} = $replace_seq;
+
+      if (!defined($annotations->{$chr})) {
+          print "${chr} was not defined in the annotations database.\n";
+      } else {
+          my %tmp = %{$annotations->{$chr}};
+          FIND_GENE: foreach my $gene_id (keys %tmp) {
+              my $gene = $tmp{$gene_id};
+              next FIND_GENE unless (ref($gene) eq 'HASH');
+              $vars_by_gene->{$gene_id}->{length} = $gene->{end} - $gene->{start};
+              next FIND_GENE if ($pos < $gene->{start});
+              next FIND_GENE if ($pos > $gene->{end});
+              if (!defined($vars_by_gene->{$gene_id}->{count})) {
+                  $vars_by_gene->{$gene_id}->{count} = 1;
+              } else {
+                  $vars_by_gene->{$gene_id}->{count}++;
+              }
+              ## Print the nucleotide changed by this position along with the amino acid substitution
+              my $old_chr_string = $original_genome{$chr}{sequence};
+              my $new_chr_string = $input_genome->{$chr}->{sequence};
+              my $original_chr = Bio::Seq->new(-display_id => $chr, -seq => $original_genome{$chr}{sequence});
+              my $new_chr = Bio::Seq->new(-display_id => $chr, -seq => $input_genome->{$chr}->{sequence});
+
+              my $relative_position;
+              if ($gene->{strand} > 0) {
+                  $relative_position = $pos - $gene->{start};
+              } else {
+                  $relative_position = $gene->{end} - $pos;
+              }
+              my $relative_aminos = floor($relative_position / 3);
+
+              my $original_cds = $original_chr->trunc($gene->{start}, $gene->{end});
+              my $new_cds = $new_chr->trunc($gene->{start}, $gene->{end});
+              if ($gene->{strand} < 0) {
+                  $original_cds = $original_cds->revcom;
+                  $new_cds = $new_cds->revcom;
+              }
+              my $original_aa = $original_cds->translate;
+              my $new_aa = $new_cds->translate;
+              my $original_aa_string = $original_aa->seq;
+              my $new_aa_string = $new_aa->seq;
+              my $original_aa_position = substr($original_aa_string, $relative_aminos, 1);
+              my $new_aa_position = substr($new_aa_string, $relative_aminos, 1);
+              my $aa_delta_string = qq"${original_aa_position}${relative_aminos}${new_aa_position}";
+              my $report_string = qq"$gene->{id}\t$chr\t$pos\t${orig}_${alt}\t${aa_delta_string}\n";
+              print $output_by_gene $report_string;
+              last FIND_GENE;
+          } ## End iterating over every gene.
+      } ## End making sure the chromosome/contig has information
+  } ## End looking at the each observation.
+    $all_out->close();  ## Close out the matrix of observations.
+
+    $output_by_gene->close();
+    my $var_by_genelength = FileHandle->new(">$options->{output_pkm}");
+    print $var_by_genelength qq"gene\tvars_by_length\n";
+    foreach my $geneid (keys %{$vars_by_gene}) {
+        my $gene_ratio = 0;
+        my $good = 1;
+        $good = 0 if (! $vars_by_gene->{$geneid}->{count});
+        $good = 0 if (! $vars_by_gene->{$geneid}->{length});
+        $good = 0 if (! $vars_by_gene->{$geneid}->{length});
+        if ($good) {
+            $gene_ratio = ($vars_by_gene->{$geneid}->{count} / $vars_by_gene->{$geneid}->{length}) * 1000.0;
         }
-        $output_genome->close();
-    } else {
-        print "No differences were detected by bcftools call.\n";
+        print $var_by_genelength "${geneid}\t${gene_ratio}\n";
     }
-    print "Compressing output files.\n";
-    qx"xz -9e -f ${all_out_file}";
+    $var_by_genelength->close();
+
+    my $output_genome = FileHandle->new(">$options->{output_genome}");
+    foreach my $ch (sort keys %{$input_genome}) {
+        ## my $formatted = $text->format($input_genome->{$ch}->{sequence});
+        print $output_genome ">${ch}\n";
+        ## Take from: https://www.biostars.org/p/70448/
+        foreach my $seq_line (unpack('(a[80])*', $input_genome->{$ch}->{sequence})) {
+            print $output_genome "$seq_line\n";
+        }
+    }
+    $output_genome->close();
+    print "Compressing matrix of all metrics.\n";
+    qx"xz -9e -f $options->{output}";
+    print "Compressing output by gene.\n";
+    qx"xz -9e -f $options->{output_by_gene}";
+    print "Compressing output pkm file.\n";
+    qx"xz -9e -f $options->{output_pkm}";
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($count);
@@ -705,11 +735,7 @@ sub Snippy {
 
     my $snippy_dir = qq"outputs/snippy_$options->{species}";
     my $jstring = qq!mkdir -p ${snippy_dir}
-## eval \$(modulecmd bash purge)
-## eval \$(modulecmd bash add snippy)
-## eval \$(modulecmd bash add gubbins)
-## eval \$(modulecmd bash add fasttree)
-echo "Started snippy at \$(date)" >> ${snippy_dir}/snippy_$options->{species}.out
+echo "Started snippy at \$(date)" >> ${snippy_dir}/snippy_$options->{species}.stdout
 
 snippy --force \\
   --outdir ${snippy_dir} \\
