@@ -126,7 +126,7 @@ if ($comparison) {
 }
 
 ## See if the kraken-based filter worked.
-$test_file = $assemble->{'05host_filter'}->{log};
+$test_file = $assemble->{'05host_filter'}->{job_log};
 $comparison = ok(-f $test_file, qq"Checking kraken filter output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"tail -n 2 ${test_file}";
