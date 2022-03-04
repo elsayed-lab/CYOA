@@ -125,7 +125,7 @@ if ($comparison) {
     diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 
-## See if the kraken-based filter worked.
+## See if the kraken-based filter worked.  The variable 'log' is already taken, so switch it out.
 $test_file = $assemble->{'05host_filter'}->{job_log};
 $comparison = ok(-f $test_file, qq"Checking kraken filter output: ${test_file}");
 print "Passed.\n" if ($comparison);
