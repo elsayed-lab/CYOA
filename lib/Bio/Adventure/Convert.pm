@@ -622,6 +622,7 @@ sub Samtools {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 
+    print "TESTME: $options->{jqueue}\n";
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
     my $sorted_name = $input;
@@ -707,17 +708,18 @@ samtools index \\
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        jmem => $options->{jmem},
-        jname => $jobname,
-        jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output}",
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
         postscript => $options->{postscript},
-        prescript => $options->{prescript},);
+        prescript => $options->{prescript},
+        jmem => $options->{jmem},
+        jname => $jobname,
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
+        jwalltime => '18:00:00',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload',);
     return($samtools);

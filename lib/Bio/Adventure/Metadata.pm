@@ -103,7 +103,7 @@ sub Collect_Assembly {
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        jwalltime => '00:00:05',
+        jwalltime => '00:01:00',
         output => $output_dir,);
     return($collect);
 }
@@ -1385,7 +1385,7 @@ echo "\$stat_string" >> ${stat_output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:00:02',);
+        jwalltime => '00:01:00',);
     return($stats);
 }
 
@@ -1437,7 +1437,7 @@ echo "\$stat_string" >> ${output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:00:02',);
+        jwalltime => '00:01:00',);
     return($stats);
 }
 
@@ -1493,7 +1493,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:00:02',);
+        jwalltime => '00:01:00',);
     return($stats);
 }
 
@@ -1564,7 +1564,7 @@ echo "\$stat_string" >> ${stat_output}
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
-        jwalltime => '00:00:02',
+        jwalltime => '00:01:00',
         output => qq"${stat_output}",);
     ## Added to return the state of the system to what it was
     ## before we messed with the options.
@@ -1616,7 +1616,7 @@ echo "\$stat_string" >> ${output}!;
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jwalltime => '00:00:02',
+        jwalltime => '00:01:00',
         jqueue => 'throughput',);
     return($stats);
 }
@@ -1664,7 +1664,7 @@ echo "\$stat_string" >> "${output}"!;
         jstring => $jstring,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:00:02',
+        jwalltime => '00:01:00',
         output => $output,);
     return($stats);
 }
@@ -1727,7 +1727,7 @@ echo "\$stat_string" >> "${output}"!;
         jprefix => $args{jprefix},
         jstring => $jstring,
         jmem => 1,
-        jwalltime => '00:00:02',
+        jwalltime => '00:01:00',
         jqueue => 'throughput',);
     return($stats);
 }
@@ -1798,7 +1798,7 @@ echo "\$stat_string" >> ${stat_output}
         jstring => $jstring,
         jmem => 1,
         jqueue => 'throughput',
-        jwalltime => '00:00:02',
+        jwalltime => '00:01:00',
         output => $stat_output,);
     return($stats);
 }
