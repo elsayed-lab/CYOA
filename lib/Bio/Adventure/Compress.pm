@@ -49,14 +49,17 @@ sub Compress {
         my $output_file = qq"${in_dir}/${in_base}.xz";
         $output_string .= qq"${output_file}:";
         $jstring .= qq!
-if [ -r "${in_full}" ]; then
+## Compressing ${in_full}
+echo "Compressing ${in_full}"
+if [ -f "${in_full}" ]; then
   xz -9e -f ${in_full}
   if [ "\$?" -ne "0" ]; then
-    echo "The compression failed." >> ${in_full}_xz.stderr"
+    echo "The compression of ${in_full} failed."
   fi
 else
-  echo "The input: ${in_full} does not exist." >> ${in_full}_xz.stderr"
+  echo "The input: ${in_full} does not exist."
 fi
+
 !;
     }
     $output_string =~ s/:$//g;
