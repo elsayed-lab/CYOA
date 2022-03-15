@@ -27,6 +27,44 @@ one must still decompress/recompress some data.
 Invoke xz to recompress a given input file.
 
 =cut
+sub Compress {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        comment => '## Compressing files.',
+        jname => 'xz',
+        jmem => 8,
+        jqueue => 'long',
+        jwalltime => '24:00:00',);
+    my $input_paths = $class->Get_Paths($options->{input});
+
+    my $jstring = "";
+    my $output_string = '';
+    for my $in (@{$input_paths}) {
+        my $in_dir = $in->{directory};
+        my $in_base = $in->{filebase_compress};
+        my $in_full = $in->{fullpath};
+        my $output_file = qq"${in_dir}/${in_base}.xz";
+        $output_string .= qq"${output_file}:";
+        $jstring .= qq!
+xz -9e -f ${in_full}
+!;
+    }
+    $output_string =~ s/:$//g;
+
+    my $compression = $class->Submit(
+        comment => $options->{comment},
+        jdepends => $options->{jdepends},
+        input => $options->{input},
+        jmem => $options->{jmem},
+        jname => $options->{jname},
+        jstring => $jstring,
+        jwalltime => $options->{jwalltime},
+        output => $output_string,);
+    return($compression);
+}
+
 sub Recompress {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
