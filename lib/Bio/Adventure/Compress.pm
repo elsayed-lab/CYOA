@@ -34,11 +34,12 @@ sub Compress {
         required => ['input'],
         comment => '## Compressing files.',
         jname => 'xz',
+        jprefix => '',
         jmem => 8,
         jqueue => 'long',
         jwalltime => '24:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
-
+    print "TESTME XZ jprefix: $options->{jprefix}\n";
     my $jstring = "";
     my $output_string = '';
     for my $in (@{$input_paths}) {
@@ -66,6 +67,7 @@ fi
         input => $options->{input},
         jmem => $options->{jmem},
         jname => $options->{jname},
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         output => $output_string,);

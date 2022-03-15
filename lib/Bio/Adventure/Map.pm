@@ -926,8 +926,11 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $xz_jname = qq"xz_${suffix_name}";
+    my $new_jprefix = qq"$options->{jprefix}_1";
+    print "TESTME: New JPREFIX: $new_jprefix\n";
     my $comp = $class->Bio::Adventure::Compress::Compress(
         jname => $xz_jname,
+        jprefix => $new_jprefix,
         input => qq"${aligned_filenames}:${unaligned_filenames}",
         jdepends => $hisat_job->{job_id});
     $hisat_job->{compression} = $comp;
@@ -936,7 +939,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     $hisat_job->{job_id} = $comp->{job_id};
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
-    my $new_jprefix = qq"$options->{jprefix}_1";
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(

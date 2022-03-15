@@ -364,7 +364,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
