@@ -309,7 +309,7 @@ has jbasename => (is => 'rw', default => undef); ## Job basename
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
-has jnice => (is => 'rw', default => 10); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
+has jnice => (is => 'rw', default => 0); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
 has jpartition => (is => 'rw', default => 'dpart');
 has jprefix => (is => 'rw', default => undef); ## Prefix number for the job
 has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs default to?

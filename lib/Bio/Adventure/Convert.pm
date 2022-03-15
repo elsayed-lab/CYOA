@@ -632,47 +632,71 @@ sub Samtools {
     ## Add a samtools version check because *sigh*
     my $samtools_version = qx"samtools 2>&1 | grep 'Version'";
     ## Start out assuming we will use the new samtools syntax.
-    my $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
+    my $samtools_first = qq"sleep 10
+samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output}  \\
-  2>${output}.stderr 1>${output}.stdout && \\";
-    my $samtools_second = qq"  samtools sort -l 9 ${output} -o ${sorted_name}.bam \\
-  2>${sorted_name}.stderr \\
-  1>${sorted_name}.stdout && \\";
+  2>${output}_samtools.stderr \\
+  1>${output}_samtools.stdout";
+    my $samtools_second = qq"samtools sort -l 9 ${output} \\
+  -o ${sorted_name}.bam \\
+  2>${sorted_name}_samtools.stderr \\
+  1>${sorted_name}_samtools.stdout";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
-  -S ${input} 1>${output} && \\";
-        $samtools_second = qq"  samtools sort -l 9 ${output} ${sorted_name} \\
-  2>>${sorted_name}.stderr \\
-  1>>${sorted_name}.stdout && \\";
+  -S ${input} 1>${output}";
+        $samtools_second = qq"samtools sort -l 9 ${output} \\
+  ${sorted_name} \\
+  2>>${sorted_name}_samtools.stderr \\
+  1>>${sorted_name}_samtools.stdout";
     }
     my $jstring = qq!
 echo "Starting samtools"
 if [[ \! -f "${input}" ]]; then
-    echo "Could not find the samtools input file."
-    exit 1
+  echo "Could not find the samtools input file."
+  exit 1
 fi
 ${samtools_first}
-echo $?
+echo "First samtools command finished with \$?"
 ${samtools_second}
-  rm ${output} && \\
-  rm ${input} && \\
-  mv ${sorted_name}.bam ${output} &&  samtools index ${output}
-echo $?
-bamtools stats -in ${output} 2>${output}.stats 1>&2
-echo $?
+rm ${output}
+rm ${input}
+mv ${sorted_name}.bam ${output}
+samtools index ${output} \\
+  2>>${sorted_name}_samtools.stderr \\
+  1>>${sorted_name}_samtools.stderr
+echo "Second samtools command finished with \$?"
+bamtools stats -in ${output} \\
+  2>>${output}_samtools.stats 1>&2
+echo "Bamtools finished with \$?"
 !;
     if ($options->{paired}) {
         $jstring .= qq!
 ## The following will fail if this is single-ended.
-samtools view -b -f 2 -o ${paired_name}.bam ${output} && samtools index ${paired_name}.bam
-bamtools stats -in ${paired_name}.bam 2>${paired_name}.stats 1>&2
+samtools view -b -f 2 \\
+  -o ${paired_name}.bam \\
+  ${output} \\
+  2>>${sorted_name}_samtools.stderr \\
+  1>>${sorted_name}_samtools.stdout
+samtools index ${paired_name}.bam \\
+  2>>${sorted_name}_samtools.stderr \\
+  1>>${sorted_name}_samtools.stdout
+bamtools stats -in ${paired_name}.bam \\
+  2>>${output}_samtools.stats 1>&2
 !;
     }
 
     unless ($options->{mismatch}) {
-        $jstring .= qq!bamtools filter -tag XM:0 -in ${output} -out ${sorted_name}_nomismatch.bam &&
-  samtools index ${sorted_name}_nomismatch.bam!;
+        $jstring .= qq!
+bamtools filter -tag XM:0 \\
+  -in ${output} \\
+  -out ${sorted_name}_nomismatch.bam \\
+  2>>${output}_samtools.stats 1>&2
+samtools index \\
+  ${sorted_name}_nomismatch.bam \\
+  2>>${sorted_name}_samtools.stderr \\
+  1>>${sorted_name}_samtools.stdout
+!;
     }
 
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
