@@ -1767,6 +1767,7 @@ sub Submit {
         $runner->{$k} = $options->{$k};
     }
     my $result = $runner->Submit($class, %args);
+    my $reset = $class->Reset_Vars();
     return($result);
 }
 
