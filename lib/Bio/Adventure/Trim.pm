@@ -238,15 +238,12 @@ sub Trimomatic {
         args => \%args,
         required => ['input',],
         jprefix => '01',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
     } else {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%args);
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trim);
 }
 
@@ -263,7 +260,7 @@ sub Trimomatic_Pairwise {
         quality => '20',
         jmem => 24,
         modules => ['trimomatic'],);
-
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
