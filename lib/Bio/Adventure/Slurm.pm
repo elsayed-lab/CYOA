@@ -185,7 +185,6 @@ if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
   echo "" >> ${sbatch_log}
 fi
-## Adding a little logic to have skip finished jobs.
 touch ${finished_file}
 !;
 

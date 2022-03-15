@@ -189,7 +189,6 @@ fi
   2>${vcfutils_dir}/samtools_sort.out 1>&2
 if [ "\$?" -ne "0" ]; then
     echo "samtools sort failed."
-exit 1
 fi
 !;
         } ## End checking if the pileup input does not have sorted.
