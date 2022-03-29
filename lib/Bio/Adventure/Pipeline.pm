@@ -527,13 +527,136 @@ sub Kallisto {
     return($rnaseq_jobs);
 }
 
+sub Process_RNAseq {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        host_filter => 0,
+        gff_type => 'gene',
+        gff_id => 'ID',
+        mapper => 'hisat2',);
+    my $prefix = sprintf("%02d", 0);
+    my $cwd_name = basename(cwd());
+    my @jobs = ();
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Starting trimmer.\n";
+    my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+        input => $options->{input},
+        jprefix => $prefix,
+        jname => 'trimomatic',);
+    push(@jobs, $trim);
+    my $last_job = $trim->{job_id};
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Starting fastqc.\n";
+    my $fastqc = $class->Bio::Adventure::QA::Fastqc(
+        input => $trim->{input},
+        jnice => 100,
+        jprefix => $prefix,);
+    push(@jobs, $fastqc);
+    sleep(0.2);
+
+    ## Have some logic to handle a first species which will be used to filter
+    ## any following species provided.
+    my @species_list = split(/:/, $options->{species});
+    my @type_list = split(/:/, $options->{gff_type});
+    my @id_list = split(/:/, $options->{gff_id});
+
+    my $first_species = shift @species_list;
+    my $first_type = shift @type_list;
+    my $first_id = shift @id_list;
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Performing initial mapping against ${first_species}.\n";
+    my $first_map = $class->Bio::Adventure::Map::Hisat2(
+        jdepends => $last_job,
+        input => $trim->{output},
+        species => $first_species,
+        gff_type => $first_type,
+        gff_id => $first_id,
+        jprefix => $prefix,);
+    $last_job = $first_map->{job_id};
+    push(@jobs, $first_map);
+    sleep(0.2);
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Performing freebayes search against ${first_species}.\n";
+    my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+        jdepends => $last_job,
+        input => $first_map->{samtools}->{output},
+        species => $first_species,
+        gff_type => $first_type,
+        gff_id => $first_id,
+        jprefix => $prefix,);
+    $last_job = $first_map->{job_id};
+    push(@jobs, $first_snp);
+    sleep(0.2);
+
+    if (scalar(@species_list) > 0) {
+        my $c = 0;
+        for my $sp (@species_list) {
+            my $nth_species = $sp;
+            my $nth_type = $type_list[$c];
+            $nth_type = $first_type unless (defined($nth_type));
+            my $nth_id = $id_list[$c];
+            $nth_id = $first_id unless (defined($nth_id));
+
+            ## Handle if we want to host-filter the data
+            my $nth_map;
+            $prefix = sprintf("%02d", ($prefix + 1));
+            if ($options->{host_filter}) {
+                print "\n${prefix}: Performing additional mapping against ${nth_species} with filtering.\n";
+                $nth_map = $class->Bio::Adventure::Map::Hisat2(
+                    jdepends => $last_job,
+                    input => $first_map->{unaligned_comp},
+                    species => $nth_species,
+                    gff_type => $nth_type,
+                    gff_id => $nth_id,
+                    jprefix => $prefix,);
+                $last_job = $nth_map->{job_id};
+            } else {
+                print "\n${prefix}: Performing additional mapping against ${nth_species} without filtering.\n";
+                $nth_map = $class->Bio::Adventure::Map::Hisat2(
+                    jdepends => $last_job,
+                    input => $trim->{output},
+                    species => $nth_species,
+                    gff_type => $nth_type,
+                    gff_id => $nth_id,
+                    jprefix => $prefix,);
+            }
+            push(@jobs, $nth_map);
+            $last_job = $nth_map->{job_id};
+            sleep(0.2);
+
+            $prefix = sprintf("%02d", ($prefix + 1));
+            print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
+            my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+                jdepends => $last_job,
+                input => $nth_map->{samtools}->{output},
+                species => $nth_species,
+                gff_type => $nth_type,
+                gff_id => $nth_id,
+                jprefix => $prefix,);
+            $last_job = $nth_map->{job_id};
+            push(@jobs, $nth_snp);
+            sleep(0.2);
+
+            $c++;
+        } ## End iterating over extra species
+    } ## End checking for extra species
+    return(\@jobs);
+}
+
 sub RNAseq {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 1);
     my $final_locustag = basename(cwd());
@@ -560,24 +683,24 @@ sub RNAseq {
             input => $trim->{output},
             jprefix => $prefix,
             species => $options->{species},
-            htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},);
+            gff_type => $options->{gff_type},
+            gff_id => $options->{gff_id},);
     } elsif ($options->{mapper} eq 'bowtie2') {
         $mapper = $class->Bio::Adventure::Map::Bowtie2(
             jdepends => $trim->{job_id},
             input => $trim->{output},
             jprefix => $prefix,
             species => $options->{species},
-            htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},);
+            gff_type => $options->{gff_type},
+            gff_id => $options->{gff_id},);
     } elsif ($options->{mapper} eq 'bwa') {
         $mapper = $class->Bio::Adventure::Map::BWA(
             jdepends => $trim->{job_id},
             input => $trim->{output},
             jprefix => $prefix,
             species => $options->{species},
-            htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},);
+            gff_type => $options->{gff_type},
+            gff_id => $options->{gff_id},);
     } elsif ($options->{mapper} eq 'kallisto') {
         $mapper = $class->Bio::Adventure::Map::Kallisto(
             jdepends => $trim->{job_id},
@@ -596,8 +719,8 @@ sub RNAseq {
             input => $trim->{output},
             jprefix => $prefix,
             species => $options->{species},
-            htseq_type => $options->{htseq_type},
-            htseq_id => $options->{htseq_id},);
+            gff_type => $options->{gff_type},
+            gff_id => $options->{gff_id},);
     }
     $mapper->{trim} = $trim;
     return($mapper);
