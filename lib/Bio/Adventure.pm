@@ -858,6 +858,7 @@ sub Get_Menus {
             name => 'pipeline',
             message => 'When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033',
             choices => {
+                '(prnaseq): Preset assembly.' => \&Bio::Adventure::Pipeline::Process_RNAseq,
                 '(priboseq): Perform a preset pipeline of ribosome profiling tasks.' => \&Bio::Adventure::Pipeline::Riboseq,
                 '(ptnseq): Perform a preset pipeline of TNSeq tasks.' => \&Bio::Adventure::Pipeline::TNSeq,
                 '(pbt1): Perform a preset group of bowtie1 tasks.' => \&Bio::Adventure::Pipeline::Bowtie,
@@ -1117,6 +1118,7 @@ sub Get_TODOs {
         "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},
         "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Kallisto'},
         "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
+        "prnaseq+" => \$todo_list->{todo}{'Bio::Adventure::Process_RNAseq'},
         "psalmon+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Salmon'},
         "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::TNseq_Pipeline'},
         "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Tophat'},

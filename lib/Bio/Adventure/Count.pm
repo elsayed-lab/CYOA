@@ -36,9 +36,9 @@ use String::Approx qw"amatch";
  htseq_stranded(required): Boolean of the stranded state of the library.
  gff_type(''): Type of feature to count.  If left alone, this will count up
    each category of feature and choose the most represented.
-   (deprecated in favor of htseq_type)
- htseq_type('gene): Ibid.  I just have not converted everything to use this.
- htseq_id('ID'): GFF tag used to identify the genes/transcripts/etc.  In
+   (deprecated in favor of gff_type)
+ gff_type('gene): Ibid.  I just have not converted everything to use this.
+ gff_id('ID'): GFF tag used to identify the genes/transcripts/etc.  In
    metazoans this is usually 'ID', in bacteria it is often
    'locus_tag', in parasites 'gene_id'.  There are lots of choices.
  libtype('genome'): Used to differentiate between genomic counts vs. rRNA
@@ -53,8 +53,8 @@ sub HT_Multi {
         args => \%args,
         required => ['species', 'input', 'htseq_stranded'],
         gff_type => '',
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         libtype => 'genome',
         modules => ['htseq'],
         paired => 1,);
@@ -71,8 +71,8 @@ sub HT_Multi {
     } elsif ($stranded eq '0') {
         $stranded = 'no';
     }
-    my $htseq_type = $options->{htseq_type};
-    my $htseq_id = $options->{htseq_id};
+    my $gff_type = $options->{gff_type};
+    my $gff_id = $options->{gff_id};
     my @jobs = ();
     my $script_suffix = qq"";
     if ($args{suffix}) {
@@ -93,15 +93,15 @@ sub HT_Multi {
         my $gff = qq"$options->{libdir}/genome/${species}_${gff_type}.gff";
         my $gtf = $gff;
         $gtf =~ s/\.gff/\.gtf/g;
-        my $htseq_jobname = qq"hts_${gff_type}_${output_name}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
+        my $htseq_jobname = qq"hts_${gff_type}_${output_name}_$options->{species}_s${stranded}_${gff_type}_${gff_id}";
         if (-r "$gff") {
             print "Found $gff, performing htseq with it.\n";
             my $ht = $class->Bio::Adventure::Count::HTSeq(
                 htseq_gff => $gff,
                 input => $htseq_input,
                 gff_type => $gff_type,
-                htseq_type => undef, ## Force HTSeq to detect this.
-                htseq_id => $options->{htseq_id},
+                gff_type => undef, ## Force HTSeq to detect this.
+                gff_id => $options->{gff_id},
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $jprefix,
@@ -116,8 +116,8 @@ sub HT_Multi {
             my $ht = $class->Bio::Adventure::Count::HTSeq(
                 gff_type => $gff_type,
                 htseq_gff => $gtf,
-                htseq_type => undef,
-                htseq_id => $options->{htseq_id},
+                gff_type => undef,
+                gff_id => $options->{gff_id},
                 input => $htseq_input,
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
@@ -134,14 +134,14 @@ sub HT_Multi {
     my $gff = qq"$options->{libdir}/genome/${species}.gff";
     my $gtf = $gff;
     $gtf =~ s/\.gff/\.gtf/g;
-    my $htall_jobname = qq"htall_${output_name}_$options->{species}_s${stranded}_$ro_opts{htseq_type}_$ro_opts{htseq_id}";
+    my $htall_jobname = qq"htall_${output_name}_$options->{species}_s${stranded}_$ro_opts{gff_type}_$ro_opts{gff_id}";
     if (-r "$gff") {
         print "Found ${gff}, performing htseq_all with it.\n";
         my $ht = $class->Bio::Adventure::Count::HTSeq(
             gff_type => '',
             htseq_gff => $gff,
-            htseq_id => $ro_opts{htseq_id},
-            htseq_type => $ro_opts{htseq_type},
+            gff_id => $ro_opts{gff_id},
+            gff_type => $ro_opts{gff_type},
             input => $htseq_input,
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
@@ -156,7 +156,7 @@ sub HT_Multi {
         my $ht = $class->Bio::Adventure::Count::HTSeq(
             gff_type => '',
             htseq_gff => $gff,
-            htseq_type => 'none',
+            gff_type => 'none',
             input => $htseq_input,
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
@@ -183,18 +183,18 @@ sub HT_Multi {
 
 =item C<Arguments>
 
- htseq_type('gene'): When set, this will just count that type.
- htseq_id('ID'): Ditto, but the GFF tag for IDs.
+ gff_type('gene'): When set, this will just count that type.
+ gff_id('ID'): Ditto, but the GFF tag for IDs.
 
 =cut
 sub HT_Types {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        htseq_type => 'gene',
-        htseq_id => 'ID',);
-    my $my_type = $options->{htseq_type};
-    my $my_id = $options->{htseq_id};
+        gff_type => 'gene',
+        gff_id => 'ID',);
+    my $my_type = $options->{gff_type};
+    my $my_id = $options->{gff_id};
     print "Calling htseq with options for type: ${my_type} and tag: ${my_id}.\n";
     $my_type = '' unless($my_type);
     $my_type = '' unless($my_id);
@@ -292,10 +292,10 @@ sub HT_Types {
  htseq_stranded: Is this library stranded?
  htseq_args(--order=name --idattr=gene_id --minaqual=10 --type exon
   --stranded=yes --mode=union): Define arbitrary htseq arguments.
- gff_type(''): Redundant with htseq_type, used to choose a specific
+ gff_type(''): Redundant with gff_type, used to choose a specific
   type to count; when left blank, HT_Types() will make a guess.
- htseq_type('gene'): Deprecated, Ibid.
- htseq_id('ID'): GFF tag used to identify the counted features.
+ gff_type('gene'): Deprecated, Ibid.
+ gff_id('ID'): GFF tag used to identify the counted features.
  jname(''): Job name base for the cluster.
  jprefix(''): Prefix for the job name and output directory.
  libtype('genome'): Choose the library to count,
@@ -312,8 +312,8 @@ sub HTSeq {
         args => \%args,
         required => ['input', 'species', 'htseq_stranded', 'htseq_args',],
         gff_type => '',
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         jname => '',
         jprefix => '',
         libtype => 'genome',
@@ -322,8 +322,7 @@ sub HTSeq {
         paired => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $stranded = $options->{htseq_stranded};
-    my $htseq_type = $options->{htseq_type};
-    my $htseq_id = $options->{htseq_id};
+    my $gff_id = $options->{gff_id};
     my $htseq_input = $options->{input};
     my $gff_type = 'all';
     if ($options->{gff_type} ne '') {
@@ -348,48 +347,48 @@ sub HTSeq {
     ## This may be provided by a series of defaults in %HT_Multi::gff_types, overridden by an argument
     ## Or finally auto-detected by HT_Types().
     ## This is imperfect to say the nicest thing possible, I need to consider more appropriate ways of handling this.
-    my $htseq_type_arg = '';
-    my $htseq_id_arg = '';
+    my $gff_type_arg = '';
+    my $gff_id_arg = '';
     my $annotation = $gtf;
     if (!-r "${gtf}") {
         $annotation = $gff;
     }
-    if (!defined($htseq_type) or $htseq_type eq '' or $htseq_type eq 'auto' or
-            !defined($htseq_id) or $htseq_id eq '' or $htseq_id eq 'auto') {
-        my $htseq_type_pair = $class->Bio::Adventure::Count::HT_Types(
+    if (!defined($gff_type) or $gff_type eq '' or $gff_type eq 'auto' or
+            !defined($gff_id) or $gff_id eq '' or $gff_id eq 'auto') {
+        my $gff_type_pair = $class->Bio::Adventure::Count::HT_Types(
             annotation => $annotation,
-            type => $htseq_type,);
-        $htseq_type = $htseq_type_pair->[0];
-        $htseq_type_arg = qq" --type ${htseq_type}";
-        $htseq_id_arg = qq" --idattr ${htseq_id}"
-    } elsif (ref($htseq_type) eq 'ARRAY') {
-        $htseq_type_arg = qq" --type $htseq_type->[0]";
-        $htseq_id_arg = qq" --idattr ${htseq_id}";
-    } elsif ($htseq_type eq 'none') {
-        $htseq_type_arg = qq'';
-        $htseq_id_arg = qq'';
+            type => $gff_type,);
+        $gff_type = $gff_type_pair->[0];
+        $gff_type_arg = qq" --type ${gff_type}";
+        $gff_id_arg = qq" --idattr ${gff_id}"
+    } elsif (ref($gff_type) eq 'ARRAY') {
+        $gff_type_arg = qq" --type $gff_type->[0]";
+        $gff_id_arg = qq" --idattr ${gff_id}";
+    } elsif ($gff_type eq 'none') {
+        $gff_type_arg = qq'';
+        $gff_id_arg = qq'';
     } else {
-        $htseq_type_arg = qq" --type ${htseq_type}";
-        $htseq_id_arg = qq" --idattr ${htseq_id}";
+        $gff_type_arg = qq" --type ${gff_type}";
+        $gff_id_arg = qq" --idattr ${gff_id}";
     }
 
-    $output .= qq"_${gff_type}_s${stranded}_${htseq_type}_${htseq_id}.count";
+    $output .= qq"_${gff_type}_s${stranded}_${gff_type}_${gff_id}.count";
     if (!-r "${gff}" and !-r "${gtf}") {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
     }
     my $error = basename($output, ('.count'));
     $error = qq"${output_dir}/${error}.stderr";
 
-    my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
+    my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_id}";
     ## Much like samtools, htseq versions on travis are old.
     ## Start with the default, non-stupid version.
     my $htseq_version = qx"htseq-count -h | grep version";
     my $htseq_invocation = qq!htseq-count  --help 2>&1 | tail -n 3
 htseq-count \\
-  -q -f bam -s ${stranded} ${htseq_type_arg} ${htseq_id_arg} \\!;
+  -q -f bam -s ${stranded} ${gff_type_arg} ${gff_id_arg} \\!;
     if ($htseq_version =~ /0\.5/) {
         ## Versions older than 0.6 are stupid.
-        $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
+        $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${gff_id_arg} ${gff_type_arg} \\!;
         $htseq_input = '-';
     }
     my $jstring = qq!

@@ -47,10 +47,10 @@ use File::Which qw"which";
  libtype(genome: as opposed to rRNA or contaminants etc) defines the type of
  index to search against.
 
- htseq_type(gene) defines the type of feature to count with htseq-count.  This is effectively
+ gff_type(gene) defines the type of feature to count with htseq-count.  This is effectively
  the third column of a gff file.
 
- htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+ gff_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
  other species follow their own arbitrary rules) defines the ID type for htseq-count. These
  are the tags in the last column of a gff file.
 
@@ -68,8 +68,8 @@ sub Bowtie {
         bt_type => 'v0M1',
         count => 1,
         libtype => 'genome',
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         jmem => 12,
         jprefix => '10',
         modules => ['bowtie1'],);
@@ -203,9 +203,9 @@ bowtie \\
     if ($count) {
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                htseq_id => $options->{htseq_id},
+                gff_id => $options->{gff_id},
                 input => $sam_job->{output},
-                htseq_type => $options->{htseq_type},
+                gff_type => $options->{gff_type},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
@@ -216,9 +216,9 @@ bowtie \\
             $bt_job->{rRNA_count} = $htmulti;
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                htseq_id => $options->{htseq_id},
+                gff_id => $options->{gff_id},
                 input => $sam_job->{output},
-                htseq_type => $options->{htseq_type},
+                gff_type => $options->{gff_type},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
@@ -266,9 +266,9 @@ bowtie \\
  count(1: e.g. yes): argument defines whether htseq-count will be performed.
  libtype(genome: as opposed to rRNA or contaminants etc): defines the type of
   index to search against.
- htseq_type(gene): defines the type of feature to count with
+ gff_type(gene): defines the type of feature to count with
   htseq-count.  This is effectively the third column of a gff file.
- htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+ gff_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
   other species follow their own arbitrary rules): defines the ID type for htseq-count. These
   are the tags in the last column of a gff file.
  jprefix(10): Prefix for the job/output directory
@@ -281,8 +281,8 @@ sub Bowtie2 {
         args => \%args,
         required => ['species', 'input',],
         count => 1,
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         jmem => 28,
         jprefix => 20,
         modules => ['bowtie2']);
@@ -414,8 +414,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 htseq_input => $sam_job->{output},
-                htseq_type => $options->{htseq_type},
-                htseq_id => $options->{htseq_id},
+                gff_type => $options->{gff_type},
+                gff_id => $options->{gff_id},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 5,
@@ -424,8 +424,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 htseq_input => $sam_job->{output},
-                htseq_type => $options->{htseq_type},
-                htseq_id => $options->{htseq_id},
+                gff_type => $options->{gff_type},
+                gff_id => $options->{gff_id},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 6,
@@ -483,8 +483,8 @@ sub BT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         required => ['species', 'input'],);
     my $bt_input = $options->{input};
     my $species = $options->{species};
@@ -527,9 +527,9 @@ sub BT_Multi {
  count(1: e.g. yes): argument defines whether htseq-count will be performed.
  libtype(genome: as opposed to rRNA or contaminants etc): defines the type of
   index to search against.
- htseq_type(gene): defines the type of feature to count with
+ gff_type(gene): defines the type of feature to count with
   htseq-count.  This is effectively the third column of a gff file.
- htseq_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
+ gff_id(ID: ID is common for eukaryotic organisms, locus_tag is common for bacteria, most
   other species follow their own arbitrary rules): defines the ID type for htseq-count. These
   are the tags in the last column of a gff file.
  jprefix(30): Prefix for jobname and output directory.
@@ -544,8 +544,8 @@ sub BWA {
         count => 1,
         species => 'lmajor',
         libtype => 'genome',
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         jmem => 24,
         jprefix => 30,
         modules => ['bwa'],);
@@ -720,18 +720,18 @@ bwa aln ${aln_args} \\
 
     if ($options->{count}) {
         my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-            htseq_id => $options->{htseq_id},
+            gff_id => $options->{gff_id},
             input => $mem_sam_job->{output},
-            htseq_type => $options->{htseq_type},
+            gff_type => $options->{gff_type},
             jdepends => $mem_sam_job->{job_id},
             jname => qq"htmem_${jname}",
             jprefix => $options->{jprefix} + 5,
             mapper => 'bwa',);
         $bwa_job->{htseq_mem} = $mem_htmulti;
         my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-            htseq_id => $options->{htseq_id},
+            gff_id => $options->{gff_id},
             input => $aln_sam_job->{output},
-            htseq_type => $options->{htseq_type},
+            gff_type => $options->{gff_type},
             jdepends => $aln_sam_job->{job_id},
             jname => qq"htaln_${jname}",
             jprefix => $options->{jprefix} + 6,
@@ -761,8 +761,8 @@ bwa aln ${aln_args} \\
 
  input(required): Colon separated fastq input files.
  species(required): Set the indexes.
- htseq_type('gene'): Define the htseq-count type parameter.
- htseq_id('ID'): Define the htseq-count id attribute parameter.
+ gff_type('gene'): Define the htseq-count type parameter.
+ gff_id('ID'): Define the htseq-count id attribute parameter.
  count(1): Count after aligning?
  libtype('genome'): Change this for different index types (contaminants/rRNA/genome).
  jmem(24): Expected memory required.
@@ -776,8 +776,8 @@ sub Hisat2 {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],
-        htseq_type => 'gene',
-        htseq_id => 'ID',
+        gff_type => 'gene',
+        gff_id => 'ID',
         count => 1,
         libtype => 'genome',
         jmem => 48,
@@ -963,8 +963,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     if ($options->{count}) {
         if ($options->{libtype} eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                htseq_id => $options->{htseq_id},
-                htseq_type => $options->{htseq_type},
+                gff_id => $options->{gff_id},
+                gff_type => $options->{gff_type},
                 input => $htseq_input,
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
@@ -974,8 +974,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 paired => $paired,);
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                htseq_id => $options->{htseq_id},
-                htseq_type => $options->{htseq_type},
+                gff_id => $options->{gff_id},
+                gff_type => $options->{gff_type},
                 input => $htseq_input,
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
@@ -1448,7 +1448,7 @@ sub Tophat {
     die('Could not find tophat in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'htseq_type'],
+        required => ['species', 'input', 'gff_type'],
         modules => ['tophat'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1579,8 +1579,8 @@ fi
     $count_table = $options->{count_table} if ($options->{count_table});
     my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_input => $accepted,
-        htseq_id => $options->{htseq_id},
-        htseq_type => $options->{htseq_type},
+        gff_id => $options->{gff_id},
+        gff_type => $options->{gff_type},
         jdepends => $tophat->{job_id},
         jname => qq"hts_$options->{species}",
         jprefix => '32',
@@ -1590,8 +1590,8 @@ fi
     if ($paired) {
         my $ht_paired = $class->Bio::Adventure::Count::HT_Multi(
             htseq_input => qq"${tophat_dir}/accepted_paired.bam",
-            htseq_id => $options->{htseq_id},
-            htseq_type => $options->{htseq_type},
+            gff_id => $options->{gff_id},
+            gff_type => $options->{gff_type},
             jdepends => $tophat->{job_id},
             jname => qq"htsp_$options->{species}",
             jprefix => '32',
