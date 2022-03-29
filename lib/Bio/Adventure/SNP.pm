@@ -71,7 +71,7 @@ sub Freebayes_SNP_Search {
         args => \%args,
         required => ['species', 'input',],
         jmem => 24,
-        jprefix => '40',
+        jprefix => '50',
         vcf_cutoff => 5,
         vcf_minpct => 0.2,
         gff_tag => 'ID',
@@ -86,6 +86,10 @@ sub Freebayes_SNP_Search {
     my $output_bcf = qq"${freebayes_dir}/$options->{species}.bcf";
     my $stdout = qq"${freebayes_dir}/$options->{species}.stdout";
     my $stderr = qq"${freebayes_dir}/$options->{species}.stderr";
+
+    ## Taken from the sister mpileup function
+    my $query_home = dirname($options->{input});
+    my $query_base = basename($options->{input}, ('.bam'));
 
     my $comment = qq!## This is a freebayes search for variant against ${input_fasta}!;
     my $jstring = qq!
@@ -126,6 +130,7 @@ rm ${output_file}
         gff_type => $options->{gff_type},
         input => ${output_bcf},
         jdepends => $freebayes->{job_id},
+        jname => qq"freebayes_parsenp_${query_base}",
         jprefix => $options->{jprefix} + 1,
         species => $options->{species},
         vcf_cutoff => $options->{vcf_cutoff},
@@ -141,7 +146,7 @@ rm ${output_file}
  Handle the invocation of vcfutils and such to seek high-confidence variants.
 
 =cut
-sub SNP_Search {
+sub Mpileup_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
@@ -149,8 +154,8 @@ sub SNP_Search {
         varfilter => 0,
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
-        jprefix => '80',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13',
+        jprefix => '50',
+        modules => ['libgsl/2.7.1', 'libhts/1.13',
                     'samtools/1.13', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('samtools');
@@ -165,7 +170,7 @@ sub SNP_Search {
     my $vcf_cutoff = $options->{vcf_cutoff};
     my $vcf_minpct = $options->{vcf_minpct};
 
-    my $vcfutils_dir = qq"outputs/vcfutils_$options->{species}";
+    my $vcfutils_dir = qq"outputs/$options->{jprefix}vcfutils_$options->{species}";
     my $pileup_input = qq"${vcfutils_dir}/${query_base}.bam";
     my $pileup_error = qq"${vcfutils_dir}/${query_base}_pileup.stderr";
     my $pileup_output = qq"${vcfutils_dir}/${query_base}_pileup.vcf";
@@ -216,8 +221,8 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
         comment => $comment_string,
         jdepends => $options->{jdepends},
         jmem => 48,
-        jname => "bcf_${query_base}_$options->{species}",
-        jprefix => $options->{jprefix},
+        jname => qq"mpileup_${query_base}",
+        jprefix => qq"$options->{jprefix}",
         job_type => 'snpsearch',
         jqueue => 'workstation',
         jstring => $jstring,
@@ -235,6 +240,7 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
         input => ${final_output},
+        jname => qq"mpileup_parsenp_${query_base}_$options->{species}",
         jdepends => $pileup->{job_id},
         jprefix => $options->{jprefix} + 1,
         species => $options->{species},
@@ -258,6 +264,7 @@ sub SNP_Ratio {
         args => \%args,
         required => ['input', 'species', 'gff_tag', 'gff_type'],
         jprefix => '80',
+        jname => 'parsenp',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
         modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13',
@@ -269,7 +276,6 @@ sub SNP_Ratio {
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
     my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-    my $jname = qq"parsesnp";
     my $comment_string = qq!
 ## Parse the SNP data and generate a modified $options->{species} genome.
 ##  This should read the file:
@@ -307,7 +313,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
         comment => $comment_string,
         jdepends => $options->{jdepends},
         jmem => 48,
-        jname => "${jname}_$options->{species}",
+        jname => $options->{jname},
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,

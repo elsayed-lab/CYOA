@@ -381,17 +381,8 @@ sub HTSeq {
     $error = qq"${output_dir}/${error}.stderr";
 
     my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
-    ## Much like samtools, htseq versions on travis are old.
-    ## Start with the default, non-stupid version.
-    my $htseq_version = qx"htseq-count -h | grep version";
-    my $htseq_invocation = qq!htseq-count  --help 2>&1 | tail -n 3
-htseq-count \\
+    my $htseq_invocation = qq!htseq-count \\
   -q -f bam -s ${stranded} ${htseq_type_arg} ${htseq_id_arg} \\!;
-    if ($htseq_version =~ /0\.5/) {
-        ## Versions older than 0.6 are stupid.
-        $htseq_invocation = qq!samtools view ${htseq_input} | htseq-count -q -s ${stranded} ${htseq_id_arg} ${htseq_type_arg} \\!;
-        $htseq_input = '-';
-    }
     my $jstring = qq!
 ${htseq_invocation}
   ${htseq_input} \\

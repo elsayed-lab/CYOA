@@ -613,7 +613,7 @@ sub Samtools {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jmem => 16,
+        jmem => 30,
         jname => 'sam',
         jprefix => '',
         paired => 1,
@@ -630,14 +630,23 @@ sub Samtools {
     $sorted_name = qq"${sorted_name}-sorted";
     my $paired_name = $sorted_name;
     $paired_name =~ s/\-sorted/\-paired/g;
+    my $workdir = dirname($input);
     ## Add a samtools version check because *sigh*
     my $samtools_version = qx"samtools 2>&1 | grep 'Version'";
     ## Start out assuming we will use the new samtools syntax.
-    my $samtools_first = qq"sleep 10
+    my $samtools_first = qq!
+## If a previous sort file exists due to running out of memory,
+## then we need to get rid of them first.
+## hg38_100_genome-sorted.bam.tmp.0000.bam
+if [[ -f "${output}.tmp.000.bam" ]]; then
+  rm -f ${output}.tmp.*.bam
+fi
 samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output}  \\
   2>${output}_samtools.stderr \\
-  1>${output}_samtools.stdout";
+  1>${output}_samtools.stdout
+!;
+
     my $samtools_second = qq"samtools sort -l 9 ${output} \\
   -o ${sorted_name}.bam \\
   2>${sorted_name}_samtools.stderr \\
