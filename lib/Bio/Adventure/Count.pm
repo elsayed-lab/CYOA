@@ -379,9 +379,9 @@ sub HTSeq {
     my $error = basename($output, ('.count'));
     $error = qq"${output_dir}/${error}.stderr";
 
-    my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${htseq_type}_${htseq_id}";
+    my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_id}";
     my $htseq_invocation = qq!htseq-count \\
-  -q -f bam -s ${stranded} ${htseq_type_arg} ${htseq_id_arg} \\!;
+  -q -f bam -s ${stranded} ${gff_type_arg} ${gff_id_arg} \\!;
     my $jstring = qq!
 ${htseq_invocation}
   ${htseq_input} \\

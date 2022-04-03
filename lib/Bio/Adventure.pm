@@ -1117,12 +1117,12 @@ sub Get_TODOs {
         "pbwa+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::BWA'},
         "phageassemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Phage_Assemble'},
         "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},
-        "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Kallisto'},
-        "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
-        "prnaseq+" => \$todo_list->{todo}{'Bio::Adventure::Process_RNAseq'},
+        "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::RNAseq_Pipeline_Kallisto'},
+        "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Riboseq_Pipeline'},
+        "prnaseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Process_RNAseq'},
         "psalmon+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Salmon'},
-        "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::TNseq_Pipeline'},
-        "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Tophat'},
+        "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::TNseq_Pipeline'},
+        "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::RNAseq_Pipeline_Tophat'},
         "help+" => \$todo_list->{todo}{'Bio::Adventure::Adventure_Help'},
     };
 

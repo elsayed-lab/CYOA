@@ -76,7 +76,7 @@ sub Freebayes_SNP_Search {
         vcf_minpct => 0.2,
         gff_tag => 'ID',
         gff_type => 'gene',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['gatk', 'freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('freebayes');
     die('Could not find freebayes in your PATH.') unless($check);
@@ -84,25 +84,37 @@ sub Freebayes_SNP_Search {
     my $freebayes_dir = qq"outputs/$options->{jprefix}freebayes_$options->{species}";
     my $output_file = qq"${freebayes_dir}/$options->{species}.vcf";
     my $output_bcf = qq"${freebayes_dir}/$options->{species}.bcf";
+    my $marked = qq"${freebayes_dir}/deduplication_stats.txt";
+    my $gatk_stdout = qq"${freebayes_dir}/deduplication.stdout";
+    my $gatk_stderr = qq"${freebayes_dir}/deduplication.stderr";
     my $stdout = qq"${freebayes_dir}/$options->{species}.stdout";
     my $stderr = qq"${freebayes_dir}/$options->{species}.stderr";
+
 
     ## Taken from the sister mpileup function
     my $query_home = dirname($options->{input});
     my $query_base = basename($options->{input}, ('.bam'));
+    my $deduplicated = qq"${freebayes_dir}/${query_base}_deduplicated.bam";
 
     my $comment = qq!## This is a freebayes search for variant against ${input_fasta}!;
     my $jstring = qq!
 mkdir -p ${freebayes_dir}
+gatk MarkDuplicates \\
+  -I $options->{input} \\
+  -O ${deduplicated} \\
+  -M ${marked} --REMOVE_DUPLICATES true --COMPRESSION_LEVEL 9 \\
+  2>${gatk_stdout} \\
+  1>${gatk_stderr}
+samtools index ${deduplicated}
 freebayes -f ${input_fasta} \\
   -v ${output_file} \\
-  $options->{input} \\
+  ${deduplicated} \\
   1>${stdout} \\
-  2>${stderr}
+  2>>${stderr}
 bcftools convert ${output_file} \\
   -Ob -o ${output_bcf} \\
   2>>${stderr} \\
-  1>${stdout}
+  1>>${stdout}
 bcftools index ${output_bcf} \\
   2>>${stderr} \\
   1>>${stdout}
@@ -171,7 +183,8 @@ sub Mpileup_SNP_Search {
     my $vcf_minpct = $options->{vcf_minpct};
 
     my $vcfutils_dir = qq"outputs/$options->{jprefix}vcfutils_$options->{species}";
-    my $pileup_input = qq"${vcfutils_dir}/${query_base}.bam";
+    my $deduplicate_input = qq"${vcfutils_dir}/${query_base}.bam";
+    my $pileup_input = qq"${vcfutils_dir}/${query_base}_deduplicated.bam";
     my $pileup_error = qq"${vcfutils_dir}/${query_base}_pileup.stderr";
     my $pileup_output = qq"${vcfutils_dir}/${query_base}_pileup.vcf";
     my $filter_error = qq"${vcfutils_dir}/${query_base}_varfilter.stderr";
@@ -180,21 +193,31 @@ sub Mpileup_SNP_Search {
     my $call_error = qq"${vcfutils_dir}/${query_base}_summary.stderr";
     my $final_output = qq"${vcfutils_dir}/${query_base}.bcf";
     my $final_error = qq"${vcfutils_dir}/${query_base}_bcf.stderr";
+    my $gatk_stdout = qq"${vcfutils_dir}/deduplication.stdout";
+    my $gatk_stderr = qq"${vcfutils_dir}/deduplication.stderr";
+    my $marked = qq"${vcfutils_dir}/deduplication_stats.txt";
     my $jstring = qq!mkdir -p ${vcfutils_dir}
 echo "Started samtools sort at \$(date)" >> ${vcfutils_dir}/vcfutils_$options->{species}.stdout
 !;
     unless (-r "${pileup_input}") {
         if ($query =~ m/sorted/) {
             $jstring .= qq!if test \! -e \$(pwd)/${pileup_input}; then
-  ln -sf \$(pwd)/${query}.bam \$(pwd)/${pileup_input}
+  ln -sf \$(pwd)/${query}.bam \$(pwd)/${deduplicate_input}
 fi
 !;
         } else {
-            $jstring .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${pileup_input} \\
+            $jstring .= qq!samtools sort -l 9 -@ 4 ${query}.bam -o ${deduplicate_input} \\
   2>${vcfutils_dir}/samtools_sort.out 1>&2
 if [ "\$?" -ne "0" ]; then
     echo "samtools sort failed."
 fi
+gatk MarkDuplicates \\
+  -I ${deduplicate_input} \\
+  -O ${pileup_input} \\
+  -M ${marked} --REMOVE_DUPLICATES true --COMPRESSION_LEVEL 9 \\
+  2>${gatk_stderr} \\
+  1>${gatk_stdout}
+samtools index ${pileup_input}
 !;
         } ## End checking if the pileup input does not have sorted.
     }     ## Found the input for samtools mpileup
@@ -267,7 +290,7 @@ sub SNP_Ratio {
         jname => 'parsenp',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13',
+        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'gatk',
                     'samtools/1.13', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $check = which('bcftools');
@@ -308,7 +331,6 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
   output_pkm => '${output_pkm}',
 );
 ";
-
     my $parse_job = $class->Submit(
         comment => $comment_string,
         jdepends => $options->{jdepends},
