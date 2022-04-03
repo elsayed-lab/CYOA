@@ -8,7 +8,6 @@ use warnings qw"all";
 use File::Basename;
 use Getopt::Long qw"GetOptionsFromArray";
 use Switch;
-
 use Bio::Adventure;
 
 =head1 NAME

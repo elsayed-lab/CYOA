@@ -458,25 +458,6 @@ sub BUILD {
         $defaults{$k} = $class->{$k};
     }
 
-    ## Initially assume we are not using a cluster, then search for a couple of known types.
-    if (defined($class->{cluster})) {
-        if (!$class->{cluster}) {
-            $class->{sbatch_path} = 0;
-            $class->{qsub_path} = 0;
-            $class->{cluster} = 'bash';
-        }
-    }
-    ## Figure out what kind of cluster we are using, if any.
-    my $torque_test = My_Which('qsub');
-    my $slurm_test = My_Which('sbatch');
-    if ($slurm_test) {
-        $class->{cluster} = 'slurm';
-    } elsif ($torque_test) {
-        $class->{cluster} = 'torque';
-    } else {
-        $class->{cluster} = 'bash';
-    }
-
     ## Make a log of command line arguments passed.
     if ($#ARGV > 0) {
         my $arg_string = '';
@@ -487,7 +468,7 @@ sub BUILD {
         my $out = FileHandle->new(">>outputs/log.txt");
         my $d = qx'date';
         chomp $d;
-        print $out "# Started CYOA at ${d} with arguments: $arg_string.\n";
+        print $out "# Started CYOA at ${d} with arguments: ${arg_string}.\n";
         $out->close();
     }
 
@@ -505,7 +486,6 @@ sub BUILD {
         "de|d" => \$override{debug},
         "hp|h:s" => \$override{hpgl},
         "in|i:s" => \$override{input},
-        "pb|p:i" => \$override{pbs},
         "sp|s:s" => \$override{species},);
     ## This makes both of the above groups command-line changeable
     foreach my $name (keys %conf_specification_temp) {
@@ -546,6 +526,30 @@ sub BUILD {
     if ($class->{arbitrary}) {
         $class->{arbitrary} =~ s/\\//g;
     }
+
+    ## Initially assume we are not using a cluster, then search for a couple of known types.
+    ##print "TESTME: I am confused, why are my options not set? $class->{input}\n";
+    ##print "TESTME: ABOUT TO CHECK CLUSTER: $class->{cluster}\n";
+    ##if (defined($class->{cluster})) {
+    ##    print "TESTME: CLUSTER STARTED OUT DEFINED.\n";
+    ##    if (!$class->{cluster}) {
+    ##        $class->{sbatch_path} = '';
+    ##        $class->{qsub_path} = '';
+    ##        $class->{cluster} = 'bash';
+    ##        print "TESTME: Setting cluster to 'bash'\n";
+    ##    }
+    ##} else {
+    ##    ## Figure out what kind of cluster we are using, if any.
+    ##    my $torque_test = My_Which('qsub');
+    ##    my $slurm_test = My_Which('sbatch');
+    ##    if ($slurm_test) {
+    ##        $class->{cluster} = 'slurm';
+    ##    } elsif ($torque_test) {
+    ##        $class->{cluster} = 'torque';
+    ##    } else {
+    ##        $class->{cluster} = 'bash';
+    ##    }
+    ##}
 
     ## These are both problematic when (n)storing the data.
     if (defined($class->{interactive}) && $class->{interactive}) {
@@ -1337,6 +1341,35 @@ sub Get_Vars {
         $returned_vars{$varname} = $getopt_override_vars{$varname};
     }
 
+    ## I previously had the cluster check in the BUILD() function.
+    ## I think this is the wrong place and should instead be here?
+    my $torque_test = My_Which('qsub');
+    my $slurm_test = My_Which('sbatch');
+    if (defined($returned_vars{cluster})) {
+        ## print "TESTME: CLUSTER IS DEFINED $returned_vars{cluster}\n";
+        if ($returned_vars{cluster}) {
+            $returned_vars{qsub_path} = $torque_test;
+            $returned_vars{sbatch_path} = $slurm_test;
+        } else {
+            $returned_vars{sbatch_path} = '';
+            $returned_vars{qsub_path} = '';
+            $returned_vars{cluster} = 'bash';
+        }
+        ## print "TESTME NOW? $returned_vars{cluster}\n";
+    } else {
+        ## print "TESTME CLUSTER IS NOT DEFINED\n";
+        if ($slurm_test) {
+            $returned_vars{cluster} = 'slurm';
+            $returned_vars{sbatch_path} = $slurm_test;
+        } elsif ($torque_test) {
+            $returned_vars{cluster} = 'torque';
+            $returned_vars{qsub_path} = $torque_test;
+        } else {
+            $returned_vars{cluster} = 'bash';
+        }
+        ## print "TESTME NOW? $returned_vars{cluster}\n";
+    }
+
     ## Final sanity check(s)
     for my $varname (keys %returned_vars) {
         next unless (defined($returned_vars{$varname}));
@@ -1754,15 +1787,17 @@ sub Submit {
         }
     }
     my $runner;
-    if ($class->{sbatch_path}) {
+    if ($options->{cluster} eq 'slurm') {
         $runner = Bio::Adventure::Slurm->new();
-    } elsif ($class->{qsub_path}) {
+    } elsif ($options->{cluster} eq 'torque') {
         $runner = Bio::Adventure::Torque->new();
-    } elsif ($class->{bash_path}) {
+    } elsif ($options->{cluster} eq 'bash') {
         ## I should probably have something to handle gracefully bash jobs.
         $runner = Bio::Adventure::Local->new();
     } else {
-        die("Could not find sbatch, qsub, nor bash.");
+        carp("Could not find sbatch, qsub, nor bash.");
+        print "Assuming this is running on a local shell.\n";
+        $runner = Bio::Adventure::Local->new();
     }
 
     ## Add the current options to the runner:
