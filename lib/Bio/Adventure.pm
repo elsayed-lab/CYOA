@@ -309,7 +309,7 @@ has jbasename => (is => 'rw', default => undef); ## Job basename
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
-has jnice => (is => 'rw', default => 10); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
+has jnice => (is => 'rw', default => 0); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
 has jpartition => (is => 'rw', default => 'dpart');
 has jprefix => (is => 'rw', default => undef); ## Prefix number for the job
 has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs default to?
@@ -862,6 +862,7 @@ sub Get_Menus {
             name => 'pipeline',
             message => 'When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033',
             choices => {
+                '(prnaseq): Preset assembly.' => \&Bio::Adventure::Pipeline::Process_RNAseq,
                 '(priboseq): Perform a preset pipeline of ribosome profiling tasks.' => \&Bio::Adventure::Pipeline::Riboseq,
                 '(ptnseq): Perform a preset pipeline of TNSeq tasks.' => \&Bio::Adventure::Pipeline::TNSeq,
                 '(pbt1): Perform a preset group of bowtie1 tasks.' => \&Bio::Adventure::Pipeline::Bowtie,
@@ -924,7 +925,7 @@ sub Get_Menus {
                 '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
                 '(freebayes): Use freebayes to create a vcf file and filter it.' => \&Bio::Adventure::SNP::Freebayes_SNP_Search,
                 '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
-                '(snpsearch): Perform a search for variant positions against a reference genome. (bam input)' => \&Bio::Adventure::SNP::SNP_Search,
+                '(snpsearch): Use mpileup to create a vcf file and filter it. (bam input)' => \&Bio::Adventure::SNP::Mpileup_SNP_Search,
                 '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => \&Bio::Adventure::SNP::SNP_Ratio,
                 '(snp): Perform alignments and search for variants. (fastq input)' => \&Bio::Adventure::SNP::Align_SNP_Search,
                 '(snippy): Invoke snippy. (fastq and genbank inputs)' => \&Bio::Adventure::SNP::Snippy,
@@ -1065,6 +1066,7 @@ sub Get_TODOs {
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
         "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annot_Prodigal'},
         "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
+        "mpileup+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Mpileup_SNP_Search'},
         "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phageterm'},
         "phanotate+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Phanotate'},
         "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
@@ -1089,7 +1091,7 @@ sub Get_TODOs {
         "slsearch+" => \$todo_list->{todo}{'Bio::Adventure::Count::SLSearch'},
         "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
         "alignsnpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
-        "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Search'},
+        "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Mpileup_SNP_Search'},
         "snpratio+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
         "snpgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "sortindexes+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Sort_Indexes'},
@@ -1121,6 +1123,7 @@ sub Get_TODOs {
         "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},
         "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Kallisto'},
         "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq_Pipeline'},
+        "prnaseq+" => \$todo_list->{todo}{'Bio::Adventure::Process_RNAseq'},
         "psalmon+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Salmon'},
         "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::TNseq_Pipeline'},
         "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Tophat'},
@@ -1802,6 +1805,7 @@ sub Submit {
         $runner->{$k} = $options->{$k};
     }
     my $result = $runner->Submit($class, %args);
+    my $reset = $class->Reset_Vars();
     return($result);
 }
 

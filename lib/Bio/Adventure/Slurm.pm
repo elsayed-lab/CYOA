@@ -162,7 +162,7 @@ set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='--buffers 0'
-script="\$0"
+script="${script_file}"
 err() {
     echo "Error occurred:"
     awk 'NR>L-4 && NR<L+4 { printf "\%-5d\%3s\%s\\n",NR,(NR==L\?">>>":""),\$script }' L=\$1 \$script
@@ -181,11 +181,10 @@ echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it too
 if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}' | head -n 1 2>/dev/null)
   echo "  walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
-  maxmem=\$(sstat --format=MaxVMSize -n "\${SLURM_JOBID}.batch" 2>/dev/null)
+  maxmem=\$(sstat --format=MaxVMSize -j "\${SLURM_JOBID}" 2>/dev/null)
   echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
   echo "" >> ${sbatch_log}
 fi
-## Adding a little logic to have skip finished jobs.
 touch ${finished_file}
 !;
 

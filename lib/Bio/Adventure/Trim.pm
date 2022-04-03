@@ -238,15 +238,12 @@ sub Trimomatic {
         args => \%args,
         required => ['input',],
         jprefix => '01',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
     } else {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%args);
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trim);
 }
 
@@ -263,7 +260,7 @@ sub Trimomatic_Pairwise {
         quality => '20',
         jmem => 24,
         modules => ['trimomatic'],);
-
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
@@ -367,7 +364,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,

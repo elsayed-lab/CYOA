@@ -34,11 +34,12 @@ sub Compress {
         required => ['input'],
         comment => '## Compressing files.',
         jname => 'xz',
+        jprefix => '',
         jmem => 8,
         jqueue => 'long',
         jwalltime => '24:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
-
+    print "TESTME XZ jprefix: $options->{jprefix}\n";
     my $jstring = "";
     my $output_string = '';
     for my $in (@{$input_paths}) {
@@ -48,7 +49,17 @@ sub Compress {
         my $output_file = qq"${in_dir}/${in_base}.xz";
         $output_string .= qq"${output_file}:";
         $jstring .= qq!
-xz -9e -f ${in_full}
+## Compressing ${in_full}
+echo "Compressing ${in_full}"
+if [ -f "${in_full}" ]; then
+  xz -9e -f ${in_full}
+  if [ "\$?" -ne "0" ]; then
+    echo "The compression of ${in_full} failed."
+  fi
+else
+  echo "The input: ${in_full} does not exist."
+fi
+
 !;
     }
     $output_string =~ s/:$//g;
@@ -59,6 +70,7 @@ xz -9e -f ${in_full}
         input => $options->{input},
         jmem => $options->{jmem},
         jname => $options->{jname},
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         output => $output_string,);
