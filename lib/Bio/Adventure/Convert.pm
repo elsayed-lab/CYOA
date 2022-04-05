@@ -622,7 +622,6 @@ sub Samtools {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
 
-    print "TESTME: $options->{jqueue}\n";
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
     my $sorted_name = $input;

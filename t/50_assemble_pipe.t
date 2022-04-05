@@ -203,17 +203,17 @@ if ($comparison) {
 $test_file = $assemble->{'09phastaf'}->{coordinates};
 $comparison = ok(-f $test_file, qq"Checking phastaf coordinate file: ${test_file}");
 print "Passed.\n" if ($comparison);
-$actual = qx"head ${test_file}";
-$expected = qq"1\t29601\t33485\tPHAGE_Cronob_Dev2_NC_023558-gi|651729639|ref|YP_009005149.1|\t91.8
-1\t2474\t5152\tPHAGE_Cronob_Dev2_NC_023558-gi|651729605|ref|YP_009005115.1|\t94.0
-1\t13177\t15342\tPHAGE_Cronob_Dev2_NC_023558-gi|651729621|ref|YP_009005131.1|\t90.6
-1\t26882\t29161\tPHAGE_Cronob_Dev2_NC_023558-gi|651729638|ref|YP_009005148.1|\t88.7
-1\t23392\t25746\tPHAGE_Citrob_CR44b_NC_023576-gi|589286983|ref|YP_009007177.1|\t75.8
-1\t37788\t39527\tPHAGE_Escher_vB_EcoP_GA2A_NC_031943-gi|100054|ref|YP_009324988.1|\t97.4
-1\t10828\t12501\tPHAGE_Entero_K1F_NC_007456-gi|77118185|ref|YP_338107.1|\t97.3
-1\t18627\t20192\tPHAGE_Cronob_Dev2_NC_023558-gi|651729630|ref|YP_009005140.1|\t95.8
-1\t21351\t22379\tPHAGE_Citrob_CR44b_NC_023576-gi|589286980|ref|YP_009007173.1|\t98.8
-1\t16380\t17240\tPHAGE_Cronob_Dev2_NC_023558-gi|651729625|ref|YP_009005135.1|\t94.4
+$actual = qx"head ${test_file} | awk '{print \$4}'";
+$expected = qq"PHAGE_Cronob_Dev2_NC_023558-gi|651729639|ref|YP_009005149.1|
+PHAGE_Cronob_Dev2_NC_023558-gi|651729605|ref|YP_009005115.1|
+PHAGE_Cronob_Dev2_NC_023558-gi|651729621|ref|YP_009005131.1|
+PHAGE_Cronob_Dev2_NC_023558-gi|651729638|ref|YP_009005148.1|
+PHAGE_Citrob_CR44b_NC_023576-gi|589286983|ref|YP_009007177.1|
+PHAGE_Escher_vB_EcoP_GA2A_NC_031943-gi|100054|ref|YP_009324988.1|
+PHAGE_Entero_K1F_NC_007456-gi|77118185|ref|YP_338107.1|
+PHAGE_Cronob_Dev2_NC_023558-gi|651729630|ref|YP_009005140.1|
+PHAGE_Citrob_CR44b_NC_023576-gi|589286980|ref|YP_009007173.1|
+PHAGE_Cronob_Dev2_NC_023558-gi|651729625|ref|YP_009005135.1|
 ";
 $comparison = ok($expected eq $actual, 'Checking phastaf result:');
 if ($comparison) {

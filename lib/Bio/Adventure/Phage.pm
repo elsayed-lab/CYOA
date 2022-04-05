@@ -636,7 +636,8 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
   input_fastq => '$options->{input_fastq}',
   jdepends => '$options->{jdepends}',
   jname => 'kraken_host',
-  jprefix => '$options->{jprefix}',);
+  jprefix => '$options->{jprefix}',
+  job_log => '${log}');
 !;
     my $host = $class->Submit(
         input => $options->{input},
@@ -977,6 +978,7 @@ use Bio::Adventure::Phage;
 my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
   input => '$options->{input}',
   library => '$options->{library}',
+  jprefix => '$options->{jprefix}',
   jname => 'phageterm_${job_name}',
   output_dir => '${output_dir}',
   output => '${output_file}',);
@@ -992,6 +994,7 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'phageterm',
+        jprefix => $options->{jprefix},
         jstring => $jstring,);
     return($phageterm_run);
 }

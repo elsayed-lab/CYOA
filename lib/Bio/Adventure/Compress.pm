@@ -39,7 +39,6 @@ sub Compress {
         jqueue => 'long',
         jwalltime => '24:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
-    print "TESTME XZ jprefix: $options->{jprefix}\n";
     my $jstring = "";
     my $output_string = '';
     for my $in (@{$input_paths}) {

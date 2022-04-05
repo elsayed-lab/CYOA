@@ -927,8 +927,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                                     action => 'unload');
     my $xz_jname = qq"xz_$options->{species}_${suffix_name}";
     my $new_jprefix = qq"$options->{jprefix}_1";
-    print "TESTME: $aligned_filenames and $unaligned_filenames\n";
-    print "TESTME: New JPREFIX: $new_jprefix\n";
     my $comp = $class->Bio::Adventure::Compress::Compress(
         jname => $xz_jname,
         jprefix => $new_jprefix,

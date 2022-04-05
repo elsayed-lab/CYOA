@@ -418,15 +418,12 @@ sub Merge_CDS_Predictions_Worker {
     my @glimmer_features = @{$glimmer_features_ref};
 
     ## Add a filter for bad Edge features
-    ## print "TESTME: Filtering phanotate features for bad edges.\n";
     my $phanotate_filtered = Filter_Edge_Features(features => \@phanotate_features,
                                                   source => \%source_features);
     ##my $prokka_cds_filtered = Filter_Edge_Features(features => \@prokka_cds,
     ##                                               source => \%source_features);
-    ## print "TESTME: Filtering glimmer features for bad edges.\n";
     my $glimmer_filtered = Filter_Edge_Features(features => \@glimmer_features,
                                                 source => \%source_features);
-    ## print "TESTME: Filtering prodgial for bad edges.\n";
     my $prodigal_filtered = Filter_Edge_Features(features => \@prodigal_features,
                                                  source => \%source_features);
 
@@ -580,7 +577,6 @@ sub Query_Edge_Feature {
     my $strand = $feature->strand;
     my $contig_sequence = $contig->seq;
     my $contig_length = length($contig_sequence);
-    ## print "TESTME: $start $end $strand\n";
     ## Another peculiar edge case:
     ## Sometimes a feature is picked up which is a little before the origin and continues after the origin.
     ## e.g. the strand may be +1, the start is ~ 100nt before 0 and the end is ~ 100nt after 0.
@@ -604,7 +600,7 @@ sub Query_Edge_Feature {
     $not_start_codon = 0 if ($first_amino eq 'M' or $first_amino eq 'L');
     ## print "The start is $start and the first amino acid is $first_amino\n";
     if ($edge && $not_start_codon) {
-        print "TESTME: This feature starts at 1 and not with 'M|L'! and should be skipped\n";
+        print "This feature starts at 1 and not with 'M|L'! and should be skipped\n";
         $ret = 0;
     }
     return($ret);
