@@ -535,6 +535,7 @@ sub Process_RNAseq {
         host_filter => 0,
         gff_type => 'gene',
         gff_id => 'ID',
+        intron => 0,
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 0);
     my $cwd_name = basename(cwd());
@@ -590,6 +591,7 @@ sub Process_RNAseq {
         species => $first_species,
         gff_type => $first_type,
         gff_id => $first_id,
+        intron => $options->{intron},
         jprefix => $prefix,);
     $last_job = $first_map->{job_id};
     push(@jobs, $first_snp);
@@ -639,11 +641,11 @@ sub Process_RNAseq {
                 species => $nth_species,
                 gff_type => $nth_type,
                 gff_id => $nth_id,
+                intron => $options->{intron},
                 jprefix => $prefix,);
             $last_job = $nth_map->{job_id};
             push(@jobs, $nth_snp);
             sleep(0.2);
-
             $c++;
         } ## End iterating over extra species
     } ## End checking for extra species

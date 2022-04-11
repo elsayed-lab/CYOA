@@ -303,6 +303,7 @@ has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.
 has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
 has input_trinotate => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07rosalind_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
+has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
 has jbasename => (is => 'rw', default => undef); ## Job basename
@@ -332,6 +333,8 @@ has maximum => (is => 'rw', default => undef);  ## catchall maximum threshold
 has maxlength => (is => 'rw', default => 42); ## Maximum sequence length when trimming
 has method => (is => 'rw', default => undef);
 has mi_genome => (is => 'rw', default => undef); ## Set a miRbase genome to hunt for mature miRNAs
+has min_depth => (is => 'rw', default => 5); ## Default use: variant searching, depth limit
+has min_value => (is => 'rw', default => 0.5);  ## Also variant searching.
 has minimum => (is => 'rw', default => undef); ## catchall minimum threshold
 has minlength => (is => 'rw', default => 8); ## Minimum length when trimming
 has mirbase_data => (is => 'rw', default => undef); ## miRbase annotation dataset.
