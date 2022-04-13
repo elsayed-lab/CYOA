@@ -81,7 +81,7 @@ sub Freebayes_SNP_Search {
         introns => 0,
         jmem => 24,
         jprefix => '50',
-        modules => ['gatk', 'freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['gatk', 'freebayes', 'libgsl', 'libhts', 'samtools', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('freebayes');
     die('Could not find freebayes in your PATH.') unless($check);
