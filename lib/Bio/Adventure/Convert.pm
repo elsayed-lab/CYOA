@@ -693,6 +693,13 @@ samtools index ${paired_name}.bam \\
 bamtools stats -in ${paired_name}.bam \\
   2>>${output}_samtools.stats 1>&2
 !;
+    } else {
+        ## If it is not paired, just set the paired output name to the output name so that
+        ## jobs which run this as part of a chain do not need to go looking for the paired output.
+        ## I am considering this primarily in the case of gatk deduplication which demands
+        ## properly paired reads or single ended; therefore if I set this here I do not need to
+        ## check later for different inputs.
+        $paired_name = basename($output, ('.bam'));
     }
 
     unless ($options->{mismatch}) {
