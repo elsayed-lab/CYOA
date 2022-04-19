@@ -4,19 +4,49 @@
 
 # SYNOPSIS
 
-      Bio::Adventure.pm Bio::Adventure::Job.pm Some perl libraries to submit jobs to the
-      umiacs cluster.  This can take a variety of options:
+      Bio::Adventure.pm and the associated script cyoa seek to make it easier to create
+      and submit template scripts to a computing cluster.
 
-    --debug|d   : Get it to print some debugging information.
-    --btmulti   : Perform multiple bowtie option sets.
-    --tpmulti   : Perform multiple tophat option sets (not implemented).
-    --bwmulti   : Perform multiple bwa option sets (not implemented).
-    --help      : Print some help information.
-    --input|i   : Input file(s).
-    --pbs|p     : Use Torque?
-    --species:s : Species used for alignments.
-    --stranded  : Are the libraries stranded?
-    --identifier: The identifier tag in the annotation gff
+    A few likely commandline invocations and their purposes include:
+
+    > cyoa --task pipe --method phage --input r1.fastq.xz:r2.fastq.xz
+
+    This passes the paired end, xz compressed reads to a phage assembly
+    and annotation pipeline, diagrammed below.[1]
+
+    > cyoa --task pipe --method rnaseq --input r1.fastq.xz:r2.fastq.xz \
+      --gff_type gene --gff_id gene_id --host_filter 1 --species hg38_100:lpanamensis_v50
+
+    This performs a default (hisat2) rnaseq pipeline which trims the reads, runs hisat twice,
+    first against the hg38_100 human assembly followed by Leishmania panamensis version 50 from
+    the tritrypdb.  This of course assumes a gff/fasta file in the library directory, but will
+    check for the indexes and create them if needed.  When host_filter is on, it will pass only
+    the unmapped reads from hg38 to the panamensis mapping.  It converts the sam to
+    sorted/indexed bam and generates a few alternate bam files (no mismatches, only paired reads),
+    passes them to htseq-count and freebayes for variant searching.
+
+    > cyoa --task map --method salmon --species mm38_100 \
+      --input r1_trimmed.fastq.xz:r2_trimmed.fastq.xz
+
+    This invokes salmon on trimmed reads using the mouse ensembl release.
+
+    > cyoa --task align --method blast --library nr --input few_thousand_sequences.fasta
+
+    This will split the fasta file into multiple pieces and pass them to blast on a cluster
+    against the NR database and return back some summary tables.
+
+    > cyoa --task align --method fasta --library database.fasta --input query.fasta
+
+    This does much the same, but uses a fasta database and fasta36.
+
+    > cyoa --task tnseq --method essentiality --input processed_data.wig --species spyogenes
+
+    Invoke the DeJesus essentiality tool on a processed wig file.
+
+
+    There are many more methods, tools, and command line options.  One way to explore
+    them is to pull up the text menu interface via just `cyoa`.
+    This is also an API for invoking these methods:
 
       use Bio::Adventure;
       my $hpgl = new Bio::Adventure;
@@ -42,66 +72,146 @@
 
 # DESCRIPTION
 
-    This library should write out PBS compatible job files for torque and
-    submit them to appropriate queues on the cluster.  It should also
-    collect the outputs and clean up the mess.
+    This library should write out cluster compatible job files for
+    torque or slurm clusters and submit them to appropriate queues.
+    It should also collect the outputs and clean up the mess.
 
-## Methods
+## The TODO list
 
-- `Help`
+    The following list is the set of potential tasks addressable by cyoa categorized
+    somewhat arbitrarily.  Each of the names in parentheses is one methodname which
+    may be passed to cyoa either in full or abbreviated to its least unique string.
 
-        Help() always gives 0.
-        Before it returns, it will hopefully print some useful information
-        regarding ways to invoke Bio::Adventure.pm.
+    1.  Alignment: (TODO: add blat, hmmer, tcoffee, etc)
+        * (blastsplit): Split the input sequence into subsets and align with blast.
+        * (fastasplit): Split the input sequence into subsets and align with fasta36.
+        * (concat): Merge split searches into a single set of results.
+        * (fastaparse): Parse fasta36 output into a reasonably simple table of hits.
+        * (blastparse): Parse blast output into a reasonably simple table of hits.
+        * (fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.
+        * (blastmerge): Merge and Parse blast output into a reasonably simple table of hits.
+    2.  Annotation (TODO: there are a bunch of missing tasks here)
+        * (abricate): Search for Resistance genes across databases.
+        * (classify_virus): Use ICTV data to classify viral sequences/contigs.
+        * (extend_kraken): Extend a kraken2 database with some new sequences.
+        * (interproscan): Use interproscan to analyze ORFs.
+        * (kraken2): Taxonomically classify reads.
+        * (phageterm): Invoke phageterm to hunt for likely phage ends.
+        * (phastaf): Invoke phastaf to attempt classifying phage sequence.
+        * (rhopredict): Search for rho terminators.
+        * (terminasereorder): Reorder an assembly based on the results of a blast search.
+        * (prokka): Invoke prokka to annotate a genome.
+        * (resfinder): Search for antimicrobial resistance genes.
+        * (rgi): Search for resistance genes with genecards and peptide fasta input.
+        * (mergeannotations): Merge annotations into a genbank file.
+    3. Assembly (TODO: Some of these probably should be elsewhere?, also Spades)
+        * (abyss): Run abyss to create a new assembly.'
+        * (assemblycoverage): Calculate Assembly coverage across contigs.
+        * (extract_trinotate): Extract the most likely hits from Trinotate.
+        * (filterdepth): Filter contigs based on sequencing depth.
+        * (transdecoder):  Run transdecoder on a putative transcriptome.
+        * (trinotate): Perform de novo transcriptome annotation with trinotate.
+        * (trinity): Perform de novo transcriptome assembly with trinity.
+        * (trinitypost): Perform post assembly analyses with trinity.
+        * (velvet): Perform de novo genome assembly with velvet.
+        * (unicycler): Perform de novo assembly with unicycler/spades.
+        * (shovill): Perform the shovill pre/post processing with spades.
+        * (terminasereorder): Reorder an existing assembly to the most likely terminase.
+        * (collect_assembly): Copy files generated by an assembly into one directory.
+        * (rosalind_plus): Make sure the Rosalind strand has the most CDS.
+    4. Conversion (I think I have some phylogenetic converters which should be added, notably for cactus)
+        * (sam2bam): Convert a sam mapping to compressed/sorted/indexed bam file(s).
+        * (gb2gff): Convert a genbank flat file to gff/fasta files.
+        * (gff2fasta): Convert a gff file to a fasta file.
+    5. Counting (should caical be here?)
+        * (htseq): Count mappings with htseq.
+        * (htmulti): Use different option sets for counting with htseq across feature types.
+        * (jellyfish): Perform a kmer count of some data along with some post-processing.
+        * (mash): Use mash to count pairwise distances among sequences.
+        * (mimap): Count (im)mature miRNA species in high-throughput data.
+        * (countstates): Count ribosome positions in ribosome profiling data.
+        * (slsearch): Count frequency of spliced leader (or an arbitrary) sequences.
+    6.  Feature Prediction (TODO: the crispr-cas9 finder)
+        * (aragorn): Search for tRNAs with aragorn.'
+        * (glimmer): Look for ORFs in bacterial/viral sequence.
+        * (glimmersingle): Use glimmer to search for ORFs without training.
+        * (phanotate): Look for ORFs in bacterial/viral sequence.
+        * (prodigal): Look for ORFs in bacterial/viral sequence.
+        * (rhopredict): Search for rho terminators.
+        * (trnascan): Search for tRNA genes with trnascan.
+        * (trainprodigal): Train prodgial using sequences from a species/strain.
+    7. Mapping
+        * (bowtie): Map trimmed reads with bowtie1 and count with htseq.
+        * (bt2): Map trimmed reads with bowtie2 and count with htseq.
+        * (hisat): Map trimmed reads with hisat2 and count with htseq.
+        * (btmulti): Map trimmed reads and count using multiple bowtie1 option sets.
+        * (bwa): Map reads with bwa and count with htseq.
+        * (kallisto): Pseudo-align and count reads using kallisto.
+        * (salmon): Pseudo-align and count reads using salmon.
+        * (star): Pseudo-align and count reads using STAR.
+        * (mimap): Attempt to map reads explicitly to mature miRNA species.
+        * (rrnabowtie): Map rRNA reads using bowtie1.
+        * (rsem): Quantify reads using rsem.
+        * (tophat): Map reads using tophat2 and count with htseq.
+    7. Indexing
+        * Basically, take the above and prefix it with 'index' to make the various indices.
+        * (extend_kraken): Extend a kraken2 database with some new sequences.
+    8. Phage-specific analyses (TODO, some are missing, some are redundant)
+        * (filterkraken): Filter out host sequences using a kraken report.
+        * (classifyphage): Use ICTV data to classify a phage assembly.
+        * (phageterm): Invoke phageterm to search for terminal repeats.
+        * (phagepromoter): Search for phage promoters.
+        * (phastaf): Search for phage regions in arbitrary assemblies.
+        * (restriction): Search for restriction sites.
+        * (terminasereorder): Reorder a phage assembly to the putative terminase.
+        * (caical): Calculate codon adaptation index of a phage vs. some host.
+        * (recatalog): Create a catalog of restriction enzyme hits.
+    9. Phylogeny (TODO: Add phylip etc and the MSA methods)
+        * (gubbins): Run Gubbins with an input msa.
+    10. Population Genetics
+        * (angsd): Get the set of filtered variants given a list of bam files.
+    11. Preparation (TODO: I have some entrez downloaders now which probably would be good here)
+        * (fastqdump): Download data from the SRA
+    12. QA
+        * (biopieces): Use biopieces to graph some metrics of the data.
+        * (cutadapt): Perform adapter trimming with cutadapt.
+        * (fastqc): Use fastqc to check the overall quality of the raw data.
+        * (racer): Perform sequence correction with hitec/RACER.
+        * (trimomatic): Perform adapter trimming with Trimomatic.
+    13. Ribosome profiling
+        * (biopieces): Make some plots of the demultiplexed/trimmed reads.
+        * (cutadapt): Use cutadapt to remove riboseq adapters.
+        * (rrnabowtie): Filter away rRNA reads using bowtie1.
+        * (btmulti): Use bowtie1 to find putative ribosomal positions.
+        * (calibrate): Empirically calibrate the positions of the a/p/e sites of the ribosomes.
+        * (countstates): Count the positions of a/p/e/etc sites across the transcriptome.
+        * (graphreads): Plot the coverage of ribosomes across the genome by ORF.
+    14. Variant searching (TODO: Maybe add a separate deduplication step?  Add the variant categorizer)
+        * (trim): Trim sequence with an additional rule to remove the first 10 nucleotides.
+        * (bwa): Map reads with bwa and count with htseq.
+        * (bowtie): Map trimmed reads with bowtie1 and count with htseq.
+        * (bt2): Map trimmed reads with bowtie2 and count with htseq.
+        * (freebayes): Use freebayes to create a vcf file and filter it.
+        * (hisat): Map trimmed reads with hisat2 and count with htseq.
+        * (snpsearch): Use mpileup to create a vcf file and filter it. (bam input)
+        * (snpratio): Count the variant positions by position and create a new genome. (bcf input)
+        * (snp): Perform alignments and search for variants with mpileup. (fastq input)
+        * (snippy): Invoke snippy. (fastq and genbank inputs)
+    15. TNSeq (TODO: Add the transit runner)
+        * (sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.
+        * (cutadapt): Use cutadapt to remove the odd tnseq adapters.
+        * (tacheck): Make certain that all reads have a leading or terminal TA.
+        * (biopieces): Make some plots of the demultiplexed/trimmed reads.
+        * (essentialityta): Count the hits/TA in preparation for essentiality.
+        * (runessentiality): Run the essentiality suite of tools.
+        * (gumbel): Run the essentiality suite of tools on the ta counts.
+        * (tpp): Run the transit preprocessing script.
+    16.  Visualization (TODO: Clean up my circos invocation and add it)
+        * (cgview): Invoke cgview to visualize a genome.
 
-- `Get_Input`
+# Footnotes
 
-        Get_Input() attempts to standardize the inputs passed to Bio::Adventure.
-        It returns a stringified and standard representation of the likely
-        input(s) to the script.
-
-        There are a few problems with how I send input to these scripts:
-        Sometimes I put in --hpgl hpgl0415 when I mean --hpgl HPGL0415,
-        Sometimes I put in --input hpgl0415.fastq  when I mean hpgl0415.fastq.(gz|xz),
-        Sometimes I put in -i hpgl0415.fastq.(gz|xz) when I mean hpgl0415.fastq,
-        Sometimes I put in -i hpgl0415.fastq when I mean hpgl0415-trimmed.fastq(.gz|.xz)
-        Sometimes I put in -i hpgl0415_forward.fastq:hpgl0415_reverse.fastq
-
-        So, this function should make this unambiguous and consistent no matter what I type
-
-- `Get_Vars`
-
-        Handle the peculiar mix of instance options held in $class->{options},
-        the set of arguments passed to %args, a list of required and potentially
-        missing options, and whatever default values one wishes to set.
-
-        my $options = $class->Get_Vars(args => \%args, required => ['input', 'genome'], bob => 'jane');
-
-- `Set_Vars`
-
-        Handle the peculiar mix of instance options held in $class->{options},
-        the set of arguments passed to %args, a list of required and potentially
-        missing options, and whatever default values one wishes to set.
-
-        $options = $class->Set_Vars(exclude => 'bob');
-
-- `Last_Stat`
-
-        Last_Stat() reads the final line of an input file and returns it
-        as a string.
-
-        This is useful because many of these tools append to .csv files
-        with summary information (alignment statistics, sequence sizes,
-        etc) and the tests keep a set of expected outputs for the most
-        recent run.
-
-- `Read_Genome_Fasta`
-
-        Read a fasta file and return the chromosomes.
-
-- `Read_Genome_GFF`
-
-        Read a GFF file and extract the annotation information from it.
+1. [share/phage_annotation_pipeline.png](share/phage_annotation_pipeline.png)
 
 # AUTHOR - atb
 

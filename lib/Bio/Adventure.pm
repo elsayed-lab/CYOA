@@ -583,6 +583,7 @@ sub Get_Lesspipe {
         $ENV{$var} = $string;
         $result->{$var} = $string;
     }
+    $lesspipe->close();
     return($result);
 }
 
@@ -788,6 +789,7 @@ sub Get_Menus {
                 '(htseq): Count mappings with htseq-count.' =>  \&Bio::Adventure::Count::HTSeq,
                 '(htmulti): Use different option sets for counting with htseq.' => \&Bio::Adventure::Count::HT_Multi,
                 '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
+                '(mash): Use mash to count pairwise distances among sequences.' => \&Bio::Adventure::Count::Mash,
                 '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
                 '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
                 '(slsearch): Count frequency of SL (or an arbitrary) sequences.' => \&Bio::Adventure::Count::SLSearch,
@@ -1064,6 +1066,7 @@ sub Get_TODOs {
         "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
         "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
+        "mash+" => \$todo_list->{todo}{'Bio::Adventure::Count::Mash'},
         "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annotations'},
         "mergecds+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions'},
         "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},

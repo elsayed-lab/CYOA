@@ -52,7 +52,6 @@ sub HT_Multi {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input', 'htseq_stranded'],
-        gff_type => '',
         gff_type => 'gene',
         gff_id => 'ID',
         libtype => 'genome',
@@ -100,7 +99,6 @@ sub HT_Multi {
                 htseq_gff => $gff,
                 input => $htseq_input,
                 gff_type => $gff_type,
-                gff_type => undef, ## Force HTSeq to detect this.
                 gff_id => $options->{gff_id},
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
@@ -116,7 +114,6 @@ sub HT_Multi {
             my $ht = $class->Bio::Adventure::Count::HTSeq(
                 gff_type => $gff_type,
                 htseq_gff => $gtf,
-                gff_type => undef,
                 gff_id => $options->{gff_id},
                 input => $htseq_input,
                 jdepends => $options->{jdepends},
@@ -138,7 +135,6 @@ sub HT_Multi {
     if (-r "$gff") {
         print "Found ${gff}, performing htseq_all with it.\n";
         my $ht = $class->Bio::Adventure::Count::HTSeq(
-            gff_type => '',
             htseq_gff => $gff,
             gff_id => $ro_opts{gff_id},
             gff_type => $ro_opts{gff_type},
@@ -154,7 +150,6 @@ sub HT_Multi {
     } elsif (-r "${gtf}") {
         print "Found ${gtf}, performing htseq_all with it.\n";
         my $ht = $class->Bio::Adventure::Count::HTSeq(
-            gff_type => '',
             htseq_gff => $gff,
             gff_type => 'none',
             input => $htseq_input,
@@ -311,7 +306,6 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_stranded', 'htseq_args',],
-        gff_type => '',
         gff_type => 'gene',
         gff_id => 'ID',
         jname => '',
@@ -400,6 +394,7 @@ xz -f -9e ${output} \\
     my $htseq = $class->Submit(
         comment => $comment,
         gff_type => $options->{gff_type},
+        gff_id => $options->{gff_id},
         input => $htseq_input,
         jdepends => $options->{jdepends},
         jmem => 6,
@@ -410,8 +405,7 @@ xz -f -9e ${output} \\
         modules => $options->{modules},
         output => $output,
         postscript => $args{postscript},
-        prescript => $args{prescript},
-        );
+        prescript => $args{prescript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($htseq);
@@ -612,6 +606,62 @@ sub Jellyfish_Matrix {
     }
     $out->close();
     return($nmer_count);
+}
+
+=head2 C<Mash>
+
+ Calculate distances using mash
+
+=cut
+sub Mash {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jprefix => 21,
+        length => 9,
+        sketch => 9,
+        modules => ['mash'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('mash');
+    die('Could not find mash in your PATH.') unless($check);
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    ## Unlike most of my jobs, the input argument here is a directory, so just grab it
+    my $cwd_name = basename($options->{input});
+    my $output_dir = qq"outputs/$options->{jprefix}mash_${cwd_name}/dist";
+    my $sketch_dir = qq"outputs/$options->{jprefix}mash_${cwd_name}/sketch";
+    my $comment = qq"## Playing with mash";
+    my $jstring = qq!mkdir -p ${output_dir}
+mkdir -p ${sketch_dir}
+for fasta in $options->{input}/*; do
+  name="\${fasta%.*}"
+  mash sketch \\
+    -s $options->{sketch} -k $options->{length} \\
+    $options->{input}/\${fasta} \\
+    -o ${sketch_dir}/\${name}
+done
+
+for outer in ${sketch_dir}/*; do
+  name="\${outer%.*}"
+  for inner in ${sketch_dir}/*; do
+    mash dist \\
+      ${sketch_dir}/\${outer} \\
+      ${sketch_dir}/\${inner} >> \\
+      ${output_dir}/pairwise_distances_s$options->{sketch}_k$options->{length}.txt
+!;
+
+    my $mash = $class->Submit(
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => qq"mash_${job_name}_$options->{length}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 12,
+        modules => $options->{modules},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($mash);
 }
 
 =head2 C<Mi_Map>

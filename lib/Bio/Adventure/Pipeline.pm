@@ -637,7 +637,7 @@ sub Process_RNAseq {
             print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
             my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
                 jdepends => $last_job,
-                input => $nth_map->{samtools}->{output},
+                input => $nth_map->{samtools}->{paired_output},
                 species => $nth_species,
                 gff_type => $nth_type,
                 gff_id => $nth_id,
