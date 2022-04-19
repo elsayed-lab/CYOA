@@ -72,8 +72,13 @@ sub Bacphlip {
     my $jstring = qq?mkdir -p ${output_dir}
 cp $options->{input} ${output_dir}
 start=\$(pwd)
+contig_number=\$(grep "^>" $options->{input} | wc -l)
+multi_arg=""
+if (( "\${contig_number}" > 1 )); then
+  multi_arg=" --multi_fasta "
+fi
 cd ${output_dir}
-bacphlip -f -i ${in_base} \\
+bacphlip -f \${multi_arg} -i ${in_base} \\
   2>${out_base}.stderr \\
   1>${out_base}.stdout
 cd \${start}
@@ -394,7 +399,7 @@ sub Classify_Phage_Worker {
     my $blast_outfile = qq"$options->{output_blast}";
     my $final_fh = FileHandle->new(">$options->{output}");
     ## Print the tsv header: contig, description, taxon,length
-    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_famil'y\thit_genus\n";
+    print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_family\thit_genus\n";
     my @params = (
         -e => $options->{evalue},
         -db_name => $options->{library},
@@ -756,6 +761,7 @@ sub Filter_Kraken_Worker {
         }
         my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
         if (-r $downloaded_file) {
+            print STDOUT "The file: ${downloaded_file} already exists.\n";
             print $out "The file: ${downloaded_file} already exists.\n";
         } else {
             my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
@@ -788,7 +794,14 @@ sub Filter_Kraken_Worker {
 
         ## Convert the assembly to fasta/gff/etc.
         print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
-        my $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
+        my $test_name = basename($downloaded_file, ('.gz', '.gbff'));
+        my $test_input = qq"$options->{libdir}/$options->{libtype}/${test_name}.fasta";
+        my $converted;
+        if (-r $test_input) {
+            $converted = $test_input;
+        } else {
+            $converted = $class->Bio::Adventure::Convert::Gb2Gff(input => $downloaded_file);
+        }
     } ## End checking if the host_species was defined.
 
     my $cyoa_shell = Bio::Adventure->new(cluster => 0);

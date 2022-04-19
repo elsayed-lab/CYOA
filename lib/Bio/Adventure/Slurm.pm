@@ -86,9 +86,15 @@ sub Submit {
 
     ## Remove the need for two functions that do the same thing except one for perl and one for bash
     if ($options->{language} eq 'perl') {
-        my $perl_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.pl";
-        my $perl_stderr = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.stderr";
-        my $perl_stdout = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.stdout";
+        my $perl_base = qq"$options->{basedir}/scripts";
+        my $perl_file = qq"${perl_base}/$options->{jprefix}$options->{jname}.pl";
+        if (defined($options->{output_dir})) {
+            $perl_base = $options->{output_dir};
+        } elsif (defined($options->{output})) {
+            $perl_base = dirname($options->{output});
+        }
+        my $perl_stderr = qq"${perl_base}/$options->{jprefix}$options->{jname}.stderr";
+        my $perl_stdout = qq"${perl_base}/$options->{jprefix}$options->{jname}.stdout";
         my $perl_start = qq?#!/usr/bin/env perl
 use strict;
 use FileHandle;
@@ -181,7 +187,7 @@ echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it too
 if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}' | head -n 1 2>/dev/null)
   echo "  walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
-  maxmem=\$(sstat --format=MaxVMSize -j "\${SLURM_JOBID}" 2>/dev/null)
+  maxmem=\$(sstat --format=MaxVMSize -j "\${SLURM_JOBID} | tail -n 1" 2>/dev/null)
   echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
   echo "" >> ${sbatch_log}
 fi

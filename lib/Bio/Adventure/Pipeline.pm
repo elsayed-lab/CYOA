@@ -1231,7 +1231,7 @@ sub Phage_Assemble {
         jdepends => $last_job,
         jprefix => $prefix,
         input => $merge->{output_gbk},);
-    $last_job = $cgview->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1241,7 +1241,7 @@ sub Phage_Assemble {
         input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'vienna',);
-    $last_job = $vienna->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1251,7 +1251,7 @@ sub Phage_Assemble {
         input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'restrict',);
-    $last_job = $re_search->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1262,7 +1262,7 @@ sub Phage_Assemble {
         species => 'host_species.txt',
         jprefix => $prefix,
         jname => 'restrict',);
-    $last_job = $caical->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1272,7 +1272,7 @@ sub Phage_Assemble {
         input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'phagepromoter',);
-    $last_job = $phagepromoter->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1282,7 +1282,7 @@ sub Phage_Assemble {
         input => $merge->{output_fsa},
         jprefix => $prefix,
         jname => 'rhopredict',);
-    $last_job = $rhopredict->{job_id};
+    ## Not setting last_job, allowing the next jobs to skip past this.
     sleep(0.2);
 
     $prefix = sprintf("%02d", ($prefix + 1));

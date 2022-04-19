@@ -311,7 +311,6 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_stranded', 'htseq_args',],
-        gff_type => '',
         gff_type => 'gene',
         gff_id => 'ID',
         jname => '',
@@ -325,7 +324,7 @@ sub HTSeq {
     my $gff_id = $options->{gff_id};
     my $htseq_input = $options->{input};
     my $gff_type = 'all';
-    if ($options->{gff_type} ne '') {
+    if (defined($options->{gff_type}) && $options->{gff_type} ne '') {
         $gff_type = $options->{gff_type};
     }
     ## Top level directory containing the input files.
