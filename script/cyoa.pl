@@ -96,13 +96,13 @@ sub Iterate {
     my $options = $class->Get_Vars();
     my $term = $args{term};
     my $menus = Bio::Adventure::Get_Menus();
-    my $type = $args{task};
+    my $task = $args{task};
     my $finished = 0;
     my $process;
     while ($finished != 1) {
-        my $choices = $menus->{$type}->{choices};
+        my $choices = $menus->{$task}->{choices};
         my @choice_list = sort keys(%{$choices});
-        my $task_name = $term->get_reply(prompt => $menus->{$type}->{message},
+        my $task_name = $term->get_reply(prompt => $menus->{$task}->{message},
                                          choices => \@choice_list, default => 1);
         ## This now returns a function reference.
         my $task = $choices->{$task_name};
@@ -114,7 +114,7 @@ sub Iterate {
         }
         foreach my $d (@dirs) {
             chdir($d);
-            $process = $task->($class, type => $type, interactive => $args{interactive});
+            $process = $task->($class, task => $task, interactive => $args{interactive});
             chdir($start_dir);
         }
         my $bool = $term->ask_yn(prompt => 'Go back to the toplevel?', default => 'n',);
@@ -144,7 +144,7 @@ The Run_Method() runs an individual method, kind of like it says on the tin.
 =cut
 sub Run_Method {
     my ($class, %args) = @_;
-    my $type = $args{task};
+    my $task = $args{task};
     my $method = $args{method};
 
     my @choices = @{$class->{methods_to_run}};
@@ -162,7 +162,7 @@ sub Run_Method {
         foreach my $d (@dirs) {
             sleep(1);
             chdir($d);
-            $process = $job->($class_copy, type => $type, interactive => $args{interactive}, %args);
+            $process = $job->($class_copy, task => $task, interactive => $args{interactive}, %args);
             chdir($start_dir);
         }
     }

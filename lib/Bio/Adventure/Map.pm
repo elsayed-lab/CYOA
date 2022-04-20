@@ -781,6 +781,7 @@ sub Hisat2 {
         count => 1,
         libtype => 'genome',
         jmem => 48,
+        jname => 'hisat2',
         jprefix => '40',
         maximum => undef,
         jwalltime => '72:00:00',

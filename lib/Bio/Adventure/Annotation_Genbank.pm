@@ -202,6 +202,101 @@ sub Combine_CDS_Features {
     return(\@merged_cds);
 }
 
+=head2 C<Extract_Features>
+
+  Extract keyword-based sequences from a genbank file.
+
+=cut
+sub Extract_Features {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        term => 'tail',
+        type => 'CDS',
+        id_tag => 'locus_tag',
+        search_tag => 'note');
+    my $type = $options->{type};
+    unless (-r $options->{input}) {
+        die("Unable to find input genbank file.");
+    }
+    my $output_dir = qq"outputs/extract_sequences";
+    make_path($output_dir) unless (-d $output_dir);
+
+    my $search = lc($options->{term});
+    my $output_name = basename($options->{input}, ('.gz', '.xz'));
+    $output_name = basename($output_name , ('.genbank', '.gbk', '.gb'));
+    my $output_file = qq"${output_dir}/${output_name}_extracted.fasta";
+    my $output = Bio::SeqIO->new(-file => qq">${output_file}",
+                                 -format => 'Fasta');
+    my $pep_file = qq"${output_dir}/${output_name}_extracted_pep.fasta";
+    my $output_pep = Bio::SeqIO->new(-file => qq">${pep_file}",
+                                     -format => 'Fasta');
+    my $in = FileHandle->new("less $options->{input} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $num_hits = 0;
+  SEQUENCES: while (my $seq = $seqio->next_seq) {
+      my $seqid = $seq->id;
+      my @feature_list = $seq->get_SeqFeatures();
+    FEATURES: for my $feat (@feature_list) {
+        my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
+        next FEATURES unless ($primary eq $options->{type});
+        my $contig = $feat->seq_id(); ## The contig ID
+        my $annot = $feat->annotation();
+        my $type = $feat->primary_tag;
+        my @names = $feat->get_tag_values($options->{id_tag});
+        my $name = $names[0];
+        ## use Data::Dumper;
+        ## print Dumper $feat;
+        my @tags = $feat->get_all_tags();
+        my $chosen_tag = undef;
+        if (defined($options->{id_tag}) && $options->{id_tag} ne '') {
+            if (grep /^$options->{search_tag}$/, @tags) {
+                $chosen_tag = $options->{search_tag};
+            }
+        }
+        my @loci;
+        if ($chosen_tag) {
+            @loci = $feat->get_tag_values($chosen_tag);
+            for my $l (@loci) {
+                $l = lc($l);
+                my $found = $l =~ m/${search}/;
+                if ($found) {
+                    $num_hits++;
+                    print "Observed a potential hit, gene: ${l}\n";
+                    my $cds_obj = Bio::Seq->new(-display_id => $name,
+                                                -seq => $feat->seq->seq);
+                    my $aa_obj = Bio::Seq->new(-display_id => $name,
+                                               -seq => $feat->seq->translate->seq);
+
+                    $output->write_seq($cds_obj);
+                    $output_pep->write_seq($aa_obj);
+                }
+            }
+        } else {
+            for my $t (@tags) {
+                @loci = $feat->get_tag_values($t);
+                for my $l (@loci) {
+                    $l = lc($l);
+                    print "TESTME: $l\n";
+                    my $found = $l =~ m/${search}/;
+                    if ($found) {
+                        $num_hits++;
+                        my $cds_obj = Bio::Seq->new(-display_id => $name,
+                                                    -seq => $feat->seq->seq);
+                        my $aa_obj = Bio::Seq->new(-display_id => $name,
+                                                   -seq => $feat->seq->translate->seq);
+                        $output->write_seq($cds_obj);
+                        $output_pep->write_seq($aa_obj);
+                    }
+                }
+            }
+        }
+    } ## End looking at features on this sequence
+  } ## End looking at this sequence
+    return($num_hits);
+}
+
 sub Filter_Edge_Features {
     my %args = @_;
     my @features = @{$args{features}};

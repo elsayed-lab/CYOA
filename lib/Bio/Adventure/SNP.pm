@@ -312,6 +312,7 @@ sub SNP_Ratio {
         required => ['input', 'species', 'gff_tag', 'gff_type'],
         jprefix => '80',
         jname => 'parsenp',
+        vcf_method => 'freebayes',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
         modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'gatk',
@@ -343,6 +344,7 @@ use Bio::Adventure::SNP;
 my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
   input => '$print_input',
   species => '$options->{species}',
+  vcf_method => '$options->{vcf_method}',
   vcf_cutoff => '$options->{vcf_cutoff}',
   vcf_minpct => '$options->{vcf_minpct}',
   gff_tag => '$options->{gff_tag}',
@@ -397,7 +399,7 @@ sub SNP_Ratio_Worker {
         min_depth => 5,
         min_value => 0.8,
         max_value => undef,
-        method => 'freebayes',
+        vcf_method => 'freebayes',
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
         output => 'all.txt',
@@ -433,14 +435,36 @@ sub SNP_Ratio_Worker {
     ## values of every observed tag.  For now I am just going to hard-code the order,
     ## but it should not be difficult to parse this out of the header lines of the
     ## bcf file.
+
+    ## Here, I think are the relevant mpileup tags of likely interest:
+
+    ##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+    ##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias for filtering splice-site artefacts in RNA-seq data (bigger is better)",Version="3">ID=RPB,Number=1,Type=Float,Description="Mann-Whitney U test of Read Position Bias (bigger is better)">
+    ##INFO=<ID=MQB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality Bias (bigger is better)">
+    ##INFO=<ID=BQB,Number=1,Type=Float,Description="Mann-Whitney U test of Base Quality Bias (bigger is better)">
+    ##INFO=<ID=MQSB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality vs Strand Bias (bigger is better)">
+    ##INFO=<ID=ADR,Number=R,Type=Integer,Description="Total allelic depths on the reverse strand">
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##INFO=<ID=ICB,Number=1,Type=Float,Description="Inbreeding Coefficient Binomial test (bigger is better)">
+    ##INFO=<ID=HOB,Number=1,Type=Float,Description="Bias in the number of HOMs number (smaller is better)">
+    ##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes for each ALT allele, in the same order as listed">
+    ##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+
+    ## If I recall properly, the one of primary interest for looking at questions of penetrance is: DP4.
+
+    ## Here is an arbitrary vcf line as a refresher to make sure I grabbed them all:
+    ## NC_045512.2     3037    .       C       T       224     PASS    DP=244;ADF=0,121;ADR=0,121;AD=0,242;VDB=0;SGB=-0.693147;MQSB=0.976205;MQ0F=0;AC=2;AN=2;DP4=0,0,121,121;MQ=42    GT:PL:DP:SP:ADF:ADR:AD  1/1:254,255,0:242:0:0,121:0,121:0,242
+
+
     my @mpileup_tag_order = (
-        'NS', 'DP', 'DPB', 'AC', 'AN', 'AF', 'RO', 'AO',
-        'PRO', 'PAO', 'QR', 'QA', 'PQR', 'PQA', 'SRF', 'SRR', 'SAF',
-        'SAR', 'SRP', 'SAP', 'AB', 'ABP', 'RUN', 'RPP', 'RPPR', 'RPL',
-        'RPR', 'EPP', 'EPPR', 'DPRA', 'ODDS', 'GTI', 'TYPE', 'CIGAR',
-        'NUMALT', 'LEN', 'MQM', 'MQMR', 'PAIRED', 'PAIREDR', 'MIN_DP',
-        'END', 'GT', 'GQ', 'GL', 'DP', 'AD', 'RO', 'QR', 'AO', 'QA',
-        'MIN_DP', 'snp_pct');
+        'DP', 'ADF', 'AD', 'VDB', 'SGB', 'MQ0F', 'RPB', 'MQB', 'BQB', 'MQSB', 'ADR', 'GT',
+        'ICB', 'HOB', 'AC', 'AN', 'DP4', 'MQ',);
     my @freebayes_tag_order = (
         'NS', 'DP', 'DPB', 'AC', 'AN', 'AF', 'RO', 'AO',
         'PRO', 'PAO', 'QR', 'QA', 'PQR', 'PQA', 'SRF', 'SRR', 'SAF',
@@ -452,7 +476,7 @@ sub SNP_Ratio_Worker {
     ## Make a data structure containing arrays for the set of observed tags in the vcf file.
     ## It should be an array which ends at length of the number of bcf entries.
     my @tag_order = ();
-    if ($options->{method} eq 'freebayes') {
+    if ($options->{vcf_method} eq 'freebayes') {
         @tag_order = @freebayes_tag_order;
     } else {
         @tag_order = @mpileup_tag_order;
@@ -551,7 +575,7 @@ sub SNP_Ratio_Worker {
         my ($element_type, $element_value) = split(/=/, $element);
 
         ## At this point, add some post-processing for tags which are multi-element.
-        if ($options->{method} eq 'mpileup' && $element_type eq 'DP4') {
+        if ($options->{vcf_method} eq 'mpileup' && $element_type eq 'DP4') {
             my ($same_forward, $same_reverse, $alt_forward, $alt_reverse) = split(/,/, $element_value);
             $diff_sum = $alt_forward + $alt_reverse;
             $all_sum = $same_forward + $same_reverse + $diff_sum;
@@ -855,7 +879,7 @@ sub SNP_Ratio_Intron_Worker {
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         max_value => undef,
-        method => 'freebayes',
+        vcf_method => 'freebayes',
         output => 'all.txt',
         output_count => 'count.txt',
         output_genome => 'new_genome.fasta',
@@ -917,7 +941,7 @@ sub SNP_Ratio_Intron_Worker {
     ## Make a data structure containing arrays for the set of observed tags in the vcf file.
     ## It should be an array which ends at length of the number of bcf entries.
     my @tag_order = ();
-    if ($options->{method} eq 'freebayes') {
+    if ($options->{vcf_method} eq 'freebayes') {
         @tag_order = @freebayes_tag_order;
     } else {
         @tag_order = @mpileup_tag_order;
@@ -1015,7 +1039,7 @@ sub SNP_Ratio_Intron_Worker {
     TAGS: foreach my $element (@info_list) {
         my ($element_type, $element_value) = split(/=/, $element);
         ## At this point, add some post-processing for tags which are multi-element.
-        if ($options->{method} eq 'mpileup' && $element_type eq 'DP4') {
+        if ($options->{vcf_method} eq 'mpileup' && $element_type eq 'DP4') {
             my ($same_forward, $same_reverse, $alt_forward, $alt_reverse) = split(/,/, $element_value);
             $diff_sum = $alt_forward + $alt_reverse;
             $all_sum = $same_forward + $same_reverse + $diff_sum;

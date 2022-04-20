@@ -241,7 +241,8 @@ touch ${finished_file}
         print Dumper $job;
     }
     ## Take a moment to reset the shell and language
-    my $reset = Bio::Adventure::Reset_Vars($class);
+    ##my $reset = Bio::Adventure::Reset_Vars($class);
+    ##$reset = Bio::Adventure::Reset_Vars($parent);
     return($job);
 }
 

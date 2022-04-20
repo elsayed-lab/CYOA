@@ -391,6 +391,7 @@ has type => (is => 'rw', default => undef); ## Possibly superceded by htseq_type
 has varfilter => (is => 'rw', default => 1); ## use a varfilter when performing variant searches.
 has verbose => (is => 'rw', default => 0); ## Print extra information while running?
 has vcf_cutoff => (is => 'rw', default => 10); ## Minimum depth cutoff for variant searches
+has vcf_method => (is => 'rw', default => 'freebayes');
 has vcf_minpct => (is => 'rw', default => 0.8); ## Minimum percent agreement for variant searches.
 ## A few variables which are by definition hash references and such
 has slots_ignored => (is => 'ro', default => 'slots_ignored,methods_to_run,menus,term,todos,variable_getvars_args,variable_function_overrides,variable_getopt_overrides,variable_current_state');  ## Ignore these slots when poking at the class.
@@ -930,6 +931,7 @@ sub Get_Menus {
                 '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
                 '(freebayes): Use freebayes to create a vcf file and filter it.' => \&Bio::Adventure::SNP::Freebayes_SNP_Search,
                 '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
+                '(parsnp): Parse an existing bcf file and print some fun tables.' => &Bio::Adventure::SNP::SNP_Ratio,
                 '(snpsearch): Use mpileup to create a vcf file and filter it. (bam input)' => \&Bio::Adventure::SNP::Mpileup_SNP_Search,
                 '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => \&Bio::Adventure::SNP::SNP_Ratio,
                 '(snp): Perform alignments and search for variants. (fastq input)' => \&Bio::Adventure::SNP::Align_SNP_Search,
@@ -1042,6 +1044,7 @@ sub Get_TODOs {
         "fastaparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta'},
         "fastqct+" => \$todo_list->{todo}{'Bio::Adventure::QA::Fastqc'},
         "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
+        "featureextract+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Extract_Features'},
         "filterdepth+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler_Filter_Depth'},
         "filterkraken+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Filter_Host_Kraken'},
         "freebayes+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Freebayes_SNP_Search'},
@@ -1078,6 +1081,7 @@ sub Get_TODOs {
         "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
         "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Prodigal'},
         "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
+        "parsebcf+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
         "phagepromoter+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction_Phagepromoter'},
         "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
         "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},
@@ -1334,10 +1338,11 @@ sub Get_Vars {
         next if ($varname eq 'required' || $varname eq 'args');
         $returned_vars{$varname} = $function_override_vars{$varname};
         ## Try to ensure that the shell reverts to the default 'bash'
-        if (!defined($function_override_vars{language})) {
-            $returned_vars{language} = 'bash';
-            $returned_vars{shell} = '/usr/bin/env bash';
-        }
+        ## I think the following 4 lines are no longer needed.
+        ##if (!defined($function_override_vars{language})) {
+        ##    $returned_vars{language} = 'bash';
+        ##    $returned_vars{shell} = '/usr/bin/env bash';
+        ##}
     }
     ## Final loop to pick up options from the commandline or a TERM prompt.
     ## These supercede everything else.
