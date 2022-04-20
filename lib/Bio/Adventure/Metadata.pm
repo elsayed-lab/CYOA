@@ -587,10 +587,10 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     print $log_fh qq"Reading tsv data from $options->{input_tsv} to start.\n";
     ## 1a above, the starter set of annotations.
     unless (-r $options->{input_tsv}) {
-        die("Unable to find the tsv input: $options->{input_tsv}, this is required.\n");
+        die("Unable to find the tsv input: $options->{input_tsv}, this is required.");
     }
     unless (-r $options->{input_genbank}) {
-        die("Unable to find the prokka genbank output: $options->{input_genbank}, this is required.\n");
+        die("Unable to find the prokka genbank output: $options->{input_genbank}, this is required.");
     }
 
     ## The template sbt file was written with template toolkit variables which will need

@@ -1444,16 +1444,25 @@ sub Load_Vars {
 =cut
 sub Reset_Vars {
     my ($class, %args) = @_;
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
-    $class->{jmem} = 12;
-    $class->{jname} = 'undefined';
-    $class->{jnice} = 10;
-    $class->{jqueue} = 'workstation';
-    $class->{jwalltime} = '10:00:00';
-    $class->{jstring} = '';
-    $class->{jdepends} = undef;
-    $class->{jbasename} = undef;
+    my %original_values = (
+        jbasename => undef,
+        jdepends => undef,
+        jmem => 12,
+        jname => 'undefined',
+        jqueue => 'workstation',
+        jprefix => '',
+        jstring => '',
+        jwalltime => '10:00:00',
+        language => 'bash',
+        shell => '/usr/bin/env bash',
+        );
+    for my $k (keys %original_values) {
+        $class->{$k} = $original_values{$k};
+        $class->{variable_current_state}->{$k} = $original_values{$k};
+        $class->{variable_function_overrides}->{$k} = $original_values{$k};
+        $class->{variable_getvars_args}->{$k} = $original_values{$k};
+    }
+    return($class);
 }
 
 
@@ -1816,7 +1825,7 @@ sub Submit {
         $runner->{$k} = $options->{$k};
     }
     my $result = $runner->Submit($class, %args);
-    my $reset = $class->Reset_Vars();
+    $class = $class->Reset_Vars();
     return($result);
 }
 
