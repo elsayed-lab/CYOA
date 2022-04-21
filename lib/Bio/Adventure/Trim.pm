@@ -259,6 +259,7 @@ sub Trimomatic_Pairwise {
         required => ['input',],
         quality => '20',
         jmem => 24,
+        jwalltime => '48:00:00',
         modules => ['trimomatic'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
