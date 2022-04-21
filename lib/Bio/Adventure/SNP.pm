@@ -74,6 +74,7 @@ sub Freebayes_SNP_Search {
         coverage_tag => 'DP',
         min_depth => 5,
         min_value => 0.5,
+        max_value => undef,
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_cds_parent_type => 'mRNA',
@@ -152,7 +153,10 @@ rm ${output_file}
             gff_cds_type => $options->{gff_cds_type},
             min_depth => $options->{min_depth},
             min_value => $options->{min_value},
+            max_value => $options->{max_value},
             input => ${output_bcf},
+            species => $options->{species},
+            vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_intron_${query_base}",
             jprefix => $options->{jprefix} + 1,
@@ -163,13 +167,15 @@ rm ${output_file}
             coverage_tag => $options->{coverage_tag},
             gff_tag => $options->{gff_tag},
             gff_type => $options->{gff_type},
+            input => ${output_bcf},
+            max_value => $options->{max_value},
             min_depth => $options->{min_depth},
             min_value => $options->{min_value},
-            input => ${output_bcf},
+            species => $options->{species},
+            vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_${query_base}",
-            jprefix => $options->{jprefix} + 1,
-            species => $options->{species},);
+            jprefix => $options->{jprefix} + 1,);
     }
     $freebayes->{parse} = $parse;
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -315,8 +321,8 @@ sub SNP_Ratio {
         vcf_method => 'freebayes',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'gatk',
-                    'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['freebayes', 'libgsl', 'libhts', 'gatk',
+                    'samtools', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $check = which('bcftools');
     die('Could not find bcftools in your PATH.') unless($check);
@@ -408,7 +414,7 @@ sub SNP_Ratio_Worker {
         output_by_gene => 'counts_by_gene.txt',
         output_pkm => 'by_gene_length.txt',
         output_dir => 'outputs/40freebayes',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13',
+        modules => ['freebayes', 'libgsl', 'libhts', 'samtools',
                     'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $species = $options->{species};
@@ -435,32 +441,6 @@ sub SNP_Ratio_Worker {
     ## values of every observed tag.  For now I am just going to hard-code the order,
     ## but it should not be difficult to parse this out of the header lines of the
     ## bcf file.
-
-    ## Here, I think are the relevant mpileup tags of likely interest:
-
-    ##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
-    ##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias for filtering splice-site artefacts in RNA-seq data (bigger is better)",Version="3">ID=RPB,Number=1,Type=Float,Description="Mann-Whitney U test of Read Position Bias (bigger is better)">
-    ##INFO=<ID=MQB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality Bias (bigger is better)">
-    ##INFO=<ID=BQB,Number=1,Type=Float,Description="Mann-Whitney U test of Base Quality Bias (bigger is better)">
-    ##INFO=<ID=MQSB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality vs Strand Bias (bigger is better)">
-    ##INFO=<ID=ADR,Number=R,Type=Integer,Description="Total allelic depths on the reverse strand">
-    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-    ##INFO=<ID=ICB,Number=1,Type=Float,Description="Inbreeding Coefficient Binomial test (bigger is better)">
-    ##INFO=<ID=HOB,Number=1,Type=Float,Description="Bias in the number of HOMs number (smaller is better)">
-    ##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes for each ALT allele, in the same order as listed">
-    ##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
-    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
-    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
-    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
-    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
-    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
-    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
-
-    ## If I recall properly, the one of primary interest for looking at questions of penetrance is: DP4.
-
-    ## Here is an arbitrary vcf line as a refresher to make sure I grabbed them all:
-    ## NC_045512.2     3037    .       C       T       224     PASS    DP=244;ADF=0,121;ADR=0,121;AD=0,242;VDB=0;SGB=-0.693147;MQSB=0.976205;MQ0F=0;AC=2;AN=2;DP4=0,0,121,121;MQ=42    GT:PL:DP:SP:ADF:ADR:AD  1/1:254,255,0:242:0:0,121:0,121:0,242
-
 
     my @mpileup_tag_order = (
         'DP', 'ADF', 'AD', 'VDB', 'SGB', 'MQ0F', 'RPB', 'MQB', 'BQB', 'MQSB', 'ADR', 'GT',
@@ -552,6 +532,33 @@ sub SNP_Ratio_Worker {
     ## these various tags.  The good news is that they have some nice scores referring to the
     ## likelihood of heterozygosity, which is precisely what I want to quantify in my current
     ## round of analysis
+
+    ## In contrast, here are the tags from samtools' mpileup (btw, this is just copy/pasted
+    ## from the vcf header):
+
+    ##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+    ##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias for filtering splice-site artefacts in RNA-seq data (bigger is better)",Version="3">ID=RPB,Number=1,Type=Float,Description="Mann-Whitney U test of Read Position Bias (bigger is better)">
+    ##INFO=<ID=MQB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality Bias (bigger is better)">
+    ##INFO=<ID=BQB,Number=1,Type=Float,Description="Mann-Whitney U test of Base Quality Bias (bigger is better)">
+    ##INFO=<ID=MQSB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality vs Strand Bias (bigger is better)">
+    ##INFO=<ID=ADR,Number=R,Type=Integer,Description="Total allelic depths on the reverse strand">
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##INFO=<ID=ICB,Number=1,Type=Float,Description="Inbreeding Coefficient Binomial test (bigger is better)">
+    ##INFO=<ID=HOB,Number=1,Type=Float,Description="Bias in the number of HOMs number (smaller is better)">
+    ##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes for each ALT allele, in the same order as listed">
+    ##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+    ##INFO=<ID=DP4,Number=4,Type=Integer,Description="Number of high-quality ref-forward , ref-reverse, alt-forward and alt-reverse bases">
+    ##INFO=<ID=MQ,Number=1,Type=Integer,Description="Average mapping quality">
+
+    ## If I recall properly, the one of primary interest for looking at questions of penetrance is: DP4.
+
+    ## Here is an arbitrary vcf line as a refresher to make sure I grabbed them all:
+    ## NC_045512.2     3037    .       C       T       224     PASS    DP=244;ADF=0,121;ADR=0,121;AD=0,242;VDB=0;SGB=-0.693147;MQSB=0.976205;MQ0F=0;AC=2;AN=2;DP4=0,0,121,121;MQ=42    GT:PL:DP:SP:ADF:ADR:AD  1/1:254,255,0:242:0:0,121:0,121:0,242
+
     print $log "Reading bcf file.\n";
     my $count = 0; ## Use this to count the positions changed in the genome.
     my $num_variants = 0; ## Use this to count the variant positions of reasonably high confidence.
@@ -789,8 +796,8 @@ sub SNP_Ratio_Intron {
         gff_cds_type => 'CDS',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'gatk',
-                    'samtools/1.13', 'bcftools', 'vcftools'],);
+        modules => ['freebayes', 'libgsl', 'libhts', 'gatk',
+                    'samtools', 'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $check = which('bcftools');
     die('Could not find bcftools in your PATH.') unless($check);
@@ -871,14 +878,14 @@ sub SNP_Ratio_Intron_Worker {
         required => ['species', 'input'],
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        min_depth => 5,
-        min_value => 0.5,
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_exon_type => 'exon',
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         max_value => undef,
+        min_depth => 5,
+        min_value => 0.5,
         vcf_method => 'freebayes',
         output => 'all.txt',
         output_count => 'count.txt',
@@ -886,7 +893,7 @@ sub SNP_Ratio_Intron_Worker {
         output_by_gene => 'counts_by_gene.txt',
         output_pkm => 'by_gene_length.txt',
         output_dir => 'outputs/40freebayes',
-        modules => ['freebayes', 'libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13',
+        modules => ['freebayes', 'libgsl', 'libhts', 'samtools',
                     'bcftools', 'vcftools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $species = $options->{species};
@@ -956,67 +963,6 @@ sub SNP_Ratio_Intron_Worker {
     ## Then fill it with a hash of the tags from @tag_order
     ## The following hash will be over written.
 
-    ## There is a problem with the above, when I wrote it I assumed that all tools which
-    ## boil down to a bcf file would have the same tags describing the quality of the
-    ## observation.  That is a bad assumption, here are the tags from freebayes:
-    ## NS,Number=1,Type=Integer,Description="Number of samples with data">
-    ## DP,Number=1,Type=Integer,Description="Total read depth at the locus">
-    ## DPB,Number=1,Type=Float,Description="Total read depth per bp at the locus; bases in reads overlapping / bases in haplotype">
-    ## AC,Number=A,Type=Integer,Description="Total number of alternate alleles in called genotypes">
-    ## AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
-    ## AF,Number=A,Type=Float,Description="Estimated allele frequency in the range (0,1]">
-    ## RO,Number=1,Type=Integer,Description="Count of full observations of the reference haplotype.">
-    ## AO,Number=A,Type=Integer,Description="Count of full observations of this alternate haplotype.">
-    ## PRO,Number=1,Type=Float,Description="Reference allele observation count, with partial observations recorded fractionally">
-    ## PAO,Number=A,Type=Float,Description="Alternate allele observations, with partial observations recorded fractionally">
-    ## QR,Number=1,Type=Integer,Description="Reference allele quality sum in phred">
-    ## QA,Number=A,Type=Integer,Description="Alternate allele quality sum in phred">
-    ## PQR,Number=1,Type=Float,Description="Reference allele quality sum in phred for partial observations">
-    ## PQA,Number=A,Type=Float,Description="Alternate allele quality sum in phred for partial observations">
-    ## SRF,Number=1,Type=Integer,Description="Number of reference observations on the forward strand">
-    ## SRR,Number=1,Type=Integer,Description="Number of reference observations on the reverse strand">
-    ## SAF,Number=A,Type=Integer,Description="Number of alternate observations on the forward strand">
-    ## SAR,Number=A,Type=Integer,Description="Number of alternate observations on the reverse strand">
-    ## SRP,Number=1,Type=Float,Description="Strand balance probability for the reference allele: Phred-scaled upper-bounds estimate of the probability of observing the deviation between SRF and SRR given E(SRF/SRR) ~ 0.5, derived using Hoeffding's inequality">
-    ## SAP,Number=A,Type=Float,Description="Strand balance probability for the alternate allele: Phred-scaled upper-bounds estimate of the probability of observing the deviation between SAF and SAR given E(SAF/SAR) ~ 0.5, derived using Hoeffding's inequality">
-    ## AB,Number=A,Type=Float,Description="Allele balance at heterozygous sites: a number between 0 and 1 representing the ratio of reads showing the reference allele to all reads, considering only reads from individuals called as heterozygous">
-    ## ABP,Number=A,Type=Float,Description="Allele balance probability at heterozygous sites: Phred-scaled upper-bounds estimate of the probability of observing the deviation between ABR and ABA given E(ABR/ABA) ~ 0.5, derived using Hoeffding's inequality">
-    ## RUN,Number=A,Type=Integer,Description="Run length: the number of consecutive repeats of the alternate allele in the reference genome">
-    ## RPP,Number=A,Type=Float,Description="Read Placement Probability: Phred-scaled upper-bounds estimate of the probability of observing the deviation between RPL and RPR given E(RPL/RPR) ~ 0.5, derived using Hoeffding's inequality">
-    ## RPPR,Number=1,Type=Float,Description="Read Placement Probability for reference observations: Phred-scaled upper-bounds estimate of the probability of observing the deviation between RPL and RPR given E(RPL/RPR) ~ 0.5, derived using Hoeffding's inequality">
-    ## RPL,Number=A,Type=Float,Description="Reads Placed Left: number of reads supporting the alternate balanced to the left (5') of the alternate allele">
-    ## RPR,Number=A,Type=Float,Description="Reads Placed Right: number of reads supporting the alternate balanced to the right (3') of the alternate allele">
-    ## EPP,Number=A,Type=Float,Description="End Placement Probability: Phred-scaled upper-bounds estimate of the probability of observing the deviation between EL and ER given E(EL/ER) ~ 0.5, derived using Hoeffding's inequality">
-    ## EPPR,Number=1,Type=Float,Description="End Placement Probability for reference observations: Phred-scaled upper-bounds estimate of the probability of observing the deviation between EL and ER given E(EL/ER) ~ 0.5, derived using Hoeffding's inequality">
-    ## DPRA,Number=A,Type=Float,Description="Alternate allele depth ratio.  Ratio between depth in samples with each called alternate allele and those without.">
-    ## ODDS,Number=1,Type=Float,Description="The log odds ratio of the best genotype combination to the second-best.">
-    ## GTI,Number=1,Type=Integer,Description="Number of genotyping iterations required to reach convergence or bailout.">
-    ## TYPE,Number=A,Type=String,Description="The type of allele, either snp, mnp, ins, del, or complex.">
-    ## CIGAR,Number=A,Type=String,Description="The extended CIGAR representation of each alternate allele, with the exception that '=' is replaced by 'M' to ease VCF parsing.  Note that INDEL alleles do not have the first matched base (which is provided by default, per the spec) referred to by the CIGAR.">
-    ## NUMALT,Number=1,Type=Integer,Description="Number of unique non-reference alleles in called genotypes at this position.">
-    ## ,Number=A,Type=Float,Description="Mean number of unique non-reference allele observations per sample with the corresponding alternate alleles.">
-    ## LEN,Number=A,Type=Integer,Description="allele length">
-    ## MQM,Number=A,Type=Float,Description="Mean mapping quality of observed alternate alleles">
-    ## MQMR,Number=1,Type=Float,Description="Mean mapping quality of observed reference alleles">
-    ## PAIRED,Number=A,Type=Float,Description="Proportion of observed alternate alleles which are supported by properly paired read fragments">
-    ## PAIREDR,Number=1,Type=Float,Description="Proportion of observed reference alleles which are supported by properly paired read fragments">
-    ## MIN_DP,Number=1,Type=Integer,Description="Minimum depth in gVCF output block.">
-    ## END,Number=1,Type=Integer,Description="Last position (inclusive) in gVCF output record.">
-    ## GT,Number=1,Type=String,Description="Genotype">
-    ## GQ,Number=1,Type=Float,Description="Genotype Quality, the Phred-scaled marginal (or unconditional) probability of the called genotype">
-    ## GL,Number=G,Type=Float,Description="Genotype Likelihood, log10-scaled likelihoods of the data given the called genotype for each possible genotype generated from the reference and alternate alleles given the sample ploidy">
-    ## DP,Number=1,Type=Integer,Description="Read Depth">
-    ## AD,Number=R,Type=Integer,Description="Number of observation for each allele">
-    ## RO,Number=1,Type=Integer,Description="Reference allele observation count">
-    ## QR,Number=1,Type=Integer,Description="Sum of quality of the reference observations">
-    ## AO,Number=A,Type=Integer,Description="Alternate allele observation count">
-    ## QA,Number=A,Type=Integer,Description="Sum of quality of the alternate observations">
-    ## MIN_DP,Number=1,Type=Integer,Description="Minimum depth in gVCF output block.">
-
-    ## As should therefore be obvious, I will need to add some logic/thought to how I handle
-    ## these various tags.  The good news is that they have some nice scores referring to the
-    ## likelihood of heterozygosity, which is precisely what I want to quantify in my current
-    ## round of analysis
     print $log "Reading bcf file.\n";
     my $count = 0; ## Use this to count the positions changed in the genome.
     my $num_variants = 0; ## Use this to count the variant positions of reasonably high confidence.
