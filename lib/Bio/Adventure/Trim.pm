@@ -48,6 +48,7 @@ sub Cutadapt {
         right => undef,
         either => undef,
         jmem => 12,
+	jwalltime => '48:00:00',
         jprefix => '12',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
@@ -159,6 +160,7 @@ sub Racer {
         required => ['input', ],
         jmem => 24,
         jprefix => '10',
+	jwalltime => '40:00:00',
         modules => ['hitec'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
@@ -259,6 +261,7 @@ sub Trimomatic_Pairwise {
         required => ['input',],
         quality => '20',
         jmem => 24,
+	jwalltime => '48:00:00',
         modules => ['trimomatic'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
