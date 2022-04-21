@@ -456,8 +456,8 @@ $comparison = ok(-f $test_file, qq"Checking jellyfish output tsv: ${test_file}")
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";
 $expected = qq"1 28869
-2 4389
-3 661
+2 4386
+3 663
 4 253
 5 67
 6 17
