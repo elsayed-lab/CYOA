@@ -864,7 +864,17 @@ sub Hisat2 {
     my $hisat_input_flag = '-q '; ## fastq by default
     $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
     my $cpus = $options->{cpus};
-    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.stderr";
+
+    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}";
+    my $stdout_file = $error_file;
+    if (defined($options->{jbasename})) {
+        $error_file .= "_$options->{jbasename}.stderr";
+        $stdout_file .= "_$options->{jbasename}.stdout";
+    } else {
+        $error_file .= ".stderr";
+        $stdout_file .= ".stdout";
+    }
+
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
@@ -905,7 +915,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
     $jstring .= qq!  -S ${sam_filename} \\
   2>${error_file} \\
-  1>${hisat_dir}/hisat2_$options->{species}_$options->{libtype}_$options->{jbasename}.stdout
+  1>${stdout_file}
 !;
     my $hisat_job = $class->Submit(
         comment => $comment,

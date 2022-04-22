@@ -1585,7 +1585,7 @@ sub HT2_Stats {
     my $ht_input = $options->{ht_input};
     my $jname = 'ht2_stats';
     $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$options->{jbasename}_stats";
+    my $jobid = qq"$options->{jname}_stats";
     my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
