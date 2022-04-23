@@ -534,7 +534,7 @@ sub Process_RNAseq {
         required => ['input', 'species'],
         host_filter => 0,
         gff_type => 'gene',
-        gff_id => 'ID',
+        gff_tag => 'ID',
         intron => 0,
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 0);
@@ -564,7 +564,7 @@ sub Process_RNAseq {
     ## any following species provided.
     my @species_list = split(/:/, $options->{species});
     my @type_list = split(/:/, $options->{gff_type});
-    my @id_list = split(/:/, $options->{gff_id});
+    my @id_list = split(/:/, $options->{gff_tag});
 
     my $first_species = shift @species_list;
     my $first_type = shift @type_list;
@@ -577,7 +577,7 @@ sub Process_RNAseq {
         input => $trim->{output},
         species => $first_species,
         gff_type => $first_type,
-        gff_id => $first_id,
+        gff_tag => $first_id,
         jprefix => $prefix,);
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
@@ -590,7 +590,7 @@ sub Process_RNAseq {
         input => $first_map->{samtools}->{paired_output},
         species => $first_species,
         gff_type => $first_type,
-        gff_id => $first_id,
+        gff_tag => $first_id,
         intron => $options->{intron},
         jprefix => $prefix,);
     $last_job = $first_map->{samtools}->{job_id};
@@ -616,7 +616,7 @@ sub Process_RNAseq {
                     input => $first_map->{unaligned_comp},
                     species => $nth_species,
                     gff_type => $nth_type,
-                    gff_id => $nth_id,
+                    gff_tag => $nth_id,
                     jprefix => $prefix,);
                 $last_job = $nth_map->{samtools}->{job_id};
             } else {
@@ -626,7 +626,7 @@ sub Process_RNAseq {
                     input => $trim->{output},
                     species => $nth_species,
                     gff_type => $nth_type,
-                    gff_id => $nth_id,
+                    gff_tag => $nth_id,
                     jprefix => $prefix,);
             }
             push(@jobs, $nth_map);
@@ -640,7 +640,7 @@ sub Process_RNAseq {
                 input => $nth_map->{samtools}->{paired_output},
                 species => $nth_species,
                 gff_type => $nth_type,
-                gff_id => $nth_id,
+                gff_tag => $nth_id,
                 intron => $options->{intron},
                 jprefix => $prefix,);
             $last_job = $nth_map->{job_id};
@@ -658,7 +658,7 @@ sub RNAseq {
         args => \%args,
         required => ['input', 'species'],
         gff_type => 'gene',
-        gff_id => 'ID',
+        gff_tag => 'ID',
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 1);
     my $final_locustag = basename(cwd());
@@ -686,7 +686,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             gff_type => $options->{gff_type},
-            gff_id => $options->{gff_id},);
+            gff_tag => $options->{gff_tag},);
     } elsif ($options->{mapper} eq 'bowtie2') {
         $mapper = $class->Bio::Adventure::Map::Bowtie2(
             jdepends => $trim->{job_id},
@@ -694,7 +694,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             gff_type => $options->{gff_type},
-            gff_id => $options->{gff_id},);
+            gff_tag => $options->{gff_tag},);
     } elsif ($options->{mapper} eq 'bwa') {
         $mapper = $class->Bio::Adventure::Map::BWA(
             jdepends => $trim->{job_id},
@@ -702,7 +702,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             gff_type => $options->{gff_type},
-            gff_id => $options->{gff_id},);
+            gff_tag => $options->{gff_tag},);
     } elsif ($options->{mapper} eq 'kallisto') {
         $mapper = $class->Bio::Adventure::Map::Kallisto(
             jdepends => $trim->{job_id},
@@ -722,7 +722,7 @@ sub RNAseq {
             jprefix => $prefix,
             species => $options->{species},
             gff_type => $options->{gff_type},
-            gff_id => $options->{gff_id},);
+            gff_tag => $options->{gff_tag},);
     }
     $mapper->{trim} = $trim;
     return($mapper);
