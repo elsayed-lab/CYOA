@@ -593,7 +593,7 @@ sub Process_RNAseq {
         gff_id => $first_id,
         intron => $options->{intron},
         jprefix => $prefix,);
-    $last_job = $first_map->{job_id};
+    $last_job = $first_map->{samtools}->{job_id};
     push(@jobs, $first_snp);
     sleep(0.2);
 
@@ -618,7 +618,7 @@ sub Process_RNAseq {
                     gff_type => $nth_type,
                     gff_id => $nth_id,
                     jprefix => $prefix,);
-                $last_job = $nth_map->{job_id};
+                $last_job = $nth_map->{samtools}->{job_id};
             } else {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} without filtering.\n";
                 $nth_map = $class->Bio::Adventure::Map::Hisat2(

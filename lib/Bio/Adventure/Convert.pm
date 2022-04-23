@@ -563,6 +563,7 @@ sub Sam2Bam {
         required => ['species', 'input'],
         modules => ['samtools', 'bamtools'],);
     my @input_list = ();
+    my $paths = $class->Get_Paths($options->{input});
     if ($options->{input}) {
         push(@input_list, $options->{input});
     } elsif (-r $options->{input} and $options->{input} =~ /\.sam$/) {
@@ -573,7 +574,7 @@ sub Sam2Bam {
 
         } else {
             foreach my $k (%{$options->{bt_args}}) {
-                my $output_string = qq"bowtie_out/$options->{jbasename}-${k}.sam";
+                my $output_string = qq"bowtie_out/$paths->{jbasename}-${k}.sam";
                 push(@input_list, $output_string);
             }
             my $bt = $class->Bio::Adventure::Map::Bowtie(%args);

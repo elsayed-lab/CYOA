@@ -403,30 +403,6 @@ sub BUILD {
         $class->{arbitrary} =~ s/\\//g;
     }
 
-    ## Initially assume we are not using a cluster, then search for a couple of known types.
-    ##print "TESTME: I am confused, why are my options not set? $class->{input}\n";
-    ##print "TESTME: ABOUT TO CHECK CLUSTER: $class->{cluster}\n";
-    ##if (defined($class->{cluster})) {
-    ##    print "TESTME: CLUSTER STARTED OUT DEFINED.\n";
-    ##    if (!$class->{cluster}) {
-    ##        $class->{sbatch_path} = '';
-    ##        $class->{qsub_path} = '';
-    ##        $class->{cluster} = 'bash';
-    ##        print "TESTME: Setting cluster to 'bash'\n";
-    ##    }
-    ##} else {
-    ##    ## Figure out what kind of cluster we are using, if any.
-    ##    my $torque_test = My_Which('qsub');
-    ##    my $slurm_test = My_Which('sbatch');
-    ##    if ($slurm_test) {
-    ##        $class->{cluster} = 'slurm';
-    ##    } elsif ($torque_test) {
-    ##        $class->{cluster} = 'torque';
-    ##    } else {
-    ##        $class->{cluster} = 'bash';
-    ##    }
-    ##}
-
     ## These are both problematic when (n)storing the data.
     if (defined($class->{interactive}) && $class->{interactive}) {
         $class->{menus} = Get_Menus();
@@ -498,13 +474,21 @@ sub Get_Paths {
         my $full_path = abs_path($directory);
         $full_path .= "/${filename}";
 
+        ## Make a new job_basename which doesn't have some cruft
+        my $jbasename = $filebase_extension;
+        $jbasename =~ s/_forward.*//g;
+        $jbasename =~ s/_R1.*//g;
+        $jbasename =~ s/-trimmed.*//g;
+        $jbasename =~ s/_trimmed.*//g;
+
         my %ret = (
             filename => $filename,
             filebase_compress => $filebase_compress,
             filebase_extension => $filebase_extension,
             directory => $directory,
             dirname => $dirname,
-            fullpath => $full_path,);
+            fullpath => $full_path,
+            jbasename => $jbasename);
         push(@outputs, \%ret);
     }
 
