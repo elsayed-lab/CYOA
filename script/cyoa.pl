@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 use Cwd qw"abs_path cwd";
-BEGIN { unshift(@INC, abs_path('lib'))}
+BEGIN { unshift(@INC, abs_path('lib')) }
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;

@@ -138,6 +138,7 @@ rm ${output_file}
         jwalltime => '10:00:00',
         output => $output_bcf,);
 
+    my $prefix = sprintf("%02d", ($options->{jprefix} + 1));
     $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
@@ -159,7 +160,7 @@ rm ${output_file}
             vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_intron_${query_base}",
-            jprefix => $options->{jprefix} + 1,
+            jprefix => $prefix,
             species => $options->{species},);
     } else {
         $parse = $class->Bio::Adventure::SNP::SNP_Ratio(
@@ -175,7 +176,7 @@ rm ${output_file}
             vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_${query_base}",
-            jprefix => $options->{jprefix} + 1,);
+            jprefix => $prefix,
     }
     $freebayes->{parse} = $parse;
     $loaded = $class->Module_Loader(modules => $options->{modules},
