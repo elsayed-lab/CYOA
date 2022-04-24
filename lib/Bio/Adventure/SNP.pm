@@ -176,7 +176,7 @@ rm ${output_file}
             vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_${query_base}",
-            jprefix => $prefix,
+            jprefix => $prefix,);
     }
     $freebayes->{parse} = $parse;
     $loaded = $class->Module_Loader(modules => $options->{modules},

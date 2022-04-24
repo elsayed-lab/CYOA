@@ -582,18 +582,18 @@ sub Process_RNAseq {
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
     sleep(0.2);
+    $last_sam_job = $first_map->{samtools}->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Performing freebayes search against ${first_species}.\n";
     my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-        jdepends => $last_job,
+        jdepends => $last_sam_job,
         input => $first_map->{samtools}->{paired_output},
         species => $first_species,
         gff_type => $first_type,
         gff_tag => $first_id,
         intron => $options->{intron},
         jprefix => $prefix,);
-    $last_job = $first_map->{samtools}->{job_id};
     push(@jobs, $first_snp);
     sleep(0.2);
 
@@ -618,11 +618,11 @@ sub Process_RNAseq {
                     gff_type => $nth_type,
                     gff_tag => $nth_id,
                     jprefix => $prefix,);
-                $last_job = $nth_map->{samtools}->{job_id};
+                $last_sam_job = $nth_map->{samtools}->{job_id};
             } else {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} without filtering.\n";
                 $nth_map = $class->Bio::Adventure::Map::Hisat2(
-                    jdepends => $last_job,
+                    jdepends => $last_sam_job,
                     input => $trim->{output},
                     species => $nth_species,
                     gff_type => $nth_type,
@@ -630,13 +630,13 @@ sub Process_RNAseq {
                     jprefix => $prefix,);
             }
             push(@jobs, $nth_map);
-            $last_job = $nth_map->{job_id};
+            $last_sam_job = $nth_map->{samtools}->{job_id};
             sleep(0.2);
 
             $prefix = sprintf("%02d", ($prefix + 1));
             print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
             my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-                jdepends => $last_job,
+                jdepends => $last_sam_job,
                 input => $nth_map->{samtools}->{paired_output},
                 species => $nth_species,
                 gff_type => $nth_type,
