@@ -582,7 +582,7 @@ sub Process_RNAseq {
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
     sleep(0.2);
-    $last_sam_job = $first_map->{samtools}->{job_id};
+    my $last_sam_job = $first_map->{samtools}->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Performing freebayes search against ${first_species}.\n";
