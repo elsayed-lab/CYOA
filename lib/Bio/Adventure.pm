@@ -118,6 +118,7 @@ has align_blast_format => (is => 'rw', default => 5); ## Which alignment type sh
 has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment jobs should we make when splitting alignments across nodes?
 has align_parse => (is => 'rw', default => 1); ## Parse blast searches into a table?
 has arbitrary => (is => 'rw', default => undef); ## Extra arbitrary arguments to pass
+has array_start => (is => 'rw', default => 100);
 has bamfile => (is => 'rw', default => undef); ## Default bam file for converting/reading/etc.
 has basedir => (is => 'rw', default => cwd());  ## This was cwd() but I think that may cause problems.
 has bash_path => (is => 'rw', default => My_Which('bash'));
@@ -1301,6 +1302,7 @@ sub Load_Vars {
 sub Reset_Vars {
     my ($class, %args) = @_;
     my %original_values = (
+        array_string => undef,
         jbasename => undef,
         jdepends => undef,
         jmem => 12,
@@ -1310,8 +1312,7 @@ sub Reset_Vars {
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
-        shell => '/usr/bin/env bash',
-        );
+        shell => '/usr/bin/env bash',);
     for my $k (keys %original_values) {
         $class->{$k} = $original_values{$k};
         $class->{variable_current_state}->{$k} = $original_values{$k};
@@ -1336,7 +1337,12 @@ Get_Options now handles the options hash.
 =cut
 sub Set_Vars {
     my ($class, %args) = @_;
-    my $options = $class->{options};
+    my $options;
+    if (defined($args{options})) {
+        $options = $args{options};
+    } else {
+        $options = $class->{options};
+    }
     my $ref = ref($options);
     foreach my $k (keys %args) {
         $options->{$k} = $args{$k};

@@ -55,6 +55,7 @@ sub Make_Fasta_Job {
         fasta_tool => 'ggsearch36',
         split => 0,
         output_type => undef,
+        cluster => 'slurm',
         jdepends => '',
         jmem => 8,
         modules => ['fasta'],);
@@ -62,20 +63,29 @@ sub Make_Fasta_Job {
     my $split = $options->{split};
     my $output_type = $options->{output_type};
     my $library;
-    my $array_end = 1000 + $args{align_jobs};
-    my $array_string = qq"1000-${array_end}";
+    my $array_end = $options->{array_start} + $args{align_jobs};
+    my $array_string = qq"$options->{array_start}-${array_end}";
     my $jstring = '';
     my $type_string = '';
+    my $array_id_string = 'unknown_array_id';
+    if ($options->{cluster} eq 'slurm') {
+        $array_id_string = '${SLURM_ARRAY_TASK_ID}';
+    } elsif ($options->{cluster} eq 'torque') {
+        $array_id_string = '${PBS_ARRAYID}';
+    }
     if (defined($output_type)) {
         $type_string = "-m ${output_type}";
     }
     my $output = '';
+    ## Important Note:  fasta36's command line parsing fails on path names > 128 or 256 characters.
+    ## Thus my usual '$options->{workdir}' will cause this to fail in many instances
+    ## because it introduces many characters to the pathnames.
     if ($split) {
-        $output = qq"$options->{basedir}/outputs/\${PBS_ARRAYID}.stdout";
+        $output = qq"$options->{basedir}/outputs/split/${array_id_string}.stdout";
         $jstring = qq!
 cd $options->{basedir}
 $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{cpus} \\
- $options->{workdir}/split/\${PBS_ARRAYID}/in.fasta \\
+ outputs/split/${array_id_string}/in.fasta \\
  $options->{library} \\
  1>${output} \\
  2>>$options->{basedir}/split_align.stderr
@@ -91,18 +101,17 @@ cd $options->{basedir}
   2>>$options->{basedir}/split_align.stderr
 !;
     }
-    my $comment = '## Running $options->{align_jobs} fasta job(s).';
+    my $comment = qq!## Running $options->{align_jobs} fasta job(s).!;
 
     my $fasta_jobs = $class->Submit(
+        array_string => $array_string,
         comment => $comment,
-        depends_type => 'array',
         jdepends => $dep,
         jmem => $options->{jmem},
         jname => 'fasta_multi',
         jstring => $jstring,
         jprefix => "91",
         modules => $options->{modules},
-        qsub_args => " $options->{qsub_args} -t ${array_string} ",
         output => $output,
         jqueue => 'long',
         jwalltime => '96:00:00',);
@@ -245,7 +254,8 @@ sub Parse_Fasta_Global {
         output_few => '',
         output_many => '',
         output_zero => '',
-        output_all => '',);
+        output_all => '',
+        jmem => 8);
     my $output = $options->{input};
     my $outdir = dirname($output);
     $output = basename($output, ('.gz', '.xz'));
@@ -297,7 +307,11 @@ sub Parse_Fasta_Global {
               my @matches = $hsp->matches(-seq => 'hit');
               $hit_matches = $matches[1];
           }
-          $entry .= "${acc2}:${ident}:${sig} ";
+          if ($hit_count == 1) {
+              $entry .= "${acc2}\t${ident}\t${sig}";
+          } else {
+              $entry .= "${acc2}:${ident}:${sig} ";
+          }
           print $parsed "${query_name}\t${query_length}\t${acc2}\t${length}\t${score}\t${sig}\t${ident}\t${hit_len}\t${hit_matches}\n";
       }                       ## End iterating over every hit for a sequence.
         $entry .= "\n";
@@ -376,10 +390,10 @@ sub Split_Align_Fasta {
     my $zero = qq"${outdir}/${output}_zero.txt";
     my $all = qq"${outdir}/${output}_all.txt";
     my ($concat_job, $alignment);
-    if ($options->{pbs}) {
+    if ($options->{cluster}) {
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
-        $options = $class->Set_Vars(workdir => $outdir);
+        $options = $class->Set_Vars(options => $options, num_per_split => $num_per_split);
+        $options = $class->Set_Vars(options => $options, workdir => $outdir);
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
             %args,
@@ -389,10 +403,12 @@ sub Split_Align_Fasta {
             %args,
             align_jobs => $actual,
             workdir => $outdir,
+            cluster => $options->{cluster},
             split => 1);
         $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
             jdepends => $alignment->{job_id},
             output => $output,
+            cluster => $options->{cluster},
             workdir => $outdir,
             jprefix => '92',);
         ## Make sure that the alignment job gets the final output
@@ -401,8 +417,8 @@ sub Split_Align_Fasta {
         ## If we don't have a queue, force the number of jobs to 1.
         $options->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        $options = $class->Set_Vars(num_per_split => $num_per_split);
-        $options = $class->Set_Vars(workdir => $outdir);
+        $options = $class->Set_Vars(options => $options, num_per_split => $num_per_split);
+        $options = $class->Set_Vars(options => $options, workdir => $outdir);
         $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
             %args,
             workdir => $outdir,

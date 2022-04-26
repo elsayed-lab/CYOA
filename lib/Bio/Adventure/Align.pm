@@ -57,7 +57,7 @@ sub Concatenate_Searches {
     my $comment_string = qq"## Concatenating the output files into ${output}
 ";
     my $jstring = qq!
-rm -f ${output} && for i in \$(/bin/ls ${workdir}/*.out); do xz -9e -c \$i >> ${output}; done
+rm -f ${output} && for i in \$(/bin/ls outputs/split/*.stdout); do xz -9e -c \$i >> ${output}; done
 !;
     my $concatenate = $class->Submit(
         comment => $comment_string,
@@ -150,9 +150,9 @@ sub Get_Split {
     my $ret = ceil($seqs / $options->{align_jobs});
     if ($seqs < $options->{align_jobs}) {
         print "There are fewer sequences than the chosen number of split files, resetting that to ${seqs}.\n";
-        $options = $class->Set_Vars(align_jobs => $seqs);
+        $options = $class->Set_Vars(options => $options, align_jobs => $seqs);
     }
-    print "Get_Split: Making $options->{align_jobs} directories with $ret sequences.\n";
+    print "Get_Split: Making $options->{align_jobs} directories with ${ret} sequences.\n";
     return($ret);
 }
 
@@ -222,12 +222,12 @@ sub Make_Directories {
     ## This way I don't have to think about the difference from
     ## 99 to 100 (2 characters to 3) as long as no one splits more than 9000 ways...
     print "Make_Directories: Making $options->{align_jobs} directories with $options->{num_per_split} sequences.\n";
-    my $dir = 1000;
+    my $dir = $options->{array_start};
 
-    remove_tree("${workdir}/split", {verbose => 0 });
+    remove_tree("outputs/split", {verbose => 0 });
     for my $c ($dir .. ($dir + $splits)) {
         ## print "Making directory: split/$c\n";
-        make_path("${workdir}/split/${c}") if (!-d "${workdir}/split/${c}" and !-f "${workdir}/split/${c}");
+        make_path("outputs/split/${c}") if (!-d "outputs/split/${c}" and !-f "outputs/split/${c}");
     }
 
     my $in = Bio::SeqIO->new(-file => $options->{input},);
@@ -236,8 +236,8 @@ sub Make_Directories {
         my $id = $in_seq->id();
         my $seq = $in_seq->seq();
         $seq = join("\n", ($seq =~ m/.{1,80}/g));
-        my $output_file = qq"${workdir}/split/${dir}/in.fasta";
-        my $outfile = FileHandle->new(">>${workdir}/split/${dir}/in.fasta");
+        my $output_file = qq"outputs/split/${dir}/in.fasta";
+        my $outfile = FileHandle->new(">>${output_file}");
         my $out_string = qq!>${id}
 ${seq}
 !;
@@ -251,7 +251,7 @@ ${seq}
             my $last = $dir;
             $last--;
             if ($count == 1) {
-                print "Writing ${num_per_split} entries to files 1000 to ${last}\n";
+                print "Writing ${num_per_split} entries to files $options->{array_start} to ${last}\n";
             }
             ## You might be wondering why this num_dirs is here.
             ## Imagine if you have a query library of 10,004 sequences and you try to write them to 200 files.
@@ -260,7 +260,8 @@ ${seq}
             ## the loop which tries to detect how many jobs are finished will never exit
             ## because it won't ever reach 200.
             ## Therefore this keeps track of the last file written and uses that instead.
-            $options->{num_dirs} = ($last - 999); ## This - 1000 is there because we start at job 1000, but we start counting at 0
+            my $max_dirs = $options->{array_start} - 1;
+            $options->{num_dirs} = ($last - $max_dirs); ## This - 1000 is there because we start at job 1000, but we start counting at 0
         }                      ## End for each iteration of $num_per_split files
     }                          ## End while reading the fasta
     my $actual_number_dirs_used = $options->{num_dirs};

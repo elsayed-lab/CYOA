@@ -9,7 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Cwd;
-use File::Basename qw "basename";
+use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
