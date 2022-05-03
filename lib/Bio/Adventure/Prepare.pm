@@ -53,7 +53,7 @@ sub Download_NCBI_Accession {
     } else {
         push(@unique, $options->{input});
     }
-    my @unique = uniq(@unique);
+    @unique = uniq(@unique);
 
     my $eutil = Bio::DB::EUtilities->new(-eutil => 'esummary',
                                          -email => 'abelew@gmail.com',
