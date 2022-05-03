@@ -182,7 +182,7 @@ sub Check_Blastdb {
         required => ['input'],
         modules => ['blast'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $libname = basename($options->{input}, '.fasta');
+    my $libname = basename($options->{input}, ('.fasta', '.fa'));
     ## First check for the relevant library in $ENV{BLASTDB}
     ## If it isn't there, make one in basedir/blastdb/
     my $foundlib = 0;

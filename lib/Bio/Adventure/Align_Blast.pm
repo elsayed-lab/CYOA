@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Torque;
 
 use Bio::SearchIO::blast;
 use Bio::SearchIO::fasta;

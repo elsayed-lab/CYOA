@@ -37,16 +37,28 @@ sub Download_NCBI_Accession {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        library => 'nucleotide',
         jprefix => '11',);
     my $job_name = $class->Get_Job_Name();
     ## Make an array of the accession(s)
-    my $unique = [$options->{input}, ];
+    my @unique = ();
+    if (-f $options->{input}) {
+        my $ids = FileHandle->new("<$options->{input}");
+        my @id_array;
+        while (my $line = <$ids>) {
+            chomp $line;
+            push(@id_array, $line);
+        }
+        $ids->close();
+    } else {
+        push(@unique, $options->{input});
+    }
+    my @unique = uniq(@unique);
 
     my $eutil = Bio::DB::EUtilities->new(-eutil => 'esummary',
                                          -email => 'abelew@gmail.com',
-                                         -db => 'nucleotide',
-                                         -id => $unique,);
-
+                                         -db => $options->{library},
+                                         -id => \@unique,);
     while (my $docsum = $eutil->next_DocSum) {
         my $acc_version = '';
         my $accession = '';
@@ -67,7 +79,7 @@ sub Download_NCBI_Accession {
       } else {
           print "Downloading ${accession}\n";
           my $download = Bio::DB::EUtilities->new(-eutil => 'efetch',
-                                                  -db => 'nucleotide',
+                                                  -db => $options->{library},
                                                   -rettype => 'gb',
                                                   -email => 'abelew@umd.edu',
                                                   -id => $accession,);
