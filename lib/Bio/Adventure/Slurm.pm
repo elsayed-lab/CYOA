@@ -150,17 +150,14 @@ ${perl_file} \\
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
 
     my $script_start = qq?#!$options->{shell}
-#SBATCH --export=ALL
-#SBATCH --mail-type=NONE
-#SBATCH --open-mode=append
+#SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --partition=$options->{jpartition}
 #SBATCH --qos=$options->{jqueue} ${nice_string}
-#SBATCH --nodes=1 --requeue
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$options->{cpus}
 #SBATCH --time=$options->{jwalltime}
 #SBATCH --job-name=${jname}
 #SBATCH --mem=$options->{jmem}G
-#SBATCH --cpus-per-task=$options->{cpus}
 #SBATCH --output=${sbatch_log}.sbatch
 ${array_string}
 ${module_string}
