@@ -596,6 +596,7 @@ sub Get_Menus {
             message => 'How come Aquaman can control whales?  They are mammals!  Makes no sense.',
             choices =>  {
                 '(abricate): Search for Resistance genes across databases.' => \&Bio::Adventure::Resistance::Abricate,
+                '(casfinder): Search for Crispr/Cas9 cassettes/sequences in a bacterial assembly.' => \&Bio::Adventure::Annotation::Casfinder,
                 '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
                 '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
@@ -885,6 +886,7 @@ sub Get_TODOs {
         "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
         "caical+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Caical'},
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
+        "casfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Casfinder'},
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
         "collectassembly+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Collect_Assembly'},
