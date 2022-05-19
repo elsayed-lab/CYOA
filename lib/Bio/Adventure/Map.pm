@@ -119,7 +119,7 @@ sub Bowtie {
     $bt_dir = $options->{bt_dir} if ($options->{bt_dir});
 
     ## Check that the indexes exist
-    my $bt_reflib = qq"$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
+    my $bt_reflib = qq"$options->{libpath}/$options->{libtype}/indexes/$options->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.ebwt";
     my $current_prefix = 10;
     if (defined($options->{jprefix})) {
@@ -128,7 +128,7 @@ sub Bowtie {
     my $index_job;
     if (!-r $bt_reftest && !$options->{bt1_indexjobs}) {
         $class->{bt1_indexjobs} = 1;
-        my $genome_input = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+        my $genome_input = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
         $index_job = $class->Bio::Adventure::Index::BT1_Index(
             input => $genome_input,
             jdepends => $options->{jdepends},
@@ -335,14 +335,14 @@ sub Bowtie2 {
     }
 
     ## Check that the indexes exist
-    my $bt_reflib = "$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
+    my $bt_reflib = "$options->{libpath}/$options->{libtype}/indexes/$options->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.bt2";
     my $bt_reftest_large = qq"${bt_reflib}.1.bt2l";
     my $index_job;
     if (!-r $bt_reftest && !-r $bt_reftest_large) {
         print "Hey! The Indexes do not appear to exist, check this out: ${bt_reftest}\n";
         sleep(20);
-        my $genome_input = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+        my $genome_input = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
         $index_job = $class->Bio::Adventure::Index::BT2_Index(
             input => $genome_input,
             jdepends => $options->{jdepends},
@@ -595,7 +595,7 @@ sub BWA {
     my $index_jobid = undef;
     ## Check that the indexes exist
     ## NOTE: BWA Might require the file to be named ...fa instead of ...fasta
-    my $bwa_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}.fa";
+    my $bwa_reflib = qq"$options->{libpath}/${libtype}/indexes/$options->{species}.fa";
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     my $index_job;
     if (!-r $bwa_reftest) {
@@ -844,9 +844,10 @@ sub Hisat2 {
     }
 
     ## Check that the indexes exist
+    my $hisat_reflibpath = qq"$options->{libpath}/$options->{libtype}/indexes/$options->{species}";
     my $hisat_reflib = qq"$options->{libdir}/$options->{libtype}/indexes/$options->{species}";
-    my $hisat_reftest = qq"${hisat_reflib}.1.ht2";
-    my $hisat_reftestl = qq"${hisat_reflib}.1.ht2l";
+    my $hisat_reftest = qq"${hisat_reflibpath}.1.ht2";
+    my $hisat_reftestl = qq"${hisat_reflibpath}.1.ht2l";
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
         print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
         sleep(10);
@@ -1083,10 +1084,10 @@ sub Kallisto {
     }
 
     ## Check that the indexes exist
-    my $ka_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}.idx";
+    my $ka_reflib = qq"$options->{libpath}/${libtype}/indexes/$options->{species}.idx";
     my $index_job;
     if (!-r $ka_reflib) {
-        my $transcriptome_fasta = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
+        my $transcriptome_fasta = qq"$options->{libpath}/${libtype}/$options->{species}_cds.fasta";
         $index_job = $class->Bio::Adventure::Index::Kallisto_Index(
             input => $transcriptome_fasta,
             jdepends => $options->{jdepends},
@@ -1180,8 +1181,8 @@ sub RSEM {
     }
 
     my $jbasename = $class->Get_Job_Name();
-    my $cds = qq"$options->{libdir}/$options->{libtype}/$options->{species}_cds_nt.fasta";
-    my $idx = qq"$options->{libdir}/$options->{libtype}/indexes/rsem/$options->{species}";
+    my $cds = qq"$options->{libpath}/$options->{libtype}/$options->{species}_cds_nt.fasta";
+    my $idx = qq"$options->{libpath}/$options->{libtype}/indexes/rsem/$options->{species}";
     my $test_idx = qq"${idx}.transcripts.fa";
     my $index_job;
     unless (-r $test_idx) {
@@ -1290,10 +1291,10 @@ sub Salmon {
     }
 
     ## Check that the indexes exist
-    my $sa_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}_salmon_index";
+    my $sa_reflib = qq"$options->{libpath}/${libtype}/indexes/$options->{species}_salmon_index";
     my $index_job;
     if (!-r $sa_reflib) {
-        my $transcript_file = qq"$options->{libdir}/${libtype}/$options->{species}_cds.fasta";
+        my $transcript_file = qq"$options->{libpath}/${libtype}/$options->{species}_cds.fasta";
         $index_job = $class->Bio::Adventure::Index::Salmon_Index(
             input => $transcript_file,
             depends => $options->{jdepends},
@@ -1382,11 +1383,11 @@ sub STAR {
     }
 
     ## Check that the indexes exist
-    my $star_refdir = qq"$options->{libdir}/${libtype}/indexes/$options->{species}_star_index";
+    my $star_refdir = qq"$options->{libpath}/${libtype}/indexes/$options->{species}_star_index";
     my $star_reflib = qq"${star_refdir}/SAindex";
     my $index_job;
     if (!-r $star_reflib) {
-        my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
+        my $genome_file = qq"$options->{libpath}/${libtype}/$options->{species}.fasta";
         $index_job = $class->Bio::Adventure::Index::STAR_Index(
             input => $genome_file,
             jdepends => $options->{jdepends},
@@ -1505,18 +1506,18 @@ sub Tophat {
         $tophat_dir = $options->{tophat_dir};
     }
     my $libtype = $options->{libtype};
-    my $bt_reflib = qq"$options->{libdir}/${libtype}/indexes/$options->{species}";
+    my $bt_reflib = qq"$options->{libpath}/${libtype}/indexes/$options->{species}";
     my $bt_reftest = qq"${bt_reflib}.1.bt2";
     my $index_job = undef;
     if (!-r $bt_reftest) {
         print "Did not find the index for $options->{species} at: ${bt_reflib}, indexing now.\n";
-        my $genome_file = qq"$options->{libdir}/${libtype}/$options->{species}.fasta";
+        my $genome_file = qq"$options->{libpath}/${libtype}/$options->{species}.fasta";
         $index_job = $class->Bio::Adventure::Index::BT2_Index(
             input => $genome_file,
             jdepends => $options->{jdepends},);
         $options->{jdepends} = $index_job->{job_id};
     }
-    my $gtf_file = qq"$options->{libdir}/genome/$options->{species}.gtf";
+    my $gtf_file = qq"$options->{libpath}/genome/$options->{species}.gtf";
     if (!-r $gtf_file) {
         print "Missing the gtf file for $options->{species}\n";
         print "Using the gff file.\n";
@@ -1537,7 +1538,7 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
         $jstring .= qq!  --no-novel-juncs \\
 !;
     }
-    $jstring .= qq!  $options->{libdir}/genome/indexes/$options->{species} \\
+    $jstring .= qq!  $options->{libpath}/genome/indexes/$options->{species} \\
   ${inputs} \\
   2>${tophat_dir}/tophat.stderr \\
   1>${tophat_dir}/tophat.stdout && \\

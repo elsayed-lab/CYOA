@@ -42,7 +42,7 @@ sub BT1_Index {
         modules => ['bowtie1'],);
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
     $species = basename($species, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
@@ -88,10 +88,10 @@ sub BT2_Index {
         jprefix => '',
         modules => ['bowtie2'],);
     my $libtype = $options->{libtype};
-    my $libdir = File::Spec->rel2abs($options->{libdir});
+    my $libdir = File::Spec->rel2abs($options->{libpath});
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
     $species = basename($species, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
@@ -126,7 +126,7 @@ sub BWA_Index {
         jprefix => '',
         modules => ['bwa'],);
     my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fa";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fa";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
@@ -139,7 +139,7 @@ bwa index ${species}.fa \\
   1>bwa_index.stdout
 cd \$start
 !;
-    my $basedir = qq"$options->{libdir}/$options->{libtype}/indexes";
+    my $basedir = qq"$options->{libpath}/$options->{libtype}/indexes";
     my $index_sa = qq"${basedir}/${species}.fa.sa";
     my $index_pac = qq"${basedir}/${species}.fa.pac";
     my $index_bwt = qq"${basedir}/${species}.fa.bwt";
@@ -317,9 +317,9 @@ sub Hisat2_Index {
         modules => ['hisat2'],
         jprefix => '21',);
     my $libtype = $options->{libtype};
-    my $libdir = File::Spec->rel2abs($options->{libdir});
+    my $libdir = File::Spec->rel2abs($options->{libpath});
     my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
@@ -357,7 +357,7 @@ sub Kallisto_Index {
     my $species = $cds;
     $species =~ s/_cds//g;
     $species =~ s/_nt//g;
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${cds}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
@@ -400,7 +400,7 @@ sub Make_Codon_Table {
         args => \%args,
         required => ['species'],
         jprefix => '80',);
-    my $out_table = qq"$options->{libdir}/codon_tables/$options->{species}.txt";
+    my $out_table = qq"$options->{libpath}/codon_tables/$options->{species}.txt";
     my $out_dir = dirname($out_table);
     my $made = make_path($out_dir) unless (-d $out_dir);
 
@@ -409,7 +409,7 @@ sub Make_Codon_Table {
     my @compressions = ('gz', 'xz', 'bz2');
     my $in_gbff = '';
   POTENTIAL: for my $potential (@potential_suffixes) {
-      my $start = qq"$options->{libdir}/$options->{libtype}/$options->{species}.${potential}";
+      my $start = qq"$options->{libpath}/$options->{libtype}/$options->{species}.${potential}";
       if (-r $start) {
           $in_gbff = $start;
           last POTENTIAL;
@@ -505,7 +505,7 @@ sub RSEM_Index {
 
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     $species =~ s/_cds//g;
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
@@ -559,8 +559,8 @@ sub Salmon_Index {
     $species =~ s/_cds//g;
     $species =~ s/_nt//g;
     my $species_file = qq"${cds_dir}/${species}.fasta";
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${cds}.fasta";
-    my $species_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${cds}.fasta";
+    my $species_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
 
     if (!-r $copied_location) {
         cp($options->{input}, $copied_location);
@@ -626,7 +626,7 @@ sub STAR_Index {
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
     my $species = basename($options->{input}, ('.fasta', '.fa'));
-    my $copied_location = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
+    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }

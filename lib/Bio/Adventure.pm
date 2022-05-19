@@ -194,7 +194,8 @@ has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
 has language => (is => 'rw', default => 'bash'); ## What kind of script is this?
 has length => (is => 'rw', default => 17); ## kmer length, other stuff too.
-has libdir => (is => 'rw', default => "$ENV{HOME}/libraries"); ## Directory containing genomes/gff/indexes
+has libdir => (is => 'rw', default => "\${HOME}/libraries"); ## Directory containing genomes/gff/indexes
+has libpath => (is => 'rw', default => "$ENV{HOME}/libraries");
 has library => (is => 'rw', default => undef);  ## The library to be used for fasta36/blast searches
 has libtype => (is => 'rw', default => 'genome'); ## Type of sequence to map against, genomic/rRNA/contaminants
 has locus_tag => (is => 'rw', default => undef); ## Used by prokka to define gene prefixes
@@ -409,7 +410,34 @@ sub BUILD {
         $class->{menus} = Get_Menus();
     }
     $class->{methods_to_run} = Get_TODOs(%{$class->{variable_getopt_overrides}});
-    return $args;
+    my $path_agrees = Check_Libpath(libdir => $class->{libdir}, libpath => $class->{libpath});
+    $class->{libpath} = $path_agrees if (defined($path_agrees));
+    return($args);
+}
+
+sub Check_Libpath {
+    my %args = @_;
+    ## Make sure that the libdir and libpath agree with one another.
+    ## I am intending to use libdir often(always?) as the shell variable $HOME.
+    ## But this may change from host to host and I want to be able to
+    ## perform operations on stuff in that directory while still having some
+    ## degree of flexibility.
+    ## Thus, this will check if libdir starts with a \$, if so, extract that variable
+    ## from the environment, and check if the libpath agrees with it.
+    my $path = $args{libpath};
+    my $interpolated_libdir = $args{libdir};
+    if ($args{libdir} =~ /\$/) {
+        $interpolated_libdir =~ /^(.*)?\$\{*([A-Z]+)\}*(.*)$/;
+        my $prefix = $1;
+        my $varname = $2;
+        my $suffix = $3;
+        $interpolated_libdir = qq"${prefix}$ENV{$varname}${suffix}";
+    }
+    if ($interpolated_libdir eq $path) {
+        return(undef);
+    } else {
+        return($path);
+    }
 }
 
 =head2 C<Get_Lesspipe>
@@ -790,7 +818,7 @@ sub Get_Menus {
                 '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
                 '(freebayes): Use freebayes to create a vcf file and filter it.' => \&Bio::Adventure::SNP::Freebayes_SNP_Search,
                 '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
-                '(parsnp): Parse an existing bcf file and print some fun tables.' => &Bio::Adventure::SNP::SNP_Ratio,
+                '(parsnp): Parse an existing bcf file and print some fun tables.' => \&Bio::Adventure::SNP::SNP_Ratio,
                 '(snpsearch): Use mpileup to create a vcf file and filter it. (bam input)' => \&Bio::Adventure::SNP::Mpileup_SNP_Search,
                 '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => \&Bio::Adventure::SNP::SNP_Ratio,
                 '(snp): Perform alignments and search for variants. (fastq input)' => \&Bio::Adventure::SNP::Align_SNP_Search,

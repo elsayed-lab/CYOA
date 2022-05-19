@@ -38,7 +38,7 @@ sub Align_SNP_Search {
         vcf_cutoff => 5,
         vcf_minpct => 0.8,);
 
-    my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
     my $query_base = basename(${query}, (".bam"));
@@ -86,7 +86,7 @@ sub Freebayes_SNP_Search {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('freebayes');
     die('Could not find freebayes in your PATH.') unless($check);
-    my $input_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $input_fasta = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $freebayes_dir = qq"outputs/$options->{jprefix}freebayes_$options->{species}";
     my $output_file = qq"${freebayes_dir}/$options->{species}.vcf";
     my $output_bcf = qq"${freebayes_dir}/$options->{species}.bcf";
@@ -203,7 +203,7 @@ sub Mpileup_SNP_Search {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('samtools');
     die('Could not find samtools in your PATH.') unless($check);
-    my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
     my $query_base = basename(${query}, ('.bam'));
@@ -330,7 +330,7 @@ sub SNP_Ratio {
     my $print_input = $options->{input};
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
-    my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $comment_string = qq!
 ## Parse the SNP data and generate a modified $options->{species} genome.
 ##  This should read the file:
@@ -422,8 +422,8 @@ sub SNP_Ratio_Worker {
     my $out_dir = dirname($options->{output});
     my $log_file = qq"${out_dir}/snp_ratio.stdout";
     my $log = FileHandle->new(">${log_file}");
-    my $genome = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    my $gff = qq"$options->{libdir}/$options->{libtype}/${species}.gff";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
+    my $gff = qq"$options->{libpath}/$options->{libtype}/${species}.gff";
     print $log "Reading gff: ${gff}, extracting type: $options->{gff_type} features tagged $options->{gff_tag}.\n";
     my $in_bcf = FileHandle->new("bcftools view $options->{input} |");
     print $log "The large matrix of data will be written to: $options->{output}\n";
@@ -805,7 +805,7 @@ sub SNP_Ratio_Intron {
     my $print_input = $options->{input};
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
-    my $genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $comment_string = qq!
 ## Parse the SNP data and generate a modified $options->{species} genome.
 ##  This should read the file:
@@ -901,8 +901,8 @@ sub SNP_Ratio_Intron_Worker {
     my $output_dir = dirname($options->{output});
     my $log_file = qq"${output_dir}/snp_ratio_intron.stdout";
     my $log = FileHandle->new(">${log_file}");
-    my $genome = qq"$options->{libdir}/$options->{libtype}/${species}.fasta";
-    my $gff = qq"$options->{libdir}/$options->{libtype}/${species}.gff";
+    my $genome = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
+    my $gff = qq"$options->{libpath}/$options->{libtype}/${species}.gff";
     print $log "Reading gff: ${gff}, extracting type: $options->{gff_type} features tagged $options->{gff_tag}.\n";
     my $in_bcf = FileHandle->new("bcftools view $options->{input} |");
     print $log "The large matrix of data will be written to: $options->{output}\n";

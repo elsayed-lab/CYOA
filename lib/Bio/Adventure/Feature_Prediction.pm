@@ -461,7 +461,7 @@ sub Prodigal {
     my $train_string = '';
     my $library_file;
     if ($options->{species}) {
-        $library_file = qq"$options->{libdir}/hmm/$options->{species}_gc$options->{gcode}.training";
+        $library_file = qq"$options->{libpath}/hmm/$options->{species}_gc$options->{gcode}.training";
         if (!-r $library_file) {
             print "Could not find the training file for this species.\n";
             print "Sleeping for a moment so that you can do something.\n";
@@ -621,7 +621,7 @@ sub Train_Prodigal {
         modules => ['prodigal'],);
     my $job_name = $class->Get_Job_Name();
     my $kingdom_string = '';
-    my $output_dir = qq"$options->{libdir}/hmm";
+    my $output_dir = qq"$options->{libpath}/hmm";
     my $made = make_path($output_dir);
     my $output = qq"${output_dir}/$options->{species}_gc$options->{gcode}.training";
     my $comment = '## This is a script to train prodigal.';
