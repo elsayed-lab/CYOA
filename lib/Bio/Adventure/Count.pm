@@ -31,7 +31,7 @@ use String::Approx qw"amatch";
 
 =item C<Arguments>
 
- species(required): Defines the gff/fasta files to query in {libdir}.
+ species(required): Defines the gff/fasta files to query in {libpath}.
  input(required): The sorted/indexed .bam alignment file to count.
  htseq_stranded(required): Boolean of the stranded state of the library.
  gff_type(''): Type of feature to count.  If left alone, this will count up
@@ -89,7 +89,7 @@ sub HT_Multi {
     my $output_name = basename($htseq_input, ('.bam', '.sam'));
 
     foreach my $gff_type (@gff_types) {
-        my $gff = qq"$options->{libdir}/genome/${species}_${gff_type}.gff";
+        my $gff = qq"$options->{libpath}/genome/${species}_${gff_type}.gff";
         my $gtf = $gff;
         $gtf =~ s/\.gff/\.gtf/g;
         my $htseq_jobname = qq"hts_${gff_type}_${output_name}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
@@ -128,7 +128,7 @@ sub HT_Multi {
         }
     } ## End foreach type
     ## Also perform a whole genome count
-    my $gff = qq"$options->{libdir}/genome/${species}.gff";
+    my $gff = qq"$options->{libpath}/genome/${species}.gff";
     my $gtf = $gff;
     $gtf =~ s/\.gff/\.gtf/g;
     my $htall_jobname = qq"htall_${output_name}_$options->{species}_s${stranded}_$ro_opts{gff_type}_$ro_opts{gff_tag}";
@@ -331,7 +331,7 @@ sub HTSeq {
     ## And directory containing it.
     my $output_dir = dirname($htseq_input);
     my $output = qq"${output_dir}/${output_name}";
-    my $gff = qq"$options->{libdir}/$options->{libtype}/$options->{species}.gff";
+    my $gff = qq"$options->{libpath}/$options->{libtype}/$options->{species}.gff";
     $gff = $args{htseq_gff} if ($args{htseq_gff});
     my $gtf = $gff;
     $gtf =~ s/\.gff/\.gtf/g;
@@ -937,7 +937,7 @@ sub Final_Print_Mi {
  para_patterm('^Tc'): Pattern used to differentiate parasite-mapped
   reads.
  host_pattern(''): Pattern used to differentiate host-mapped reads.
- libdir: Change the dirname of the fasta libraries.
+ libpath: Change the dirname of the fasta libraries.
  libtype('genome'): Change the subdirectory of the fasta libraries.
 
 =cut
@@ -968,7 +968,7 @@ sub Count_Alignments {
 
     my %group = ( para => 0, host => 0,);
     my %null_group = ( para => 0, host => 0,);
-    my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $fasta = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $sam = Bio::DB::Sam->new(-bam => $options->{input},
                                 -fasta => $fasta,);
     my @targets = $sam->seq_ids;

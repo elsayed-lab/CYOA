@@ -209,7 +209,7 @@ sub Caical_Worker {
         $in->close();
     }
 
-    my $index = qq"$options->{libdir}/codon_tables/${species}.txt";
+    my $index = qq"$options->{libpath}/codon_tables/${species}.txt";
     if (!-r $index) {
         my $written = $class->Bio::Adventure::Index::Make_Codon_Table(
             species => $species);
@@ -681,6 +681,7 @@ sub Filter_Kraken_Worker {
         required => ['input', 'output'],
         job_log => 'filter_kraken.log',
         jname => 'krakenfilter',
+        jprefix => '06',
         type => 'species',);
     my $separator;
     if ($options->{type} eq 'domain') {
@@ -734,18 +735,33 @@ sub Filter_Kraken_Worker {
     my $escaped_species = $most_species;
     $escaped_species =~ s/\s/\+/g;
 
-    my $host_species;
+    my $host_species_accession = undef;
     if (-f 'host_species.txt') {
         my $host_file = FileHandle->new("<host_species.txt");
         while (my $line = <$host_file>) {
             chomp $line;
-            $host_species = $line;
+            $host_species_accession = $line;
         }
         $host_file->close();
-        print $out "The host_species.txt file already exists and suggests using ${host_species}.\n";
+        print $out "The host_species.txt file already exists and suggests using ${host_species_accession}.\n";
     }
 
-    if (!defined($host_species)) {
+    my $need_download = 0;
+    if (defined($host_species_accession)) {
+        my $accession_file = qq"$options->{libpath}/$options->{libtype}/${host_species_accession}.fasta";
+        if (-r $accession_file) {
+            print $out "Found fasta file for the putative host: ${host_species_accession}.\n";
+            print "Found fasta file for the putative host: ${host_species_accession}.\n";
+        } else {
+            $need_download = 1;
+        }
+    } else {
+        print $out "Downloading new assembly for ${most_species}.\n";
+        print "Downloading new assembly for ${most_species}.\n";
+        $need_download = 1;
+    }
+
+    if ($need_download) {
         my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
         my $mech = WWW::Mechanize->new(autocheck => 1);
         print $out "Searching ${search_url} for appropriate download links.\n";
@@ -759,7 +775,7 @@ sub Filter_Kraken_Worker {
             my @multiple = split(/\,/, $accession);
             $accession = $multiple[0];
         }
-        my $downloaded_file = qq"$options->{libdir}/$options->{libtype}/${accession}.gbff.gz";
+        my $downloaded_file = qq"$options->{libpath}/$options->{libtype}/${accession}.gbff.gz";
         if (-r $downloaded_file) {
             print STDOUT "The file: ${downloaded_file} already exists.\n";
             print $out "The file: ${downloaded_file} already exists.\n";
@@ -790,12 +806,12 @@ sub Filter_Kraken_Worker {
         my $host = FileHandle->new(">host_species.txt");
         print $host qq"${accession}\n";
         $host->close();
-        $host_species = $accession;
+        $host_species_accession = $accession;
 
         ## Convert the assembly to fasta/gff/etc.
         print $out "Converting ${downloaded_file} assembly to fasta/gff.\n";
         my $test_name = basename($downloaded_file, ('.gz', '.gbff'));
-        my $test_input = qq"$options->{libdir}/$options->{libtype}/${test_name}.fasta";
+        my $test_input = qq"$options->{libpath}/$options->{libtype}/${test_name}.fasta";
         my $converted;
         if (-r $test_input) {
             $converted = $test_input;
@@ -805,21 +821,28 @@ sub Filter_Kraken_Worker {
     } ## End checking if the host_species was defined.
 
     my $cyoa_shell = Bio::Adventure->new(cluster => 0);
-    my $index_input = qq"$options->{libdir}/$options->{libtype}/${host_species}.fasta";
-    my $index_location = qq"$options->{libdir}/$options->{libtype}/indexes/${host_species}.1.ht2";
-    if (! -f $index_location) {
-        my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(input => $index_input);
+    my $index_input = qq"$options->{libpath}/$options->{libtype}/${host_species_accession}.fasta";
+    my $index_location = qq"$options->{libpath}/$options->{libtype}/indexes/${host_species_accession}.1.ht2";
+    if (-r $index_location) {
+        print $out "Found indexes at: ${index_location}\n";
+        print "Found indexes at: ${index_location}\n";
+    } else {
+        print $out "Did not find indexes, running Hisat2_Index() now.\n";
+        print "Did not find indexes, running Hisat2_Index() now.\n";
+        my $indexed = $cyoa_shell->Bio::Adventure::Index::Hisat2_Index(
+            input => $index_input,
+            output_dir => $options->{output_dir});
         ## Check to see if there is a text file containing the putative host species
         ## If it does not exist, write it with the species name.
     }
     ## Now perform the filter using our temp_cyoa.
-    my $jprefix = $options->{jprefix} + 1;
-    print $out "Filtering out reads which map to ${host_species}.\n";
+    print $out "Filtering out reads which map to ${host_species_accession}.\n";
     my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
         input => $options->{input_fastq},
-        jprefix => $jprefix,
+        output_dir => $options->{output_dir},
+        jprefix => $options->{jprefix},
         do_htseq => 0,
-        species => $host_species,);
+        species => $host_species_accession,);
     my $filtered_reads = $filter->{unaligned_comp};
     my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
     $in_r1 = File::Spec->rel2abs($in_r1);

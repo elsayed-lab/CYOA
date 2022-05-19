@@ -780,6 +780,7 @@ sub Hisat2 {
         gff_tag => 'ID',
         count => 1,
         libtype => 'genome',
+        output_dir => undef,
         jmem => 48,
         jname => 'hisat2',
         jprefix => '40',
@@ -821,6 +822,8 @@ sub Hisat2 {
     }
 
     my $hisat_dir = qq"outputs/$options->{jprefix}hisat2_$options->{species}";
+    ## Make it possible to put the hisat outputs in another directory (phage filtering)
+    $hisat_dir = $options->{output_dir} if (defined($options->{output_dir}));
     my $hisat_input = $options->{input};
     my $test_file = '';
     my $paired = 0;
@@ -849,12 +852,11 @@ sub Hisat2 {
     my $hisat_reftest = qq"${hisat_reflibpath}.1.ht2";
     my $hisat_reftestl = qq"${hisat_reflibpath}.1.ht2l";
     if (!-r $hisat_reftest && !-r $hisat_reftestl) {
-        print "Hey! The Indexes do not appear to exist, check this out: ${hisat_reftest}\n";
-        sleep(10);
-        my $genome_fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+        my $genome_fasta = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
         my $index_job = $class->Bio::Adventure::Index::Hisat2_Index(
             input => $genome_fasta,
             jprefix => $options->{jprefix} - 1,
+            output_dir => $options->{output_dir},
             jdepends => $options->{jdepends},
             libtype => $options->{libtype},);
         ## The following line inserts the indexer into the dependency chain

@@ -313,6 +313,7 @@ sub Hisat2_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        output_dir => undef,
         required => ['input'],
         modules => ['hisat2'],
         jprefix => '21',);
@@ -320,13 +321,24 @@ sub Hisat2_Index {
     my $libdir = File::Spec->rel2abs($options->{libpath});
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
-    if (!-f $copied_location) {
-        cp($options->{input}, $copied_location);
+    my $stdout = qq"hisat2_index_${species}.stdout";
+    my $stderr = qq"hisat2_index_${species}.stderr";
+    if (defined($options->{output_dir})) {
+        make_path($options->{output_dir});
+        $stdout = qq"$options->{output_dir}/${stdout}";
+        $stderr = qq"$options->{output_dir}/${stderr}";
+    }
+    my $copied = undef;
+    if (-r $copied_location) {
+        print "The indexes appear to exist at: ${copied_location}.\n";
+    } else {
+        $copied = cp($options->{input}, $copied_location);
     }
     my $jstring = qq!
 hisat2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
-  2>hisat2_index.stderr 1>hisat2_index.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
     my $comment = qq!## Generating hisat2 indexes for species: ${species}
 ## in $options->{libdir}/${libtype}/indexes!;
