@@ -48,7 +48,7 @@ sub Cutadapt {
         right => undef,
         either => undef,
         jmem => 12,
-	jwalltime => '48:00:00',
+        jwalltime => '48:00:00',
         jprefix => '12',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
@@ -160,7 +160,7 @@ sub Racer {
         required => ['input', ],
         jmem => 24,
         jprefix => '10',
-	jwalltime => '40:00:00',
+        jwalltime => '40:00:00',
         modules => ['hitec'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
@@ -317,6 +317,11 @@ sub Trimomatic_Pairwise {
     if ($options->{task} eq 'dnaseq') {
         $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
     }
+    my $suffix_trim = '';
+    if (defined($options->{arbitrary}) &&
+        $options->{arbitrary} =~ /^CROP/) {
+        $suffix_trim = $options->{arbitrary};
+    }
 
     my $output = qq"${r1o}.xz:${r2o}.xz";
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
@@ -333,7 +338,7 @@ ${exe} \\
   ${reader} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
-  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads \\
+  ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads ${suffix_trim} \\
   SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
   1>${stdout} \\
   2>${stderr}

@@ -918,6 +918,7 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting trimmer.\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+        input => $options->{input},
         jmem => 4,
         jname => 'trimomatic',
         jprefix => $prefix,);
@@ -927,7 +928,7 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
-        input => $trim->{input},
+        input => $options->{input},
         jmem => 3,
         jnice => 100,
         jprefix => $prefix,);

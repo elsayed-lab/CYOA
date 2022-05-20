@@ -166,19 +166,32 @@ sub Fastqc_Pairwise {
     }
     my $outdir = qq"outputs/$options->{jprefix}fastqc";
 
+    my $input_string = qq"${r1} ${r2}";
+    if ($r1 =~ /\.(xz|bz2)$/) {
+        $input_string = qq"<(less ${r1}) <(less ${r2})";
+    }
+
     ## This is where fastqc should put its various output files
     ## with one important exception: It tries to be smart and take its own basename of the input
     ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
     ## outputs/${jprefix}fastqc/xxx_fastqc...
-    my $modified_inputname = basename($r1, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
+    my $modified_inputname = basename($r1, ('.gz', '.bz2', '.xz'));
+    $modified_inputname = basename($modified_inputname, ('.fastq'));
+    $modified_inputname = qq"${modified_inputname}_fastqc";
     my $final_output = qq"${outdir}/${modified_inputname}";
     my $stdout = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stdout";
     my $stderr = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stderr";
     my $txtfile = qq"${outdir}/r1_fastqc/summary.txt";
-    my $jstring = qq!mkdir -p ${outdir} && \\
-  fastqc --extract -o ${outdir} <(less ${r1}) <(less ${r2}) \\
+    my $jstring = qq!mkdir -p ${outdir}
+fastqc --extract \\
+  -o ${outdir} \\
+  ${input_string} \\
   2>${stderr} \\
   1>${stdout}
+if [ "\$?" -ne "0" ]; then
+  echo "fastqc failed."
+  exit 0
+fi
 ## Note that because I am using a subshell, fastqc will assume that the inputs
 ## are /dev/fd/xx (usually 63 or 64).
 ## We can likely cheat and get the subshell fd with this:
@@ -229,16 +242,29 @@ sub Fastqc_Single {
     my $jname = qq"fqc_${job_name}_$input_paths->{dirname}";
     my $outdir = qq"outputs/$options->{jprefix}fastqc";
 
+    my $input_string = $options->{input};
+    if ($input_string =~ /\.(xz|bz2)$/) {
+        $input_string = qq"<(less $options->{input})";
+    }
+
     ## This is where fastqc should put its various output files
     ## with one important exception: It tries to be smart and take its own basename of the input
     ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
     ## outputs/${jprefix}fastqc/xxx_fastqc...
-    my $modified_inputname = basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
+    my $modified_inputname = basename($options->{input}, ('.gz', '.xz', '.bz2'));
+    $modified_inputname = basename($modified_inputname, ('.fastq'));
     my $final_output = qq"${outdir}/${modified_inputname}";
 
-    my $jstring = qq!mkdir -p ${outdir} && \\
-  fastqc -q --extract -o ${outdir} <(less $options->{input}) \\
-  2>outputs/${jname}-$options->{filtered}_fastqc.out 1>&2
+    my $jstring = qq!mkdir -p ${outdir}
+fastqc -q --extract \\
+  -o ${outdir} \\
+  ${input_string} \\
+  2>outputs/${jname}-$options->{filtered}_fastqc.stderr \\
+  1>outputs/${jname}-$options->{filtered}_fastqc.stdout
+if [ "\$?" -ne "0" ]; then
+  echo "fastqc failed."
+  exit 0
+fi
 ## Note that because I am using a subshell, fastqc will assume that the inputs
 ## are /dev/fd/xx (usually 63 or 64).
 ## We can likely cheat and get the subshell fd with this:
@@ -264,13 +290,14 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",);
-    $outdir .= "/" . basename($options->{input}, (".fastq.gz",".fastq.xz", ".fastq")) . "_fastqc";
+
+    $outdir .= qq"/${modified_inputname}";
     my $newname = qq"fqcstats_${job_name}_$input_paths->{dirname}";
     my $fqc_stats = $class->Bio::Adventure::Metadata::Fastqc_Stats(
         input => $final_output,
         jdepends => $fqc->{job_id},
         jname => $jname,
-        jprefix => $options->{jprefix} + 1,);
+        jprefix => $options->{jprefix});
     $fqc->{stats} = $fqc_stats;
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
