@@ -79,8 +79,8 @@ sub Aragorn {
     1>${stdout}
 !;
     my $aragorn = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => qq"aragorn_${job_name}",
         jprefix => $options->{jprefix},
@@ -162,8 +162,8 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
 
     ## FIXME: There are a bunch of potentially useful glimmer outputs which should be put here.
     my $glimmer = $class->Submit(
-        cpus => $options->{cpus},
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => qq"glimmer_${job_name}",
         jprefix => $options->{jprefix},
@@ -239,6 +239,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
 !;
     my $glimmer = $class->Submit(
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"glimmer_${job_name}",
@@ -336,6 +337,7 @@ cd \${start}
 !;
     my $phagepromoter = $class->Submit(
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"phagepromoter",
@@ -399,6 +401,7 @@ xz -9e -f ${output_file}
 !;
     my $phanotate = $class->Submit(
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"phanotate_${job_name}",
@@ -517,8 +520,8 @@ fi
 sleep 3
 !;
     my $prodigal = $class->Submit(
-        cpus => 1,
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"prodigal_${job_name}",
@@ -580,6 +583,7 @@ cd \${start}
 ?;
 
     my $rhoterm = $class->Submit(
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'rhotermpredict',
@@ -632,7 +636,7 @@ prodigal -i $options->{input} \\
   1>${output_dir}/prodigal_training.stdout
 !;
     my $prodigal = $class->Submit(
-        cpus => 1,
+        jcpus => 1,
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"prodigal_training_${job_name}",
@@ -700,8 +704,8 @@ $options->{tool} $options->{arbitrary} \\
   1>${stdout}
 !;
     my $trnascan = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => qq"trnascan_${job_name}",
         jprefix => $options->{jprefix},

@@ -53,8 +53,8 @@ sub Submit {
         next if ($k eq 'comment');
         $job->{$k} = $args{$k};
     }
-    my @wanted_vars = ('basedir', 'cpus', 'depends_string', 'input',
-                       'jname', 'jmem', 'jqueue', 'jwalltime', 'output');
+    my @wanted_vars = ('basedir', 'depends_string', 'input',
+                       'jcpus', 'jmem', 'jname', 'jqueue', 'jwalltime', 'output');
     foreach my $w (@wanted_vars) {
         $job->{$w} = $options->{$w} if (!defined($job->{$w}));
     }

@@ -37,9 +37,9 @@ sub Casfinder {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        jcpus => 4,
         jprefix => '22',
         jmem => 8,
-        cpus => 4,
         modules => ['casfinder'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('casfinder.sh');
@@ -78,8 +78,8 @@ fi
 cd \${start}
 !;
     my $casfinder = $class->Submit(
-        cpus => 8,
         comment => $comment,
+        jcpus => 2,
         jdepends => $options->{jdepends},
         jname => "casfinder_${job_name}",
         jprefix => $options->{jprefix},
@@ -112,7 +112,7 @@ cd \${start}
  input(required): Fasta file containing amino acid sequences.
  jprefix(21): Prefix of the job name/output directory.
  jmem(8): Expected memory consumption.
- cpus(4): Limit the number of cpus per job with this.
+ jcpus(4): Limit the number of cpus per job with this.
  modules('interproscan'): Environment module to load.
 
 =item C<Invocation>
@@ -124,11 +124,11 @@ sub Interproscan {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
+        jcpus => 4,
         jprefix => '21',
         jmem => 8,
-        cpus => 4,
-        modules => ['interproscan'],);
+        modules => ['interproscan'],
+        required => ['input'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('interproscan.sh');
     die('Could not find interproscan in your PATH.') unless($check);
@@ -171,20 +171,20 @@ ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
-        cpus => 8,
         comment => $comment,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
+        jmem => 16,
         jname => "interproscan_${job_name}",
         jprefix => $options->{jprefix},
+        jqueue => 'large',
         jstring => $jstring,
-        jmem => 16,
         modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         stdout => $stdout,
         stderr => $stderr,
         walltime => '144:00:00',);
@@ -249,18 +249,18 @@ sub Kraken {
   1>${stdout}
 !;
     my $kraken = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 6,
         jdepends => $options->{jdepends},
+        jmem => 96,
         jname => "kraken_${job_name}",
         jprefix => $options->{jprefix},
-        jstring => $jstring,
-        jmem => 96,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
         jqueue => 'large',
+        jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_dir}/kraken_report.txt",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -371,14 +371,14 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
     my $tsv_file = qq"${output_dir}/${cwd_name}.tsv";
 
     my $prokka = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => "prokka_${job_name}",
         jprefix => $options->{jprefix},
+        jqueue => 'workstation',
         jstring => $jstring,
-        jmem => 24,
         modules => $options->{modules},
         output => $cds_file,
         output_error => $error_file,
@@ -393,8 +393,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         output_tbl => $tbl_file,
         output_tsv => $tsv_file,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($prokka);
@@ -406,9 +405,9 @@ sub Transposonpsi {
         args => \%args,
         required => ['input'],
         input_faa => '',
-        jprefix => '21',
+        jcpus => 4,
         jmem => 8,
-        cpus => 4,
+        jprefix => '21',
         modules => ['transposonpsi'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('transposonPSI.pl');
@@ -445,20 +444,20 @@ ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
     my $interproscan = $class->Submit(
-        cpus => 8,
         comment => $comment,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
+        jmem => 16,
         jname => "interproscan_${job_name}",
         jprefix => $options->{jprefix},
+        jqueue => 'large',
         jstring => $jstring,
-        jmem => 16,
         modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         stdout => $stdout,
         stderr => $stderr,
         walltime => '144:00:00',);
@@ -814,15 +813,16 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
 !;
     my $transdecoder = $class->Submit(
         comment => $comment,
+        jcpus => 1,
         jmem => 4,
         jname => "transdecoder_${job_name}",
         jprefix => '47',
+        jqueue => 'workstation',
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_dir}/transcripts.fasta.transdecoder.genome.gff3",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        postscript => $options->{postscript},);
     return($transdecoder);
 }
 
@@ -846,13 +846,13 @@ sub Trinotate {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
+        config => 'conf.txt',
+        jcpus => 4,
         jprefix => '20',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp', 'hmmer',
                     'tmhmm', 'rnammer', 'trinotate', ],
-        trinotate => 'autoTrinotate.pl',
-        config => 'conf.txt',
-        );
+        required => ['input'],
+        trinotate => 'autoTrinotate.pl',);
 
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('Trinotate');
@@ -912,19 +912,19 @@ rm -rf TMHMM_* $input_paths->{filename}.ffn.trans*
 cd \${start}
 !;
     my $trinotate = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 6,
         jdepends => $options->{jdepends},
         jname => qq"trinotate_$input_paths->{filename}_${job_name}",
         jprefix => $options->{jprefix},
+        jqueue => 'large',
         jstring => $jstring,
         jmem => 12,
+        jwalltime => '144:00:00',
         modules => $options->{modules},
         output => qq"${output_dir}/${output_name}",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
-        jwalltime => '144:00:00',
         stdout => $stdout,
         stderr => $stderr);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -955,15 +955,18 @@ sub Rosalind_Plus {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jprefix => '44',);
+        jprefix => '44',
+        jcpus => 2,);
 
     my $input_seq = $options->{input};
     my $job_name = 'rosalindplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
     make_path($output_dir);
-    my $rosalind_prodigal = Bio::Adventure::Feature_Prediction::Prodigal($class,
+    my $rosalind_prodigal = Bio::Adventure::Feature_Prediction::Prodigal(
+        $class,
         gcode => '11',
         input => $options->{input},
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
         jname => $job_name,
         jprefix => $options->{jprefix},
@@ -993,10 +996,11 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         comment => $comment_string,
         gff => $options->{gff},
         input => $options->{input},
-        job_log => $log,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => 8,
         jname => $options->{jname},
+        job_log => $log,
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',

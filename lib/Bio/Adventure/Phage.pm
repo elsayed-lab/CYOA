@@ -368,9 +368,10 @@ sub Classify_Phage_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
-        evalue => 0.01,
         blast_tool => 'tblastx',
+        evalue => 0.01,
+        jcpus => 4,
+        jprefix => '18',
         library => 'ictv',
         output_log => 'classify.log',
         output_blast => 'ictv_hits.txt',
@@ -378,9 +379,8 @@ sub Classify_Phage_Worker {
         output => 'ictv_filtered.tsv',
         score => 1000,
         topn => 5,
-        jprefix => '18',
-        jcpus => 6,
-        modules => ['blast', 'blastdb'],);
+        modules => ['blast', 'blastdb'],
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which($options->{blast_tool});
     die("Could not find $options->{blast_tool} in your PATH.") unless($check);
@@ -966,7 +966,7 @@ sub Get_DTR {
 
  input(required): Input fastq reads.
  library(required): Assembly created from the input reads.
- cpus(8): Use this number of cpus.
+ jcpus(8): Use this number of cpus.
  jmem(12): and this amount of memory.
  jprefix('14'): Output/jobname prefix.
  modules('phageterm'): load the phageterm environment module.
@@ -976,11 +976,11 @@ sub Phageterm {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'library'],
-        cpus => 8,
+        jcpus => 8,
         jmem => 12,
         jprefix => '14',
-        modules => ['phageterm'],);
+        modules => ['phageterm'],
+        required => ['input', 'library'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('PhageTerm.py');
     die('Could not find phageterm in your PATH.') unless($check);
@@ -1190,7 +1190,7 @@ PhageTerm.py -f ${read_string} \\
 =item C<Arguments>
 
  input(required): Input assembly.
- cpus(8): Use this number of cpus.
+ jcpus(8): Use this number of cpus.
  jmem(12): And this amount of memory.
  jprefix('14'): with this prefix for the jobname/directory.
  modules('phastaf'): Load the phastaf environment module.
@@ -1200,11 +1200,11 @@ sub Phastaf {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        cpus => 8,
+        jcpus => 8,
         jmem => 12,
         jprefix => '14',
-        modules => ['phastaf'],);
+        modules => ['phastaf'],
+        required => ['input'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('phastaf');
     die('Could not find phastaf in your PATH.') unless($check);
@@ -1222,23 +1222,23 @@ sub Phastaf {
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
-  --cpus $options->{cpus} \\
+  --cpus $options->{jcpus} \\
   $options->{input} \\
   2>${output_dir}/phastaf.stderr \\
   1>${output_dir}/phastaf.stdout
 ?;
     my $output_file = qq"${output_dir}/something.txt";
     my $phastaf = $class->Submit(
-        cpus => $options->{cpus},
-        coordinates => $coords,
-        output => $output_file,
         comment => $comment,
+        coordinates => $coords,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => qq"phastaf_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => $options->{jmem},
         modules => $options->{modules},
+        output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},

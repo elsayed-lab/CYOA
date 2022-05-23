@@ -149,7 +149,7 @@ sub Bowtie {
 bowtie \\
   ${bt_reflib} \\
   ${bt_args} \\
-  -p $options->{cpus} \\
+  -p $options->{jcpus} \\
   ${bowtie_input_flag} ${bt_input} \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
@@ -190,7 +190,7 @@ bowtie \\
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     my $trim_output_file = qq"outputs/trimomatic_stats.csv";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
-        cpus => 1,
+        jcpus => 1,
         input => $sam_filename,
         jdepends => $bt_job->{job_id},
         jname => qq"s2b_${jname}",
@@ -353,7 +353,7 @@ sub Bowtie2 {
     my $bowtie_input_flag = '-q '; ## fastq by default
     $bowtie_input_flag = '-f ' if (${bt_input} =~ /\.fasta$/);
 
-    my $cpus = $options->{cpus};
+    my $jcpus = $options->{jcpus};
     my $error_file = qq"${bt_dir}/$options->{jbasename}.stderr";
     my $comment = qq!## This is a bowtie2 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt2_args}.
@@ -363,7 +363,7 @@ sub Bowtie2 {
     my $sam_filename = qq"${bt_dir}/$options->{jbasename}.sam";
     my $jstring = qq!mkdir -p ${bt_dir}
 bowtie2 -x ${bt_reflib} ${bt2_args} \\
-    -p ${cpus} \\
+    -p ${jcpus} \\
     ${bowtie_input_flag} ${bt_input} \\
     --un ${unaligned_filename} \\
     --al ${aligned_filename} \\
@@ -866,7 +866,7 @@ sub Hisat2 {
 
     my $hisat_input_flag = '-q '; ## fastq by default
     $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
-    my $cpus = $options->{cpus};
+    my $jcpus = $options->{jcpus};
 
     my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}";
     my $stdout_file = $error_file;
@@ -888,7 +888,7 @@ sub Hisat2 {
     my $sam_filename = qq"${hisat_dir}/$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
 hisat2 -x ${hisat_reflib} ${hisat_args} \\
-  -p ${cpus} \\
+  -p ${jcpus} \\
   ${hisat_input_flag} ${hisat_input} \\
   --phred$options->{phred} \\
   --un ${unaligned_discordant_filename} \\
@@ -955,8 +955,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     my $sam_jprefix = qq"$options->{jprefix}_2";
     my $sam_jname = qq"s2b_${suffix_name}";
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
-        cpus => 1,
         input => $sam_filename,
+        jcpus => 1,
         jdepends => $hisat_job->{job_id},
         jname => $sam_jname,
         jprefix => $sam_jprefix,
@@ -1572,7 +1572,7 @@ fi
 !;
     my $tophat = $class->Submit(
         comment => $comment,
-        cpus => $tophat_cpus,
+        jcpus => $tophat_cpus,
         jdepends => $options->{jdepends},
         jname => $options->{jname},
         jprefix => '31',

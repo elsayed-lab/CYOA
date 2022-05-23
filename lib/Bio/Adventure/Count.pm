@@ -653,11 +653,12 @@ for outer in ${sketch_dir}/*; do
 
     my $mash = $class->Submit(
         comment => $comment,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
+        jmem => 12,
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        jmem => 12,
         modules => $options->{modules},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -1138,13 +1139,14 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
     my $slsearch = $class->Submit(
         comment => $comment,
         input => $options->{input},
-        output => $output_dir,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'slsearch',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        language => 'perl',);
+        language => 'perl',
+        output => $output_dir,);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     return($slsearch);

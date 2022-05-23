@@ -288,8 +288,8 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
               1>>${output_dir}/kraken2-build.stdout
 !;
     my $kraken = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 6,
         jdepends => $options->{jdepends},
         jname => qq"kraken_${job_name}",
         jprefix => '99',

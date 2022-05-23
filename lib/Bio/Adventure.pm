@@ -135,7 +135,6 @@ has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
 has config => (is => 'rw', default => undef); ## Not sure
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
-has cpus => (is => 'rw', default => 4); ## Number of processors to request in jobs
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
 has debug => (is => 'rw', default => 0); ## Print debugging information.
@@ -180,6 +179,7 @@ has introns => (is => 'rw', default => 0); ## Is this method intron aware? (vari
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
 has jbasename => (is => 'rw', default => undef); ## Job basename
+has jcpus => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster

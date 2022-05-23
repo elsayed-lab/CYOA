@@ -32,12 +32,13 @@ sub RNAFold_Windows {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        length => 201,
-        step => 3,
+        jcpus => 1,
         jprefix => 80,
         jname => 'vienna',
+        length => 201,
+        modules => ['vienna']
         required => ['input'],
-        modules => ['vienna']);
+        step => 3,);
     my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
     my $output_dir = qq"outputs/$options->{jprefix}rnafold";
     my $output = qq"${output_dir}/${output_name}.tsv.xz";

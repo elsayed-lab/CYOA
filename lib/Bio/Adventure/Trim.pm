@@ -204,8 +204,8 @@ xz -9e -f ${output}
 
     my $racer = $class->Submit(
         comment => $comment,
-        cpus => 4,
         input => $input,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => "racer_${job_name}",
@@ -376,8 +376,8 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
-        cpus => 3,
         input => $input,
+        jcpus => 3,
         jmem => $options->{jmem},
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},

@@ -16,7 +16,7 @@ use IO::Handle;
 
 has args => (is => 'rw', default => '-j eo -V -m n');
 has basedir => (is => 'rw', default => getcwd());
-has cpus => (is => 'rw', default => '4');
+has jcpus => (is => 'rw', default => '4');
 has depends_prefix => (is => 'rw', default => 'depend=afterok:');
 has depends => (is => 'rw', default => undef);
 has dependsarray_prefix => (is => 'rw', default => 'depend=afterokarray:');
@@ -86,7 +86,7 @@ sub Submit {
   my $script_start = qq?#!/usr/bin/env bash
 #PBS -V -S $options->{shell} -q $options->{queue}
 #PBS -d $options->{basedir}
-#PBS -N $options->{jname} -l mem=$options->{mem}gb -l walltime=$options->{walltime} -l ncpus=$options->{cpus}
+#PBS -N $options->{jname} -l mem=$options->{mem}gb -l walltime=$options->{walltime} -l ncpus=$options->{jcpus}
 #PBS -o ${log} $options->{args}
 echo "#### Started ${script_file} at \$(date)" >> outputs/log.txt
 cd $options->{basedir} || exit
@@ -171,15 +171,15 @@ fi
 
   $job = {
       basedir => $options->{basedir},
-      cpus => $options->{cpus},
       depends_string => $depends_string,
       job_id => $short_jobid,
       job_input => $options->{job_input},
+      jcpus => $options->{jcpus},
       jname => $options->{jname},
       job_output => $options->{job_output},
+      jmem => $options->{mem},
+      jqueue => $options->{queue},
       log => $log,
-      mem => $options->{mem},
-      queue => $options->{queue},
       pbs_id => $job_id,
       qsub_args => $options->{args},
       script_body => $args{jstring},
@@ -280,7 +280,7 @@ $args{jstring}" if ($class->{verbose});
                   submitter => $qsub,
                   mem => $class->{mem},
                   walltime => $class->{walltime},
-                  cpus => $class->{cpus},
+                  jcpus => $class->{jcpus},
                   jobname => $shell_job->{jobname},
                   log => $log,
                   depends_string => $depends_string,

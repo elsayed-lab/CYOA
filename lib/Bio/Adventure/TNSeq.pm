@@ -166,7 +166,7 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_TA_Check(
     $input_base = basename($input_base, ('.fastq', '.fasta'));
     my $sort_job = $class->Submit(
         comment => '## Check for tailing TAs!',
-        cpus => 1,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => 8,
         jname => qq"tacheck_${job_name}",
@@ -249,7 +249,7 @@ sub Sort_Indexes {
     my $jstring = qq!
 use Bio::Adventure;
 my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
-  cpus => 1,
+  jcpus => 1,
   input => "$options->{input}",
   index_file => "$options->{index_file}",
   jname => 'sort_indexes',
@@ -259,13 +259,13 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
 !;
     my $sort_job = $class->Submit(
         comment => '## Sort those indexes!',
-        cpus => 1,
         input => $options->{input},
         index_file => $options->{index_file},
+        jcpus => 1,
+        jmem => 8,
         jname => 'sort_indexes',
         jprefix => '01',
         jstring => $jstring,
-        jmem => 8,
         jqueue => 'workstation',
         jwalltime => '60:00:00',
         language => 'perl',

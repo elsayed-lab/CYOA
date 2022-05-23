@@ -98,6 +98,7 @@ sub Collect_Assembly {
     ## $jstring .= qq"cp $options->{input_genome} ${output_dir}\n" if ($options->{input_genome});
 
     my $collect = $class->Submit(
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => $options->{jname},
         jstring => $jstring,
@@ -141,6 +142,7 @@ library(hpgltools)
 meta_written <- gather_preprocessing_metadata("$options->{input}")
 !;
     my $sample_sheet = $class->Submit(
+        jcpus => 1,
         jstring => $jstring,
         language => 'R',
         output => $output_file,
@@ -344,16 +346,16 @@ sub Kraken_Best_Hit {
   2>${output_dir}/kraken.stderr 1>${output_dir}/kraken.stdout
 !;
     my $kraken = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jname => qq"kraken_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
+        jqueue => 'large',
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         modules => $options->{modules},
         output => qq"${output_dir}/kraken_report.txt",);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -440,13 +442,16 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         input_phageterm => $options->{input_phageterm},
         input_prodigal => $options->{input_prodigal},
         input_trinotate => $options->{input_trinotate},
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => 'merge_annotations',
         jmem => $options->{jmem},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        keep_genes => $options->{keep_genes},
         language => 'perl',
         library => $options->{library},
+        locus_tag => 1,
         output_dir => $output_dir,
         output_fsa => $output_fsa,
         output_gbf => $output_gbf,
@@ -455,8 +460,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         output_xlsx => $output_xlsx,
         output_log => $output_log,
         primary_key => $options->{primary_key},
-        keep_genes => $options->{keep_genes},
-        locus_tag => $options->{locus_tag},
         suffix => $options->{suffix},);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
@@ -1378,12 +1381,12 @@ echo "\$stat_string" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $bt_input,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        cpus => 1,
         jmem => 1,
         jqueue => 'throughput',
         jwalltime => '00:01:00',);
@@ -1431,12 +1434,11 @@ echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $bt_input,
-        jmem => $options->{jmem},
-        jname => $jname,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        cpus => 1,
+        jname => $jname,
         jmem => 1,
         jqueue => 'throughput',
         jwalltime => '00:01:00',);
@@ -1489,13 +1491,12 @@ echo "\${stat_string}" >> ${stat_output}!;
         comment => $comment,
         input => $aln_input,
         depends => $options->{jdepends},
-        jmem => $options->{jmem},
+        jcpus => 1,
+        jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jstring => $jstring,
-        cpus => 1,
-        jmem => 1,
         jqueue => 'throughput',
+        jstring => $jstring,
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1559,8 +1560,8 @@ echo "\$stat_string" >> ${stat_output}
 !;
     my $stats = $class->Submit(
         comment => $comment,
-        cpus => 1,
         input => $input_file,
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => $jname,
@@ -1613,15 +1614,15 @@ echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $ht_input,
-        output => $output,
-        cpus => 1,
+        jcpus => 1,
         jmem => $options->{jmem},
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '00:01:00',
-        jqueue => 'throughput',);
+        jqueue => 'throughput',
+        output => $output,);
     return($stats);
 }
 
@@ -1660,15 +1661,14 @@ stat_string=\$(printf "$paths->{jbasename},$options->{species},%s,%s,%s,%s,%s" "
 echo "\$stat_string" >> "${output}"!;
     my $stats = $class->Submit(
         comment => $comment,
-        cpus => 1,
         input => $options->{input},
-        jmem => $options->{jmem},
+        jcpus => 1,
+        jmem => 1,
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $args{jprefix},
-        jstring => $jstring,
-        jmem => 1,
         jqueue => 'throughput',
+        jstring => $jstring,
         jwalltime => '00:01:00',
         output => $output,);
     return($stats);
@@ -1725,16 +1725,15 @@ stat_string=\$(printf "$paths->{jbasename},$options->{species},%s,%s,%s,%s,%s,${
 echo "\$stat_string" >> "${output}"!;
     my $stats = $class->Submit(
         comment => $comment,
-        cpus => 1,
         input => $accepted_input,
-        jmem => $options->{jmem},
-        jname => $jname,
+        jcpus => 1,
         jdepends => $options->{jdepends},
-        jprefix => $args{jprefix},
-        jstring => $jstring,
         jmem => 1,
-        jwalltime => '00:01:00',
-        jqueue => 'throughput',);
+        jname => $jname,
+        jprefix => $args{jprefix},
+        jqueue => 'throughput',
+        jstring => $jstring,
+        jwalltime => '00:01:00',);
     return($stats);
 }
 
@@ -1795,15 +1794,14 @@ echo "\$stat_string" >> ${stat_output}
     }
     my $stats = $class->Submit(
         comment => $comment,
-        cpus => 1,
         input => $options->{input},
+        jcpus => 1,
         jdepends => $options->{jdepends},
-        jmem => $options->{jmem},
+        jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jstring => $jstring,
-        jmem => 1,
         jqueue => 'throughput',
+        jstring => $jstring,
         jwalltime => '00:01:00',
         output => $stat_output,);
     return($stats);

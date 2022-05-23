@@ -206,8 +206,8 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
-        cpus => 8,
         comment => $comment,
+        jcpus => 8,
         jname => $jname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
@@ -279,8 +279,8 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
-        cpus => 8,
         comment => $comment,
+        jcpus => 8,
         jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},

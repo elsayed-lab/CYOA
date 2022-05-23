@@ -77,16 +77,14 @@ abricate --summary ${output_dir}/*.tsv \\
 !;
 
     my $abricate = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => qq"abricate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
         output => qq"${output_dir}/abricate_combined.tsv",
         output_argannot => qq"${output_dir}/abricate_argannot.tsv",
         output_card => qq"${output_dir}/abricate_card.tsv",
@@ -97,7 +95,9 @@ abricate --summary ${output_dir}/*.tsv \\
         output_plasmidfinder => qq"${output_dir}/abricate_plasmidfinder.tsv",
         output_resfinder => qq"${output_dir}/abricate_resfinder.tsv",
         output_txt => ${output_txt},
-        output_vfdb => qq"${output_dir}/abricate_vfdb.tsv",);
+        output_vfdb => qq"${output_dir}/abricate_vfdb.tsv",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
     return($abricate);
 }
 
@@ -140,8 +140,8 @@ run_resfinder.py -ifa $options->{input} \\
   ${resfinder_args} ${species_string}
 !;
     my $resfinder = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => qq"resfinder_${job_name}",
@@ -189,8 +189,8 @@ rgi main --input_sequence $options->{input} \\
 !;
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $rgi = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => "rgi_${job_name}",

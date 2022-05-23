@@ -95,18 +95,18 @@ ${executable} -C \$(pwd) \\
 cd \${start}
 !;
     my $abyss = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 6,
         jdepends => $options->{jdepends},
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
+        jqueue => 'workstation',
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($abyss);
@@ -200,8 +200,8 @@ samtools index ${output_dir}/coverage.bam \\
   1>>${stdout}
 !;
     my $coverage = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => 6,
         jdepends => $options->{jdepends},
         jname => qq"coverage_${job_name}",
         jprefix => $options->{jprefix},
@@ -278,6 +278,7 @@ cp $options->{input_tsv} ${output_dir}
     }
 
     my $collect = $class->Submit(
+        jcpus => 1,
         jdepends => $options->{jdepends},
         jname => $options->{jname},
         jstring => $jstring,
@@ -336,6 +337,7 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   output_log => '${output_log}',);
 !;
     my $depth_filtered = $class->Submit(
+        jcpus => 1,
         jdepends => $options->{jdepends},
         comment => $comment,
         jmem => $options->{jmem},
@@ -375,10 +377,12 @@ sub Unicycler_Filter_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
         coverage => 0.2,
+        jcpus => 1,
         output_log => '',
-        output => '',);
+        output => '',
+        required => ['input',],);
+
     my $paths = $class->Get_Paths($options->{output});
     my $log = FileHandle->new(">$options->{output_log}");
     my $input_contigs = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
@@ -506,8 +510,8 @@ else
 fi
 !;
     my $shovill_job = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => $options->{jcpus}.,
         jdepends => $options->{jdepends},
         jname => qq"shovill_${job_name}",
         jprefix => $options->{jprefix},
@@ -576,8 +580,8 @@ sub Trinity {
     1>${output_dir}/trinity_${job_name}.stdout
 !;
     my $trinity = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
         jname => qq"$options->{jprefix}trin_${job_name}",
         jprefix => $options->{jprefix},
@@ -590,6 +594,7 @@ sub Trinity {
         postscript => $options->{postscript},);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
+        jcpus => $options->{jcpus}
         jdepends => $trinity->{job_id},
         jname => qq"$options->{jprefix}_1trin_rsem",
         input => $options->{input},);
@@ -807,9 +812,9 @@ rm -f r1.fastq.gz r2.fastq.gz
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(
-        jdepends => $options->{jdepends},
-        cpus => 6,
         comment => $comment,
+        cpus => $options->{jcpus},
+        jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"unicycler_${job_name}",
         jprefix => $options->{jprefix},
@@ -894,8 +899,8 @@ sub Velvet {
 !;
     }
     my $velvet = $class->Submit(
-        cpus => 6,
         comment => $comment,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
         jname => qq"velveth_${job_name}",
         jprefix => $options->{jprefix},
