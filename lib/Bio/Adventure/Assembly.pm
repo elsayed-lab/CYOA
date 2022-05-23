@@ -511,7 +511,7 @@ fi
 !;
     my $shovill_job = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus}.,
+        jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
         jname => qq"shovill_${job_name}",
         jprefix => $options->{jprefix},
@@ -594,7 +594,7 @@ sub Trinity {
         postscript => $options->{postscript},);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
-        jcpus => $options->{jcpus}
+        jcpus => $options->{jcpus},
         jdepends => $trinity->{job_id},
         jname => qq"$options->{jprefix}_1trin_rsem",
         input => $options->{input},);

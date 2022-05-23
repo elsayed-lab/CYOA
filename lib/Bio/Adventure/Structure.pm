@@ -36,7 +36,7 @@ sub RNAFold_Windows {
         jprefix => 80,
         jname => 'vienna',
         length => 201,
-        modules => ['vienna']
+        modules => ['vienna'],
         required => ['input'],
         step => 3,);
     my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
