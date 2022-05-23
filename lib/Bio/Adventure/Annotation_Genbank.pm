@@ -304,14 +304,15 @@ sub Filter_Edge_Features {
     my @new_features;
     my $count = 0;
     for my $f (@features) {
+        $count++;
         my $contig_id = $f->seq_id;
         my $contig = $source->{$contig_id};
         my $good_feature = Query_Edge_Feature(feature => $f, contig => $contig);
         if ($good_feature) {
-            print "Keeping this feature!\n";
+            ## print "Keeping this feature!\n";
             push(@new_features, $f);
         } else {
-            print "Dropping bad feature!\n";
+            print "Filter_Edge_Feature() Dropping bad feature, number ${count}.\n";
         }
     }
     return(\@new_features);

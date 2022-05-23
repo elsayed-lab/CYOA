@@ -443,8 +443,7 @@ sub Jellyfish {
     if (scalar(@kmer_array) > 1) {
       KMERARR: for my $k (@kmer_array) {
           my $job = $class->Bio::Adventure::Count::Jellyfish(
-              %args,
-              input => $options->{input},
+              %{$options},
               length => $k);
           if ($count == 0) {
               $ret = $job;

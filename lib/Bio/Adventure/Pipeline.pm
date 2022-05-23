@@ -47,7 +47,7 @@ sub Annotate_Assembly {
         jname => 'phastaf',
         jprefix => $prefix,);
     $last_job = $phastaf->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
@@ -58,7 +58,7 @@ sub Annotate_Assembly {
         jname => 'prokka',
         jprefix => $prefix,);
     $last_job = $prokka->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
@@ -67,7 +67,7 @@ sub Annotate_Assembly {
         jdepends => $last_job,
         jprefix => $prefix,);
     $last_job = $prodigal->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning Jellyfish on the assembly.\n";
@@ -77,7 +77,7 @@ sub Annotate_Assembly {
         jname => 'jelly',
         jprefix => $prefix,);
     $last_job = $jelly->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
@@ -87,7 +87,7 @@ sub Annotate_Assembly {
         jname => 'aragorn',
         jprefix => $prefix,);
     $last_job = $aragorn->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning relaxed tRNAscan to search for tmRNAs.\n";
@@ -99,7 +99,7 @@ sub Annotate_Assembly {
         suffix => 'relaxed',
         jprefix => $prefix,);
     $last_job = $trnascan->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
@@ -109,7 +109,7 @@ sub Annotate_Assembly {
         jname => 'trinotate',
         jprefix => $prefix,);
     $last_job = $trinotate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSearching for resistance genes with abricate.\n";
@@ -119,7 +119,7 @@ sub Annotate_Assembly {
         jname => 'abricate',
         jprefix => $prefix,);
     $last_job = $abricate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
@@ -129,7 +129,7 @@ sub Annotate_Assembly {
         jname => 'interproscan',
         jprefix => $prefix,);
     $last_job = $interpro->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files.\n";
@@ -148,7 +148,7 @@ sub Annotate_Assembly {
         jname => 'mergeannot',
         jprefix => $prefix,);
     $last_job = $merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning cgview.\n";
@@ -157,7 +157,7 @@ sub Annotate_Assembly {
         jdepends => $last_job,
         jprefix => $prefix);
     $last_job = $cgview->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning Vienna RNAfold on the assembly.\n";
@@ -167,7 +167,7 @@ sub Annotate_Assembly {
         jname => 'vienna',
         jprefix => $prefix,);
     $last_job = $vienna->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     my $ret = {
         phastaf => $phastaf,
@@ -205,7 +205,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'depth_filter',);
     $last_job = $depth_filtered->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
@@ -215,7 +215,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'phastaf',);
     $last_job = $phastaf->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning virus ICTV classifier.\n";
@@ -225,7 +225,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'ictv',);
     $last_job = $ictv->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSetting the Rosalind strand to the one with the most ORFs.\n";
@@ -235,7 +235,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'rosalindplus',);
     $last_job = $rosalindplus->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nUsing Phageterm to reorient the assembly to the terminii.\n";
@@ -246,7 +246,7 @@ sub Annotate_Phage {
         jname => 'phageterm',
         library => $rosalindplus->{output},);
     $last_job = $phageterm->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming reordering by putative terminase if phageterm failed.\n";
@@ -260,7 +260,7 @@ sub Annotate_Phage {
         jname => 'reorder',
         jdepends => $last_job,);
     $last_job = $termreorder->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
@@ -271,7 +271,7 @@ sub Annotate_Phage {
         jname => 'prokka',
         locus_tag => $final_locustag,);
     $last_job = $prokka->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning prodigal to get RBSes.\n";
@@ -281,7 +281,7 @@ sub Annotate_Phage {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $prodigal->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning glimmer for less stringent ORFs.\n";
@@ -290,7 +290,7 @@ sub Annotate_Phage {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $glimmer->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phanotate.\n";
@@ -299,7 +299,7 @@ sub Annotate_Phage {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $phanotate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging the CDS predictions and writing an initial gbk file.\n";
@@ -311,7 +311,7 @@ sub Annotate_Phage {
         input_prodigal => $prodigal->{output_gff},
         jprefix => $prefix);
     $last_job = $cds_merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning Jellyfish on the assembly.\n";
@@ -321,7 +321,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'jelly',);
     $last_job = $jelly->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning aragorn on the assembly to search for tmRNAs.\n";
@@ -331,7 +331,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'aragorn',);
     $last_job = $aragorn->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
@@ -342,7 +342,7 @@ sub Annotate_Phage {
         jname => 'trinotate',
         config => 'phage.txt',);
     $last_job = $trinotate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nSearching for resistance genes with abricate.\n";
@@ -352,7 +352,7 @@ sub Annotate_Phage {
         jname => 'abricate',
         input => $cds_merge->{output_cds},);
     $last_job = $abricate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
@@ -362,7 +362,7 @@ sub Annotate_Phage {
         jname => 'interproscan',
         input => $cds_merge->{output_faa},);
     $last_job = $interpro->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging annotation files.\n";
@@ -381,7 +381,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'mergeannot',);
     $last_job = $merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -403,7 +403,7 @@ sub Annotate_Phage {
         keep_genes => 0,
         locus_tag => 0,
         evalue => undef,);
-    sleep(0.2);
+    sleep($options->{jsleep});
     $last_job = $merge2->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -413,7 +413,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         input => $merge->{output_gbk},);
     $last_job = $cgview->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning Vienna RNAfold on the assembly.\n";
@@ -423,7 +423,7 @@ sub Annotate_Phage {
         jprefix => $prefix,
         jname => 'vienna',);
     $last_job = $cds_merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
 }
 
@@ -442,7 +442,7 @@ sub Riboseq {
         jprefix => $prefix,
         jname => 'fastqc',);
     $last_job = $fastqc->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nRunning cutadapt.\n";
     my $cutadapt = $class->Bio::Adventure::Trim::Cutadap(
@@ -452,7 +452,7 @@ sub Riboseq {
         jprefix => $prefix,
         jname => 'cutadapt',);
     $last_job = $cutadapt->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nRunning Biopieces.\n";
     my $pieces = $class->Bio::Adventure::QA::Biopieces_Graph(
@@ -461,7 +461,7 @@ sub Riboseq {
         jprefix => $prefix,
         jname => 'biopieces',);
     $last_job = $pieces->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nFiltering rRNA reads.\n";
     my $rrna_filter = $class->Bio::Adventure::Map::Bowtie_RRNA(
@@ -471,7 +471,7 @@ sub Riboseq {
         jprefix => $prefix,
         jname => 'rrna_filter',);
     $last_job = $rrna_filter->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nMapping remaining reads.\n";
     my $map_reads = $class->Bio::Adventure::Map::Bowtie(
@@ -481,7 +481,7 @@ sub Riboseq {
         jprefix => $prefix,
         jname => 'map_reads',);
     $last_job = $map_reads->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     my $ret = {
         fastqc => $fastqc,
@@ -549,7 +549,7 @@ sub Process_RNAseq {
         jname => 'trimomatic',);
     push(@jobs, $trim);
     my $last_job = $trim->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting fastqc.\n";
@@ -558,7 +558,7 @@ sub Process_RNAseq {
         jnice => 100,
         jprefix => $prefix,);
     push(@jobs, $fastqc);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     ## Have some logic to handle a first species which will be used to filter
     ## any following species provided.
@@ -581,7 +581,7 @@ sub Process_RNAseq {
         jprefix => $prefix,);
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
-    sleep(0.2);
+    sleep($options->{jsleep});
     my $last_sam_job = $first_map->{samtools}->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -595,7 +595,7 @@ sub Process_RNAseq {
         intron => $options->{intron},
         jprefix => $prefix,);
     push(@jobs, $first_snp);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     if (scalar(@species_list) > 0) {
         my $c = 0;
@@ -631,7 +631,7 @@ sub Process_RNAseq {
             }
             push(@jobs, $nth_map);
             $last_sam_job = $nth_map->{samtools}->{job_id};
-            sleep(0.2);
+            sleep($options->{jsleep});
 
             $prefix = sprintf("%02d", ($prefix + 1));
             print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
@@ -645,7 +645,7 @@ sub Process_RNAseq {
                 jprefix => $prefix,);
             $last_job = $nth_map->{job_id};
             push(@jobs, $nth_snp);
-            sleep(0.2);
+            sleep($options->{jsleep});
             $c++;
         } ## End iterating over extra species
     } ## End checking for extra species
@@ -666,7 +666,7 @@ sub RNAseq {
     print "Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         jprefix => $prefix,);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting trimmer.\n";
@@ -674,7 +674,7 @@ sub RNAseq {
         input => $fastqc->{input},
         jprefix => $prefix,
         jname => 'trimomatic',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting mapper.\n";
@@ -743,7 +743,7 @@ sub TNseq {
         jprefix => $prefix,
         jname => 'fastqc',);
     $last_job = $fastqc->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nRunning Cutadapt with TNSeq adapters.\n";
     my $cutadapt = $class->Bio::Adventure::Trim::Cutadapt(
@@ -752,7 +752,7 @@ sub TNseq {
         jprefix => $prefix,
         jname => 'cutadapt',);
     $last_job = $cutadapt->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nRunning Biopieces.\n";
     my $pieces = $class->Bio::Adventure::QA::Biopieces_Graph(
@@ -760,7 +760,7 @@ sub TNseq {
         jprefix => $prefix,
         jname => 'biopieces',);
     $last_job = $pieces->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     print "\nMapping remaining reads.\n";
     my $map_reads = $class->Bio::Adventure::Map::Bowtie(
@@ -770,7 +770,7 @@ sub TNseq {
         jprefix => $prefix,
         jname => 'map_reads',);
     $last_job = $map_reads->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     my $ret = {
         fastqc => $fastqc,
@@ -812,7 +812,7 @@ sub Assemble {
         input => $options->{input},
         jprefix => $prefix,
         jname => 'trimomatic',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting fastqc.\n";
@@ -821,7 +821,7 @@ sub Assemble {
         jmem => 3,
         jnice => 100,
         jprefix => $prefix,);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nStarting read correction.\n";
@@ -830,7 +830,7 @@ sub Assemble {
         input => $trim->{output},
         jprefix => $prefix,
         jname => 'racer',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nClassifying sequences with Kraken2.\n";
@@ -840,7 +840,7 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'kraken',
         library => 'viral',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nCreating initial assembly with Unicycler.\n";
@@ -849,7 +849,7 @@ sub Assemble {
         input => $correct->{output},
         jprefix => $prefix,
         jname => 'unicycler',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
@@ -858,7 +858,7 @@ sub Assemble {
         input => $assemble->{output},
         jprefix => $prefix,
         jname => 'phastaf',);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
@@ -868,7 +868,7 @@ sub Assemble {
         jprefix => $prefix,
         jname => 'prokka',
         locus_tag => $final_locustag,);
-    sleep(0.2);
+    sleep($options->{jsleep});
 }
 
 =head2 C<Phage_Assemble>
@@ -909,9 +909,10 @@ sub Phage_Assemble {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
         host_filter => 1,
-        host_species => '');
+        host_species => '',
+        jsleep => 5,
+        required => ['input'],);
     my $prefix = sprintf("%02d", 0);
     my $final_locustag = basename(cwd());
 
@@ -923,7 +924,7 @@ sub Phage_Assemble {
         jname => 'trimomatic',
         jprefix => $prefix,);
     my $last_job = $trim->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting fastqc.\n";
@@ -932,7 +933,7 @@ sub Phage_Assemble {
         jmem => 3,
         jnice => 100,
         jprefix => $prefix,);
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting read correction.\n";
@@ -942,7 +943,7 @@ sub Phage_Assemble {
         jmem => 3,
         jprefix => $prefix,);
     $last_job = $correct->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Classifying sequences with Kraken using the standard database.\n";
@@ -953,7 +954,7 @@ sub Phage_Assemble {
         jname => 'krakenstd',
         library => 'standard',);
     $last_job = $kraken_std->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     my $filter = {};
     if ($options->{host_filter}) {
@@ -966,7 +967,7 @@ sub Phage_Assemble {
             jprefix => $prefix,
             jname => 'krakenfilter',);
         $last_job = $filter->{job_id};
-        sleep(0.2);
+        sleep($options->{jsleep});
     } else {
         print "\n: Not performing host filter.\n";
         $filter = $correct;
@@ -981,7 +982,7 @@ sub Phage_Assemble {
         jname => 'kraken',
         library => 'viral',);
     $last_job = $kraken->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Creating initial assembly with Unicycler.\n";
@@ -991,7 +992,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'unicycler',);
     $last_job = $assemble->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Depth filtering initial assembly.\n";
@@ -1001,7 +1002,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'depth_filter',);
     $last_job = $depth_filtered->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running phastaf.\n";
@@ -1011,7 +1012,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'phastaf',);
     $last_job = $phastaf->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running virus ICTV classifier.\n";
@@ -1021,7 +1022,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'ictv',);
     $last_job = $ictv->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Setting the Rosalind strand to the one with the most ORFs.\n";
@@ -1031,7 +1032,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'rosalindplus',);
     $last_job = $rosalindplus->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Using Phageterm to reorient the assembly to the terminii.\n";
@@ -1042,7 +1043,7 @@ sub Phage_Assemble {
         jname => 'phageterm',
         library => $rosalindplus->{output},);
     $last_job = $phageterm->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Checking coverage.\n";
@@ -1053,7 +1054,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'coverage',);
     $last_job = $coverage->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Performing reordering by putative terminase if phageterm failed.\n";
@@ -1067,7 +1068,7 @@ sub Phage_Assemble {
         species => 'phages',
         test_file => $phageterm->{test_file},);
     $last_job = $termreorder->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Performing initial prokka annotation.\n";
@@ -1078,7 +1079,7 @@ sub Phage_Assemble {
         jname => 'prokka',
         locus_tag => $final_locustag,);
     $last_job = $prokka->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running prodigal to get RBSes.\n";
@@ -1088,7 +1089,7 @@ sub Phage_Assemble {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $prodigal->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running glimmer for less stringent ORFs.\n";
@@ -1097,7 +1098,7 @@ sub Phage_Assemble {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $glimmer->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running phanotate.\n";
@@ -1106,7 +1107,7 @@ sub Phage_Assemble {
         input => $prokka->{output_assembly},
         jprefix => $prefix,);
     $last_job = $phanotate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Merging the CDS predictions and writing an initial gbk file.\n";
@@ -1118,7 +1119,7 @@ sub Phage_Assemble {
         input_prodigal => $prodigal->{output_gff},
         jprefix => $prefix);
     $last_job = $cds_merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running Jellyfish on the assembly.\n";
@@ -1128,7 +1129,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'jelly',);
     $last_job = $jelly->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running aragorn on the assembly to search for tmRNAs.\n";
@@ -1138,7 +1139,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'aragorn',);
     $last_job = $aragorn->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running relaxed tRNAscan to search for tmRNAs.\n";
@@ -1150,7 +1151,7 @@ sub Phage_Assemble {
         suffix => 'relaxed',
         jprefix => $prefix,);
     $last_job = $trnascan->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Invoking trinotate.\n";
@@ -1161,7 +1162,7 @@ sub Phage_Assemble {
         jname => 'trinotate',
         config => 'phage.txt',);
     $last_job = $trinotate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Searching for resistance genes with abricate.\n";
@@ -1171,7 +1172,7 @@ sub Phage_Assemble {
         jname => 'abricate',
         input => $cds_merge->{output_cds},);
     $last_job = $abricate->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running interproscan.\n";
@@ -1181,7 +1182,7 @@ sub Phage_Assemble {
         jname => 'interproscan',
         input => $cds_merge->{output_faa},);
     $last_job = $interpro->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Merging annotation files.\n";
@@ -1200,7 +1201,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'mergeannot',);
     $last_job = $merge->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1223,7 +1224,7 @@ sub Phage_Assemble {
         keep_genes => 0,
         locus_tag => 0,
         evalue => 0,);
-    sleep(0.2);
+    sleep($options->{jsleep});
     $last_job = $merge2->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1233,7 +1234,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         input => $merge->{output_gbk},);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
@@ -1243,7 +1244,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'vienna',);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Searching for Restriction Sites.\n";
@@ -1253,7 +1254,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'restrict',);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running caical against the assumed host.\n";
@@ -1264,7 +1265,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'restrict',);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Searching for Phage promoters.\n";
@@ -1274,7 +1275,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'phagepromoter',);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Searching for rho terminators.\n";
@@ -1284,7 +1285,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'rhopredict',);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Using bacphlip to classify this phage.\n";
@@ -1294,7 +1295,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'bacphlip',);
     $last_job = $bacphlip->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Collecting output files.\n";
@@ -1312,7 +1313,7 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'collect',);
     $last_job = $collect->{job_id};
-    sleep(0.2);
+    sleep($options->{jsleep});
 
     my $ret = {
         '01trim' => $trim,
@@ -1351,6 +1352,9 @@ sub Phage_Assemble {
         '34bacphlip' => $bacphlip,
         '35collect' => $collect,
     };
+    print "Finished submitting phage assembly jobs.  Final output should reside in
+the collection directory upon completion.\n";
+    sleep(10);
     return($ret)
 }
 
