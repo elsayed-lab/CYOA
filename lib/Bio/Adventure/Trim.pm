@@ -156,19 +156,22 @@ sub Racer {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        compress => 1,
         length => 1000000,
-        required => ['input', ],
         jmem => 24,
         jprefix => '10',
         jwalltime => '40:00:00',
-        modules => ['hitec'],);
+        modules => ['hitec'],
+        required => ['input', ],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
     my @suffixes = ('.fastq', '.gz', '.xz');
+    my $decompress_input = 0;
     my @base_list = ();
     for my $in (@input_list) {
+        $decompress_input = 1 unless ($in =~ /\.fastq$/);
         my $shorted = basename($in, @suffixes);
         push(@base_list, basename($shorted, @suffixes));
     }
@@ -184,18 +187,29 @@ sub Racer {
     foreach my $c (0 .. $#input_list) {
         my $name = File::Temp::tempnam($output_dir, 'racer');
         my $output = qq"${output_dir}/$base_list[$c]-corrected.fastq";
-        push(@output_files, "${output}.xz");
-        $jstring .= "less $input_list[$c] > ${name}.fastq &&
-  RACER \\
+        if ($decompress_input) {
+            $jstring .= qq"less $input_list[$c] > ${name}.fastq\n";
+        } else {
+            $jstring .= qq"ln -sf \$(pwd)/$input_list[$c] ${name}.fastq\n";
+        }
+        $jstring .= qq"RACER \\
   ${name}.fastq \\
   ${output} \\
   $options->{length} \\
   1>>${stdout} \\
-  2>>${stderr} &&
-  rm ${name}.fastq
-xz -9e -f ${output}
+  2>>${stderr}
+rm ${name}.fastq
+
 ";
+        if ($options->{compress}) {
+            $jstring .= qq"xz -9e -f ${output}
+";
+            push(@output_files, "${output}.xz");
+        } else {
+            push(@output_files, "${output}");
+        }
     }
+
     my $output = '';
     for my $o (@output_files) {
         $output .= qq"${o}:";
@@ -238,8 +252,9 @@ sub Trimomatic {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
-        jprefix => '01',);
+        compress => 1,
+        jprefix => '01',
+        required => ['input',],);
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
@@ -258,11 +273,12 @@ sub Trimomatic_Pairwise {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
-        quality => '20',
+        compress => 1,
         jmem => 24,
         jwalltime => '48:00:00',
-        modules => ['trimomatic'],);
+        modules => ['trimomatic'],
+        quality => '20',
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
@@ -323,7 +339,22 @@ sub Trimomatic_Pairwise {
         $suffix_trim = $options->{arbitrary};
     }
 
-    my $output = qq"${r1o}.xz:${r2o}.xz";
+    my $output = qq"${r1o}:${r2o}";
+    my $compress_string = '';
+    if ($options->{compress}) {
+        $output = qq"${r1o}.xz:${r2o}.xz";
+        $compress_string = qq"
+## Recompress the unpaired reads, this should not take long.
+xz -9e -f ${r1ou}
+xz -9e -f ${r2ou}
+## Recompress the paired reads.
+xz -9e -f ${r1o}
+xz -9e -f ${r2o}
+ln -sf ${r1o}.xz r1_trimmed.fastq.xz
+ln -sf ${r2o}.xz r2_trimmed.fastq.xz
+";
+    }
+
     my $comment = qq!## This call to trimomatic removes illumina and epicentre adapters from ${input}.
 ## It also performs a sliding window removal of anything with quality <25;
 ## cutadapt provides an alternative to this tool.
@@ -358,16 +389,11 @@ fi
 sleep 10
 mv ${r1op} ${r1o}
 mv ${r2op} ${r2o}
-
-## Recompress the unpaired reads, this should not take long.
-xz -9e -f ${r1ou}
-xz -9e -f ${r2ou}
-## Recompress the paired reads.
-xz -9e -f ${r1o}
-xz -9e -f ${r2o}
-ln -sf ${r1o}.xz r1_trimmed.fastq.xz
-ln -sf ${r2o}.xz r2_trimmed.fastq.xz
 !;
+
+    if ($options->{compress}) {
+        $jstring .= qq"${compress_string}\n";
+    }
 
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)

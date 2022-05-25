@@ -775,18 +775,20 @@ sub Hisat2 {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input',],
+        compress => 1,
+        count => 1,
         gff_type => 'gene',
         gff_tag => 'ID',
-        count => 1,
-        libtype => 'genome',
-        output_dir => undef,
         jmem => 48,
         jname => 'hisat2',
         jprefix => '40',
-        maximum => undef,
         jwalltime => '72:00:00',
-        modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],);
+        libtype => 'genome',
+        maximum => undef,
+        modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],
+        output_dir => undef,
+        required => ['species', 'input',],
+        samtools => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
     die('Could not find hisat2 in your PATH.') unless($check);
@@ -912,7 +914,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         ## For the xz filenames, there should be 2, just the concordant; because these will be used downstream.
         $aligned_filenames .= qq":${the_dirname}/${aligned_base}.1.fastq:${the_dirname}/${aligned_base}.2.fastq";
         $aligned_xz = qq"${the_dirname}/${aligned_base}.1.fastq.xz:${the_dirname}/${aligned_base}.2.fastq.xz";
-        $unaligned_filenames .= qq":${the_dirname}/${unaligned_base}.1.fastq:${the_dirname}/${unaligned_base}.2.fastq";
+
+        $unaligned_filenames = qq"${the_dirname}/${unaligned_base}.1.fastq:${the_dirname}/${unaligned_base}.2.fastq";
         $unaligned_xz = qq"${the_dirname}/${unaligned_base}.1.fastq.xz:${the_dirname}/${unaligned_base}.2.fastq.xz";
     }
     my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
@@ -936,20 +939,22 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         aligned => $aligned_filenames,
         aligned_comp => $aligned_xz,
         unaligned => $unaligned_filenames,
+        unaligned_dis => $unaligned_discordant_filename,
         unaligned_comp => $unaligned_xz,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     my $xz_jname = qq"xz_$options->{species}_${suffix_name}";
     my $new_jprefix = qq"$options->{jprefix}_1";
-    my $comp = $class->Bio::Adventure::Compress::Compress(
-        jname => $xz_jname,
-        jprefix => $new_jprefix,
-        input => qq"${aligned_filenames}:${unaligned_filenames}",
-        jdepends => $hisat_job->{job_id});
-    $hisat_job->{compression} = $comp;
-
-    ## Sneak the compression job's ID in place as hisat's.
-    $hisat_job->{job_id} = $comp->{job_id};
+    if ($options->{compress}) {
+        my $comp = $class->Bio::Adventure::Compress::Compress(
+            jname => $xz_jname,
+            jprefix => $new_jprefix,
+            input => qq"${aligned_filenames}:${unaligned_filenames}",
+            jdepends => $hisat_job->{job_id});
+        $hisat_job->{compression} = $comp;
+        ## Sneak the compression job's ID in place as hisat's.
+        $hisat_job->{job_id} = $comp->{job_id};
+    }
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $sam_jprefix = qq"$options->{jprefix}_2";

@@ -118,44 +118,11 @@ sub Fastqc {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $fastqc_job;
-    if ($options->{input} =~ /:|\,/) {
-        $fastqc_job = Bio::Adventure::QA::Fastqc_Pairwise($class, %args);
-    } else {
-        $fastqc_job = Bio::Adventure::QA::Fastqc_Single($class, %args);
-    }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-    return($fastqc_job);
-}
-
-=head2 C<Fastqc_Pairwise>
-
- Invoke fastq with options suitable for pairwise sequence data, separating the
- forward and reverse read outputs.
-
-=cut
-sub Fastqc_Pairwise {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
         filtered => 'unfiltered',
         jprefix => '01',
-        modules => ['fastqc'],);
+        modules => ['fastqc'],
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-
-    my @input_list = split(/:|\,|\s+/, $options->{input});
-    my ($r1, $r2);
-    if (scalar(@input_list) <= 1) {
-        my $ret = $class->Bio::Adventure::QA::Fastqc_Single(%args);
-        return($ret);
-    } else {
-        $r1 = $input_list[0];
-        $r2 = $input_list[1];
-    }
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
@@ -166,43 +133,70 @@ sub Fastqc_Pairwise {
     }
     my $outdir = qq"outputs/$options->{jprefix}fastqc";
 
-    my $input_string = qq"${r1} ${r2}";
-    if ($r1 =~ /\.(xz|bz2)$/) {
-        $input_string = qq"<(less ${r1}) <(less ${r2})";
+    my $fastqc_job;
+    my $input_file_string = '';
+    my $subshell = 0;
+    my $modified_input = undef;
+    if ($options->{input} =~ /:|\,/) {
+        my @inputs = split(/:|\,/, $options->{input});
+        for my $in (@inputs) {
+            $modified_input = basename($in, ('.gz', '.bz2', '.xz')) unless(defined($modified_input));
+            $input_file_string = qq"$input_file_string ${in} ";
+            if ($in =~ /\.xz$|\.bz2$/) {
+                $subshell = 1;
+                $input_file_string = qq"$input_file_string <(less $in) ";
+            }
+        }
+    } elsif ($options->{input} =~ /\.xz$|\.bz2$/) {
+        $modified_input = basename($options->{input}, ('.gz', '.bz2', '.xz')) unless ($modified_input);
+        $subshell = 1;
+        $input_file_string = qq" <(less $options->{input}) ";
+    } else {
+        $modified_input = basename($options->{input}, ('.gz')) unless ($modified_input);
+        $input_file_string = qq" $options->{input} ";
     }
+    $modified_input = basename($modified_input, ('.fastq'));
+    $modified_input = qq"${modified_input}_fastqc";
+    my $final_output = qq"${outdir}/${modified_input}";
+    my $txtfile = qq"${final_output}/summary.txt";
 
     ## This is where fastqc should put its various output files
     ## with one important exception: It tries to be smart and take its own basename of the input
     ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
     ## outputs/${jprefix}fastqc/xxx_fastqc...
-    my $modified_inputname = basename($r1, ('.gz', '.bz2', '.xz'));
-    $modified_inputname = basename($modified_inputname, ('.fastq'));
-    $modified_inputname = qq"${modified_inputname}_fastqc";
-    my $final_output = qq"${outdir}/${modified_inputname}";
+
     my $stdout = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stdout";
     my $stderr = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stderr";
-    my $txtfile = qq"${outdir}/r1_fastqc/summary.txt";
     my $jstring = qq!mkdir -p ${outdir}
 fastqc --extract \\
   -o ${outdir} \\
-  ${input_string} \\
+  ${input_file_string} \\
   2>${stderr} \\
   1>${stdout}
 if [ "\$?" -ne "0" ]; then
   echo "fastqc failed."
   exit 0
 fi
-## Note that because I am using a subshell, fastqc will assume that the inputs
+!;
+
+    if ($subshell) {
+        $jstring .= qq!
+## Note that if this is using a subshell, fastqc will assume that the inputs
 ## are /dev/fd/xx (usually 63 or 64).
 ## We can likely cheat and get the subshell fd with this:
 badname=\$(basename <(env))
 echo \${badname}
 ## with the caveat that this is subject to race conditions if a bunch of other things are
 ## creating subshells on this host.
-mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_inputname}.html
-mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_inputname}.zip
-mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
+mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_input}.html 2>/dev/null
+echo "move finished with: $?"
+mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_input}.zip 2>/dev/null
+echo "move finished with: $?"
+mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_input} 2>/dev/null
+echo "move finished with: $?"
 !;
+    }
+
     my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
@@ -219,86 +213,6 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
         txtfile => $txtfile,
         stdout => $stdout,
         stderr => $stderr);
-    return($fqc);
-}
-
-=head2 C<Fastqc_Single>
-
- Invoke fastqc with options suitable for a single-ended reads.
-
-=cut
-sub Fastqc_Single {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        filtered => 'unfiltered',
-        jmem => 8,
-        jprefix => '01',
-        modules => ['fastqc'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $job_name = $class->Get_Job_Name();
-    my $input_paths = $class->Get_Paths($options->{input});
-    my $jname = qq"fqc_${job_name}_$input_paths->{dirname}";
-    my $outdir = qq"outputs/$options->{jprefix}fastqc";
-
-    my $input_string = $options->{input};
-    if ($input_string =~ /\.(xz|bz2)$/) {
-        $input_string = qq"<(less $options->{input})";
-    }
-
-    ## This is where fastqc should put its various output files
-    ## with one important exception: It tries to be smart and take its own basename of the input
-    ## but since I am using a bash subshell <(), it will get /dev/fd/xxx and so put the outputs into
-    ## outputs/${jprefix}fastqc/xxx_fastqc...
-    my $modified_inputname = basename($options->{input}, ('.gz', '.xz', '.bz2'));
-    $modified_inputname = basename($modified_inputname, ('.fastq'));
-    my $final_output = qq"${outdir}/${modified_inputname}";
-
-    my $jstring = qq!mkdir -p ${outdir}
-fastqc -q --extract \\
-  -o ${outdir} \\
-  ${input_string} \\
-  2>outputs/${jname}-$options->{filtered}_fastqc.stderr \\
-  1>outputs/${jname}-$options->{filtered}_fastqc.stdout
-if [ "\$?" -ne "0" ]; then
-  echo "fastqc failed."
-  exit 0
-fi
-## Note that because I am using a subshell, fastqc will assume that the inputs
-## are /dev/fd/xx (usually 63 or 64).
-## We can likely cheat and get the subshell fd with this:
-badname=\$(basename <(env))
-echo \${badname}
-## with the caveat that this is subject to race conditions if a bunch of other things are
-## creating subshells on this host.
-mv ${outdir}/\${badname}_fastqc.html ${outdir}/${modified_inputname}.html
-mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_inputname}.zip
-mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_inputname}
-!;
-    my $comment = qq!## This FastQC run is against $options->{filtered} data and is used for
-## an initial estimation of the overall sequencing quality.!;
-    my $fqc = $class->Submit(
-        comment => $comment,
-        jcpus => 8,
-        jmem => $options->{jmem},
-        jname => $jname,
-        jprefix => $options->{jprefix},
-        jqueue => 'throughput',
-        jstring => $jstring,
-        modules => $options->{modules},
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        output => qq"$options->{jprefix}fastqc.html",);
-
-    $outdir .= qq"/${modified_inputname}";
-    my $newname = qq"fqcstats_${job_name}_$input_paths->{dirname}";
-    my $fqc_stats = $class->Bio::Adventure::Metadata::Fastqc_Stats(
-        input => $final_output,
-        jdepends => $fqc->{job_id},
-        jname => $jname,
-        jprefix => $options->{jprefix});
-    $fqc->{stats} = $fqc_stats;
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($fqc);

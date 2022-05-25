@@ -159,9 +159,15 @@ sub Assembly_Coverage {
         my $r1 = abs_path($in[0]);
         my $r2 = abs_path($in[1]);
         $input_string = qq" -1 <(less ${r1}) -2 <(less ${r2}) ";
+        if ($r1 =~ /\.fastq$/) {
+            $input_string = qq" -1 ${r1} -2 ${r2} ";
+        }
     } else {
         my $r1 = abs_path($options->{input});
         $input_string = qq"-1 <(less ${r1}) ";
+        if ($r1 =~ /\.fastq$/) {
+            $input_string = qq" -1 ${r1} ";
+        }
     }
     my $comment = qq!## This is a script to remap the reads against an assembly
 ## and calculate the coverage by contig.
@@ -747,7 +753,7 @@ sub Unicycler {
         mode => 'bold',
         jmem => 24,
         jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'pilon'],);
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'shovill', 'bwa', 'pilon'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
     die('Could not find unicycler in your PATH.') unless($check);
@@ -761,19 +767,27 @@ sub Unicycler {
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz -2 ${output_dir}/r2.fastq.gz";
-        $ln_string = qq"less $in[0] | gzip > ${output_dir}/r1.fastq.gz
-less $in[1] | gzip > ${output_dir}/r2.fastq.gz
-";
+        $ln_string = qq"less $in[0] > ${output_dir}/r1.fastq
+less $in[1] > ${output_dir}/r2.fastq\n";
         my @backups = split(/\:|\;|\,|\s+/, $options->{backup});
         $backup_string = qq"less $backups[0] | gzip > ${output_dir}/r1.fastq.gz
-  less $backups[1] | gzip > ${output_dir}/r2.fastq.gz
-";
+  less $backups[1] | gzip > ${output_dir}/r2.fastq.gz\n";
+        if ($in[0] =~ /\.fastq$/) {
+            $input_string = qq" -1 ${output_dir}/r1.fastq -2 ${output_dir}/r2.fastq ";
+            $ln_string = qq"cp $in[0] ${output_dir}/r1.fastq
+cp $in[1] ${output_dir}/r2.fastq\n";
+            $backup_string = qq"cp $backups[0] ${output_dir}/r1.fastq
+cp $backups[1] ${output_dir}/r2.fastq\n";
+        }
     } else {
-        $input_string = qq" -1 ${output_dir}/r1.fastq.gz";
-        $ln_string = qq"less $options->{input} | gzip > ${output_dir}/r1.fastq.gz
-";
-        $backup_string = qq"less $options->{backup} | gzip > ${output_dir}/r1.fastq.gz
-";
+        $input_string = qq" -1 ${output_dir}/r1.fastq.gz ";
+        $ln_string = qq" less $options->{input} > ${output_dir}/r1.fastq ";
+        $backup_string = qq" less $options->{backup} > ${output_dir}/r1.fastq ";
+        if ($options->{input} =~ /\.fastq$/) {
+            $input_string = qq" -1 ${output_dir}/r1.fastq ";
+            $ln_string = qq"cp $options->{input} ${output_dir}/r1.fastq\n";
+            $backup_string = qq"cp $options->{backup} ${output_dir}/r1.fastq\n";
+        }
     }
     my $comment = '## This is a unicycler submission script.';
     my $stdout = qq"${output_dir}/unicycler_${outname}.stdout";
@@ -808,7 +822,7 @@ else
 fi
 
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
-rm -f r1.fastq.gz r2.fastq.gz
+rm -f r1.fastq.gz r2.fastq.gz r1.fastq r2.fastq
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(

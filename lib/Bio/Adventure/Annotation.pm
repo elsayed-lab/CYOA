@@ -233,8 +233,14 @@ sub Kraken {
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq" --paired <(less $in[0]) <(less $in[1]) ";
+        if ($in[0] =~ /\.fastq$/) {
+            $input_string = qq" --paired $in[0] $in[1] ";
+        }
     } else {
         $input_string = qq"<(less $options->{input}) ";
+        if ($options->{input} =~ /\.fastq$/) {
+            $input_string = qq" $options->{input} ";
+        }
     }
     my $comment = qq!## This is a kraken2 submission script
 !;
@@ -247,6 +253,9 @@ sub Kraken {
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
   2>${stderr} \\
   1>${stdout}
+if [ "\$?" -ne "0" ]; then
+  echo "Kraken returned an error."
+fi
 !;
     my $kraken = $class->Submit(
         comment => $comment,

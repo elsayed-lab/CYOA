@@ -54,7 +54,7 @@ use Bio::Adventure::Structure;
 ?;
     my $folder = $class->Submit(
         input => $options->{input},
-        output => $options->{output},
+        output => ${output},
         jname => 'vienna',
         jprefix => $options->{jprefix},
         length => $options->{length},

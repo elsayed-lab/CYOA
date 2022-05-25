@@ -133,6 +133,7 @@ has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favor
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
+has compress => (is => 'rw', default => 1); ## Impress output files?
 has config => (is => 'rw', default => undef); ## Not sure
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
