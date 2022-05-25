@@ -843,7 +843,7 @@ sub Hisat2 {
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($hisat_input);
-        $hisat_input = qq" <(less ${test_file}) ";
+        $hisat_input = qq" -U <(less ${test_file}) ";
     }
 
     ## Check that the indexes exist
