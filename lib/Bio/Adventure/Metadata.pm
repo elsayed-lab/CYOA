@@ -404,6 +404,7 @@ sub Merge_Annotations {
     if ($options->{suffix}) {
         $output_name .= qq"_$options->{suffix}";
     }
+    my $comment = qq"## Writing genbank files.\n";
     my $output_dir =  qq"outputs/$options->{jprefix}mergeannot";
     my $output_fsa = qq"${output_dir}/${output_name}.fsa";
     my $output_xlsx = qq"${output_dir}/${output_name}.xlsx";
@@ -432,6 +433,7 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
   suffix => '$options->{suffix}',);
 ?;
     my $merge_job = $class->Submit(
+        comment => $comment,
         input_fsa => $options->{input_fsa},
         input_genbank => $options->{input_genbank},
         input_tsv => $options->{input_tsv},
