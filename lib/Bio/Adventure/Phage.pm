@@ -627,36 +627,41 @@ sub Filter_Host_Kraken {
     my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
     make_path($output_dir);
-    my $out_r1_name = 'r1_host_filtered.fastq.xz';
-    my $out_r2_name = 'r2_host_filtered.fastq.xz';
+    my $out_r1_name = 'r1_host_filtered.fastq';
+    my $out_r2_name = 'r2_host_filtered.fastq';
+    if ($options->{compress}) {
+        $out_r1_name = 'r1_host_filtered.fastq.xz';
+        $out_r2_name = 'r2_host_filtered.fastq.xz';
+    }
     my $output_files = qq"${output_dir}/${out_r1_name}:${output_dir}/${out_r2_name}";
     my $log = qq"${output_dir}/kraken_filter.log";
     my $jstring = qq!
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
-  output => '${output_files}',
-  output_dir => '${output_dir}',
   input => '$options->{input}',
   input_fastq => '$options->{input_fastq}',
   jdepends => '$options->{jdepends}',
   jname => 'kraken_host',
   jprefix => '$options->{jprefix}',
-  job_log => '${log}');
+  job_log => '${log}',
+  output => '${output_files}',
+  output_dir => '${output_dir}',);
 !;
     my $host = $class->Submit(
+        comment => $comment,
+        compress => $options->{compress},
         input => $options->{input},
         input_fastq => $options->{input_fastq},
-        job_log => $log,
-        output => $output_files,
-        output_dir => $output_dir,
-        comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'hostfilter',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        language => 'perl',);
+        job_log => $log,
+        language => 'perl',
+        output => $output_files,
+        output_dir => $output_dir,);
     return($host);
 }
 
@@ -678,10 +683,10 @@ sub Filter_Kraken_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'output'],
         job_log => 'filter_kraken.log',
         jname => 'krakenfilter',
         jprefix => '06',
+        required => ['input', 'output'],
         type => 'species',);
     my $separator;
     if ($options->{type} eq 'domain') {
@@ -701,6 +706,8 @@ sub Filter_Kraken_Worker {
     } else {
         $separator = 's__';
     }
+
+    print "TESTME: compress $options->{compress}\n";
 
     my $output_dir = $options->{output_dir};
     my $out = FileHandle->new(">$options->{job_log}");
@@ -838,12 +845,13 @@ sub Filter_Kraken_Worker {
     ## Now perform the filter using our temp_cyoa.
     print $out "Filtering out reads which map to ${host_species_accession}.\n";
     my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
-        input => $options->{input_fastq},
-        output_dir => $options->{output_dir},
-        jprefix => $options->{jprefix},
+        compress => 0,
         do_htseq => 0,
+        input => $options->{input_fastq},
+        jprefix => $options->{jprefix},
+        output_dir => $options->{output_dir},
         species => $host_species_accession,);
-    my $filtered_reads = $filter->{unaligned_comp};
+    my $filtered_reads = $filter->{unaligned};
     my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
     $in_r1 = File::Spec->rel2abs($in_r1);
     $in_r2 = File::Spec->rel2abs($in_r2);
@@ -1079,8 +1087,15 @@ sub Phageterm_Worker {
         my $r2_filename = basename($in[1]);
         my $r1_filebase = basename($r1_filename, ('.xz', '.gz', '.bz2'));
         my $r2_filebase = basename($r2_filename, ('.xz', '.gz', '.bz2'));
-        my $decompressed_r1 = qx"less $in[0] > ${workdir}/r1.fastq";
-        my $decompressed_r2 = qx"less $in[1] > ${workdir}/r2.fastq";
+        my $decompressed_r1;
+        my $decompressed_r2;
+        if ($in[0] =~ /\.fastq$/) {
+            $decompressed_r1 = qx"cp $in[0] ${workdir}/r1.fastq";
+            $decompressed_r2 = qx"cp $in[1] ${workdir}/r2.fastq";
+        } else {
+            $decompressed_r1 = qx"less $in[0] > ${workdir}/r1.fastq";
+            $decompressed_r2 = qx"less $in[1] > ${workdir}/r2.fastq";
+        }
         print $phage_log "Copied reads to ${workdir} as r1.fastq and r2.fastq.\n";
         $read_string = 'r1.fastq r2.fastq';
     } else {
@@ -1088,7 +1103,13 @@ sub Phageterm_Worker {
         my $r1_dirname = dirname($options->{input});
         my $r1 = abs_path($options->{input});
         my $r1_filebase = basename($r1_filename, ('.xz', '.gz', '.bz2'));
-        my $decompressed = qx"less $options->{input} > ${workdir}/r1.fastq";
+
+        my $decompressed;
+        if ($options->{input} =~ /\.fastq$/) {
+            $decompressed = qx"cp $options->{input} ${workdir}/r1.fastq";
+        } else {
+            $decompressed = qx"less $options->{input} > ${workdir}/r1.fastq";
+        }
         print $phage_log "Copied reads to ${workdir} as r1.fastq.\n";
         $read_string = 'r1.fastq';
     }
@@ -1292,8 +1313,8 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
   output => '${re_output}',);
 !;
     my $re_job = $class->Submit(
-        input => $options->{input},
         comment => $comment,
+        input => $options->{input},
         jmem => $options->{jmem},
         jname => 're_catalog',
         jprefix => $options->{jprefix},

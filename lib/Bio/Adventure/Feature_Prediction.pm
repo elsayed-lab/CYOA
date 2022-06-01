@@ -562,16 +562,17 @@ sub Rho_Predict {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
         jmem => 12,
         jprefix => '51',
-        modules => ['rhotermpredict'],);
+        modules => ['rhotermpredict'],
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->{fullpath};
-    my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_$input_paths->{dirname}";
-    my $output_file = qq"${output_dir}/predictions_coordinates_$input_paths->{dirname}_1.csv";
-    my $info_file = qq"${output_dir}/info_about_predictions_$input_paths->{dirname}.csv";
+    my $cwd_name = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_${cwd_name}";
+    my $output_file = qq"${output_dir}/predictions_coordinates_${cwd_name}_1.csv";
+    my $info_file = qq"${output_dir}/info_about_predictions_${cwd_name}.csv";
     my $jstring = qq?mkdir -p ${output_dir}
 start=\$(pwd)
 cp $options->{input} ${output_dir}/

@@ -57,17 +57,17 @@ $test_file = $assemble->{'02fastqc'}->{txtfile};
 $comparison = ok(-f $test_file, qq"Checking fastqc output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";
-$expected = qq"PASS\tBasic Statistics\t63
-WARN\tPer base sequence quality\t63
-WARN\tPer tile sequence quality\t63
-PASS\tPer sequence quality scores\t63
-FAIL\tPer base sequence content\t63
-FAIL\tPer sequence GC content\t63
-PASS\tPer base N content\t63
-WARN\tSequence Length Distribution\t63
-WARN\tSequence Duplication Levels\t63
-WARN\tOverrepresented sequences\t63
-PASS\tAdapter Content\t63
+$expected = qq"PASS\tBasic Statistics\tr1-trimmed.fastq
+PASS\tPer base sequence quality\tr1-trimmed.fastq
+WARN\tPer tile sequence quality\tr1-trimmed.fastq
+PASS\tPer sequence quality scores\tr1-trimmed.fastq
+WARN\tPer base sequence content\tr1-trimmed.fastq
+WARN\tPer sequence GC content\tr1-trimmed.fastq
+PASS\tPer base N content\tr1-trimmed.fastq
+WARN\tSequence Length Distribution\tr1-trimmed.fastq
+WARN\tSequence Duplication Levels\tr1-trimmed.fastq
+WARN\tOverrepresented sequences\tr1-trimmed.fastq
+PASS\tAdapter Content\tr1-trimmed.fastq
 ";
 $comparison = ok($expected eq $actual, 'Checking fastqc result:');
 if ($comparison) {
@@ -517,10 +517,10 @@ if ($comparison) {
 $test_file = $assemble->{'23trinotate'}->{output};
 $comparison = ok(-f $test_file, qq"Checking trinotate output: ${test_file}");
 print "Passed.\n" if ($comparison);
-$actual = qx"head -n 3 ${test_file}";
-$expected = qq"#gene_id	transcript_id	sprot_Top_BLASTX_hit	RNAMMER	prot_id	prot_coords	sprot_Top_BLASTP_hit	phage_pep_BLASTX	terminase_BLASTX	phage_pep_BLASTP	Pfam	SignalP	TmHMM	eggnog	Kegg	gene_ontology_BLASTX	gene_ontology_BLASTP	gene_ontology_Pfam	transcript	peptide
-test_output_0001	test_output_0001	.	.	.	.	.	CAJ29397.1^CAJ29397.1^Q:28-135,H:18-54^72.973%ID^E:1.74e-11^.^.	.	.	.	.	.	.	.	.	.	.	.	.
-test_output_0002	test_output_0002	.	.	.	.	.	CAJ29397.1^CAJ29397.1^Q:3-83,H:27-54^85.714%ID^E:8.59e-10^.^.	.	.	.	.	.	.	.	.	.	.	.	.
+$actual = qx"head -n 3 ${test_file} | awk '{print \$1}'";
+$expected = qq"#gene_id
+test_output_0001
+test_output_0002
 ";
 $comparison = ok($expected eq $actual, 'Checking trinotate results:');
 if ($comparison) {
@@ -537,18 +537,18 @@ $comparison = ok(-f $test_file, qq"Checking abricate result: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
 $expected = qq"#FILE\tNUM_FOUND
-outputs/24abricate_19merge_cds_predictions/abricate_argannot.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_card.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_dbeth.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_ecoh.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_ecoli_vf.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_megares.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_mvir.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_ncbi.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_plasmidfinder.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_resfinder.tsv\t0
-outputs/24abricate_19merge_cds_predictions/abricate_vfdb.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_argannot.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_card.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_dbeth.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_ecoh.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_ecoli_vf.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_megares.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_mvir.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_ncbi.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_plasmidfinder.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_resfinder.tsv\t0
+outputs/27abricate_22merge_cds_predictions/abricate_vfdb.tsv\t0
 ";
 $comparison = ok($expected eq $actual, 'Checking abricate output:');
 if ($comparison) {
@@ -582,13 +582,13 @@ $comparison = ok(-f $test_file, qq"Checking merge_annotations output log: ${test
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
 $expected = qq"Merging annotations and writing new output files:
-gbf: outputs/26mergeannot/test_output.gbf, tbl: outputs/26mergeannot/test_output.tbl, xlsx: outputs/26mergeannot/test_output.xlsx.
-Reading tsv data from outputs/19merge_cds_predictions/test_output.tsv to start.
+gbf: outputs/29mergeannot/test_output.gbf, tbl: outputs/29mergeannot/test_output.tbl, xlsx: outputs/29mergeannot/test_output.xlsx.
+Reading tsv data from outputs/22merge_cds_predictions/test_output.tsv to start.
 Checking for ICTV classification data from outputs/10classify_08filter_depth/ictv_filtered.tsv.
-Wrote outputs/26mergeannot/test_output.sbt with variables filled in.
-Adding trinotate annotations from outputs/23trinotate19merge_cds_predictions/test_output.tsv.
-Adding interproscan annotations from outputs/25interproscan_19merge_cds_predictions/interproscan.tsv.
-Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv.
+Wrote outputs/29mergeannot/test_output.sbt with variables filled in.
+Adding trinotate annotations from outputs/26trinotate22merge_cds_predictions/test_output.tsv.
+Adding interproscan annotations from outputs/28interproscan_22merge_cds_predictions/interproscan.tsv.
+Adding abricate annotations from outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv.
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
@@ -601,19 +601,18 @@ if ($comparison) {
 }
 
 ## merge annotations 2
-$test_file = 'outputs/27mergeannot/test_output_stripped_runlog.txt';
-## $test_file = $assemble->{'27merge_unmodified'}->{output_log};
+$test_file = $assemble->{'26merge_qualities'}->{output_log};
 $comparison = ok(-f $test_file, qq"Checking merge_annotations stripped log: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
 $expected = qq"Merging annotations and writing new output files:
-gbf: outputs/27mergeannot/test_output_stripped.gbf, tbl: outputs/27mergeannot/test_output_stripped.tbl, xlsx: outputs/27mergeannot/test_output_stripped.xlsx.
-Reading tsv data from outputs/19merge_cds_predictions/test_output.tsv to start.
+gbf: outputs/29mergeannot/test_output.gbf, tbl: outputs/29mergeannot/test_output.tbl, xlsx: outputs/29mergeannot/test_output.xlsx.
+Reading tsv data from outputs/22merge_cds_predictions/test_output.tsv to start.
 Checking for ICTV classification data from outputs/10classify_08filter_depth/ictv_filtered.tsv.
-Wrote outputs/27mergeannot/test_output_stripped.sbt with variables filled in.
-Adding trinotate annotations from outputs/23trinotate19merge_cds_predictions/test_output.tsv.
-Adding interproscan annotations from outputs/25interproscan_19merge_cds_predictions/interproscan.tsv.
-Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv.
+Wrote outputs/29mergeannot/test_output.sbt with variables filled in.
+Adding trinotate annotations from outputs/26trinotate22merge_cds_predictions/test_output.tsv.
+Adding interproscan annotations from outputs/28interproscan_22merge_cds_predictions/interproscan.tsv.
+Adding abricate annotations from outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv.
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
@@ -626,8 +625,7 @@ if ($comparison) {
 }
 
 ## Something something cgview...
-$test_file = 'outputs/28cgview/test_output.xml';
-## $test_file = $assemble->{'28cgview'}->{output_xml};
+$test_file = $assemble->{'28cgview'}->{output_xml};
 $comparison = ok(-f $test_file, qq"Checking cgview output xml: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 2 ${test_file}";
@@ -643,8 +641,7 @@ if ($comparison) {
 }
 
 ## This is not working currently.
-$test_file = 'outputs/29rnafold/test_output.tsv.xz';
-## $test_file = $assemble->{'29rnafold'}->{output};
+$test_file = $assemble->{'29rnafold'}->{output};
 $comparison = ok(-f $test_file, qq"Checking rnafold output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file} | head";
@@ -668,8 +665,7 @@ if ($comparison) {
 }
 
 ## Restriction catalog...
-$test_file = 'outputs/30re_catalog/re_catalog.tsv';
-## $test_file = $assemble->{'30rnafold'}->{output};
+$test_file = $assemble->{'30research'}->{output};
 $comparison = ok(-f $test_file, qq"The restriction endonuclease catalog exists: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -693,7 +689,6 @@ if ($comparison) {
 }
 
 ## This is not working currently.
-##$test_file = 'outputs/31caical_test_output_vs_GCF_002900365.1/test_output_cai.txt';
 $test_file = $assemble->{'31caical'}->{output};
 $comparison = ok(-f $test_file, qq"Checking caical output: ${test_file}");
 print "Passed.\n" if ($comparison);
@@ -718,7 +713,6 @@ if ($comparison) {
 }
 
 ## Phagepromoter
-## $test_file = 'outputs/32phagepromoter/output.fasta';
 $test_file = $assemble->{'32phagepromoter'}->{output_fasta};
 $comparison = ok(-f $test_file, qq"Checking phagepromoter output: ${test_file}");
 print "Passed.\n" if ($comparison);
@@ -743,8 +737,7 @@ if ($comparison) {
 }
 
 ## Rhotermination prediction
-$test_file = 'outputs/33rhotermpredict_26mergeannot/predictions_coordinates_test_output_1.csv';
-## $test_file = $assemble->{'33rhopredict'}->{output};
+$test_file = $assemble->{'33rhopredict'}->{output};
 $comparison = ok(-f $test_file, qq"Checking rhotermpredict output file: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file} | awk '{print \$2}'";
@@ -768,8 +761,7 @@ if ($comparison) {
 }
 
 ## Bacphlip
-$test_file = 'outputs/34bacphlip/test_output.fsa.bacphlip';
-## $test_file = $assemble->{'34bacphlip'[5~}->{output};
+$test_file = $assemble->{'34bacphlip'}->{output};
 $comparison = ok(-f $test_file, qq"Checking bacphlip output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";
