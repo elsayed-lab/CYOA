@@ -165,12 +165,6 @@ set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='--buffers 0'
-script="${script_file}"
-err() {
-    echo "Error occurred:"
-    awk 'NR>L-4 && NR<L+4 { printf "\%-5d\%3s\%s\\n",NR,(NR==L\?">>>":""),\$script }' L=\$1 \$script
-}
-trap 'err \$LINENO' ERR
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 
 ?;
