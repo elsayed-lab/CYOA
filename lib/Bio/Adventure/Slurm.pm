@@ -178,7 +178,7 @@ echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it too
 if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   walltime=\$(scontrol show job "\${SLURM_JOBID}" | grep RunTime | perl -F'/\\s+|=/' -lane '{print \$F[2]}' | head -n 1 2>/dev/null)
   echo "  walltime used by \${SLURM_JOBID} was: \${walltime:-null}" >> ${sbatch_log}
-  maxmem=\$(sstat --format=MaxVMSize -j "\${SLURM_JOBID}" | tail -n 1 2>/dev/null)
+  maxmem=\$(sstat -P --format=MaxVMSize -j "\${SLURM_JOBID}" | tail -n 1)
   echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}" >> ${sbatch_log}
   echo "" >> ${sbatch_log}
 fi
