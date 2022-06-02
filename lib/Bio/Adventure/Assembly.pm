@@ -400,7 +400,7 @@ Writing filtered contigs to $options->{output}
     print $log $log_string;
     my $number_contigs = 0;
     ## The highest and lowest coverage values should begin at improbable values.
-    my $highest_coverage = 0;
+    my $highest_coverage = 1;
     my $lowest_coverage = 1000000;
     my $initial_coverage_data = {};
     my $final_coverage_data = {};
@@ -408,8 +408,22 @@ Writing filtered contigs to $options->{output}
       my $number_contigs++;
       my $current_id = $contig_seq->id();
       my $current_desc = $contig_seq->desc();
-      my ($contig_length_string, $contig_coverage_string, $circular) = split(/\s+/, $current_desc);
-      my ($contig_length, $contig_coverage) = $current_desc =~ /^length=(.*)? depth=(.*)?x/;
+      my ($contig_length, $contig_coverage);
+      my $circular = 1;
+      if ($current_desc =~ /cov=/) {
+          ## Then this was done with shovill.
+          my ($contig_id, $contig_length_string, $contig_coverage_string, $stuff) = split(/\s+/, $current_desc);
+          ($contig_length, $contig_coverage) = $current_desc =~ /len=(\d+)? cov=(.* )/;
+          ($contig_coverage, $stuff) = split(/ /, $contig_coverage);
+      } elsif ($current_desc =~ /depth=/) {
+          ## This assembly was via spades/unicycler
+          my ($contig_length_string, $contig_coverage_string, $circular) = split(/\s+/, $current_desc);
+          ($contig_length, $contig_coverage) = $current_desc =~ /^length=(.*)? depth=(.*)?x/;
+      } else {
+          ## If we cannot figure out what to do, just set the length to 100k and coverage to 1.
+          print $log "Unable to determine the assembler used, not filtering.\n";
+          ($contig_length, $contig_coverage) = (100000, 1);
+      }
       if ($contig_coverage > $highest_coverage) {
           $highest_coverage = $contig_coverage;
       }
@@ -746,14 +760,13 @@ sub Unicycler {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        backup => 'r1.fastq.xz:r2.fastq.xz',
         arbitrary => '',
         depth => 20,
         min_length => 1000,
         mode => 'bold',
         jmem => 24,
         jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'shovill', 'bwa', 'pilon'],);
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'shovill', 'bwa', 'pilon', 'flash'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
     die('Could not find unicycler in your PATH.') unless($check);
@@ -762,31 +775,29 @@ sub Unicycler {
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
     my $input_string = '';
+    my $shovill_input = '';
     my $ln_string = '';
     my $backup_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz -2 ${output_dir}/r2.fastq.gz";
+        $shovill_input = qq" --R1 ${output_dir}/r1.fastq.gz --R2 ${output_dir}/r2.fastq.gz ";
         $ln_string = qq"less $in[0] > ${output_dir}/r1.fastq
 less $in[1] > ${output_dir}/r2.fastq\n";
-        my @backups = split(/\:|\;|\,|\s+/, $options->{backup});
-        $backup_string = qq"less $backups[0] | gzip > ${output_dir}/r1.fastq.gz
-  less $backups[1] | gzip > ${output_dir}/r2.fastq.gz\n";
         if ($in[0] =~ /\.fastq$/) {
             $input_string = qq" -1 ${output_dir}/r1.fastq -2 ${output_dir}/r2.fastq ";
+            $shovill_input = qq" --R1 ${output_dir}/r1.fastq --R2 ${output_dir}/r2.fastq ";
             $ln_string = qq"cp $in[0] ${output_dir}/r1.fastq
 cp $in[1] ${output_dir}/r2.fastq\n";
-            $backup_string = qq"cp $backups[0] ${output_dir}/r1.fastq
-cp $backups[1] ${output_dir}/r2.fastq\n";
         }
     } else {
         $input_string = qq" -1 ${output_dir}/r1.fastq.gz ";
+        $shovill_input = qq" --R1 ${output_dir}/r1.fastq.gz ";
         $ln_string = qq" less $options->{input} > ${output_dir}/r1.fastq ";
-        $backup_string = qq" less $options->{backup} > ${output_dir}/r1.fastq ";
         if ($options->{input} =~ /\.fastq$/) {
             $input_string = qq" -1 ${output_dir}/r1.fastq ";
+            $shovill_input = qq" --R1 ${output_dir}/r1.fastq ";
             $ln_string = qq"cp $options->{input} ${output_dir}/r1.fastq\n";
-            $backup_string = qq"cp $options->{backup} ${output_dir}/r1.fastq\n";
         }
     }
     my $comment = '## This is a unicycler submission script.';
@@ -801,23 +812,19 @@ if unicycler $options->{arbitrary} \\
   -o ${output_dir} \\
   2>${stderr} \\
   1>${stdout}; then
-
-    echo "unicycler passed."
+  echo "unicycler passed."
 else
-
-  ${backup_string}
-  if unicycler $options->{arbitrary} \\
-    --mode $options->{mode} \\
-    --min_fasta_length $options->{min_length} \\
-    ${input_string} \\
-    -o ${output_dir} \\
-    2>${stderr}_backup \\
-    1>${stdout}_backup; then
-
+  if shovill --nocorr --force \\
+    --outdir ${output_dir} \\
+    ${shovill_input}
+    --minlen $options->{min_length} \\
+    2>>${stderr}_backup \\
+    1>>${stdout}_backup; then
     echo "Second unicycler attempt passed."
+    mv ${output_dir}/contigs.fa ${output_dir}/assembly.fasta
   else
-
     echo "Both unicycler attempts failed."
+    exit 1
   fi
 fi
 
