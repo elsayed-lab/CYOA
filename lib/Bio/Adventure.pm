@@ -1566,17 +1566,19 @@ sub Read_Genome_GFF {
     my $end = 1;
     my $old_end = 1;
   LOOP: while(my $feature = $annotation_in->next_feature()) {
-      next LOOP unless ($feature->{_primary_tag} eq $options->{gff_type});
+      next LOOP unless ($feature->primary_tag eq $options->{gff_type});
       $hits++;
-      my $location = $feature->{_location};
+      my $location = $feature->location;
       $old_start = $start;
       $old_end = $end;
-      $start = $location->start();
-      $end = $location->end();
+      $start = $feature->start();
+      $end = $feature->end();
       my $strand = $location->strand();
       my @ids = $feature->each_tag_value($options->{gff_tag});
       my $id = "";
-      my $gff_chr = $feature->{_gsf_seq_id};
+      ##my $gff_chr = $feature->{_gsf_seq_id};
+      my $gff_chr = $feature->id;
+      print "TESTME Read_GFF: $gff_chr\n";
       my $gff_string = $annotation_in->gff_string($feature);
       foreach my $i (@ids) {
           $i =~ s/^cds_//g;

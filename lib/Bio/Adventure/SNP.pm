@@ -4,12 +4,20 @@ use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
+no warnings 'redefine';
 extends 'Bio::Adventure';
 
+use Acme::Tools qw"btw";
 use File::Basename;
 use File::Which qw"which";
 use Math::Round qw":all";
 use POSIX qw"floor";
+use Bio::DB::SeqFeature::Store;
+use Bio::SeqIO;
+use Bio::Seq;
+
+
+
 
 =head1 NAME
 
@@ -316,17 +324,24 @@ sub SNP_Ratio {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'gff_tag', 'gff_type'],
+        introns => 0,
         jprefix => '80',
         jname => 'parsenp',
         vcf_method => 'freebayes',
         vcf_cutoff => 5,
         vcf_minpct => 0.8,
         modules => ['freebayes', 'libgsl', 'libhts', 'gatk',
-                    'samtools', 'bcftools', 'vcftools'],);
+                    'samtools', 'bcftools', 'vcftools'],
+        required => ['input', 'species', 'gff_tag', 'gff_type'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules},);
     my $check = which('bcftools');
     die('Could not find bcftools in your PATH.') unless($check);
+
+    if ($options->{introns}) {
+        my $snp_intron = Bio::Adventure::SNP::SNP_Ratio_Intron(%args);
+        return($snp_intron);
+    }
+
     my $print_input = $options->{input};
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
@@ -346,6 +361,7 @@ sub SNP_Ratio {
     my $output_genome = qq"${print_output}/modified.fasta";
     my $output_by_gene = qq"${print_output}/variants_by_gene.txt";
     my $output_pkm = qq"${print_output}/pkm.txt";
+
     my $jstring = qq"
 use Bio::Adventure::SNP;
 my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
