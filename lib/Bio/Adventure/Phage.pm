@@ -286,9 +286,8 @@ sub Classify_Phage {
         jmem => 12,
         jprefix => '18',
         modules => ['blastdb', 'blast'],);
-
-    my $input_dir = basename(dirname($options->{input}));
-    my $output_dir = qq"outputs/$options->{jprefix}classify_${input_dir}";
+    my $paths = $class->Get_Paths($options->{input});
+    my $output_dir = qq"outputs/$options->{jprefix}classify_$paths->{dirname}";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
@@ -402,6 +401,8 @@ sub Classify_Phage_Worker {
     print $final_fh "contig\tquery_description\ttaxon\tname\tquery_length\thit_length\thit_accession\thit_description\thit_bit\thit_sig\thit_score\thit_family\thit_genus\n";
     my @params = (
         -e => $options->{evalue},
+        -create => 0,
+        -db_dir => $ENV{BLASTDB},
         -db_name => $options->{library},
         -outfile => $blast_outfile,
         -num_threads => $options->{jcpus},

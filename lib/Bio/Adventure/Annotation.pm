@@ -321,7 +321,7 @@ sub Prokka {
         species => 'virus',
         jmem => 12,
         jprefix => '19',
-        modules => ['prokka'],);
+        modules => ['blast', 'prokka'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('prokka');
     die('Could not find prokka in your PATH.') unless($check);

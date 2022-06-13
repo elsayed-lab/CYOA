@@ -816,10 +816,10 @@ if unicycler $options->{arbitrary} \\
 else
   if shovill --nocorr --force \\
     --outdir ${output_dir} \\
-    ${shovill_input}
+    ${shovill_input} \\
     --minlen $options->{min_length} \\
-    2>>${stderr}_backup \\
-    1>>${stdout}_backup; then
+    2>>${stderr} \\
+    1>>${stdout}; then
     echo "Second unicycler attempt passed."
     mv ${output_dir}/contigs.fa ${output_dir}/assembly.fasta
   else
