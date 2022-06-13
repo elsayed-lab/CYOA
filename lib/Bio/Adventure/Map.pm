@@ -540,15 +540,20 @@ sub BWA {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
+        arbitrary => '',
+        bwa_method => 'mem',
         count => 1,
-        species => 'lmajor',
-        libtype => 'genome',
         gff_type => 'gene',
         gff_tag => 'ID',
+        jcpus => 8,
         jmem => 24,
         jprefix => 30,
-        modules => ['bwa'],);
+        libtype => 'genome',
+        modules => ['bwa'],
+        required => ['input', 'species'],
+        samtools_mapped => 1,
+        samtools_unmapped => 1);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bwa');
     die('Could not find bwa in your PATH.') unless($check);
 
@@ -575,18 +580,33 @@ sub BWA {
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
         $test_file = $pair_listing[0];
-        $forward_reads = qq" <(less $pair_listing[0])";
-        $reverse_reads = qq" <(less $pair_listing[1])";
+        if ($test_file =~ /\.bz2|\.xz/) {
+            $forward_reads = qq"<(less $pair_listing[0])";
+            $reverse_reads = qq"<(less $pair_listing[1])";
+        } elsif ($test_file =~ /\.fastq|\.gz|\.fq/) {
+            $forward_reads = qq"$pair_listing[0]";
+            $reverse_reads = qq"$pair_listing[1]";
+        } else {
+            print "These inputs seem strange and may not work.\n";
+            $forward_reads = qq"<(less $pair_listing[0])";
+            $reverse_reads = qq"<(less $pair_listing[1])";
+        }
         $bwa_input = qq" ${forward_reads} ${reverse_reads} ";
     } else {
         $test_file = File::Spec->rel2abs($bwa_input);
-        $bwa_input = qq" <(less ${test_file}) ";
+        if ($test_file =~ /\.bz2|\.xz/) {
+            $bwa_input = qq" <(less ${bwa_input}) ";
+        } elsif ($test_file =~ /\.fastq|\.gz|\.fq/) {
+            $bwa_input = qq" ${bwa_input} ";
+        } else {
+            print "These inputs seem strange and may not work.\n";
+            $bwa_input = qq" <(less ${bwa_input} ";
+        }
         $forward_reads = $bwa_input;
     }
 
     my $jname = qq"bwa_$options->{species}";
     $jname = $options->{jname} if ($options->{jname});
-    my $libtype = $options->{libtype};
 
     my $bwa_dir = qq"outputs/$options->{jprefix}bwa_$options->{species}";
     $bwa_dir = $options->{bwa_dir} if ($options->{bwa_dir});
@@ -595,7 +615,7 @@ sub BWA {
     my $index_jobid = undef;
     ## Check that the indexes exist
     ## NOTE: BWA Might require the file to be named ...fa instead of ...fasta
-    my $bwa_reflib = qq"$options->{libpath}/${libtype}/indexes/$options->{species}.fa";
+    my $bwa_reflib = qq"$options->{libpath}/$options->{libtype}/indexes/$options->{species}.fa";
     my $bwa_reftest = qq"${bwa_reflib}.sa";
     my $index_job;
     if (!-r $bwa_reftest) {
@@ -603,150 +623,132 @@ sub BWA {
             input => $bwa_reflib,
             jdepends => $options->{jdepends},
             jprefix => $options->{jprefix} - 1,
-            libtype => $libtype,);
+            libtype => $options->{libtype},);
         $options->{jdepends} = $index_job->{job_id};
     }
 
-    my $aln_sam = qq"${bwa_dir}/$options->{jbasename}_aln.sam";
-    my $mem_sam = qq"${bwa_dir}/$options->{jbasename}_mem.sam";
-    my $aln_args = '';
-    my $mem_args = '-M ';
-    my $sam_args = '';
-    my $mem_string = qq!mkdir -p ${bwa_dir}
-bwa mem ${mem_args} \\
-  -a ${bwa_reflib} \\
-  ${bwa_input} \\
-  2>${bwa_dir}/bwa.stderr \\
-  1>${mem_sam}
-!;
-    my $reporter_string = qq"bwa samse ${sam_args} \\
+    my @bwa_methods = split(/,/, $options->{bwa_method});
+    my $job_string = '';
+    my $comment = '## A series of bwa commands.';
+    my $sam_outs = '';
+    for my $method (@bwa_methods) {
+        my $sam_out = qq"${bwa_dir}/$options->{jbasename}_${method}.sam";
+        $sam_outs = qq"${sam_out}:";
+        my $extra_args = qq" $options->{arbitrary} -t $options->{jcpus} ";
+        if ($method eq 'mem') {
+            $extra_args = qq" -M ${extra_args} ";
+        }
+
+        if ($method eq 'mem') {
+            $job_string .= qq"mkdir -p ${bwa_dir}
+bwa ${method} \\
   ${bwa_reflib} \\
-  ${bwa_dir}/$options->{jbasename}_aln-forward.sai \\
   ${bwa_input} \\
-  2>${bwa_dir}/$options->{jbasename}_samse.stderr \\
-  1>${aln_sam}";
-    my $aln_string = qq"bwa aln ${aln_args} \\
+  -o ${sam_out} \\
+  ${extra_args} \\
+  1>${bwa_dir}/bwa_${method}.stdout \\
+  2>>${bwa_dir}/bwa_${method}.stderr
+";
+        } elsif ($method eq 'aln') {
+            $job_string .= qq"mkdir -p ${bwa_dir}
+bwa ${method} ${extra_args} \\
   ${bwa_reflib} \\
   ${forward_reads} \\
-  2>${bwa_dir}/$options->{jbasename}_aln-forward.stderr \\
-  1>${bwa_dir}/$options->{jbasename}_aln-forward.sai";
-    if (defined($reverse_reads)) {
-        $aln_string = qq"${aln_string}
-bwa aln ${aln_args} \\
+  1>${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
+  2>>${bwa_dir}/bwa_${method}_r1.stderr
+";
+            if (defined($reverse_reads)) {
+                $job_string .= qq"mkdir -p ${bwa_dir}
+bwa ${method} ${extra_args} \\
   ${bwa_reflib} \\
-  <(less ${reverse_reads}) \\
-  2>${bwa_dir}/$options->{jbasename}_aln-reverse.stderr \\
-  1>${bwa_dir}/$options->{jbasename}_aln-reverse.sai";
-        $reporter_string = qq"bwa ${sam_args} \\
-  sampe ${bwa_reflib} \\
-  ${bwa_dir}/$options->{jbasename}_aln-forward.sai \\
-  ${bwa_dir}/$options->{jbasename}_aln-reverse.sai \\
-  <(less ${forward_reads}) <(less ${reverse_reads}) \\
-  2>${bwa_dir}/$options->{jbasename}_sam.stderr \\
-  1>${aln_sam}";
-    }
+  ${reverse_reads} \\
+  1>${bwa_dir}/$options->{jbasename}_aln-r2.sai \\
+  2>>${bwa_dir}/bwa_${method}_r1.stderr
 
-    my $mem_comment = qq!## This is a BWA mem alignment of ${bwa_input} against
-## ${bwa_reflib}.
-!;
-    my $aln_comment = qq!## This is a BWA aln alignment of ${bwa_input} against
-## ${bwa_reflib}.
-!;
-    my $report_comment = qq!## This is a BWA sam report of ${bwa_input} against
-## ${bwa_reflib}.
-!;
-
-    ## MEM Runs
+bwa sampe \\
+  ${bwa_reflib} \\
+  ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
+  ${bwa_dir}/$options->{jbasename}_aln-r2.sai \\
+  ${bwa_input} \\
+  1>${sam_out} \\
+  2>>${bwa_dir}/bwa_sampe.stderr
+";
+            } else {
+                $job_string .= qq"
+bwa samse \\
+  ${bwa_reflib} \\
+  ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
+  ${bwa_input} \\
+  1>${sam_out} \\
+  2>>${bwa_dir}/bwa_samse.stderr
+";
+            }
+        } elsif ($method eq 'samse') {
+                $job_string .= qq"
+bwa samse ${extra_args} \\
+  ${bwa_reflib} \\
+  ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
+  ${bwa_input} \\
+  1>${sam_out} \\
+  2>>${bwa_dir}/bwa_samse.stderr
+";
+        } elsif ($method eq 'sampe') {
+            $job_string .= qq"
+bwa sampe ${extra_args} \\
+  ${bwa_reflib} \\
+  ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
+  ${bwa_dir}/$options->{jbasename}_aln-r2.sai \\
+  ${bwa_input} \\
+  1>${sam_out} \\
+  2>>${bwa_dir}/bwa_sampe.stderr
+";
+        }
+    } ## End iterating over potential bwa methods.
+    $sam_outs =~ s/:$//g;
     my $bwa_job = $class->Submit(
-        comment => $mem_comment,
+        comment => $comment,
         input => $bwa_input,
         jdepends => $options->{jdepends},
-        jname => qq"bwamem_$options->{species}",
-        output => $mem_sam,
+        jname => qq"bwa_$options->{species}",
+        output => $sam_outs,
         jprefix => $options->{jprefix},
-        jstring => $mem_string,
-        jmem => $options->{jmem},
-        modules => $options->{modules},
-        postscript => $options->{postscript},
-        prescript => $options->{prescript},
-        jqueue => 'workstation',
-    );
-    my $mem_sam_job = $class->Bio::Adventure::Convert::Samtools(
-        input => $mem_sam,
-        jdepends => $bwa_job->{job_id},
-        jname => 's2b_mem',
-        jmem => '20',
-        jprefix => $options->{jprefix} + 1,);
-    $bwa_job->{samtools_mem} = $mem_sam_job;
-
-    ## ALN Runs
-    my $aln_job = $class->Submit(
-        comment => $aln_comment,
-        input => $bwa_input,
-        jdepends => $mem_sam_job->{job_id},
-        jname => qq"bwaaln_$options->{species}",
-        output => qq"${bwa_dir}/$options->{jbasename}_aln-forward.sai",
-        jprefix => $options->{jprefix} + 2,
-        jstring => $aln_string,
+        jstring => $job_string,
         jmem => $options->{jmem},
         modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',);
-    $bwa_job->{aln} = $aln_job;
 
-    my $rep_job = $class->Submit(
-        comment => $report_comment,
-        input => $aln_job->{output},
-        jdepends => $aln_job->{job_id},
-        jname => qq"bwarep_$options->{species}",
-        modules => $options->{modules},
-        output => $aln_sam,
-        jprefix => $options->{jprefix} + 3,
-        jstring => $reporter_string,
-        jmem => $options->{jmem},
-        postscript => $options->{postscript},
-        prescript => $options->{prescript},
-        jqueue => 'workstation',);
-    $bwa_job->{reporter} = $rep_job;
+    my @sam_files = split(/:/, $sam_outs);
+    my @samtools_jobs = ();
+    my $sam_count = 0;
+    for my $sam (@sam_files) {
+        my $sam_method = $bwa_methods[$sam_count];
+        my $sam_job = $class->Bio::Adventure::Convert::Samtools(
+            input => $sam,
+            jdepends => $bwa_job->{job_id},
+            jname => qq"s2b_${sam_method}",
+            jmem => '30',
+            jprefix => $options->{jprefix},
+            samtools_mapped => 1,
+            samtools_unmapped => 1,);
+        my $sam_name = qq"samtools_${sam_method}";
+        my $htseq_name = qq"htseq_${sam_method}";
+        $bwa_job->{$sam_name} = $sam_job;
 
-    my $aln_sam_job = $class->Bio::Adventure::Convert::Samtools(
-        input => $aln_sam,
-        jdepends => $rep_job->{job_id},
-        jname => 's2b_aln',
-        jmem => '20',
-        jprefix => $options->{jprefix} + 4,);
-    $bwa_job->{samtools_aln} = $aln_sam_job;
-
-    if ($options->{count}) {
-        my $mem_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-            gff_tag => $options->{gff_tag},
-            input => $mem_sam_job->{output},
-            gff_type => $options->{gff_type},
-            jdepends => $mem_sam_job->{job_id},
-            jname => qq"htmem_${jname}",
-            jprefix => $options->{jprefix} + 5,
-            mapper => 'bwa',);
-        $bwa_job->{htseq_mem} = $mem_htmulti;
-        my $aln_htmulti = $class->Bio::Adventure::Count::HT_Multi(
-            gff_tag => $options->{gff_tag},
-            input => $aln_sam_job->{output},
-            gff_type => $options->{gff_type},
-            jdepends => $aln_sam_job->{job_id},
-            jname => qq"htaln_${jname}",
-            jprefix => $options->{jprefix} + 6,
-            mapper => 'bwa',);
-        $bwa_job->{htseq_aln} = $aln_htmulti;
-    }
-
-    my $bwa_stats = $class->Bio::Adventure::Metadata::BWA_Stats(
-        jdepends => $mem_sam_job->{job_id},
-        jname => 'bwastats',
-        jprefix => $options->{jprefix} + 7,
-        aln_output => $aln_sam_job->{output},
-        mem_output => $mem_sam_job->{output},);
-    $bwa_job->{stats} = $bwa_stats;
-
+        if ($options->{count}) {
+            my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
+                gff_tag => $options->{gff_tag},
+                gff_type => $options->{gff_type},
+                input => $sam_job->{output},
+                jdepends => $sam_job->{job_id},
+                jname => $htseq_name,
+                jprefix => $options->{jprefix},
+                mapper => 'bwa',);
+            $bwa_job->{$htseq_name} = $htmulti;
+        }
+        $sam_count++;
+    } ## Done running samtools/htseq on the various bwa output files.
     return($bwa_job);
 }
 

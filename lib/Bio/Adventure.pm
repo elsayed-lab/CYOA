@@ -249,6 +249,8 @@ has ribocorrect => (is => 'rw', default => 1); ## Correct ribosome positions for
 has ribosizes => (is => 'rw', default => '25,26,27,28,29,30,31,32,33,34'); ## Use these sizes for riboseq reads
 has runs => (is => 'rw', default => 1000); ## Number of runs for bayesian methods.
 has sampleid => (is => 'rw', default => undef); ## Identifier to use for a sample.
+has samtools_mapped => (is => 'rw', default => 0); ## Extract mapped reads with samtools.
+has samtools_unmapped => (is => 'rw', default => 0); ## Extract unmapped reads with samtools.
 has sbatch_depends => (is => 'rw', default => 'afterok:');
 has sbatch_dependsarray => (is => 'rw', default => 'afterok:'); ## String to pass for an array of jobs
 has sbatch_path => (is => 'rw', default => My_Which('sbatch'));

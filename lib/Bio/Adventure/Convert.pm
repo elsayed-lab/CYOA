@@ -716,6 +716,28 @@ samtools index \\
 !;
     }
 
+    if ($options->{samtools_mapped}) {
+        my $mapped = $input;
+        $mapped =~ s/\.sam/_samtools_mapped\.fastq/g;
+        $jstring .= qq"
+samtools fastq ${output} -F 4 \\
+  1>${mapped} \\
+  2>${mapped}.stderr
+xz -9e -f ${mapped}
+";
+    }
+
+    if ($options->{samtools_unmapped}) {
+        my $unmapped = $input;
+        $unmapped =~ s/\.sam/_samtools_unmapped\.fastq/g;
+        $jstring .= qq"
+samtools fastq ${output} -f 4 \\
+  1>${unmapped} \\
+  2>${unmapped}.stderr
+xz -9e -f ${unmapped}
+";
+    }
+
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
 ## This job depended on: $options->{jdepends}!;
