@@ -174,7 +174,7 @@ fastqc --extract \\
   2>${stderr} \\
   1>${stdout}
 if [ "\$?" -ne "0" ]; then
-  echo "fastqc failed."
+  echo "fastqc failed, this is not considered fatal for a pipeline."
   exit 0
 fi
 !;

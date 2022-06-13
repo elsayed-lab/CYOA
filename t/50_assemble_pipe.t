@@ -188,7 +188,7 @@ $actual = qx"more ${test_file}";
 $expected = qq"Starting depth coverage filter of outputs/07unicycler/test_output_final_assembly.fasta.
 Any contigs with a coverage ratio vs. the highest coverage of < 0.2 will be dropped.
 Writing filtered contigs to outputs/08filter_depth/final_assembly.fasta
-The range of observed coverages is 1.00 <= x <= 1.00
+The range of observed coverages is 1.00 <= x <= 1
 Writing 1 with normalized coverage: 1
 ";
 $comparison = ok($expected eq $actual, 'Is the depth log as expected?');
@@ -537,18 +537,18 @@ $comparison = ok(-f $test_file, qq"Checking abricate result: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
 $expected = qq"#FILE\tNUM_FOUND
-outputs/27abricate_22merge_cds_predictions/abricate_argannot.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_card.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_dbeth.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_ecoh.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_ecoli_vf.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_megares.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_mvir.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_ncbi.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_plasmidfinder.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_resfinder.tsv\t0
-outputs/27abricate_22merge_cds_predictions/abricate_vfdb.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_argannot.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_card.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_dbeth.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_ecoh.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_ecoli_vf.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_megares.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_mvir.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_ncbi.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_plasmidfinder.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_resfinder.tsv\t0
+outputs/24abricate_19merge_cds_predictions/abricate_vfdb.tsv\t0
 ";
 $comparison = ok($expected eq $actual, 'Checking abricate output:');
 if ($comparison) {
@@ -582,13 +582,13 @@ $comparison = ok(-f $test_file, qq"Checking merge_annotations output log: ${test
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
 $expected = qq"Merging annotations and writing new output files:
-gbf: outputs/29mergeannot/test_output.gbf, tbl: outputs/29mergeannot/test_output.tbl, xlsx: outputs/29mergeannot/test_output.xlsx.
-Reading tsv data from outputs/22merge_cds_predictions/test_output.tsv to start.
+gbf: outputs/26mergeannot/test_output.gbf, tbl: outputs/26mergeannot/test_output.tbl, xlsx: outputs/26mergeannot/test_output.xlsx.
+Reading tsv data from outputs/19merge_cds_predictions/test_output.tsv to start.
 Checking for ICTV classification data from outputs/10classify_08filter_depth/ictv_filtered.tsv.
-Wrote outputs/29mergeannot/test_output.sbt with variables filled in.
-Adding trinotate annotations from outputs/26trinotate22merge_cds_predictions/test_output.tsv.
-Adding interproscan annotations from outputs/28interproscan_22merge_cds_predictions/interproscan.tsv.
-Adding abricate annotations from outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv.
+Wrote outputs/26mergeannot/test_output.sbt with variables filled in.
+Adding trinotate annotations from outputs/23trinotate19merge_cds_predictions/test_output.tsv.
+Adding interproscan annotations from outputs/25interproscan_19merge_cds_predictions/interproscan.tsv.
+Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv.
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
@@ -606,13 +606,13 @@ $comparison = ok(-f $test_file, qq"Checking merge_annotations stripped log: ${te
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
 $expected = qq"Merging annotations and writing new output files:
-gbf: outputs/29mergeannot/test_output.gbf, tbl: outputs/29mergeannot/test_output.tbl, xlsx: outputs/29mergeannot/test_output.xlsx.
-Reading tsv data from outputs/22merge_cds_predictions/test_output.tsv to start.
+gbf: outputs/26mergeannot/test_output.gbf, tbl: outputs/26mergeannot/test_output.tbl, xlsx: outputs/26mergeannot/test_output.xlsx.
+Reading tsv data from outputs/19merge_cds_predictions/test_output.tsv to start.
 Checking for ICTV classification data from outputs/10classify_08filter_depth/ictv_filtered.tsv.
-Wrote outputs/29mergeannot/test_output.sbt with variables filled in.
-Adding trinotate annotations from outputs/26trinotate22merge_cds_predictions/test_output.tsv.
-Adding interproscan annotations from outputs/28interproscan_22merge_cds_predictions/interproscan.tsv.
-Adding abricate annotations from outputs/27abricate_22merge_cds_predictions/abricate_combined.tsv.
+Wrote outputs/26mergeannot/test_output.sbt with variables filled in.
+Adding trinotate annotations from outputs/23trinotate19merge_cds_predictions/test_output.tsv.
+Adding interproscan annotations from outputs/25interproscan_19merge_cds_predictions/interproscan.tsv.
+Adding abricate annotations from outputs/24abricate_19merge_cds_predictions/abricate_combined.tsv.
 Got DTR type: DTR (short).
 Adding phageterm DTRs.
 ";
