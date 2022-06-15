@@ -640,7 +640,7 @@ sub BWA {
         }
 
         if ($method eq 'mem') {
-            $job_string .= qq"mkdir -p ${bwa_dir}
+            $job_string .= qq!mkdir -p ${bwa_dir}
 bwa ${method} \\
   ${bwa_reflib} \\
   ${bwa_input} \\
@@ -648,22 +648,44 @@ bwa ${method} \\
   ${extra_args} \\
   1>${bwa_dir}/bwa_${method}.stdout \\
   2>>${bwa_dir}/bwa_${method}.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+!;
         } elsif ($method eq 'aln') {
-            $job_string .= qq"mkdir -p ${bwa_dir}
+            $job_string .= qq!mkdir -p ${bwa_dir}
 bwa ${method} ${extra_args} \\
   ${bwa_reflib} \\
   ${forward_reads} \\
   1>${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
   2>>${bwa_dir}/bwa_${method}_r1.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+!;
+
             if (defined($reverse_reads)) {
-                $job_string .= qq"mkdir -p ${bwa_dir}
+                $job_string .= qq!mkdir -p ${bwa_dir}
 bwa ${method} ${extra_args} \\
   ${bwa_reflib} \\
   ${reverse_reads} \\
   1>${bwa_dir}/$options->{jbasename}_aln-r2.sai \\
   2>>${bwa_dir}/bwa_${method}_r1.stderr
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} reverse finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} reverse finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
 
 bwa sampe \\
   ${bwa_reflib} \\
@@ -672,28 +694,50 @@ bwa sampe \\
   ${bwa_input} \\
   1>${sam_out} \\
   2>>${bwa_dir}/bwa_sampe.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa sampe finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa sampe finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+!;
             } else {
-                $job_string .= qq"
+                $job_string .= qq!
 bwa samse \\
   ${bwa_reflib} \\
   ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
   ${bwa_input} \\
   1>${sam_out} \\
   2>>${bwa_dir}/bwa_samse.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} reverse finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} reverse finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+
+!;
             }
         } elsif ($method eq 'samse') {
-                $job_string .= qq"
+                $job_string .= qq!
 bwa samse ${extra_args} \\
   ${bwa_reflib} \\
   ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
   ${bwa_input} \\
   1>${sam_out} \\
   2>>${bwa_dir}/bwa_samse.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} reverse finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} reverse finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+!;
         } elsif ($method eq 'sampe') {
-            $job_string .= qq"
+            $job_string .= qq!
 bwa sampe ${extra_args} \\
   ${bwa_reflib} \\
   ${bwa_dir}/$options->{jbasename}_aln-r1.sai \\
@@ -701,7 +745,14 @@ bwa sampe ${extra_args} \\
   ${bwa_input} \\
   1>${sam_out} \\
   2>>${bwa_dir}/bwa_sampe.stderr
-";
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "bwa ${method} reverse finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
+else
+  echo "bwa ${method} reverse finished sadly with return \${test}." >> ${bwa_dir}/bwa_${method}.stderr
+  exit \${test}
+fi
+!;
         }
     } ## End iterating over potential bwa methods.
     $sam_outs =~ s/:$//g;
