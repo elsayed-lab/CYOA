@@ -156,9 +156,6 @@ has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole g
 has help => (is => 'rw', default => undef); ## Ask for help?
 has host_filter => (is => 'rw', default => 1);  ## When performing an assembly, do a host filter?
 has htseq_args => (is => 'rw', default => ' --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union '); ## Most likely htseq options
-has htseq_id => (is => 'rw', default => 'ID'); ## Default htseq ID tag
-has htseq_stranded => (is => 'rw', default => 'no'); ## Use htseq stranded options?
-has htseq_type => (is => 'rw', default => 'gene'); ## What type of gff file should be read by htseq?
 has identity => (is => 'rw', default => 70); ## Alignment specific identity cutoff
 has index_file => (is => 'rw', default => 'indexes.txt'); ## File containing indexes:sampleIDs when demultiplexing samples - likely tnseq
 has index_hash => (is => 'rw', default => undef);
@@ -257,7 +254,7 @@ has sbatch_path => (is => 'rw', default => My_Which('sbatch'));
 has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
 has starting_tree => (is => 'rw', default => undef); ## Starting tree for phylogenetic analyses
-has stranded => (is => 'rw', default => 0); ## Did this data come from a stranded library kit?
+has stranded => (is => 'rw', default => 1); ## Did this data come from a stranded library kit?
 has suffixes => (is => 'rw', default => '.fastq,.gz,.xz,.fasta,.sam,.bam,.count,.csfasta,.qual,.fsa,.faa,.fna,.gbf,.gbk,.tsv,.csv,.gff,.tbl,.ffn,.sf'); ## Suffixes to remove when invoking basename
 has ta_offset => (is => 'rw', default => 0); ## When counting TAs, this is either 0 or 2 depending on if the TA was removed.
 has task => (is => 'rw', default => 'tnseq');
@@ -676,6 +673,7 @@ sub Get_Menus {
             name => 'count',
             message => 'Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812',
             choices => {
+                '(guessstrand): Count reads with respect to features and report strandedness.' => \&Bio::Adventure::Count::Guess_Strand,
                 '(htseq): Count mappings with htseq-count.' =>  \&Bio::Adventure::Count::HTSeq,
                 '(htmulti): Use different option sets for counting with htseq.' => \&Bio::Adventure::Count::HT_Multi,
                 '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
@@ -946,6 +944,7 @@ sub Get_TODOs {
         "glimmersingle+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Glimmer_Single'},
         "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
         "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
+        "guessstrand+" => \$todo_list->{todo}{'Bio::Adventure::Count::Guess_Strand'},
         "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
         "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
         "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::Count::HT_Multi'},
@@ -1538,15 +1537,16 @@ sub Read_Genome_GFF {
         gff_type => 'gene',
         gff_tag => 'locus_tag');
     my $annotation_in = Bio::Tools::GFF->new(-file => "$options->{gff}", -gff_version => 3);
-    my $gff_out = {stats => {
-        chromosomes => [],
-        lengths => [],
-        feature_names => [],
-        cds_starts => [],
-        cds_ends => [],
-        inter_starts => [],
-        inter_ends => [],
-                   },
+    my $gff_out = {
+        stats => {
+            chromosomes => [],
+            lengths => [],
+            feature_names => [],
+            cds_starts => [],
+            cds_ends => [],
+            inter_starts => [],
+            inter_ends => [],
+        },
     };
     my $gff_name = basename($options->{gff}, ['.gff']);
     ##my $genome_file = qq"$options->{basedir}/${gff_name}.pdata";
@@ -1578,9 +1578,8 @@ sub Read_Genome_GFF {
       my $strand = $location->strand();
       my @ids = $feature->each_tag_value($options->{gff_tag});
       my $id = "";
-      ##my $gff_chr = $feature->{_gsf_seq_id};
-      my $gff_chr = $feature->id;
-      print "TESTME Read_GFF: $gff_chr\n";
+      my $gff_chr = $feature->{_gsf_seq_id};
+      ## my $gff_chr = $feature->display_name;
       my $gff_string = $annotation_in->gff_string($feature);
       foreach my $i (@ids) {
           $i =~ s/^cds_//g;
@@ -1595,10 +1594,10 @@ sub Read_Genome_GFF {
       push(@chromosome_list, $orf_chromosome) if ($orf_chromosome !~~ @chromosome_list);
       push(@feature_names, $id);
       push(@cds_starts, $start);
-      push(@inter_starts, $old_start+1);
+      push(@inter_starts, $old_start + 1);
       push(@cds_ends, $end);
       ##push(@inter_ends, $old_start-1);
-      push(@inter_ends, $start-1);
+      push(@inter_ends, $start - 1);
       my $annot = {
           id => $id,
           start => $start, ## Genomic coordinate of the start codon

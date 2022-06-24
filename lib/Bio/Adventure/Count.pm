@@ -8,6 +8,7 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Bio::DB::Sam;
 use Bio::Tools::GFF;
 use Cwd;
 use File::Basename;
@@ -24,6 +25,163 @@ use String::Approx qw"amatch";
  These functions handle the counting of reads, primarily via htseq.
 
 =head1 METHODS
+
+=cut
+sub Guess_Strand {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species', 'gff_type', 'gff_tag',],
+        genes => 'all',
+        jmem => 12,
+        jprefix => '41',
+        output => 'strand_counts.txt',);
+    my $job_name = $class->Get_Job_Name();
+    my $output = $options->{output};
+    my $comment = '## This submits a job to figure out the strandedness of a library.';
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Count;
+my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
+  input => '$options->{input}',
+  genes => '$options->{genes}',
+  gff_tag => '$options->{gff_tag}',
+  gff_type => '$options->{gff_type}',
+  output => '${output}',
+  species => '$options->{species}',);
+!;
+    my $guess = $class->Submit(
+        comment => $comment,
+        genes => $options->{genes},
+        gff_tag => $options->{gff_tag},
+        gff_type => $options->{gff_type},
+        input => $options->{input},
+        jcpus => 1,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => qq"guess_strand_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'workstation',
+        jstring => $jstring,
+        language => 'perl',
+        output => $output,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        species => $options->{species},);
+    return($guess);
+}
+
+sub Guess_Strand_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species', 'gff_type', 'gff_tag',],
+        coverage => 0.2,
+        jcpus => 1,
+        output_log => '',
+        output => '',);
+    my $log = FileHandle->new(">$options->{output}.log");
+    my $gff = qq"$options->{libpath}/$options->{libtype}/$options->{species}.gff";
+    my $fasta = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
+    my $features = $class->Read_Genome_GFF(
+        gff => $gff,
+        gff_type => $options->{gff_type},
+        gff_tag => $options->{gff_tag},);
+    my $sam = Bio::DB::Sam->new(-bam => $options->{input},
+                                -fasta => ${fasta},);
+    my @targets = $sam->seq_ids;
+    my $num = scalar(@targets);
+    my $bam = Bio::DB::Bam->open($options->{input});
+    my $header = $bam->header;
+    my $target_count = $header->n_targets;
+    my $target_names = $header->target_name;
+    my $align_count = 0;
+    my $million_aligns = 0;
+    my $alignstats = qx"samtools idxstats $options->{input}";
+    my @alignfun = split(/\n/, $alignstats);
+    my @aligns = split(/\t/, $alignfun[0]);
+    my @unaligns = split(/\t/, $alignfun[1]);
+    my $number_reads = $aligns[2] + $unaligns[3];
+    my $output_name = qq"$options->{input}.out";
+    print $log "There are $number_reads alignments in $options->{input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
+    print "TESTME: There are $number_reads alignments in $options->{input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
+    my $forward_hit = 0;
+    my $reverse_hit = 0;
+    my %result = ();
+  BAMLOOP: while (my $align = $bam->read1) {
+      my $cigar = $align->cigar_str;
+      if ($cigar eq '') {
+          ## print "This did not align.\n";
+          next BAMLOOP;
+      }
+      $align_count++;
+      ##if ($class->{debug}) {  ## Stop after a relatively small number of reads when debugging.
+      ##    last BAMLOOP if ($align_count > 200);
+      ##}
+      if (($align_count % 1000000) == 0) {
+          $million_aligns++;
+          print $log "Finished $million_aligns million alignments out of ${number_reads}.\n";
+      }
+      my $seqid = $target_names->[$align->tid];
+      ## my $start = $align->pos + 1;
+      ## my $end = $align->calend;
+      my $start = $align->pos;
+      my $end = $align->calend - 1;
+      my $strand = $align->strand;
+      my $seq = $align->query->dna;
+      my $qual = $align->qual;
+      my $pairedp = $align->paired;
+      my $unmappedp = $align->unmapped;
+      my $mate_unmappedp = $align->munmapped;
+      my $reversedp = $align->reversed;
+      my $mate_reversedp = $align->mreversed;
+      my $mate_id = $align->mtid;
+      my $mate_start = $align->mpos;
+      my $properp = $align->proper_pair;
+      if ($unmappedp && $mate_unmappedp) {
+          next BAMLOOP;
+      }
+
+      my @seq_array = split(//, $seq);
+      print "TESTME: This alignment on chr: $seqid starts at: $start, ends at $end on strand: $strand\n";
+      my @tags = $align->get_all_tags;
+      ## A reminder when playing with tag values and get_all_tags()
+      ## These are coming from the 2nd sam column and are the result of a decimal->binary conversion:
+      ## E.g. a paired, proper, first of pair, reverse in binary is: 1100101 -> 1+2+16+64 -> 83
+      ## 0x1(1) or first binary character: paired or unpaired
+      ## 0x2(2) or second binary character: proper or not proper pair
+      ## 0x4(4): this read is unmapped
+      ## 0x8(8): the mate read is unmapped
+      ## 0x10(16): this read is reverse
+      ## 0x20(32): the mate is reverse
+      ## 0x40(64): this is the first of a pair
+      ## 0x80(128): this is the second of a pair
+      ## 0x100(256): this is not the primary read
+      ## 0x200(512): this failed the sequencer checks
+      ## 0x400(1024): this is an optical duplicate
+      ## 0x800(2048): this is a supplemental alignment.
+      my $first = $align->get_tag_values('FIRST_MATE');
+
+      print "TESTME: rev: $reversedp mrev: $mate_reversedp proper: $properp\n";
+      ## Look for a feature at this position...
+      my %chr_features = %{$features->{$seqid}};
+      for my $feat_id (keys %chr_features) {
+          my %feat = %{$chr_features{$feat_id}};
+
+          ##  ------------------->>>>>-------<<<<<--------------------------
+          ##                  >>>>>
+          if ($start <= $feat{start} && $end >= $feat{start} && $end < $feat{end}) {
+              print "TESTME: This alignment started before the feature and ended before it.\n";
+              print "TESTME: rev: $reversedp mrev: $mate_reversedp proper: $properp\n";
+              use Data::Dumper;
+              print Dumper %feat;
+          }
+      }
+  } ## End reading each bam entry
+    $log->close();
+}
+
+
 
 =head2 C<HT_Multi>
 
@@ -51,7 +209,7 @@ sub HT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'htseq_stranded'],
+        required => ['species', 'input', 'stranded'],
         gff_type => 'gene',
         gff_tag => 'ID',
         libtype => 'genome',
@@ -64,7 +222,7 @@ sub HT_Multi {
     my %ro_opts = %{$options};
     my $species = $options->{species};
     my $htseq_input = $options->{input};
-    my $stranded = $options->{htseq_stranded};
+    my $stranded = $options->{stranded};
     if ($stranded eq '1') {
         $stranded = 'yes';
     } elsif ($stranded eq '0') {
@@ -284,7 +442,7 @@ sub HT_Types {
 
  input: Sorted/indexed bam file to count.
  species: Defines the gff/fasta files to read.
- htseq_stranded: Is this library stranded?
+ stranded: Is this library stranded?
  htseq_args(--order=name --idattr=gene_id --minaqual=10 --type exon
   --stranded=yes --mode=union): Define arbitrary htseq arguments.
  gff_type(''): Redundant with gff_type, used to choose a specific
@@ -305,7 +463,7 @@ sub HTSeq {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'htseq_stranded', 'htseq_args',],
+        required => ['input', 'species', 'stranded', 'htseq_args',],
         gff_type => 'gene',
         gff_tag => 'ID',
         jname => '',
@@ -315,7 +473,12 @@ sub HTSeq {
         modules => ['htseq'],
         paired => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $stranded = $options->{htseq_stranded};
+    my $stranded = $options->{stranded};
+    if ($stranded eq '1') {
+        $stranded = 'yes';
+    } elsif ($stranded eq '0') {
+        $stranded = 'no';
+    }
     my $gff_tag = $options->{gff_tag};
     my $htseq_input = $options->{input};
     my $gff_type = 'all';

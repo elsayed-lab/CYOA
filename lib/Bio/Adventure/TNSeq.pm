@@ -6,6 +6,7 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Bio::DB::Sam;
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::Tools::GFF;
@@ -518,7 +519,7 @@ sub Essentiality_TAs_Worker {
     my $cds_gff = $class->Read_Genome_GFF(
         feature_type => $options->{htseq_type},
         gff => $genome_gff,
-        id_tag => $options->{htseq_id},
+        id_tag => $options->{gff_tag},
     );
     my $chr_name = "Unknown";
     if ($cds_gff->{stats}->{chromosomes}->[0]) {
@@ -730,7 +731,6 @@ sub Count_TAs {
     my $length = $options->{length};
     my $input = $options->{input};
     my $data = $options->{data};
-    eval {use Bio::DB::Sam; 1};
     my $fasta = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $sam = Bio::DB::Sam->new(-bam => ${input},
                                 -fasta => ${fasta},);
@@ -767,7 +767,7 @@ sub Count_TAs {
         my $cigar = $align->cigar_str;
         my $strand = $align->strand;
         my $seq = $align->query->dna;
-        my $qual= $align->qual;
+        my $qual = $align->qual;
 
         my @seq_array = split(//, $seq);
         ## At this point there are a few possibilities:

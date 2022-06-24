@@ -16,9 +16,6 @@ use Bio::DB::SeqFeature::Store;
 use Bio::SeqIO;
 use Bio::Seq;
 
-
-
-
 =head1 NAME
 
  Bio::Adventure::SNP - Search for variant positions given an alignment and reference genome.
@@ -80,7 +77,7 @@ sub Freebayes_SNP_Search {
         required => ['species', 'input',],
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        min_depth => 5,
+        vcf_cutoff => 5,
         min_value => 0.5,
         max_value => undef,
         gff_tag => 'ID',
@@ -160,11 +157,11 @@ rm ${output_file}
             gff_type => $options->{gff_type},
             gff_cds_parent_type => $options->{gff_cds_parent_type},
             gff_cds_type => $options->{gff_cds_type},
-            min_depth => $options->{min_depth},
             min_value => $options->{min_value},
             max_value => $options->{max_value},
             input => ${output_bcf},
             species => $options->{species},
+            vcf_cutoff => $options->{vcf_cutoff},
             vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_intron_${query_base}",
@@ -178,9 +175,9 @@ rm ${output_file}
             gff_type => $options->{gff_type},
             input => ${output_bcf},
             max_value => $options->{max_value},
-            min_depth => $options->{min_depth},
             min_value => $options->{min_value},
             species => $options->{species},
+            vcf_cutoff => $options->{vcf_cutoff},
             vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_${query_base}",
@@ -203,7 +200,7 @@ sub Mpileup_SNP_Search {
         args => \%args,
         required => ['input', 'species', 'gff_tag', 'gff_type'],
         varfilter => 0,
-        min_depth => 5,
+        vcf_cutoff => 5,
         min_value => 0.8,
         jprefix => '50',
         modules => ['libgsl/2.7.1', 'libhts/1.13',
@@ -218,7 +215,7 @@ sub Mpileup_SNP_Search {
     $query = qq"${query_home}/${query_base}";
 
     my $varfilter = $options->{varfilter};
-    my $vcf_cutoff = $options->{min_depth};
+    my $vcf_cutoff = $options->{vcf_cutoff};
     my $vcf_minpct = $options->{min_value};
 
     my $vcfutils_dir = qq"outputs/$options->{jprefix}vcfutils_$options->{species}";
@@ -419,7 +416,7 @@ sub SNP_Ratio_Worker {
         required => ['species', 'input'],
         gff_tag => 'ID',
         gff_type => 'gene',
-        min_depth => 5,
+        vcf_cutoff => 5,
         min_value => 0.8,
         max_value => undef,
         vcf_method => 'freebayes',
@@ -585,8 +582,6 @@ sub SNP_Ratio_Worker {
       ## fields at the end which are called tags and tag_info here.
       my ($chr, $pos, $id, $ref, $alt, $qual, $filt, $info, $tags, $tag_info) = split(/\s+/, $line);
       ## Only accept the simplest non-indel mutations.
-      next READER unless ($alt eq 'A' or $alt eq 'a' or $alt eq 'T' or $alt eq 't' or
-                          $alt eq 'G' or $alt eq 'g' or $alt eq 'C' or $alt eq 'c');
 
       ## I do not know if indels are here anymore, we will see.
       my @info_list = split(/;/, $info);
@@ -651,6 +646,8 @@ sub SNP_Ratio_Worker {
 
     print $log "Filtering variant observations and writing a new genome.\n";
     my $shifters = 0;
+    my $indels = 0; ## Number of indel mutations observed.
+    my $points = 0; ## Number of point mutations observed.
   SHIFTER: while (scalar(@tag_observations)) {
       my $datum = shift(@tag_observations);
       $shifters++;
@@ -658,18 +655,32 @@ sub SNP_Ratio_Worker {
       ## a new genome and record it
       my $chosen = $options->{chosen_tag};
       my $depth_tag = $options->{coverage_tag};
-      my $min_depth = $options->{min_depth};
-      if (defined($min_depth)) {
-          next SHIFTER if ($datum->{$depth_tag} < $min_depth);
+      my $vcf_cutoff = $options->{vcf_cutoff};
+      if (defined($vcf_cutoff)) {
+          if ($datum->{$depth_tag} < $vcf_cutoff) {
+              print "Dropping $datum->{position} because depth ($datum->{$depth_tag}) is less than $vcf_cutoff.\n";
+              next SHIFTER;
+          }
       }
       if (defined($chosen) && defined($datum->{chosen})) {
           if (defined($options->{min_value}) && defined($options->{max_value})) {
-              next SHIFTER if ($datum->{chosen} > $options->{max_value} ||
-                               $datum->{chosen} < $options->{min_value});
+              if ($datum->{chosen} > $options->{max_value}) {
+                  ## print "TESTME: This position has exceeded max value: $options->{max_value}\n";
+                  next SHIFTER;
+              } elsif ($datum->{chosen} < $options->{min_value}) {
+                  ## print "TESTME: This position is less than min value: $options->{min_value}\n";
+                  next SHIFTER;
+              }
           } elsif (defined($options->{min_value})) {
-              next SHIFTER if ($datum->{chosen} < $options->{min_value});
+              if ($datum->{chosen} < $options->{min_value}) {
+                  ## print "TESTME: This position is less than min value: $options->{min_value}\n";
+                  next SHIFTER;
+              }
           } elsif (defined($options->{max_value})) {
-              next SHIFTER if ($datum->{chosen} > $options->{max_value});
+              if ($datum->{chosen} > $options->{max_value}) {
+                  ## print "TESTME: This position has exceeded max value: $options->{max_value}\n";
+                  next SHIFTER;
+              }
           }
       }
 
@@ -685,11 +696,7 @@ sub SNP_Ratio_Worker {
       print $all_out $datum_line;
 
       my $position_data = $datum->{position};
-      my ($chr, $pos, $orig, $alt, $rest);
-      ($chr, $rest) = split(/_pos_/, $position_data);
-      $chr =~ s/^chr_//g;
-      ($pos, $rest) = split(/_ref_/, $rest);
-      ($orig, $alt) = split(/_alt_/, $rest);
+      my ($chr, $pos, $orig, $alt) = $position_data =~ m/^chr_(.*)_pos_(.*)_ref_(.*)_alt_(.*)$/;
       ## First pull the entire contig sequence.
       my $starting_seq = $input_genome->{$chr}->{sequence};
       ## Give it a useful name, extract the length.
@@ -699,62 +706,71 @@ sub SNP_Ratio_Worker {
       ## replace the nucleotide of interest.
       my $found_nt = substr($initial_search_seq, $pos - 2, 5);
       my $replace_seq = $starting_seq;
-      my $replaced = substr($replace_seq, $pos - 1, 1, $alt);
-      ## Swap out the reference with the alt, $replace_seq gets the new data.
-      ## Make a new variable so we can see the change, and
-      ## replace the contig in the reference database.
-      my $final_test_seq = $replace_seq;
-      my $test_nt = substr($final_test_seq, $pos - 2, 5);
-      ## print "Original region at pos: ${pos} are: ${found_nt}, changing ${orig} to ${alt}.  Now they are ${test_nt}. for chr: ${chr}\n";
-      $input_genome->{$chr}->{sequence} = $replace_seq;
+      ## Note that freebayes and friends also give back indels which are confusing.
+      ## So, for the moment at least, only replace transitions/transversions.
+      if (length($alt) == 1) {
+          $points++;
+          my $replaced = substr($replace_seq, $pos - 1, 1, $alt);
+          ## Swap out the reference with the alt, $replace_seq gets the new data.
+          ## Make a new variable so we can see the change, and
+          ## replace the contig in the reference database.
+          my $final_test_seq = $replace_seq;
+          my $test_nt = substr($final_test_seq, $pos - 2, 5);
+          ## print "Original region at pos: ${pos} are: ${found_nt}, changing ${orig} to ${alt}.  Now they are ${test_nt}. for chr: ${chr}\n";
+          $input_genome->{$chr}->{sequence} = $replace_seq;
+          if (!defined($annotations->{$chr})) {
+              print $log "${chr} was not defined in the annotations database.\n";
+          } else {
+              my %tmp = %{$annotations->{$chr}};
+            FIND_GENE: foreach my $gene_id (keys %tmp) {
+                my $gene = $tmp{$gene_id};
+                next FIND_GENE unless (ref($gene) eq 'HASH');
+                $vars_by_gene->{$gene_id}->{length} = $gene->{end} - $gene->{start};
+                next FIND_GENE if ($pos < $gene->{start});
+                next FIND_GENE if ($pos > $gene->{end});
+                if (!defined($vars_by_gene->{$gene_id}->{count})) {
+                    $vars_by_gene->{$gene_id}->{count} = 1;
+                } else {
+                    $vars_by_gene->{$gene_id}->{count}++;
+                }
+                ## Print the nucleotide changed by this position along with the amino acid substitution
+                my $old_chr_string = $original_genome{$chr}{sequence};
+                my $new_chr_string = $input_genome->{$chr}->{sequence};
+                ## my $original_chr = Bio::Seq->new(-display_id => $chr, -seq => $original_genome{$chr}{sequence});
+                my $original_chr = Bio::Seq->new(-display_id => $chr, -seq => $old_chr_string);
+                ## my $new_chr = Bio::Seq->new(-display_id => $chr, -seq => $input_genome->{$chr}->{sequence});
+                my $new_chr = Bio::Seq->new(-display_id => $chr, -seq => $new_chr_string);
 
-      if (!defined($annotations->{$chr})) {
-          print $log "${chr} was not defined in the annotations database.\n";
+                my $relative_position;
+                if ($gene->{strand} > 0) {
+                    $relative_position = $pos - $gene->{start};
+                } else {
+                    $relative_position = $gene->{end} - $pos;
+                }
+                my $relative_aminos = floor($relative_position / 3);
+
+                my $original_cds = $original_chr->trunc($gene->{start}, $gene->{end});
+                my $new_cds = $new_chr->trunc($gene->{start}, $gene->{end});
+                if ($gene->{strand} < 0) {
+                    $original_cds = $original_cds->revcom;
+                    $new_cds = $new_cds->revcom;
+                }
+                my $original_aa = $original_cds->translate;
+                my $new_aa = $new_cds->translate;
+                my $original_aa_string = $original_aa->seq;
+                my $new_aa_string = $new_aa->seq;
+                my $original_aa_position = substr($original_aa_string, $relative_aminos, 1);
+                my $new_aa_position = substr($new_aa_string, $relative_aminos, 1);
+                my $aa_delta_string = qq"${original_aa_position}${relative_aminos}${new_aa_position}";
+                my $report_string = qq"$gene->{id}\t$chr\t$pos\t${orig}_${alt}\t${aa_delta_string}\n";
+                print $output_by_gene $report_string;
+                last FIND_GENE;
+            } ## End iterating over every gene.
+          } ## End making sure the chromosome/contig has information
       } else {
-          my %tmp = %{$annotations->{$chr}};
-          FIND_GENE: foreach my $gene_id (keys %tmp) {
-              my $gene = $tmp{$gene_id};
-              next FIND_GENE unless (ref($gene) eq 'HASH');
-              $vars_by_gene->{$gene_id}->{length} = $gene->{end} - $gene->{start};
-              next FIND_GENE if ($pos < $gene->{start});
-              next FIND_GENE if ($pos > $gene->{end});
-              if (!defined($vars_by_gene->{$gene_id}->{count})) {
-                  $vars_by_gene->{$gene_id}->{count} = 1;
-              } else {
-                  $vars_by_gene->{$gene_id}->{count}++;
-              }
-              ## Print the nucleotide changed by this position along with the amino acid substitution
-              my $old_chr_string = $original_genome{$chr}{sequence};
-              my $new_chr_string = $input_genome->{$chr}->{sequence};
-              my $original_chr = Bio::Seq->new(-display_id => $chr, -seq => $original_genome{$chr}{sequence});
-              my $new_chr = Bio::Seq->new(-display_id => $chr, -seq => $input_genome->{$chr}->{sequence});
-
-              my $relative_position;
-              if ($gene->{strand} > 0) {
-                  $relative_position = $pos - $gene->{start};
-              } else {
-                  $relative_position = $gene->{end} - $pos;
-              }
-              my $relative_aminos = floor($relative_position / 3);
-
-              my $original_cds = $original_chr->trunc($gene->{start}, $gene->{end});
-              my $new_cds = $new_chr->trunc($gene->{start}, $gene->{end});
-              if ($gene->{strand} < 0) {
-                  $original_cds = $original_cds->revcom;
-                  $new_cds = $new_cds->revcom;
-              }
-              my $original_aa = $original_cds->translate;
-              my $new_aa = $new_cds->translate;
-              my $original_aa_string = $original_aa->seq;
-              my $new_aa_string = $new_aa->seq;
-              my $original_aa_position = substr($original_aa_string, $relative_aminos, 1);
-              my $new_aa_position = substr($new_aa_string, $relative_aminos, 1);
-              my $aa_delta_string = qq"${original_aa_position}${relative_aminos}${new_aa_position}";
-              my $report_string = qq"$gene->{id}\t$chr\t$pos\t${orig}_${alt}\t${aa_delta_string}\n";
-              print $output_by_gene $report_string;
-              last FIND_GENE;
-          } ## End iterating over every gene.
-      } ## End making sure the chromosome/contig has information
+          $indels++;
+          ## print "Not dealing with indel: $alt\n";
+      }
   } ## End looking at the each observation.
     $all_out->close();  ## Close out the matrix of observations.
 
@@ -805,7 +821,7 @@ sub SNP_Ratio_Intron {
         jname => 'parsenp',
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        min_depth => 5,
+        vcf_cutoff => 5,
         min_value => 0.5,
         gff_tag => 'ID',
         gff_type => 'gene',
@@ -843,7 +859,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
   input => '$print_input',
   species => '$options->{species}',
   chosen_tag => '$options->{chosen_tag}',
-  min_depth => '$options->{min_depth}',
+  vcf_cutoff => '$options->{vcf_cutoff}',
   min_value => '$options->{min_value}',
   gff_tag => '$options->{gff_tag}',
   gff_type => '$options->{gff_type}',
@@ -861,7 +877,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         comment => $comment_string,
         chosen_tag => $options->{chosen_tag},
         coverage_tag => $options->{coverage_tag},
-        min_depth => $options->{min_depth},
+        vcf_cutoff => $options->{vcf_cutoff},
         min_value => $options->{min_value},
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
@@ -901,7 +917,7 @@ sub SNP_Ratio_Intron_Worker {
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         max_value => undef,
-        min_depth => 5,
+        vcf_cutoff => 5,
         min_value => 0.5,
         vcf_method => 'freebayes',
         output => 'all.txt',
@@ -1154,9 +1170,9 @@ sub SNP_Ratio_Intron_Worker {
       ## a new genome and record it
       my $chosen = $options->{chosen_tag};
       my $depth_tag = $options->{coverage_tag};
-      my $min_depth = $options->{min_depth};
-      if (defined($min_depth)) {
-          next SHIFTER if ($datum->{$depth_tag} < $min_depth);
+      my $vcf_cutoff = $options->{vcf_cutoff};
+      if (defined($vcf_cutoff)) {
+          next SHIFTER if ($datum->{$depth_tag} < $vcf_cutoff);
       }
       if (defined($chosen) && defined($datum->{chosen})) {
           if (defined($options->{min_value}) && defined($options->{max_value})) {

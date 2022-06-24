@@ -546,8 +546,9 @@ sub BWA {
         gff_type => 'gene',
         gff_tag => 'ID',
         jcpus => 8,
-        jmem => 24,
+        jmem => 40,
         jprefix => 30,
+        jwalltime => '72:00:00',
         libtype => 'genome',
         modules => ['bwa'],
         required => ['input', 'species'],
@@ -894,11 +895,19 @@ sub Hisat2 {
         ## It turns out that there is a race condition somewhere which is triggered when
         ## less buffers its output -- so make sure the environment variable 'LESS'
         ## contains --unbuffered
-        $hisat_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        $hisat_input = qq" -1 $pair_listing[0] -2 $pair_listing[1] ";
+        if ($pair_listing[0] =~ /\.xz$/) {
+            ## It is noteworthy that I modified hisat2 on my computer so this is never necessary.
+            $hisat_input = qq" -1 <(less $pair_listing[0]) -2 <(less $pair_listing[1]) ";
+        }
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($hisat_input);
         $hisat_input = qq" -U <(less ${test_file}) ";
+        if ($test_file =~ /\.xz$/) {
+            ## It is noteworthy that I modified hisat2 on my computer so this is never necessary.
+            $hisat_input = qq" -U <(less ${test_file}) ";
+        }
     }
 
     ## Check that the indexes exist
@@ -1006,7 +1015,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
             jdepends => $hisat_job->{job_id});
         $hisat_job->{compression} = $comp;
         ## Sneak the compression job's ID in place as hisat's.
-        $hisat_job->{job_id} = $comp->{job_id};
+        ## No, I changed my mind, let the samtools jump ahead.
+        ## $hisat_job->{job_id} = $comp->{job_id};
     }
     ## HT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
@@ -1052,7 +1062,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 jprefix => $new_jprefix,
                 libtype => $options->{libtype},
                 mapper => 'hisat2',
-                paired => $paired,);
+                paired => $paired,
+                stranded => $options->{stranded},);
         }
         $hisat_job->{htseq} = $htmulti;
     }  ## End checking if we should do htseq
