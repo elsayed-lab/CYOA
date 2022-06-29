@@ -84,7 +84,7 @@ sub Freebayes_SNP_Search {
         gff_type => 'gene',
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
-        introns => 0,
+        introns => 1,
         jmem => 24,
         jprefix => '50',
         modules => ['gatk', 'freebayes', 'libgsl', 'libhts', 'samtools', 'bcftools', 'vcftools'],);

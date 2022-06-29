@@ -220,6 +220,7 @@ sub Kraken {
         required => ['input'],
         library => 'viral',
         jprefix => '11',
+        clean => 1,
         modules => ['kraken'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kraken2');
@@ -257,6 +258,14 @@ if [ "\$?" -ne "0" ]; then
   echo "Kraken returned an error."
 fi
 !;
+
+    if ($options->{clean}) {
+        $jstring .= qq"
+## Cleaning up after running kraken.
+rm -f ${stdout}
+rm -f ${output_dir}/*.fastq.gz
+";
+    }
     my $kraken = $class->Submit(
         comment => $comment,
         jcpus => 6,

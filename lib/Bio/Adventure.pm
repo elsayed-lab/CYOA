@@ -131,6 +131,7 @@ has bt_marg => (is => 'rw', default => '-M 0');
 has bt_larg => (is => 'rw', default => '-y -l 15');
 has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favorite bowtie2 arguments
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
+has clean => (is => 'rw', default => 0); ## Cleanup after yourself?
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
 has compress => (is => 'rw', default => 1); ## Impress output files?
