@@ -77,17 +77,18 @@ sub Freebayes_SNP_Search {
         required => ['species', 'input',],
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        vcf_cutoff => 5,
-        min_value => 0.5,
-        max_value => undef,
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         introns => 1,
-        jmem => 24,
+        jmem => 60,
         jprefix => '50',
-        modules => ['gatk', 'freebayes', 'libgsl', 'libhts', 'samtools', 'bcftools', 'vcftools'],);
+        jwalltime => '48:00:00',
+        max_value => undef,
+        min_value => 0.5,
+        modules => ['gatk', 'freebayes', 'libgsl', 'libhts', 'samtools', 'bcftools', 'vcftools'],
+        vcf_cutoff => 5,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('freebayes');
     die('Could not find freebayes in your PATH.') unless($check);
@@ -113,21 +114,26 @@ gatk MarkDuplicates \\
   -I $options->{input} \\
   -O ${deduplicated} \\
   -M ${marked} --REMOVE_DUPLICATES true --COMPRESSION_LEVEL 9 \\
-  2>${gatk_stdout} \\
-  1>${gatk_stderr}
+  2>${gatk_stderr} \\
+  1>${gatk_stdout}
+echo "Finished gatk deduplication." >> ${stdout}
 samtools index ${deduplicated}
+echo "Finished samtools index." >> ${stdout}
 freebayes -f ${input_fasta} \\
   -v ${output_file} \\
   ${deduplicated} \\
-  1>${stdout} \\
+  1>>${stdout} \\
   2>>${stderr}
+echo "Finished freebayes." >> ${stdout}
 bcftools convert ${output_file} \\
   -Ob -o ${output_bcf} \\
   2>>${stderr} \\
   1>>${stdout}
+echo "Finished bcftools convert." >> ${stdout}
 bcftools index ${output_bcf} \\
   2>>${stderr} \\
   1>>${stdout}
+echo "Finished bcftools index." >> ${stdout}
 rm ${output_file}
 !;
 
@@ -135,12 +141,10 @@ rm ${output_file}
     my $freebayes = $class->Submit(
         comment => $comment_string,
         jdepends => $options->{jdepends},
-        jmem => 48,
         jname => "freebayes_$options->{species}",
         jprefix => $options->{jprefix},
         job_type => 'snpsearch',
         jstring => $jstring,
-        jwalltime => '10:00:00',
         output => $output_bcf,);
 
     my $prefix = sprintf("%02d", ($options->{jprefix} + 1));
@@ -150,23 +154,22 @@ rm ${output_file}
 !;
     my $parse;
     if ($options->{introns}) {
-        $parse = $class->Bio::Adventure::SNP::SNP_Ratio_Introns(
+        $parse = $class->Bio::Adventure::SNP::SNP_Ratio_Intron(
             chosen_tag => $options->{chosen_tag},
             coverage_tag => $options->{coverage_tag},
             gff_tag => $options->{gff_tag},
             gff_type => $options->{gff_type},
             gff_cds_parent_type => $options->{gff_cds_parent_type},
             gff_cds_type => $options->{gff_cds_type},
-            min_value => $options->{min_value},
-            max_value => $options->{max_value},
             input => ${output_bcf},
-            species => $options->{species},
-            vcf_cutoff => $options->{vcf_cutoff},
-            vcf_method => 'freebayes',
             jdepends => $freebayes->{job_id},
             jname => qq"freebayes_parsenp_intron_${query_base}",
             jprefix => $prefix,
-            species => $options->{species},);
+            min_value => $options->{min_value},
+            max_value => $options->{max_value},
+            species => $options->{species},
+            vcf_cutoff => $options->{vcf_cutoff},
+            vcf_method => 'freebayes',);
     } else {
         $parse = $class->Bio::Adventure::SNP::SNP_Ratio(
             chosen_tag => $options->{chosen_tag},
@@ -174,14 +177,14 @@ rm ${output_file}
             gff_tag => $options->{gff_tag},
             gff_type => $options->{gff_type},
             input => ${output_bcf},
+            jdepends => $freebayes->{job_id},
+            jname => qq"freebayes_parsenp_${query_base}",
+            jprefix => $prefix,
             max_value => $options->{max_value},
             min_value => $options->{min_value},
             species => $options->{species},
             vcf_cutoff => $options->{vcf_cutoff},
-            vcf_method => 'freebayes',
-            jdepends => $freebayes->{job_id},
-            jname => qq"freebayes_parsenp_${query_base}",
-            jprefix => $prefix,);
+            vcf_method => 'freebayes',);
     }
     $freebayes->{parse} = $parse;
     $loaded = $class->Module_Loader(modules => $options->{modules},

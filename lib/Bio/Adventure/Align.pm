@@ -10,6 +10,7 @@ use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Cwd;
 use File::Basename;
+use File::Find;
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use POSIX qw"ceil";
@@ -104,25 +105,25 @@ sub Duplicate_Remove {
         ## Now remove all instances of the 'others' from the list and future consideration.
         my $other_length = scalar(@{$others});
       OTHERS: foreach my $other (@{$others}) {
-            my ($other_name, $other_ident, $other_e) = split(/:/, $other);
-            print "Checking for ${other_name} in entries.\n";
-            my @tmp = @entries;
-            my $length = scalar(@tmp);
-            my @new = ();
-            print "The length of entries is now: ${length}\n";
-          CHECK: foreach my $tmp_entry (@tmp) {
-                my $self_check = $tmp_entry->{self};
-                if ($self_check eq $other_name) {
-                    $num_found = $num_found + 1;
-                    ## print "FOUND! $self_check $other_name\n";
-                    next CHECK;
-                } else {
-                    ## print "NOT FOUND! $self_check $other_name\n";
-                    push(@new, $tmp_entry);
-                }
+          my ($other_name, $other_ident, $other_e) = split(/:/, $other);
+          print "Checking for ${other_name} in entries.\n";
+          my @tmp = @entries;
+          my $length = scalar(@tmp);
+          my @new = ();
+          print "The length of entries is now: ${length}\n";
+        CHECK: foreach my $tmp_entry (@tmp) {
+            my $self_check = $tmp_entry->{self};
+            if ($self_check eq $other_name) {
+                $num_found = $num_found + 1;
+                ## print "FOUND! $self_check $other_name\n";
+                next CHECK;
+            } else {
+                ## print "NOT FOUND! $self_check $other_name\n";
+                push(@new, $tmp_entry);
             }
-            @entries = @new;
         }
+          @entries = @new;
+      }
     }
     $out->close();
     return($num_found);
@@ -289,13 +290,193 @@ sub Parse_Search {
     return($ret);
 }
 
+sub Pairwise_Similarity_Matrix {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        cutoff => 500,
+        jcpus => 8,
+        modules => ['blast'],
+        required => ['input',],);
+    my $input = $options->{input};
+    if (-d $input) {
+        ## Then this should be a directory containing fasta files, concatenate them into a single
+        ## sequence database for use.
+        my @directory = ($input);
+        my @file_list = ();
+        find(
+            sub {
+                push(@file_list, $File::Find::name) if ($File::Find::name =~ /\.faa$/);
+            }, @directory);
+        my $write_input = FileHandle->new(">${input}.faa");
+        for my $f (@file_list) {
+            my $read = FileHandle->new("<${f}");
+            while (my $line = <$read>) {
+                chomp $line; ## Just in case some files are \r\n, chomp should help.
+                print $write_input "${line}\n";
+            }
+            $f->close();
+        }
+        $write_input->close();
+    }
+
+    my $pre = $input;
+    $pre =~ s/\.faa//g;
+    my $pre_dir = dirname($input);
+
+    my $result_data = {};
+    my $e_values = {};
+    my $bit_values = {};
+    my $scores = {};
+    my $evalue_fh = FileHandle->new(qq">${pre_dir}/${pre}_pairwise_evalues.tsv");
+    my $bit_fh = FileHandle->new(">${pre_dir}/${pre}_pairwise_bits.tsv");
+    my $score_fh = FileHandle->new(">${pre_dir}/${pre}_pairwise_scores.tsv");
+    my $output = FileHandle->new(">${pre_dir}/${pre}_out.txt");
+    my $prefix = basename($options->{input});
+
+    my @params = (
+        -create => 1,
+        -db_data => $input,
+        -db_name => $prefix,
+        -num_alignments => $options->{cutoff},
+        -num_descriptions => $options->{cutoff},
+        -num_threads => $options->{jcpus},
+        -program => 'blastp',
+        );
+
+    my $search = Bio::Tools::Run::StandAloneBlastPlus->new(@params);
+    my @parameters = $search->get_parameters;
+
+    my $outfile = qq"outputs/${prefix}.txt";
+    my $blast_report = $search->blastp(-query => $input, -outfile => $outfile);
+    my $search_output = Bio::SearchIO->new(-file => $outfile, -format => 'blast');
+    my @hit_lst = ();
+    my $number_hits = 0;
+    my $number_result = 0;
+  RESULTS: while (my $result = $search_output->next_result) {
+      $number_result++;
+      print "Result: ${number_result}\n";
+      my $query_name = $result->query_name();
+      my $query_length = $result->query_length();
+      my $query_descr = $result->query_description();
+      my $stats = $result->available_statistics();
+      my $hits = $result->num_hits();
+      my $datum_ref = {
+          description => $query_descr,
+          name => $query_name,
+          stats => $stats,
+          length => $query_length,
+          hit_data => {},
+      };
+      $result_data->{$query_name} = $datum_ref;
+      my $hit_count = 0;
+    HITLOOP: while (my $hits = $result->next_hit()) {
+        $number_hits = $number_hits++;
+        my $hit_name = $hits->name();
+        ## The hit_name should cross reference to one of the two accession columns in xref_aoh
+        ## from the beginning of this function.
+        my $longname = '';
+        my $hit_length = 0;
+        if (defined($hits->length())) {
+            $hit_length = $hits->length();
+        }
+        my $hit_acc = $hits->accession();
+        my $hit_descr = $hits->description();
+        my $hit_score = $hits->score();
+        my $hit_sig = $hits->significance();
+        my $hit_bits = $hits->bits();
+
+        ## Create our values matrices
+        $e_values->{$query_name}->{$hit_name} = $hit_sig;
+        $bit_values->{$query_name}->{$hit_name} = $hit_bits;
+        $scores->{$query_name}->{$hit_name} = $hit_score;
+
+        #my %hit_datum = (
+        #    query_name => $query_name,
+        #    query_length => $query_length,
+        #    query_descr => $query_descr,
+        #    stats => $stats,
+        #    length => $hit_length,
+        #    acc => $hit_acc,
+        #    description => $hit_descr,
+        #    score => $hit_score,
+        #    sig => $hit_sig,
+        #    bit => $hit_bits,
+        #    longname => $longname,);
+        #push (@hit_lst, \%hit_datum);
+        #$result_data->{$query_name}->{hit_data}->{$hit_name} = \%hit_datum;
+    } ## End looking at this for this result.
+  } ## End iterating over the results for this sequence.
+
+    my @rows = keys %{$e_values};
+    my $header_string = "ID\t";
+    for my $r (@rows) {
+        $header_string .= qq"${r}\t";
+    }
+    $header_string =~ s/\t$/\n/;
+    print $evalue_fh $header_string;
+    print $bit_fh $header_string;
+    print $score_fh $header_string;
+
+    my ($evalue_row_string, $bit_row_string, $score_row_string) = '';
+    for my $r (@rows) {
+        $evalue_row_string = qq"${r}\t";
+        $bit_row_string = qq"${r}\t";
+        $score_row_string = qq"${r}\t";
+        for my $c (@rows) {
+            my $pair_evalue = $e_values->{$c}->{$r};
+            $pair_evalue = 0 if ($c eq $r);
+            $pair_evalue = 1 if (!defined($pair_evalue));
+            $evalue_row_string .= qq"${pair_evalue}\t";
+            my $pair_bit = $bit_values->{$c}->{$r};
+            $pair_bit = 0 if (!defined($pair_bit));
+            $bit_row_string .= qq"${pair_bit}\t";
+            my $pair_score = $scores->{$c}->{$r};
+            $pair_score = 0 if (!defined($pair_score));
+            $score_row_string .= qq"${pair_score}\t";
+        }
+        $evalue_row_string =~ s/\t$/\n/;
+        print $evalue_fh $evalue_row_string;
+        $bit_row_string =~ s/\t$/\n/;
+        print $bit_fh $bit_row_string;
+        $score_row_string =~ s/\t$/\n/;
+        print $score_fh $score_row_string;
+    }
+    $evalue_fh->close();
+    $bit_fh->close();
+    $score_fh->close();
+}
+
+sub Map_Accession {
+    my %args = @_;
+    my $in = Bio::SeqIO->new(-file => $args{fasta}, -format => 'fasta');
+    my $map = {};
+  SEQS: while (my $seq = $in->next_seq) {
+      my $id = $seq->id;
+      my $short_id = $id;
+      $short_id =~ s/(^.*)\..*$/$1/g;
+      my $test = $seq->desc;
+      my $taxonomy = $test;
+      ## In theory I should be able to make a relatively simple capturing regex to
+      ## pull the taxonomy information.  I am insufficiently intelligent to do this.
+      my @stuff_taxonomy = split(/\[/, $taxonomy);
+      my $taxonomy_info = $stuff_taxonomy[$#stuff_taxonomy];
+      $taxonomy_info =~ s/\]$//g;
+      my ($genus, $species, $etc) = split(/\s+/, $taxonomy_info);
+      $species = '' if (!defined($species));
+      my $new = qq"${genus}_${species}_${short_id}";
+      $map->{$id} = $new;
+  }
+    return($map);
+}
+
 =head1 AUTHOR - atb
 
-Email  <abelew@gmail.com>
+    Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 
-L<Bio::Adventure::Align_Blast> L<Bio::Adventure::Align_Fasta>
+    L<Bio::Adventure::Align_Blast> L<Bio::Adventure::Align_Fasta>
 
 =cut
 

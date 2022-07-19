@@ -297,6 +297,55 @@ sub Extract_Features {
     return($num_hits);
 }
 
+sub Extract_Notes {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        note_tag => 'note',
+        gff_tag => 'locus_tag',
+        required => ['input'],
+        string => 'tail');
+
+    my $string_name = $options->{string};
+    $string_name =~ s/\s+/_/g;
+    my $output_directory = 'outputs/extract_notes';
+    make_path($output_directory, {verbose => 0}) if (!-d $output_directory);
+    my $all_file = qq"${output_directory}/all_peptides.tsv";
+    my $filtered_file = qq"${output_directory}/${string_name}_peptides.tsv";
+
+    my $in = FileHandle->new("less $options->{input} |");
+    my $all_out = FileHandle->new(">${all_file}");
+    my $filtered_out = FileHandle->new(">${filtered_file}");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+
+  SEQUENCES: while (my $seq = $seqio->next_seq) {
+      my $seqid = $seq->id;
+      my @feature_list = $seq->get_SeqFeatures();
+    FEATURES: for my $feat (@feature_list) {
+        my $noted = $feat->has_tag($options->{note_tag});
+        my $locus = $feat->has_tag($options->{gff_tag});
+        next FEATURES unless (defined($locus));
+        my @name_array = $feat->get_tag_values($options->{gff_tag});
+        my @notes;
+        if (!defined($noted)) {
+            @notes = @name_array;
+        } else {
+            my @notes = $feat->get_tag_values($options->{note_tag});
+        }
+        my $name = $name_array[0];
+        my $uc_string = ucfirst($options->{tag_string});
+        my $found = grep(/$options->{tag_string}|$uc_string/, @notes);
+        if ($found) {
+            print $filtered_out qq"${name}\t@notes\n";
+        }
+        print $all_out qq"${name}\t@notes\n";
+    }
+  }
+    $filtered_out->close();
+    $all_out->close();
+    $in->close();
+}
+
 sub Filter_Edge_Features {
     my %args = @_;
     my @features = @{$args{features}};

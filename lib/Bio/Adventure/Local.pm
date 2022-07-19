@@ -128,7 +128,7 @@ ${module_string}
 set -o errexit
 set -o errtrace
 set -o pipefail
-export LESS='--buffers 0'
+export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${bash_log}
 
 ?;

@@ -252,6 +252,7 @@ has samtools_unmapped => (is => 'rw', default => 0); ## Extract unmapped reads w
 has sbatch_depends => (is => 'rw', default => 'afterok:');
 has sbatch_dependsarray => (is => 'rw', default => 'afterok:'); ## String to pass for an array of jobs
 has sbatch_path => (is => 'rw', default => My_Which('sbatch'));
+has search_string => (is => 'rw', default => 'tail');
 has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
 has starting_tree => (is => 'rw', default => undef); ## Starting tree for phylogenetic analyses
@@ -288,7 +289,7 @@ $VERSION = '20151101';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
-$ENV{LESS} = '--buffers 0';
+$ENV{LESS} = '--buffers 0 -B';
 my $lessopen = Get_Lesspipe();
 
 =item C<Help>
