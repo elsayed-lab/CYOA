@@ -708,8 +708,6 @@ sub Filter_Kraken_Worker {
         $separator = 's__';
     }
 
-    print "TESTME: compress $options->{compress}\n";
-
     my $output_dir = $options->{output_dir};
     my $out = FileHandle->new(">$options->{job_log}");
     my $in = FileHandle->new("<$options->{input}");
@@ -1799,6 +1797,126 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     $log->close();
     return($result_data);
 }
+
+sub Xref_Crispr {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        test_file => 'crispr_sequences.csv',
+        jmem => 8,
+        jprefix => '15',);
+    my $input_dir = basename(dirname($options->{input}));
+    my $output_dir = qq"outputs/$options->{jprefix}xref_crispr";
+    my $final_output = qq"${output_dir}/crispr_hits.tsv";
+    if (-d $output_dir) {
+        my $removed = rmtree($output_dir);
+    }
+    my $paths = $class->Get_Paths($final_output);
+
+    my $comment = qq"## This should cross reference a database of crispr sequences
+## against an assembly to see if there are likely overlaps.";
+    my $jstring = qq!
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+my \$result = Bio::Adventure::Phage::Xref_Crispr_Worker(\$h,
+  input => '$options->{input}',
+  jname => 'xref_crispr',
+  jprefix => '$options->{jprefix}',
+  output => '${final_output}',
+  output_dir => '${output_dir}',
+  test_file => '$options->{test_file}',);
+!;
+    my $xref = $class->Submit(
+        input => $options->{input},
+        output => $final_output,
+        output_dir => $output_dir,
+        test_file => $options->{test_file},
+        language => 'perl',
+        comment => $comment,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => 'xref_crispr',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,);
+    return($xref);
+}
+
+sub Xref_Crispr_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input',],
+        jprefix => '15',
+        test_file => 'crispr_sequences.csv',
+        output_file => 'crispr_xref.tsv',);
+
+    my $output_dir = dirname($options->{output});
+    my $log = FileHandle->new(">${output_dir}/xref.log");
+    my $input_sequences = qq"$options->{libpath}/$options->{test_file}";
+    print $log "Opening ${input_sequences} and reading putative crispr sequences by host.\n";
+    my $crispr_fh = FileHandle->new("<${input_sequences}");
+    my $crispr = {};
+    my $count = 0;
+    my $num_hosts = 0;
+    while (my $line = <$crispr_fh>) {
+        $count++;
+        chomp $line;
+        my ($host, $seq) = split(/,/, $line);
+        if (defined($crispr->{$host})) {
+            my @sequences = @{$crispr->{$host}};
+            push(@sequences, $seq);
+            $crispr->{$host} = \@sequences;
+        } else {
+            $num_hosts++;
+            my @sequences = ($seq);
+            $crispr->{$host} = \@sequences;
+        }
+    }
+    print $log "Finished reading ${count} crispr sequences across ${num_hosts} hosts.\n";
+    $crispr_fh->close();
+
+    my $output_fh = FileHandle->new(">${output_dir}/$options->{output_file}");
+    print $output_fh "Host\tContig\tSeq\tStrand\tStart\tEnd\n";
+    my $found = 0;
+    my $found_fwd = 0;
+    my $found_rev = 0;
+    for my $host (keys %{$crispr}) {
+        print "Looking for sequences from host: $host.\n";
+        my @crispr_seqs = @{$crispr->{$host}};
+        for my $crispr_seq (@crispr_seqs) {
+            my $crispr_len = length($crispr_seq);
+            my $fsa_read = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+          FSA: while (my $genome_seq = $fsa_read->next_seq()) {
+              my $contig_sequence = $genome_seq->seq;
+              my $contig_sequence_rc = $genome_seq->revcom->seq;
+              my $contig_id = $genome_seq->id;
+              my $strand = 1;
+              my $crispr_end = 0;
+              my $crispr_start = 0;
+            CR_SEARCH: while ($contig_sequence =~ m/$crispr_seq/g) {
+                $found++;
+                $found_fwd++;
+                $crispr_end = pos($contig_sequence);
+                $crispr_start = $crispr_end - ($crispr_len - 1);
+                print $output_fh "${host}\t${contig_id}\t${crispr_seq}\t${strand}\t${crispr_start}\t${crispr_end}\n";
+            }
+            RC_SEARCH: while ($contig_sequence_rc =~ m/$crispr_seq/g) {
+                $found++;
+                $found_rev++;
+                $strand = -1;
+                $crispr_start = pos($contig_sequence_rc);
+                $crispr_end = $crispr_start - ($crispr_start - 1);
+                print $output_fh "${host}\t${contig_id}\t${crispr_seq}\t${strand}\t${crispr_start}\t${crispr_end}\n";
+            }
+          } ## End matching on this contig
+        } ## End iterating over the contigs
+    } ## End looking over the hash of crispr sequences
+    $output_fh->close();
+    print $log "Found ${found} total sequences, ${found_fwd} forward and ${found_rev} reverse.\n";
+    $log->close();
+}
+
 
 1;
 

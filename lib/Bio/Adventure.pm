@@ -744,6 +744,7 @@ sub Get_Menus {
                 '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
                 '(caical): Calculate codon adaptation index of a phage vs. some host.' => \&Bio::Adventure::Phage::Caical,
                 '(recatalog): Create a catalog of restriction enzyme hits.' => \&Bio::Adventure::Phage::Restriction_Catalog,
+                '(xref_crispr): Cross reference against observed crispr sequences.' => \&Bio::Adventure::Phage::Xref_Crispr,
             },
         },
         Phylogeny => {
@@ -1016,6 +1017,7 @@ sub Get_TODOs {
         "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
         "vienna+" => \$todo_list->{todo}{'Bio::Adventure::Structure::RNAFold_Windows'},
         "rosalindplus+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rosalind_Plus'},
+        "xrefcrispr+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Xref_Crispr'},
         ## A set of pipelines combining the above.
         "pannotate+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Assembly'},
         "passemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Assemble'},
