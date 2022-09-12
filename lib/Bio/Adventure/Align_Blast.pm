@@ -536,6 +536,48 @@ my \$result = Bio::Adventure::Align::Parse_Search(
     return($concat_job);
 }
 
+## For the moment, just submit a job which assumes a 'input' directory in the cwd
+## I want to think about how I might handle different ways of running orthomcl.
+sub OrthoMCL_Pipeline {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        modules => ['orthomcl'],
+        required => ['input'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('orthomclPairs');
+    die('Could not find orthomcl in your PATH.') unless($check);
+    my $job_name = 'orthomcl';
+    ## Note that I am cheating and using a pre-defined pipeline for orthomcl
+    ## https://github.com/apetkau/orthomcl-pipeline
+    ## This also assumes that everything for orthomcl and its pipeline has already been configured.
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+
+    my $comment = '## This is a orthomcl submission script.';
+    my $jstring = qq!
+orthomcl-pipeline.pl -i input -o output \\
+  --nocompliant --yes
+!;
+    my $job = $class->Submit(
+        comment => $comment,
+        jcpus => 24,
+        jdepends => $options->{jdepends},
+        jname => 'orthomcl',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 16,
+        modules => $options->{modules},
+        output => 'output',
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        jqueue => 'large',
+        walltime => '144:00:00',);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($job);
+}
+
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>

@@ -209,8 +209,9 @@ sub HT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'stranded'],
+        required => ['species', 'input',],
         gff_type => 'gene',
+        stranded => 'reverse',
         gff_tag => 'ID',
         libtype => 'genome',
         modules => ['htseq'],
@@ -463,7 +464,7 @@ sub HTSeq {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'stranded', 'htseq_args',],
+        required => ['input', 'species', 'htseq_args',],
         gff_type => 'gene',
         gff_tag => 'ID',
         jname => '',
@@ -471,7 +472,8 @@ sub HTSeq {
         libtype => 'genome',
         mapper => 'hisat2',
         modules => ['htseq'],
-        paired => 1,);
+        paired => 1,
+        stranded => 'reverse');
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {

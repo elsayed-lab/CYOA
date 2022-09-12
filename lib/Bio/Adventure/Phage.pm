@@ -696,6 +696,8 @@ sub Filter_Kraken_Worker {
         $separator = 'p__';
     } elsif ($options->{type} eq 'class') {
         $separator = 'c__';
+    } elsif ($options->{type} eq 'kingdom') {
+        $separator = 'k__';
     } elsif ($options->{type} eq 'order') {
         $separator = 'o__';
     } elsif ($options->{type} eq 'family') {

@@ -254,12 +254,13 @@ sub Trimomatic {
         args => \%args,
         compress => 1,
         jprefix => '01',
+        length => 50,
         required => ['input',],);
     my $trim;
     if ($options->{input} =~ /:|\,/) {
-        $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%{$options});
     } else {
-        $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%args);
+        $trim = $class->Bio::Adventure::Trim::Trimomatic_Single(%{$options});
     }
     return($trim);
 }
@@ -276,6 +277,7 @@ sub Trimomatic_Pairwise {
         compress => 1,
         jmem => 24,
         jwalltime => '48:00:00',
+        length => 50,
         modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
@@ -370,7 +372,7 @@ ${exe} \\
   ${r1op} ${r1ou} \\
   ${r2op} ${r2ou} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:$options->{quality}:10:2:keepBothReads ${suffix_trim} \\
-  SLIDINGWINDOW:4:$options->{quality} MINLEN:40 \\
+  SLIDINGWINDOW:4:$options->{quality} MINLEN:$options->{length} \\
   1>${stdout} \\
   2>${stderr}
 excepted=\$( { grep "Exception" "${output_dir}/${basename}-trimomatic.stdout" || test \$? = 1; } )
@@ -382,7 +384,7 @@ if [[ "\${excepted}" \!= "" ]]; then
     ${reader} \\
     ${r1op} ${r1ou} \\
     ${r2op} ${r2ou} \\
-    ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:50 \\
+    ${leader_trim} SLIDINGWINDOW:4:25 MINLEN:$options->{length} \\
     1>${stdout} \\
     2>${stderr}
 fi
@@ -410,6 +412,7 @@ mv ${r2op} ${r2o}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '24:00:00',
+        length => $options->{length},
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},
@@ -443,6 +446,7 @@ sub Trimomatic_Single {
         required => ['input',],
         modules => ['trimomatic',],
         jmem => 12,
+        length => 50,
         jprefix => '05',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $exe = undef;
@@ -484,7 +488,7 @@ ${exe} \\
   <(less ${input}) \\
   ${output} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
-  SLIDINGWINDOW:4:25 MINLEN:50 \\
+  SLIDINGWINDOW:4:25 MINLEN:$options->{length} \\
   1>${stdout} 2>${stderr}
 xz -9e -f ${output}
 ln -sf ${output}.xz r1_trimmed.fastq.xz
@@ -496,6 +500,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        length => $options->{length},
         modules => $options->{modules},
         output => $output,
         prescript => $options->{prescript},

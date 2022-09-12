@@ -82,7 +82,7 @@ sub Freebayes_SNP_Search {
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         introns => 1,
-        jmem => 60,
+        jmem => 36,
         jprefix => '50',
         jwalltime => '48:00:00',
         max_value => undef,
@@ -819,7 +819,7 @@ sub SNP_Ratio_Intron {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species', 'gff_tag', 'gff_type'],
+        required => ['input', 'species'],
         jprefix => '80',
         jname => 'parsenp',
         chosen_tag => 'PAIRED',
