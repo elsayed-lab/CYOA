@@ -411,7 +411,7 @@ mv ${r2op} ${r2o}
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
-        jwalltime => '24:00:00',
+        jwalltime => $options->{jwalltime},
         length => $options->{length},
         modules => $options->{modules},
         output => $output,
@@ -427,6 +427,7 @@ mv ${r2op} ${r2o}
         jdepends => $trim->{job_id},
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
+        jwalltime => '00:03:00',
         pairwise => 1,
         input => $stderr,
         output_dir => $output_dir,);
@@ -446,6 +447,7 @@ sub Trimomatic_Single {
         required => ['input',],
         modules => ['trimomatic',],
         jmem => 12,
+        jwalltime => '48:00:00',
         length => 50,
         jprefix => '05',);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -500,6 +502,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        jwalltime => $options->{jwalltime},
         length => $options->{length},
         modules => $options->{modules},
         output => $output,
@@ -513,6 +516,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         jdepends => $trim->{job_id},
         jname => qq"trst_${job_name}",
         jprefix => '06',
+        jwalltime => '00:03:00',
         output_dir => $output_dir,
     );
     $trim->{stats} = $trim_stats;
