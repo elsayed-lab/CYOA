@@ -253,8 +253,12 @@ sub Trimomatic {
     my $options = $class->Get_Vars(
         args => \%args,
         compress => 1,
+        jmem => 24,
         jprefix => '01',
+        jwalltime => '48:00:00',
         length => 50,
+        modules => ['trimomatic'],
+        quality => '20',
         required => ['input',],);
     my $trim;
     if ($options->{input} =~ /:|\,/) {
@@ -276,12 +280,13 @@ sub Trimomatic_Pairwise {
         args => \%args,
         compress => 1,
         jmem => 24,
+        jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
         modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $loaded = $class->Module_Loader(modules => $options->{modules}, verbose => 1);
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
@@ -445,11 +450,14 @@ sub Trimomatic_Single {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => ['trimomatic',],
-        jmem => 12,
+        compress => 1,
+        jmem => 24,
+        jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
-        jprefix => '05',);
+        modules => ['trimomatic'],
+        quality => '20',
+        required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $exe = undef;
     my $found_exe = 0;
