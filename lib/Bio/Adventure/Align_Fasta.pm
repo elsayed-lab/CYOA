@@ -341,6 +341,197 @@ sub Parse_Fasta_Global {
     return($seq_count);
 }
 
+sub Parse_Fasta_Mismatches {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        output => 'ggsearch_mismatches.txt',
+        required => ['input', 'library'],);
+    my $runner = qq"ggsearc36 -b 1 -d 1 $options->{input} $options->{library} 2>ggsearch.err 1>ggsearch.txt";
+    my $handle = IO::Handle->new;
+    print "Starting $runner\n";
+    open($handle, "$runner |");
+    while (my $line = <$handle>) {
+        print "$line\n";
+    }
+    close($handle);
+
+    my $out_base = basename($options->{output}, ('.txt'));
+    my $out = FileHandle->new(">$options->{output}");
+    my $numbers = FileHandle->new(">${out_base}_numbers.txt");
+    my $bads = FileHandle->new(">${out_base}_bads.txt");
+    ## Write a header for the output tsv.
+    print $out "readid\tindex\tdirection\tposition\ttype\treference\thit\n";
+    my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => 'ggsearch.txt');
+    my $data_file = basename($output, ('.txt', '.xz', '.gz'));
+    $data_file = basename($output, ('.txt'));
+    my $results = 0;
+    my $indices = {};
+  SEARCHLOOP: while (my $result = $searchio->next_result()) {
+      $results++;
+      ## There is only ever 1 hit.
+      my $hit = $result->next_hit;
+      my $query_name = $result->query_name();
+      my $query_length = $result->query_length();
+      my $accession = $hit->accession();
+      my $library_id = $hit->name();
+      my $length = $hit->length();
+      ##my $score = $hit->raw_score();
+      ##my $sig = $hit->significance();
+      ##my $ident = $hit->frac_identical();
+      my $hstrand = $hit->strand('hit');
+      my $qstrand = $hit->strand('query');
+      my ($readid, $direction, $index) = split(/_/, $query_name);
+      if ($hstrand ne $qstrand) {
+          ## I found a couple of reads which are messed up and reverse complementing
+          ## I am not completely certain this will make them go away, but I think it will.
+          print "SKIPPING: ${query_name} hit strand: $hstrand query strand: $qstrand\n";
+          next SEARCHLOOP;
+      }
+      my @hitlst = ();
+      if ($indices->{$index}) {
+          @hitlst = @{$indices->{$index}};
+      }
+
+      my $hit_len;
+      my $hit_matches;
+      my $first_qstart = -1;
+      my $first_qend = -1;
+      my $first_lstart = -1;
+      my $first_lend = -1;
+      my $hsp_count = 0;
+      my $hits = {};
+
+      my $hsp = $hit->next_hsp;
+      ## IMPORTANT POINT OF CONFUSION:
+      ## The hit is the template sequence!
+      ## The query is my provided sequence.
+      my @template_mismatches = $hsp->seq_inds('hit', 'mismatch');
+      my @product_mismatches = $hsp->seq_inds('query', 'mismatch');
+      my @template_gaps = $hsp->seq_inds('hit', 'gap');
+      my @product_gaps = $hsp->seq_inds('query', 'gap');
+
+      my $num_mis = scalar(@template_mismatches);
+      my $tem_gap = scalar(@template_gaps);
+      my $pro_gap = scalar(@product_gaps);
+      my $num_muts = $num_mis + $tem_gap + $pro_gap;
+      print $numbers "${query_name}\t${num_muts}\n";
+      my $t_seq = $hsp->hit_string;
+      my @tseq = split(//, $t_seq);
+      my $p_seq = $hsp->query_string;
+      my @pseq = split(//, $p_seq);
+      my $t_raw = $t_seq;
+      $t_raw =~ s/\-//g;
+      $t_raw =~ s/^\s+//g;
+      my @traw = split(//, $t_raw);
+      my $p_raw = $p_seq;
+      $p_raw =~ s/\-//g;
+      $p_raw =~ s/^\s+//g;
+      my @praw = split(//, $p_raw);
+      ## I am increasingly confident that we cannot trust indels at the end of alignments.
+      ## No matter how I mess with the gap score/penalties, I get dumb alignments at the end.
+      ## The tests which look at the end of the aligned sequence attempt to address this problem
+      ## but I think a more aggressive approach will be required.  I think I will have to check
+      ## the position of the indel and just arbitrarily drop it if it is >= 200.
+
+      ## FIXME: I think there is an inconsistency in how I calculate the
+      ## product nucleotide.  In the case of insertions and mismatches I use
+      ## @praw, but in the case of deletions I use @pseq.  I would also like
+      ## to figure out a way to consistently understand why/when removing the
+      ## gap characters is necessary.  Presumably this is related to the weird
+      ## requirement of adding $i to $index_position.  One would assume that
+      ## we should use the raw data without the addition, but that does not
+      ## result in sensible results.
+      if (scalar(@template_gaps) > 0) {
+          for my $i (0 .. $#template_gaps) {
+              my $inc = $i + 1;
+              my $total = scalar(@template_gaps);
+              my $t_pos = $template_gaps[$i];
+              my $index_position = $t_pos;
+              ## I think the next two lines are a particularly nasty hack, and
+              ## I do not understand why they seem to be necessary to get
+              ## correct results.
+              my $product_nt = $praw[$index_position + $i];
+              my $template_nt = $tseq[$index_position + $i];
+              my $template_length = scalar(@traw);
+              if ($index_position >= $template_length) {
+                  print "We passed the end of the alignment.\n";
+                  next SEARCHLOOP;
+              } elsif ($index_position >= 200) {
+                  next SEARCHLOOP;
+              }
+              ##print "INS (template gap): ${index} ${index_position} $template_nt <$product_nt>\n"; #
+              $hits->{$index_position}->{type} = 'ins';
+              $hits->{$index_position}->{to} = $product_nt;
+              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tins\t \t${product_nt}\n";
+          }
+      }
+      if (scalar(@product_gaps) > 0) {
+          for my $i (0 .. $#product_gaps) {
+              my $p_pos = $product_gaps[$i];
+              my $inc = $i + 1;
+              my $total = scalar(@product_gaps);
+              my $index_position = $p_pos;
+              my $product_nt = $pseq[$index_position + $i];
+              my $template_nt = $tseq[$index_position + $i];
+              ## Now check that the alignment did not end.
+              my $product_length = scalar(@pseq);
+              if ($index_position >= $product_length) {
+                  print "We passed the end of the alignment.\n";
+                  next SEARCHLOOP;
+              } elsif ($index_position >= 200) {
+                  next SEARCHLOOP;
+              }
+              ##print "DEL (product gap): ${index} ${index_position} <${template_nt}> $product_nt\n";
+              $hits->{$index_position}->{type} = 'del';
+              $hits->{$index_position}->{from} = $template_nt;
+              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tdel\t${template_nt}\t \n";
+          }
+      }
+      if (scalar(@template_mismatches) > 0) {
+          ## I expect the length of query_mismatches and hit_mismatches to be identical.
+          for my $i (0 .. $#template_mismatches) {
+              ## Get the index position of the mismatch.
+              ## This can be confusing because of indels.
+              ## I want them 0 indexed, but fasta36 gives them as 1 indexed, so subtract 1.
+              my $t_pos = $template_mismatches[$i] - 1;
+              my $p_pos = $product_mismatches[$i] - 1;
+              ## $template_nt appears to be the correct one.
+              my $template_nt = $template[$t_pos];
+              my $inc = $i + 1;
+              my $total = scalar(@template_mismatches);
+              ## The product nucleotide is correct, except if there are indels
+              ## before the mismatches...  In that case, shenanigans occur,
+              ## and I absolutely cannot seem to figure out why.
+              my $product_nt = $praw[$p_pos];
+              my $index_position = $t_pos;
+              $hits->{$index_position}->{type} = 'mis';
+              $hits->{$index_position}->{from} = $template_nt;
+              $hits->{$index_position}->{to} = $product_nt;
+              ##print qq"MIS ${index}\t${inc}\t${total}\t${index_position}\tmis\t${template_nt}\t${product_nt}\n";
+              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tmis\t${template_nt}\t${product_nt}\n";
+          }
+      }
+      push(@hitlst, $hits);
+      my $hitlength = scalar(@hitlst);
+      $indices->{$index} = \@hitlst;
+  } ## End of each hit of a result.
+    $f->close();
+    my $stored = store($indices, $data_file);
+    print "Stored indices to $data_file.\n";
+    ## I think this is a good place to write some information about what was extracted.
+    ## I need a reminder of this data structure.
+    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
+    ## I need a reminder of this data structure.
+    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
+    ## $data->{same index}->[ { 12 }->{type}='mis' ] ...
+    ## So hash of arrays of hashes of hashes.
+    $out->close();
+    $numbers->close();
+    $bads->close();
+    return($indices);
+}
+
 =head2 C<Split_Align_Fasta>
 
  Split apart a set of query sequences into $args{align_jobs} pieces and align them all separately.
