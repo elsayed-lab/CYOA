@@ -1432,6 +1432,7 @@ sub Module_Loader {
     my @mod_lst;
     my $mod_class = ref($args{modules});
     my @test_lst;
+
     if ($mod_class eq 'SCALAR') {
         push(@mod_lst, $args{modules});
     } elsif ($mod_class eq 'ARRAY') {
