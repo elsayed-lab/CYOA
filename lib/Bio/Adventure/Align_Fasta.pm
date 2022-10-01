@@ -347,9 +347,8 @@ sub Parse_Fasta_Mismatches {
         args => \%args,
         output => 'ggsearch_mismatches.txt',
         required => ['input', 'library'],);
-    my $runner = qq"ggsearc36 -b 1 -d 1 $options->{input} $options->{library} 2>ggsearch.err 1>ggsearch.txt";
+    my $runner = qq"ggsearch36 -m9 -b 1 -d 1 $options->{input} $options->{library} 2>ggsearch.err 1>ggsearch.txt";
     my $handle = IO::Handle->new;
-    print "Starting $runner\n";
     open($handle, "$runner |");
     while (my $line = <$handle>) {
         print "$line\n";
@@ -359,12 +358,11 @@ sub Parse_Fasta_Mismatches {
     my $out_base = basename($options->{output}, ('.txt'));
     my $out = FileHandle->new(">$options->{output}");
     my $numbers = FileHandle->new(">${out_base}_numbers.txt");
-    my $bads = FileHandle->new(">${out_base}_bads.txt");
     ## Write a header for the output tsv.
-    print $out "readid\tindex\tdirection\tposition\ttype\treference\thit\n";
+    print $out "RefID\tQueryID\tposition\ttype\treference\thit\n";
     my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => 'ggsearch.txt');
-    my $data_file = basename($output, ('.txt', '.xz', '.gz'));
-    $data_file = basename($output, ('.txt'));
+    my $data_file = basename($options->{output}, ('.txt', '.xz', '.gz'));
+    $data_file = basename($options->{output}, ('.txt'));
     my $results = 0;
     my $indices = {};
   SEARCHLOOP: while (my $result = $searchio->next_result()) {
@@ -381,7 +379,7 @@ sub Parse_Fasta_Mismatches {
       ##my $ident = $hit->frac_identical();
       my $hstrand = $hit->strand('hit');
       my $qstrand = $hit->strand('query');
-      my ($readid, $direction, $index) = split(/_/, $query_name);
+      my $index = 'unknown';
       if ($hstrand ne $qstrand) {
           ## I found a couple of reads which are messed up and reverse complementing
           ## I am not completely certain this will make them go away, but I think it will.
@@ -406,18 +404,31 @@ sub Parse_Fasta_Mismatches {
       ## IMPORTANT POINT OF CONFUSION:
       ## The hit is the template sequence!
       ## The query is my provided sequence.
+      ##      my @template_mismatches = $hsp->seq_inds('hit', 'mismatch');
+      ##      my @product_mismatches = $hsp->seq_inds('query', 'mismatch');
+      ## Ok, so the various documentation strings for HSPI and friends are a bit confusing.
+      ## If I want to get the non-gap non-identical indices, I need to explicitly ask for two things:
+      ## First, the 'mismatches' get the positions which are completely different and denoted by ' '
+      ## Then 'conserved-not-identical' provides the similar but not-identical not-gap positions
+      ## which are denoted by '.'.
       my @template_mismatches = $hsp->seq_inds('hit', 'mismatch');
       my @product_mismatches = $hsp->seq_inds('query', 'mismatch');
+      my @template_not_identical = $hsp->seq_inds('hit', 'conserved-not-identical');
+      my @product_not_identical = $hsp->seq_inds('query', 'conserved-not-identical');
+      my @template_both = sort {$a <=> $b} (@template_mismatches, @template_not_identical);
+      my @product_both = sort {$a <=> $b} (@product_mismatches, @product_not_identical);
+
       my @template_gaps = $hsp->seq_inds('hit', 'gap');
       my @product_gaps = $hsp->seq_inds('query', 'gap');
 
-      my $num_mis = scalar(@template_mismatches);
+      my $num_mis = scalar(@template_both);
       my $tem_gap = scalar(@template_gaps);
       my $pro_gap = scalar(@product_gaps);
       my $num_muts = $num_mis + $tem_gap + $pro_gap;
       print $numbers "${query_name}\t${num_muts}\n";
       my $t_seq = $hsp->hit_string;
       my @tseq = split(//, $t_seq);
+      my @template = @tseq;
       my $p_seq = $hsp->query_string;
       my @pseq = split(//, $p_seq);
       my $t_raw = $t_seq;
@@ -433,37 +444,23 @@ sub Parse_Fasta_Mismatches {
       ## The tests which look at the end of the aligned sequence attempt to address this problem
       ## but I think a more aggressive approach will be required.  I think I will have to check
       ## the position of the indel and just arbitrarily drop it if it is >= 200.
-
-      ## FIXME: I think there is an inconsistency in how I calculate the
-      ## product nucleotide.  In the case of insertions and mismatches I use
-      ## @praw, but in the case of deletions I use @pseq.  I would also like
-      ## to figure out a way to consistently understand why/when removing the
-      ## gap characters is necessary.  Presumably this is related to the weird
-      ## requirement of adding $i to $index_position.  One would assume that
-      ## we should use the raw data without the addition, but that does not
-      ## result in sensible results.
+      my $print_position = 0;
       if (scalar(@template_gaps) > 0) {
           for my $i (0 .. $#template_gaps) {
               my $inc = $i + 1;
               my $total = scalar(@template_gaps);
               my $t_pos = $template_gaps[$i];
-              my $index_position = $t_pos;
+              my $position = $t_pos;
+              $print_position = $position + 1;
               ## I think the next two lines are a particularly nasty hack, and
               ## I do not understand why they seem to be necessary to get
               ## correct results.
-              my $product_nt = $praw[$index_position + $i];
-              my $template_nt = $tseq[$index_position + $i];
+              my $mutated_to = $praw[$position + $i];
+              my $mutated_from = $tseq[$position + $i];
               my $template_length = scalar(@traw);
-              if ($index_position >= $template_length) {
-                  print "We passed the end of the alignment.\n";
-                  next SEARCHLOOP;
-              } elsif ($index_position >= 200) {
-                  next SEARCHLOOP;
-              }
-              ##print "INS (template gap): ${index} ${index_position} $template_nt <$product_nt>\n"; #
-              $hits->{$index_position}->{type} = 'ins';
-              $hits->{$index_position}->{to} = $product_nt;
-              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tins\t \t${product_nt}\n";
+              $hits->{$position}->{type} = 'ins';
+              $hits->{$position}->{to} = $mutated_to;
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tins\t \t${mutated_to}\n";
           }
       }
       if (scalar(@product_gaps) > 0) {
@@ -471,54 +468,46 @@ sub Parse_Fasta_Mismatches {
               my $p_pos = $product_gaps[$i];
               my $inc = $i + 1;
               my $total = scalar(@product_gaps);
-              my $index_position = $p_pos;
-              my $product_nt = $pseq[$index_position + $i];
-              my $template_nt = $tseq[$index_position + $i];
+              my $position = $p_pos;
+              $print_position = $position + 1;
+              my $mutated_to = $pseq[$position + $i];
+              my $mutated_from = $tseq[$position + $i];
               ## Now check that the alignment did not end.
               my $product_length = scalar(@pseq);
-              if ($index_position >= $product_length) {
-                  print "We passed the end of the alignment.\n";
-                  next SEARCHLOOP;
-              } elsif ($index_position >= 200) {
-                  next SEARCHLOOP;
-              }
-              ##print "DEL (product gap): ${index} ${index_position} <${template_nt}> $product_nt\n";
-              $hits->{$index_position}->{type} = 'del';
-              $hits->{$index_position}->{from} = $template_nt;
-              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tdel\t${template_nt}\t \n";
+              $hits->{$position}->{type} = 'del';
+              $hits->{$position}->{from} = $mutated_from;
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tdel\t${mutated_from}\t \n";
           }
       }
-      if (scalar(@template_mismatches) > 0) {
+      if (scalar(@template_both) > 0) {
           ## I expect the length of query_mismatches and hit_mismatches to be identical.
-          for my $i (0 .. $#template_mismatches) {
+          for my $i (0 .. $#template_both) {
               ## Get the index position of the mismatch.
               ## This can be confusing because of indels.
               ## I want them 0 indexed, but fasta36 gives them as 1 indexed, so subtract 1.
-              my $t_pos = $template_mismatches[$i] - 1;
-              my $p_pos = $product_mismatches[$i] - 1;
-              ## $template_nt appears to be the correct one.
-              my $template_nt = $template[$t_pos];
+              my $t_pos = $template_both[$i] - 1;
+              my $p_pos = $product_both[$i] - 1;
+              ## $mutated_from appears to be the correct one.
+              my $mutated_from = $template[$t_pos];
               my $inc = $i + 1;
-              my $total = scalar(@template_mismatches);
+              my $total = scalar(@template_both);
               ## The product nucleotide is correct, except if there are indels
               ## before the mismatches...  In that case, shenanigans occur,
               ## and I absolutely cannot seem to figure out why.
-              my $product_nt = $praw[$p_pos];
-              my $index_position = $t_pos;
-              $hits->{$index_position}->{type} = 'mis';
-              $hits->{$index_position}->{from} = $template_nt;
-              $hits->{$index_position}->{to} = $product_nt;
-              ##print qq"MIS ${index}\t${inc}\t${total}\t${index_position}\tmis\t${template_nt}\t${product_nt}\n";
-              print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tmis\t${template_nt}\t${product_nt}\n";
+              my $mutated_to = $praw[$p_pos];
+              my $position = $t_pos;
+              $print_position = $position + 1;
+              $hits->{$position}->{type} = 'mis';
+              $hits->{$position}->{from} = $mutated_from;
+              $hits->{$position}->{to} = $mutated_to;
+              print qq"MIS ${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
           }
       }
       push(@hitlst, $hits);
       my $hitlength = scalar(@hitlst);
       $indices->{$index} = \@hitlst;
   } ## End of each hit of a result.
-    $f->close();
-    my $stored = store($indices, $data_file);
-    print "Stored indices to $data_file.\n";
     ## I think this is a good place to write some information about what was extracted.
     ## I need a reminder of this data structure.
     ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
@@ -528,7 +517,6 @@ sub Parse_Fasta_Mismatches {
     ## So hash of arrays of hashes of hashes.
     $out->close();
     $numbers->close();
-    $bads->close();
     return($indices);
 }
 
