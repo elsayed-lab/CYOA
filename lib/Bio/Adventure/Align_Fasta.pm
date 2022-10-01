@@ -345,9 +345,20 @@ sub Parse_Fasta_Mismatches {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        output => 'ggsearch_mismatches.txt',
+        jprefix => 50,
+        modules => ['fasta'],
         required => ['input', 'library'],);
-    my $runner = qq"ggsearc36 -b 1 -d 1 $options->{input} $options->{library} 2>ggsearch.err 1>ggsearch.txt";
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $in_base = basename($options->{input}, ('.fsa', '.faa', '.ffn', '.gbk'));
+    my $lib_base = basename($options->{library}, ('.fsa', '.faa', '.ffn', '.gbk'));
+    my $output_base = qq"${in_base}_vs_${lib_base}";
+    my $outdir = qq"outputs/$options->{jprefix}pairwisedelta";
+    make_path("${outdir}") unless(-d ${outdir});
+    my $gg_output = qq"${outdir}/${output_base}.txt";
+    my $gg_error = qq"${outdir}/${output_base}.err";
+    my $variant_output = qq"${outdir}/${output_base}_mismatches.txt";
+    my $variant_numbers = qq"${outdir}/${output_base}_mismatch_nums.txt";
+    my $runner = qq"ggsearc36 -b 1 -d 1 $options->{library} $options->{input} 1>${gg_output} 2>${gg_error}";
     my $handle = IO::Handle->new;
     print "Starting $runner\n";
     open($handle, "$runner |");
@@ -357,16 +368,13 @@ sub Parse_Fasta_Mismatches {
     close($handle);
 
     my $out_base = basename($options->{output}, ('.txt'));
-    my $out = FileHandle->new(">$options->{output}");
-    my $numbers = FileHandle->new(">${out_base}_numbers.txt");
-    my $bads = FileHandle->new(">${out_base}_bads.txt");
+    my $out = FileHandle->new(">${variant_output}");
+    my $numbers = FileHandle->new(">${variant_numbers}");
     ## Write a header for the output tsv.
     print $out "readid\tindex\tdirection\tposition\ttype\treference\thit\n";
-    my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => 'ggsearch.txt');
-    my $data_file = basename($output, ('.txt', '.xz', '.gz'));
-    $data_file = basename($output, ('.txt'));
     my $results = 0;
     my $indices = {};
+    my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => $gg_output);
   SEARCHLOOP: while (my $result = $searchio->next_result()) {
       $results++;
       ## There is only ever 1 hit.
@@ -387,10 +395,6 @@ sub Parse_Fasta_Mismatches {
           ## I am not completely certain this will make them go away, but I think it will.
           print "SKIPPING: ${query_name} hit strand: $hstrand query strand: $qstrand\n";
           next SEARCHLOOP;
-      }
-      my @hitlst = ();
-      if ($indices->{$index}) {
-          @hitlst = @{$indices->{$index}};
       }
 
       my $hit_len;
@@ -512,23 +516,11 @@ sub Parse_Fasta_Mismatches {
               print $out qq"${readid}\t${index}\t${direction}\t${index_position}\tmis\t${template_nt}\t${product_nt}\n";
           }
       }
-      push(@hitlst, $hits);
-      my $hitlength = scalar(@hitlst);
-      $indices->{$index} = \@hitlst;
   } ## End of each hit of a result.
-    $f->close();
-    my $stored = store($indices, $data_file);
-    print "Stored indices to $data_file.\n";
-    ## I think this is a good place to write some information about what was extracted.
-    ## I need a reminder of this data structure.
-    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
-    ## I need a reminder of this data structure.
-    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
-    ## $data->{same index}->[ { 12 }->{type}='mis' ] ...
-    ## So hash of arrays of hashes of hashes.
     $out->close();
     $numbers->close();
-    $bads->close();
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($indices);
 }
 
