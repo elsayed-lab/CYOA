@@ -358,15 +358,14 @@ sub Parse_Fasta_Mismatches {
     my $gg_error = qq"${outdir}/${output_base}.err";
     my $variant_output = qq"${outdir}/${output_base}_mismatches.txt";
     my $variant_numbers = qq"${outdir}/${output_base}_mismatch_nums.txt";
-    my $runner = qq"ggsearc36 -b 1 -d 1 $options->{library} $options->{input} 1>${gg_output} 2>${gg_error}";
+    my $runner = qq"ggsearch36 -b 1 -d 1 $options->{library} $options->{input} 1>${gg_output} 2>${gg_error}";
     my $handle = IO::Handle->new;
     open($handle, "$runner |");
     while (my $line = <$handle>) {
         print "$line\n";
     }
     close($handle);
-
-    my $out_base = basename($options->{output}, ('.txt'));
+    print "Comparing: $options->{library} and $options->{input}\n";
     my $out = FileHandle->new(">${variant_output}");
     my $numbers = FileHandle->new(">${variant_numbers}");
     ## Write a header for the output tsv.
@@ -382,6 +381,12 @@ sub Parse_Fasta_Mismatches {
       my $query_length = $result->query_length();
       my $accession = $hit->accession();
       my $library_id = $hit->name();
+      if (!defined($accession)) {
+          $accession = $library_id;
+      }
+      if (!defined($accession)) {
+          $accession = 'unknown';
+      }
       my $length = $hit->length();
       ##my $score = $hit->raw_score();
       ##my $sig = $hit->significance();
@@ -461,11 +466,17 @@ sub Parse_Fasta_Mismatches {
               ## I do not understand why they seem to be necessary to get
               ## correct results.
               my $mutated_to = $praw[$position + $i];
+              if (!defined($mutated_to)) {
+                  $mutated_to = 'undef';
+              }
               my $mutated_from = $tseq[$position + $i];
+              if (!defined($mutated_from)) {
+                  $mutated_from = 'undef';
+              }
               my $template_length = scalar(@traw);
               $hits->{$position}->{type} = 'ins';
               $hits->{$position}->{to} = $mutated_to;
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tins\t \t${mutated_to}\n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tInsertion\t \t${mutated_to}\n";
           }
       }
       if (scalar(@product_gaps) > 0) {
@@ -481,7 +492,7 @@ sub Parse_Fasta_Mismatches {
               my $product_length = scalar(@pseq);
               $hits->{$position}->{type} = 'del';
               $hits->{$position}->{from} = $mutated_from;
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tdel\t${mutated_from}\t \n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tDeletion\t${mutated_from}\t \n";
           }
       }
       if (scalar(@template_both) > 0) {
@@ -499,14 +510,22 @@ sub Parse_Fasta_Mismatches {
               ## The product nucleotide is correct, except if there are indels
               ## before the mismatches...  In that case, shenanigans occur,
               ## and I absolutely cannot seem to figure out why.
+
+              my $mutation_type = 'Mismatch';
+              ##if ($template_mismatches[0] eq $template_both[$i]) {
+              ##    shift @template_mismatches;
+              ##    $mutation_type = 'Mismatch';
+              ##} else {
+              ##    shift @template_not_identical;
+              ##    $mutation_type = 'Conserved';
+              ##}
               my $mutated_to = $praw[$p_pos];
               my $position = $t_pos;
               $print_position = $position + 1;
               $hits->{$position}->{type} = 'mis';
               $hits->{$position}->{from} = $mutated_from;
               $hits->{$position}->{to} = $mutated_to;
-              print qq"MIS ${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\t${mutation_type}\t${mutated_from}\t${mutated_to}\n";
           }
       }
   } ## End of each hit of a result.
