@@ -345,26 +345,34 @@ sub Parse_Fasta_Mismatches {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        output => 'ggsearch_mismatches.txt',
+        jprefix => 50,
+        modules => ['fasta'],
         required => ['input', 'library'],);
-    my $runner = qq"ggsearch36 -m9 -b 1 -d 1 $options->{input} $options->{library} 2>ggsearch.err 1>ggsearch.txt";
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $in_base = basename($options->{input}, ('.fsa', '.faa', '.ffn', '.gbk'));
+    my $lib_base = basename($options->{library}, ('.fsa', '.faa', '.ffn', '.gbk'));
+    my $output_base = qq"${in_base}_vs_${lib_base}";
+    my $outdir = qq"outputs/$options->{jprefix}pairwisedelta";
+    make_path("${outdir}") unless(-d ${outdir});
+    my $gg_output = qq"${outdir}/${output_base}.txt";
+    my $gg_error = qq"${outdir}/${output_base}.err";
+    my $variant_output = qq"${outdir}/${output_base}_mismatches.txt";
+    my $variant_numbers = qq"${outdir}/${output_base}_mismatch_nums.txt";
+    my $runner = qq"ggsearch36 -b 1 -d 1 $options->{library} $options->{input} 1>${gg_output} 2>${gg_error}";
     my $handle = IO::Handle->new;
     open($handle, "$runner |");
     while (my $line = <$handle>) {
         print "$line\n";
     }
     close($handle);
-
-    my $out_base = basename($options->{output}, ('.txt'));
-    my $out = FileHandle->new(">$options->{output}");
-    my $numbers = FileHandle->new(">${out_base}_numbers.txt");
+    print "Comparing: $options->{library} and $options->{input}\n";
+    my $out = FileHandle->new(">${variant_output}");
+    my $numbers = FileHandle->new(">${variant_numbers}");
     ## Write a header for the output tsv.
     print $out "RefID\tQueryID\tposition\ttype\treference\thit\n";
-    my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => 'ggsearch.txt');
-    my $data_file = basename($options->{output}, ('.txt', '.xz', '.gz'));
-    $data_file = basename($options->{output}, ('.txt'));
     my $results = 0;
     my $indices = {};
+    my $searchio = Bio::SearchIO->new(-format => 'fasta', -file => $gg_output);
   SEARCHLOOP: while (my $result = $searchio->next_result()) {
       $results++;
       ## There is only ever 1 hit.
@@ -373,6 +381,12 @@ sub Parse_Fasta_Mismatches {
       my $query_length = $result->query_length();
       my $accession = $hit->accession();
       my $library_id = $hit->name();
+      if (!defined($accession)) {
+          $accession = $library_id;
+      }
+      if (!defined($accession)) {
+          $accession = 'unknown';
+      }
       my $length = $hit->length();
       ##my $score = $hit->raw_score();
       ##my $sig = $hit->significance();
@@ -385,10 +399,6 @@ sub Parse_Fasta_Mismatches {
           ## I am not completely certain this will make them go away, but I think it will.
           print "SKIPPING: ${query_name} hit strand: $hstrand query strand: $qstrand\n";
           next SEARCHLOOP;
-      }
-      my @hitlst = ();
-      if ($indices->{$index}) {
-          @hitlst = @{$indices->{$index}};
       }
 
       my $hit_len;
@@ -456,11 +466,17 @@ sub Parse_Fasta_Mismatches {
               ## I do not understand why they seem to be necessary to get
               ## correct results.
               my $mutated_to = $praw[$position + $i];
+              if (!defined($mutated_to)) {
+                  $mutated_to = 'undef';
+              }
               my $mutated_from = $tseq[$position + $i];
+              if (!defined($mutated_from)) {
+                  $mutated_from = 'undef';
+              }
               my $template_length = scalar(@traw);
               $hits->{$position}->{type} = 'ins';
               $hits->{$position}->{to} = $mutated_to;
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tins\t \t${mutated_to}\n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tInsertion\t \t${mutated_to}\n";
           }
       }
       if (scalar(@product_gaps) > 0) {
@@ -476,7 +492,7 @@ sub Parse_Fasta_Mismatches {
               my $product_length = scalar(@pseq);
               $hits->{$position}->{type} = 'del';
               $hits->{$position}->{from} = $mutated_from;
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tdel\t${mutated_from}\t \n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\tDeletion\t${mutated_from}\t \n";
           }
       }
       if (scalar(@template_both) > 0) {
@@ -494,29 +510,29 @@ sub Parse_Fasta_Mismatches {
               ## The product nucleotide is correct, except if there are indels
               ## before the mismatches...  In that case, shenanigans occur,
               ## and I absolutely cannot seem to figure out why.
+
+              my $mutation_type = 'Mismatch';
+              ##if ($template_mismatches[0] eq $template_both[$i]) {
+              ##    shift @template_mismatches;
+              ##    $mutation_type = 'Mismatch';
+              ##} else {
+              ##    shift @template_not_identical;
+              ##    $mutation_type = 'Conserved';
+              ##}
               my $mutated_to = $praw[$p_pos];
               my $position = $t_pos;
               $print_position = $position + 1;
               $hits->{$position}->{type} = 'mis';
               $hits->{$position}->{from} = $mutated_from;
               $hits->{$position}->{to} = $mutated_to;
-              print qq"MIS ${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
-              print $out qq"${query_name}\t${library_id}\t${print_position}\tmis\t${mutated_from}\t${mutated_to}\n";
+              print $out qq"${query_name}\t${library_id}\t${print_position}\t${mutation_type}\t${mutated_from}\t${mutated_to}\n";
           }
       }
-      push(@hitlst, $hits);
-      my $hitlength = scalar(@hitlst);
-      $indices->{$index} = \@hitlst;
   } ## End of each hit of a result.
-    ## I think this is a good place to write some information about what was extracted.
-    ## I need a reminder of this data structure.
-    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
-    ## I need a reminder of this data structure.
-    ## $data->{some index}->[ { 10 }->{type}='ins' ->{ref}='A'}, { 20 }->... ];
-    ## $data->{same index}->[ { 12 }->{type}='mis' ] ...
-    ## So hash of arrays of hashes of hashes.
     $out->close();
     $numbers->close();
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($indices);
 }
 

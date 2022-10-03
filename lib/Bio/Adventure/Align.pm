@@ -470,6 +470,40 @@ sub Map_Accession {
     return($map);
 }
 
+sub OrthoFinder {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jmem => 24,
+        jprefix => '50',
+        modules => ['orthofinder'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+
+    my $jname = qq'orthofinder';
+
+    my $outdir = qq"outputs/$options->{jprefix}orthofinder";
+    my $error_file = qq"${outdir}/orthofinder.stderr";
+    my $stdout_file = qq"${outdir}/orthofinder.stdout";
+    my $comment = qq!## Attempting to run orthofinder using a faa directory in $options->{input}.
+!;
+    my $jstring = qq!
+orthofinder -f $options->{input} \\
+  -o ${outdir} \\
+  2>>${error_file} 1>>${stdout_file}
+!;
+    my $ortho = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        jdepends => $options->{jdepends},
+        jname => ${jname},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => $options->{jmem},
+        modules => $options->{modules},);
+    return($ortho);
+}
+
 =head1 AUTHOR - atb
 
     Email  <abelew@gmail.com>
