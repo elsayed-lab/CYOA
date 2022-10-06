@@ -703,6 +703,15 @@ $options->{tool} $options->{arbitrary} \\
   $options->{input} \\
   2>${stderr} \\
   1>${stdout}
+if [ "\$?" \!= "0" ]; then
+  tRNAscan-SE -G $options->{input} \\
+    -o ${output_file} \\
+    2>>${stderr} \\
+    1>>${stdout}
+  if [ "\$?" \!= "0" ]; then
+    echo "Both attempts at running tRNAscan failed."
+  fi
+fi
 !;
     my $trnascan = $class->Submit(
         comment => $comment,
