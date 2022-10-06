@@ -379,6 +379,7 @@ sub Parse_Fasta_Mismatches {
       my $hit = $result->next_hit;
       my $query_name = $result->query_name();
       my $query_length = $result->query_length();
+      next SEARCHLOOP unless (defined($hit));
       my $accession = $hit->accession();
       my $library_id = $hit->name();
       if (!defined($accession)) {

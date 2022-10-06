@@ -905,54 +905,88 @@ sub Get_DTR {
     my $dtr_type_file = $input_dtr;
     $dtr_type_file =~ s/_dtr\.fasta/_nrt\.txt/g;
     return(undef) unless (-r $args{input_fsa});
-    return(undef) unless (-r $args{input_dtr});
-    return(undef) unless (-f $dtr_type_file);
-
-    my $dtr_type_read = FileHandle->new("<${dtr_type_file}");
-    my $dtr_type = '';
-    while (my $line = <$dtr_type_read>) {
-        chomp $line;
-        $dtr_type = $line;
+    ## Assume we have both a dtr file and a file naming its type.
+    my $has_dtr = 1;
+    my $has_type = 1;
+    if (!-r $args{dtr_type_file} && !-r $args{input_dtr}) {
+        return(undef);
+    } elsif (!-r $args{dtr_type_file}) {
+        $has_type = 0;
+    } elsif (!-r $args{input_dtr}) {
+        $has_dtr = 0;
     }
-    $dtr_type_read->close();
-    print $log_fh "Got DTR type: ${dtr_type}.\n";
 
-    my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
+    my $dtr_type = '';
+    if ($has_type) {
+        my $dtr_type_read = FileHandle->new("<${dtr_type_file}");
+        while (my $line = <$dtr_type_read>) {
+            chomp $line;
+            $dtr_type = $line;
+        }
+        $dtr_type_read->close();
+        print $log_fh "Got DTR type: ${dtr_type}.\n";
+    }
+
     my $dtr_sequence = '';
     my $dtr_length = 0;
     my $dtr_id = '';
-  DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
-      next DTR unless(defined($dtr_seq->id));
-      $dtr_id = $dtr_seq->id;
-      $dtr_sequence = $dtr_seq->seq;
-      $dtr_length = $dtr_seq->length;
-  }
-
     my @dtr_features = ();
-    my $fsa_read = Bio::SeqIO->new(-file => $input_fsa, -format => 'Fasta');
-  FSA: while (my $genome_seq = $fsa_read->next_seq()) {
-      my $contig_sequence = $genome_seq->seq;
-      my $contig_id = $genome_seq->id;
-    DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
-        my $dtr_end = pos($contig_sequence);
-        my $dtr_start = $dtr_end - ($dtr_length - 1);
+    my $first_contig_id = '';
+    if ($has_dtr) {
+        my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
+      DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
+          next DTR unless(defined($dtr_seq->id));
+          $dtr_id = $dtr_seq->id;
+          $dtr_sequence = $dtr_seq->seq;
+          $dtr_length = $dtr_seq->length;
+      }
+        my $contig_counter = 0;
+        my $fsa_read = Bio::SeqIO->new(-file => $input_fsa, -format => 'Fasta');
+      FSA: while (my $genome_seq = $fsa_read->next_seq()) {
+          $contig_counter++;
+          my $contig_sequence = $genome_seq->seq;
+          my $contig_id = $genome_seq->id;
+          if ($contig_counter == 1) {
+              $first_contig_id = $contig_id;
+          }
+        DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
+            my $dtr_end = pos($contig_sequence);
+            my $dtr_start = $dtr_end - ($dtr_length - 1);
+            my $dtr_feature = Bio::SeqFeature::Generic->new(
+                -primary => 'misc_feature',
+                -seq_id => $contig_id,
+                -source => 'PhageTerm',
+                -start => $dtr_start,
+                -end => $dtr_end,
+                -strand => +1,
+                -score => undef,
+                -frame => 0,
+                -tag => {
+                    'product' => 'Direct Terminal Repeat',
+                        'inference' => 'COORDINATES:profile:PhageTerm',
+                        'note' => qq"DTR type: ${dtr_type}",
+                },);
+            push(@dtr_features, $dtr_feature);
+        } ## End matching on this contig
+      } ## End iterating over teh contigs
+    } else {
+        ## There is no dtr file, but there was a dtr type, so let us make a dummy feature for it.
         my $dtr_feature = Bio::SeqFeature::Generic->new(
             -primary => 'misc_feature',
-            -seq_id => $contig_id,
+            -seq_id => $first_contig_id,
             -source => 'PhageTerm',
-            -start => $dtr_start,
-            -end => $dtr_end,
+            -start => 1,
+            -end => 2,
             -strand => +1,
             -score => undef,
             -frame => 0,
             -tag => {
-                'product' => 'Direct Terminal Repeat',
+                'product' => qq"${dtr_type} packing element",
                 'inference' => 'COORDINATES:profile:PhageTerm',
-                'note' => qq"DTR type: ${dtr_type}",
+                'note' => 'PhageTerm is unable to explicitly define a start/end for this type of packing element, so this script arbitrarily put it as positions 1 and 2 of the first contig.',
             },);
         push(@dtr_features, $dtr_feature);
-    } ## End matching on this contig
-  } ## End iterating over teh contigs
+    }
     return(\@dtr_features);
 }
 
@@ -1188,8 +1222,13 @@ PhageTerm.py -f ${read_string} \\
         }
     } ## End the contig loop
       ## Now lets copy the DTR and nrt files
-      print $phage_log "Copying the dtr from contig ${dtr_contig} to phageterm_final_dtr.fasta.\n";
-      my $dtr_copy = qx"cp ${workdir}/contig${dtr_contig}_direct-term-repeats.fasta ${workdir}/phageterm_final_dtr.fasta";
+      my $dtr_file = qq"${workdir}/contig${dtr_contig}_direct-term-repeats.fasta";
+      if (-r $dtr_file) {
+          print $phage_log "Copying the dtr from contig ${dtr_contig} to phageterm_final_dtr.fasta.\n";
+          my $dtr_copy = qx"cp ${workdir}/contig${dtr_contig}_direct-term-repeats.fasta ${workdir}/phageterm_final_dtr.fasta";
+      } else {
+          print $phage_log "There is not dtr fasta file for ${dtr_contig}.\n";
+      }
       print $phage_log "Copying the NRT file from ${dtr_contig} to phageterm_final_nrt.txt.\n";
       my $ntr_copy = qx"cp ${workdir}/contig${dtr_contig}_nrt.txt ${workdir}/phageterm_final_nrt.txt";
   } ## End when we do find a DTR
