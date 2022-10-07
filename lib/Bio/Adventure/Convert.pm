@@ -55,7 +55,7 @@ sub Gb2Gff {
     my $seq_count = 0;
     my $total_nt = 0;
     my $feature_count = 0;
-    my $output_fasta = qq"${dir}/${base}.fasta";
+    my $output_fasta = qq"${dir}/${base}.fsa";
     my $fasta = Bio::SeqIO->new(-file => qq">${output_fasta}", -format => 'fasta', -flush => 0);
     my $all_gff = qq"${dir}/${base}_all.gff";
     my $gffout = Bio::Tools::GFF->new(-file => ">${all_gff}", -gff_version => 3);
@@ -65,9 +65,9 @@ sub Gb2Gff {
     my $cds_gff = Bio::Tools::GFF->new(-file => ">${output_cds_gff}", -gff_version => 3);
     my $output_inter_gff = qq"${dir}/${base}_interCDS.gff";
     my $inter_gffout = Bio::Tools::GFF->new(-file => ">${output_inter_gff}", -gff_version => 3);
-    my $output_cds_fasta = qq"${dir}/${base}_cds.fasta";
+    my $output_cds_fasta = qq"${dir}/${base}.ffn";
     my $cds_fasta = Bio::SeqIO->new(-file => qq">${output_cds_fasta}", -format => 'Fasta');
-    my $output_pep_fasta = qq"${dir}/${base}_pep.fasta";
+    my $output_pep_fasta = qq"${dir}/${base}.faa";
     my $pep_fasta = Bio::SeqIO->new(-file => qq">${output_pep_fasta}", -format => 'Fasta');
     my $output_rrna_gff = qq"${dir}/${base}_rrna.gff";
     my $rrna_gffout = Bio::Tools::GFF->new(-file => ">${output_rrna_gff}", -gff_version => 3);
