@@ -1347,7 +1347,7 @@ sub Phage_Assemble {
     print "\n${prefix}: Cleaning fastq files.\n";
     my $clean_phage = $class->Bio::Adventure::Cleanup::Cleanup_Phage_Assembly(
         jname => 'cleanphage',);
-    $last_job = $clean_page->{job_id};
+    $last_job = $clean_phage->{job_id};
     sleep($options->{jsleep});
 
     my $ret = {
