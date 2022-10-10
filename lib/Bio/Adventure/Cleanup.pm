@@ -45,6 +45,35 @@ sub Cleanup {
     return(1);
 }
 
+sub Cleanup_Phage_Assembly {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jprefix => '99',);
+
+    my $job_name = $class->Get_Job_Name();
+    my $input_paths = $class->Get_Paths($options->{input});
+
+    my $jstring = qq!
+## Rando fastq files
+rm -f \$(find . -type f -name '*.fastq')
+## Core dumps
+rm -f \$(find . -type f -name core)
+## Hisat indexes
+rm -f \$(find . -type f -name '*.ht2')
+## tmp files from the various prediction tools
+rm -f \$(find . -type f -name '*.tmp.*')
+## Trinotate junk
+rm -r \$(find . -type d -name '*_dir*')
+!;
+
+    my $comment = '## Cleanup some of the mess.';
+    my $clean = $class->Submit(
+        comment => $comment,
+        jstring => $jstring,);
+    return($clean);
+}
+
 =head1 AUTHOR - atb
 
 Email <abelew@gmail.com>

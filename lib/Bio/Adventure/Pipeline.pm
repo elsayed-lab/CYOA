@@ -558,6 +558,7 @@ sub Process_RNAseq {
         jnice => 100,
         jprefix => $prefix,);
     push(@jobs, $fastqc);
+    $last_job = $fastqc->{job_id};
     sleep($options->{jsleep});
 
     ## Have some logic to handle a first species which will be used to filter
@@ -934,6 +935,7 @@ sub Phage_Assemble {
         jmem => 3,
         jnice => 100,
         jprefix => $prefix,);
+    $last_job = $fastqc->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1339,6 +1341,13 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'collect',);
     $last_job = $collect->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Cleaning fastq files.\n";
+    my $clean_phage = $class->Bio::Adventure::Cleanup::Cleanup_Phage_Assembly(
+        jname => 'cleanphage',);
+    $last_job = $clean_page->{job_id};
     sleep($options->{jsleep});
 
     my $ret = {
