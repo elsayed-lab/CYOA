@@ -908,11 +908,11 @@ sub Get_DTR {
     ## Assume we have both a dtr file and a file naming its type.
     my $has_dtr = 1;
     my $has_type = 1;
-    if (!-r $args{dtr_type_file} && !-r $args{input_dtr}) {
+    if (!-r $dtr_type_file && !-r $input_dtr) {
         return(undef);
-    } elsif (!-r $args{dtr_type_file}) {
+    } elsif (!-r $dtr_type_file) {
         $has_type = 0;
-    } elsif (!-r $args{input_dtr}) {
+    } elsif (!-r $input_dtr) {
         $has_dtr = 0;
     }
 
@@ -1567,7 +1567,6 @@ sub Terminase_ORF_Reorder_Worker {
         ## Just in case a path is provided
         my $outfile = basename($options->{output_file});
         $new_filename = qq"${output_dir}/${outfile}";
-        print "options->output_file exists: $new_filename\n";
     } else {
         $new_filename = basename($options->{input}, ('.fasta'));
         $new_filename = qq"${output_dir}/${new_filename}_reordered.fasta";
