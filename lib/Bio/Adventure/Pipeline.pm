@@ -1063,7 +1063,7 @@ sub Phage_Assemble {
     print "\nCompressing raw filtered files.\n";
     my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
         jdepends => $last_job,
-        input => $filter->{output},
+        input => qq"$filter->{output}:$filter->{output_unpaired}",
         jprefix => $prefix,);
     $last_job = $compress_filtered->{job_id};
     sleep($options->{jsleep});

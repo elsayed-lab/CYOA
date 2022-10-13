@@ -347,9 +347,11 @@ sub Trimomatic_Pairwise {
     }
 
     my $output = qq"${r1o}:${r2o}";
+    my $output_unpaired = qq"${r1ou}:${r2ou}";
     my $compress_string = '';
     if ($options->{compress}) {
         $output = qq"${r1o}.xz:${r2o}.xz";
+        $output_unpaired = qq"${r1ou}.xz:${r2ou}.xz";
         $compress_string = qq"
 ## Recompress the unpaired reads, this should not take long.
 xz -9e -f ${r1ou}
@@ -420,6 +422,7 @@ mv ${r2op} ${r2o}
         length => $options->{length},
         modules => $options->{modules},
         output => $output,
+        output_unpaired => $output_unpaired,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,

@@ -908,11 +908,11 @@ sub Get_DTR {
     ## Assume we have both a dtr file and a file naming its type.
     my $has_dtr = 1;
     my $has_type = 1;
-    if (!-r $args{dtr_type_file} && !-r $args{input_dtr}) {
+    if (!-r $dtr_type_file && !-r $input_dtr) {
         return(undef);
-    } elsif (!-r $args{dtr_type_file}) {
+    } elsif (!-r $dtr_type_file) {
         $has_type = 0;
-    } elsif (!-r $args{input_dtr}) {
+    } elsif (!-r $input_dtr) {
         $has_dtr = 0;
     }
 
@@ -926,6 +926,8 @@ sub Get_DTR {
         $dtr_type_read->close();
         print $log_fh "Got DTR type: ${dtr_type}.\n";
     }
+    $dtr_type =~ s/^DTR//g;
+    $dtr_type =~ s/\(|\)//g;
 
     my $dtr_sequence = '';
     my $dtr_length = 0;
@@ -949,6 +951,7 @@ sub Get_DTR {
           if ($contig_counter == 1) {
               $first_contig_id = $contig_id;
           }
+          my $dtr_note = qq"Phageterm determined this DTR is of type ${dtr_type}.";
         DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
             my $dtr_end = pos($contig_sequence);
             my $dtr_start = $dtr_end - ($dtr_length - 1);
@@ -963,12 +966,12 @@ sub Get_DTR {
                 -frame => 0,
                 -tag => {
                     'product' => 'Direct Terminal Repeat',
-                        'inference' => 'COORDINATES:profile:PhageTerm',
-                        'note' => qq"DTR type: ${dtr_type}",
+                    'inference' => 'COORDINATES:profile:PhageTerm',
+                    'note' => $dtr_note,
                 },);
             push(@dtr_features, $dtr_feature);
         } ## End matching on this contig
-      } ## End iterating over teh contigs
+      } ## End iterating over the contigs
     } else {
         ## There is no dtr file, but there was a dtr type, so let us make a dummy feature for it.
         my $dtr_feature = Bio::SeqFeature::Generic->new(
@@ -1567,7 +1570,6 @@ sub Terminase_ORF_Reorder_Worker {
         ## Just in case a path is provided
         my $outfile = basename($options->{output_file});
         $new_filename = qq"${output_dir}/${outfile}";
-        print "options->output_file exists: $new_filename\n";
     } else {
         $new_filename = basename($options->{input}, ('.fasta'));
         $new_filename = qq"${output_dir}/${new_filename}_reordered.fasta";
