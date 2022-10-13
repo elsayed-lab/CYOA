@@ -115,7 +115,7 @@ sub Bowtie {
     my $libtype = $options->{libtype};
 
     my $count = $options->{count};
-    my $bt_dir = qq"outputs/bowtie_${species}";
+    my $bt_dir = qq"outputs/$options->{jprefix}bowtie_${species}";
     $bt_dir = $options->{bt_dir} if ($options->{bt_dir});
 
     ## Check that the indexes exist
@@ -132,7 +132,7 @@ sub Bowtie {
         $index_job = $class->Bio::Adventure::Index::BT1_Index(
             input => $genome_input,
             jdepends => $options->{jdepends},
-            jprefix => $current_prefix,
+            jprefix => $current_prefix - 1,
             libtype => $libtype,);
         $options->{jdepends} = $index_job->{jobid};
     }
@@ -181,7 +181,7 @@ bowtie \\
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => '## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt_args}.',
         jdepends => $bt_job->{job_id},
-        jname => 'xzun',
+        jname => qq"${jname}_xzun",
         jprefix => $options->{jprefix} + 1,
         jwalltime => '24:00:00',
         input => $compress_files,);
@@ -236,7 +236,7 @@ bowtie \\
         count_table => $bt_job->{htseq}->[0]->{output},
         jdepends => $bt_job->{job_id},
         jname => qq"${jname}_stats",
-        jprefix => $options->{jprefix} + 5,
+        jprefix => $options->{jprefix} + 2,
         trim_input => ${trim_output_file},);
     $bt_job->{stats} = $stats;
 

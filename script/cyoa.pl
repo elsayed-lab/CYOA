@@ -44,15 +44,17 @@ my $overrides = $cyoa->{variable_getopt_overrides};
 if (defined($overrides->{help})) {
     my $helped = $cyoa->Help();
 }
-if (!defined($overrides->{task})) {
+if (!defined($overrides->{task}) && !defined($overrides->{method})) {
     ## If task is not defined, then we need to run Main()
     $cyoa = Main($cyoa);
 } elsif (!defined($overrides->{method})) {
     ## If task is defined, but method is not, use the menu system to get that information
     $cyoa = Iterate($cyoa, task => $overrides->{task});
 } else {
+    my $task = $cyoa->{task};
+    $task = $overrides->{task} if (defined($overrides->{task}));
     ## If both task and method are defined, run whatever is requested.
-    $cyoa = Run_Method($cyoa, task => $overrides->{task},
+    $cyoa = Run_Method($cyoa, task => $task,
                        method => $overrides->{method});
 }
 

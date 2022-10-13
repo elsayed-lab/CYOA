@@ -46,7 +46,7 @@ sub Gb2Gff {
     my $input = $options->{input};
 
     my $base = basename($input, ('.gz', '.xz', '.bz2'));
-    my @suffix = ('.gb', '.gbff', '.genbank');
+    my @suffix = ('.gb', '.gbk', '.gbff', '.genbank');
     $base = basename($base, @suffix);
     my $dir = dirname($input);
 
@@ -709,10 +709,12 @@ bamtools filter -tag XM:0 \\
   -in ${output} \\
   -out ${sorted_name}_nomismatch.bam \\
   2>>${output}_samtools.stats 1>&2
+echo "bamtools filter finished with: \$?"
 samtools index \\
   ${sorted_name}_nomismatch.bam \\
   2>>${sorted_name}_samtools.stderr \\
   1>>${sorted_name}_samtools.stdout
+echo "final samtools index finished with: \$?"
 !;
     }
 

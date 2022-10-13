@@ -84,6 +84,7 @@ sub Recompress {
         comment => '## Recompressing files.',
         jname => 'xz',
         jmem => 8,
+        jprefix => '99',
         jqueue => 'long',
         jwalltime => '12:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
@@ -96,12 +97,19 @@ sub Recompress {
         my $in_full = $in->{fullpath};
         my $output_file = qq"${in_dir}/${in_base}.xz";
         $output_string .= qq"${output_file}:";
-        $jstring .= qq!
-less ${in_full} | \\
-  xz -9e -f > ${output_file} && \\
-  rm ${in_full}
+        if ($in_full =~ /\.gz|\.bz2|\.zip/) {
+            $jstring .= qq!
+less ${in_full} 2>${in_dir}/${in_base}_decompress.stderr 1>${in_dir}/${in_base}
+xz -9e -f ${in_dir}/${in_base}
+rm ${in_full}
+rm ${in_dir}/${in_base}_decompress.stderr!;
+        } else {
+            $jstring .= qq!
+xz -9e -f ${in_full}
 !;
+        }
     }
+    print "TESTME: $jstring\n";
     $output_string =~ s/:$//g;
 
     my $compression = $class->Submit(
@@ -110,6 +118,7 @@ less ${in_full} | \\
         input => $options->{input},
         jmem => $options->{jmem},
         jname => $options->{jname},
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         output => $output_string,);
