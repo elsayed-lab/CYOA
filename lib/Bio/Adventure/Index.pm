@@ -322,7 +322,7 @@ sub Hisat2_Index {
         jprefix => '21',);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libpath});
-    my $species = basename($options->{input}, ('.fasta', '.fa'));
+    my $species = basename($options->{input}, ('.fasta', '.fa', '.fsa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     my $stdout = qq"hisat2_index_${species}.stdout";
     my $stderr = qq"hisat2_index_${species}.stderr";
@@ -335,6 +335,7 @@ sub Hisat2_Index {
     if (-r $copied_location) {
         print "The indexes appear to exist at: ${copied_location}.\n";
     } else {
+        print "TESTME: Copying $options->{input} to ${copied_location}\n";
         $copied = cp($options->{input}, $copied_location);
     }
     my $jstring = qq!

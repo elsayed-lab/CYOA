@@ -1458,9 +1458,6 @@ sub Module_Loader {
     }
     my @messages = ();
     foreach $mod (@mod_lst) {
-        if ($args{verbose}) {
-            print "(Un)loading $mod\n";
-        }
         my ($stdout, $stderr, @result) = capture {
             try {
                 my $test;

@@ -912,7 +912,7 @@ sub Phage_Assemble {
         args => \%args,
         host_filter => 1,
         host_species => '',
-        jsleep => 5,
+        jsleep => 1,
         required => ['input'],);
     my $prefix = sprintf("%02d", 0);
     my $final_locustag = basename(cwd());
@@ -1058,30 +1058,6 @@ sub Phage_Assemble {
         jprefix => $prefix,
         jname => 'coverage',);
     $last_job = $coverage->{job_id};
-    sleep($options->{jsleep});
-
-    print "\nCompressing raw filtered files.\n";
-    my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
-        jdepends => $last_job,
-        input => qq"$filter->{output}:$filter->{output_unpaired}",
-        jprefix => $prefix,);
-    $last_job = $compress_filtered->{job_id};
-    sleep($options->{jsleep});
-
-    print "\nCompressing corrected fastq files.\n";
-    my $compress_corrected = $class->Bio::Adventure::Compress::Compress(
-        jdepends => $last_job,
-        input => $correct->{output},
-        jprefix => $prefix,);
-    $last_job = $compress_corrected->{job_id};
-    sleep($options->{jsleep});
-
-    print "\nCompressing trimmed files.\n";
-    my $compress_trimmed = $class->Bio::Adventure::Compress::Compress(
-        input => $trim->{output},
-        jdepends => $last_job,
-        jprefix => $prefix,);
-    $last_job = $compress_trimmed->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1344,9 +1320,46 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Compressing raw filtered files.\n";
+    my $compress_input = $filter->{output};
+    ## unalcon_GCF_002813445.1_genome.1.fastq as an example file.
+    if (defined($filter->{output_unaligned})) {
+        $compress_input .= "qq:$filter->{output_unaligned}";
+    }
+    my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
+        jdepends => $last_job,
+        input => qq"$filter->{output}:$filter->{output_unaligned}",
+        jname => 'comp_filtered',
+        jprefix => $prefix,);
+    $last_job = $compress_filtered->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Compressing corrected fastq files.\n";
+    my $compress_corrected = $class->Bio::Adventure::Compress::Compress(
+        jdepends => $last_job,
+        input => $correct->{output},
+        jname => 'comp_corrected',
+        jprefix => $prefix,);
+    $last_job = $compress_corrected->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Compressing trimmed files.\n";
+    my $compress_trimmed = $class->Bio::Adventure::Compress::Compress(
+        input => $trim->{output},
+        jdepends => $last_job,
+        jname => 'comp_output',
+        jprefix => $prefix,);
+    $last_job = $compress_trimmed->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Cleaning fastq files.\n";
     my $clean_phage = $class->Bio::Adventure::Cleanup::Cleanup_Phage_Assembly(
-        jname => 'cleanphage',);
+        jdepends => $last_job,
+        jname => 'cleanphage',
+        jprefix => $prefix,);
     $last_job = $clean_phage->{job_id};
     sleep($options->{jsleep});
 
