@@ -199,7 +199,7 @@ sub Racer {
   1>>${stdout} \\
   2>>${stderr}
 rm ${name}.fastq
-
+echo \"Finished correction of $input_list[$c].\" >> ${stdout}
 ";
         if ($options->{compress}) {
             $jstring .= qq"xz -9e -f ${output}

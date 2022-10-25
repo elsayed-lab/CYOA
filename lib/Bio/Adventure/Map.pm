@@ -841,6 +841,8 @@ sub Hisat2 {
         maximum => undef,
         modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],
         output_dir => undef,
+        output_unaligned => undef,
+        unaligned_discordant => undef,
         required => ['species', 'input',],
         samtools => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -947,8 +949,14 @@ sub Hisat2 {
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
     my $aligned_discordant_filename = qq"${hisat_dir}/aldis_$options->{species}_$options->{libtype}.fastq";
     my $unaligned_discordant_filename = qq"${hisat_dir}/unaldis_$options->{species}_$options->{libtype}.fastq";
+    if (defined($options->{unaligned_discordant})) {
+        $unaligned_discordant_filename = $options->{unaligned_discordant};
+    }
     my $aligned_concordant_filename = qq"${hisat_dir}/alcon_$options->{species}_$options->{libtype}.fastq";
     my $unaligned_concordant_filename = qq"${hisat_dir}/unalcon_$options->{species}_$options->{libtype}.fastq";
+    if (defined($options->{unaligned_output})) {
+        $unaligned_concordant_filename = $options->{unaligned_output};
+    }
     my $sam_filename = qq"${hisat_dir}/$options->{species}_$options->{libtype}.sam";
     my $jstring = qq!mkdir -p ${hisat_dir}
 hisat2 -x ${hisat_reflib} ${hisat_args} \\

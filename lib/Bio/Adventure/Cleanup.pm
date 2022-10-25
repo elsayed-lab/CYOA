@@ -49,7 +49,8 @@ sub Cleanup_Phage_Assembly {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jprefix => '99',);
+        jprefix => '99',
+        jname => 'cleanup_phage');
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
@@ -72,6 +73,9 @@ xz -9e -f \$(find . -name '*.fastq')
     my $comment = '## Cleanup some of the mess.';
     my $clean = $class->Submit(
         comment => $comment,
+        jdepends => $options->{jdepends},
+        jname => $options->{jname},
+        jprefix => $options->{jprefix},
         jstring => $jstring,);
     return($clean);
 }

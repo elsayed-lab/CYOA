@@ -766,7 +766,7 @@ sub Unicycler {
         mode => 'bold',
         jmem => 24,
         jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'shovill', 'bwa', 'pilon', 'flash'],);
+        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'flash', 'shovill', 'bwa', 'pilon'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('unicycler');
     die('Could not find unicycler in your PATH.') unless($check);

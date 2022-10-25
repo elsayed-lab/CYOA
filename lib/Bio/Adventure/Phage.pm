@@ -61,6 +61,7 @@ sub Bacphlip {
     my @suffixes = split(/,/, $options->{suffixes});
     my $out_base = basename($options->{input}, @suffixes);
     my $in_base = basename($options->{input});
+    my $input_basename = basename($in_base, ('.fsa', '.fasta', '.faa'));
     my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
     my $output = qq"${output_dir}/${in_base}.bacphlip";
     my $output_hmm = qq"${output_dir}/${in_base}.hmmsearch";
@@ -81,6 +82,10 @@ cd ${output_dir}
 bacphlip -f \${multi_arg} -i ${in_base} \\
   2>${out_base}.stderr \\
   1>${out_base}.stdout
+mv ${in_base}.6frame ${input_basename}.6frame
+mv ${in_base}.bacphlip ${input_basename}.bacphlip
+mv ${in_base}.hmmsearch ${input_basename}.hmmsearch
+mv ${in_base}.hmmsearch.tsv ${input_basename}.tsv
 cd \${start}
 ?;
     my $job = $class->Submit(
@@ -630,11 +635,13 @@ sub Filter_Host_Kraken {
     make_path($output_dir);
     my $out_r1_name = 'r1_host_filtered.fastq';
     my $out_r2_name = 'r2_host_filtered.fastq';
+    my $unal_files = 'r1_host_unaligned.fastq:r2_host_unaligned.fastq';
     if ($options->{compress}) {
         $out_r1_name = 'r1_host_filtered.fastq.xz';
         $out_r2_name = 'r2_host_filtered.fastq.xz';
     }
     my $output_files = qq"${output_dir}/${out_r1_name}:${output_dir}/${out_r2_name}";
+    my $output_unpaired = qq"";
     my $log = qq"${output_dir}/kraken_filter.log";
     my $jstring = qq!
 use Bio::Adventure;
@@ -647,6 +654,7 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
   jprefix => '$options->{jprefix}',
   job_log => '${log}',
   output => '${output_files}',
+  output_unaligned => '${unal_files}',
   output_dir => '${output_dir}',);
 !;
     my $host = $class->Submit(
@@ -662,6 +670,7 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         job_log => $log,
         language => 'perl',
         output => $output_files,
+        output_unaligned => $unal_files,
         output_dir => $output_dir,);
     return($host);
 }
@@ -688,6 +697,7 @@ sub Filter_Kraken_Worker {
         jname => 'krakenfilter',
         jprefix => '06',
         required => ['input', 'output'],
+        output_unaligned => undef,
         type => 'species',);
     my $separator;
     if ($options->{type} eq 'domain') {
@@ -769,13 +779,34 @@ sub Filter_Kraken_Worker {
         $need_download = 1;
     }
 
+    my $search_data = undef;
     if ($need_download) {
         my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
         my $mech = WWW::Mechanize->new(autocheck => 1);
         print $out "Searching ${search_url} for appropriate download links.\n";
-        my $search_data = $mech->get($search_url);
+        my $link_retries = 5;
+        my $search_data = undef;
+        while ($link_retries > 0 && !defined($search_data)) {
+            try {
+                $search_data = $mech->get($search_url);
+            } catch ($e) {
+                $search_data = undef;
+                warn "Failed to acquired download links, retrying ${link_retries} times.\n";
+            }
+            $link_retries--;
+            sleep(10);
+        }
+        if (!defined($search_data)) {
+            return(undef);
+        }
+
         my @search_links = $mech->find_all_links(
             tag => 'a', text_regex => qr/ASM/i);
+        if (!@search_links) {
+            print STDOUT "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+            print $out "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+            return(undef);
+        }
         my $first_hit = $search_links[0];
         my ($assembly_link, $assembly_title) = @{$first_hit};
         my $accession = basename($assembly_link);
@@ -790,7 +821,24 @@ sub Filter_Kraken_Worker {
         } else {
             my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
             print $out "Searching ${assembly_url} for appropriate download links.\n";
-            my $assembly_data = $mech->get($assembly_url);
+            my $assembly_status = '400';
+            my $assembly_retries = 5;
+            my $assembly_data = undef;
+            while ($assembly_retries > 0 && !defined($assembly_data)) {
+                try {
+                    $assembly_data = $mech->get($assembly_url);
+                    $assembly_status = $mech->status();
+                } catch ($e) {
+                    $search_data = undef;
+                    warn "Failed to acquired download links, retrying ${link_retries} times.\n";
+                }
+                sleep(10);
+                $assembly_retries--;
+            }
+            if ($assembly_status ne '200') {
+                print "Unable to download assembly information for: $assembly_url\n";
+                return(undef);
+            }
             my @download_links = $mech->find_all_links(
                 tag => 'a', text_regex => qr/FTP/i);
           LINKS: foreach my $l (@download_links) {
@@ -829,7 +877,7 @@ sub Filter_Kraken_Worker {
     } ## End checking if the host_species was defined.
 
     my $cyoa_shell = Bio::Adventure->new(cluster => 0);
-    my $index_input = qq"$options->{libpath}/$options->{libtype}/${host_species_accession}.fasta";
+    my $index_input = qq"$options->{libpath}/$options->{libtype}/${host_species_accession}.fsa";
     my $index_location = qq"$options->{libpath}/$options->{libtype}/indexes/${host_species_accession}.1.ht2";
     if (-r $index_location) {
         print $out "Found indexes at: ${index_location}\n";
@@ -844,6 +892,7 @@ sub Filter_Kraken_Worker {
         ## If it does not exist, write it with the species name.
     }
     ## Now perform the filter using our temp_cyoa.
+
     print $out "Filtering out reads which map to ${host_species_accession}.\n";
     my $filter = $cyoa_shell->Bio::Adventure::Map::Hisat2(
         compress => 0,
@@ -851,6 +900,7 @@ sub Filter_Kraken_Worker {
         input => $options->{input_fastq},
         jprefix => $options->{jprefix},
         output_dir => $options->{output_dir},
+        output_unaligned => $options->{output_unaligned},
         species => $host_species_accession,);
     my $filtered_reads = $filter->{unaligned};
     my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
