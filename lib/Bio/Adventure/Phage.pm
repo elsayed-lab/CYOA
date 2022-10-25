@@ -779,11 +779,27 @@ sub Filter_Kraken_Worker {
         $need_download = 1;
     }
 
+    my $search_data = undef;
     if ($need_download) {
         my $search_url = qq"https://www.ncbi.nlm.nih.gov/assembly/?term=${escaped_species}";
         my $mech = WWW::Mechanize->new(autocheck => 1);
         print $out "Searching ${search_url} for appropriate download links.\n";
-        my $search_data = $mech->get($search_url);
+        my $link_retries = 5;
+        my $search_data = undef;
+        while ($link_retries > 0 && !defined($search_data)) {
+            try {
+                $search_data = $mech->get($search_url);
+            } catch ($e) {
+                $search_data = undef;
+                warn "Failed to acquired download links, retrying ${link_retries} times.\n";
+            }
+            $link_retries--;
+            sleep(10);
+        }
+        if (!defined($search_data)) {
+            return(undef);
+        }
+
         my @search_links = $mech->find_all_links(
             tag => 'a', text_regex => qr/ASM/i);
         if (!@search_links) {
@@ -805,7 +821,24 @@ sub Filter_Kraken_Worker {
         } else {
             my $assembly_url = qq"https://www.ncbi.nlm.nih.gov/assembly/${accession}";
             print $out "Searching ${assembly_url} for appropriate download links.\n";
-            my $assembly_data = $mech->get($assembly_url);
+            my $assembly_status = '400';
+            my $assembly_retries = 5;
+            my $assembly_data = undef;
+            while ($assembly_retries > 0 && !defined($assembly_data)) {
+                try {
+                    $assembly_data = $mech->get($assembly_url);
+                    $assembly_status = $mech->status();
+                } catch ($e) {
+                    $search_data = undef;
+                    warn "Failed to acquired download links, retrying ${link_retries} times.\n";
+                }
+                sleep(10);
+                $assembly_retries--;
+            }
+            if ($assembly_status ne '200') {
+                print "Unable to download assembly information for: $assembly_url\n";
+                return(undef);
+            }
             my @download_links = $mech->find_all_links(
                 tag => 'a', text_regex => qr/FTP/i);
           LINKS: foreach my $l (@download_links) {
