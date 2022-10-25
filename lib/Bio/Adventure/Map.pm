@@ -284,7 +284,7 @@ sub Bowtie2 {
         gff_type => 'gene',
         gff_tag => 'ID',
         jmem => 28,
-        jprefix => 20,
+        jprefix => '20',
         modules => ['bowtie2']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bowtie2-build');
@@ -296,7 +296,7 @@ sub Bowtie2 {
         foreach my $sp (@species_lst) {
             print "Invoking bowtie2 on ${sp}\n";
             $class->{species} = $sp;
-            my $result = Bio::Adventure::Map::Bowtie2($class %{$options});
+            my $result = Bio::Adventure::Map::Bowtie2($class, %{$options});
             push (@result_lst, $result);
         }
         $options->{species} = $start_species;
@@ -317,7 +317,7 @@ sub Bowtie2 {
         $suffix_name .= qq"_$options->{jname}";
     }
 
-    my $bt_dir = qq"outputs/bowtie2_$options->{species}";
+    my $bt_dir = qq"outputs/$options->{jprefix}bowtie2_$options->{species}";
     if ($args{bt_dir}) {
         $bt_dir = $args{bt_dir};
     }
@@ -413,7 +413,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     if ($options->{count}) {
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                htseq_input => $sam_job->{output},
+                input => $sam_job->{output},
                 gff_type => $options->{gff_type},
                 gff_tag => $options->{gff_tag},
                 jdepends => $sam_job->{job_id},
@@ -423,7 +423,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
                 mapper => 'bowtie2',);
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                htseq_input => $sam_job->{output},
+                input => $sam_job->{output},
                 gff_type => $options->{gff_type},
                 gff_tag => $options->{gff_tag},
                 jdepends => $sam_job->{job_id},

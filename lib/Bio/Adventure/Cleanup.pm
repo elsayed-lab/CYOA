@@ -65,6 +65,8 @@ rm -f \$(find . -type f -name '*.ht2')
 rm -f \$(find . -type f -name '*.tmp.*')
 ## Trinotate junk
 rm -r \$(find . -type d -name '*_dir*')
+## Recompress random fastq files
+xz -9e -f \$(find . -name '*.fastq')
 !;
 
     my $comment = '## Cleanup some of the mess.';

@@ -109,7 +109,6 @@ xz -9e -f ${in_full}
 !;
         }
     }
-    print "TESTME: $jstring\n";
     $output_string =~ s/:$//g;
 
     my $compression = $class->Submit(
