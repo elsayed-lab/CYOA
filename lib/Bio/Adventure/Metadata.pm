@@ -717,6 +717,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
         my $annot = $feat->annotation();
         my $locus = 'failed_locustag';
+        ## FIXME!
         my $type = $feat->primary_tag;
 
         ## A couple of places to attempt to make my gbk file more similar to patric's vis a vis
