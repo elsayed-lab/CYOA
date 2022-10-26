@@ -703,13 +703,14 @@ $options->{tool} $options->{arbitrary} \\
   $options->{input} \\
   2>${stderr} \\
   1>${stdout}
-if [ "\$?" \!= "0" ]; then
+if [[ "\$?" \!= "0" ]]; then
+  echo "First tRNAScan run failed, trying again with tRNAscan-SE." >> ${stderr}
   tRNAscan-SE -G $options->{input} \\
     -o ${output_file} \\
     2>>${stderr} \\
     1>>${stdout}
-  if [ "\$?" \!= "0" ]; then
-    echo "Both attempts at running tRNAscan failed."
+  if [[ "\$?" \!= "0" ]]; then
+    echo "Both attempts at running tRNAscan failed." >> ${stderr}
   fi
 fi
 !;

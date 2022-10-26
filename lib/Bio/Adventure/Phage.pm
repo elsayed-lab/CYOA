@@ -721,6 +721,18 @@ sub Filter_Kraken_Worker {
     }
 
     my $output_dir = $options->{output_dir};
+
+    ## The final output filenames, which may be invoked early
+    ## if it is not possible to perform the filtering.
+    my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
+    my $out_r1_base = basename($out_r1);
+    my $out_r2_base = basename($out_r2);
+    ## The input fastq files, split here in case we need to symlink them
+    ## back due to failure.
+    my ($in_r1_fastq, $in_r2_fastq) = split(/\:|\;|\,|\s+/, $options->{input_fastq});
+    $in_r1_fastq = File::Spec->rel2abs($in_r1_fastq);
+    $in_r2_fastq = File::Spec->rel2abs($in_r2_fastq);
+
     my $out = FileHandle->new(">$options->{job_log}");
     my $in = FileHandle->new("<$options->{input}");
     print $out "Starting search for best kraken host strain.\n";
@@ -797,6 +809,12 @@ sub Filter_Kraken_Worker {
             sleep(10);
         }
         if (!defined($search_data)) {
+            print STDOUT "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+            print $out "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+            print STDOUT "Symlinking the input to the filtered output.\n";
+            print $out "Symlinking the input to the filtered output.\n";
+            my $sad_r1 = symlink($in_r1_fastq, $out_r1);
+            my $sad_r2 = symlink($in_r2_fastq, $out_r2);
             return(undef);
         }
 
@@ -805,6 +823,10 @@ sub Filter_Kraken_Worker {
         if (!@search_links) {
             print STDOUT "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
             print $out "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+            print STDOUT "Symlinking the input to the filtered output.\n";
+            print $out "Symlinking the input to the filtered output.\n";
+            my $sad_r1 = symlink($in_r1_fastq, $out_r1);
+            my $sad_r2 = symlink($in_r2_fastq, $out_r2);
             return(undef);
         }
         my $first_hit = $search_links[0];
@@ -837,6 +859,12 @@ sub Filter_Kraken_Worker {
             }
             if ($assembly_status ne '200') {
                 print "Unable to download assembly information for: $assembly_url\n";
+                print STDOUT "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+                print $out "The search for an assembly for ${escaped_species} failed, unable to filter.\n";
+                print STDOUT "Symlinking the input to the filtered output.\n";
+                print $out "Symlinking the input to the filtered output.\n";
+                my $sad_r1 = symlink($in_r1_fastq, $out_r1);
+                my $sad_r2 = symlink($in_r2_fastq, $out_r2);
                 return(undef);
             }
             my @download_links = $mech->find_all_links(
@@ -906,10 +934,9 @@ sub Filter_Kraken_Worker {
     my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
     $in_r1 = File::Spec->rel2abs($in_r1);
     $in_r2 = File::Spec->rel2abs($in_r2);
-    my ($out_r1, $out_r2) = split(/\:|\;|\,|\s+/, $options->{output});
-    print $out "Symlinking final output files to $options->{output_dir}\n";
     unlink $out_r1 if (-l $out_r1);
     unlink $out_r2 if (-l $out_r2);
+    print $out "Symlinking final output files to $options->{output_dir}\n";
     if (-e $out_r1) {
         print "The file: $out_r1 already exists.\n";
     } else {
@@ -1638,6 +1665,7 @@ sub Terminase_ORF_Reorder_Worker {
     print $log "Starting fasta search of $options->{input}
   against ${library_file} using tool: $options->{fasta_tool}.\n";
     my $query = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+    print $log "Opening: $options->{input} as a fasta file.\n";
     my $fasta_outfile = qq"${output_dir}/$options->{library}_hits.txt";
     my @params = (
         b => 1,
@@ -1652,6 +1680,7 @@ sub Terminase_ORF_Reorder_Worker {
         try {
             @fasta_output = $search->run($options->{query});
         } catch ($e) {
+            print $log "There was an error running standalone fasta: $e\n";
             warn "An error occurred: $e";
         }
     };
