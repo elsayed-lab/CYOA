@@ -697,21 +697,31 @@ sub tRNAScan {
     my $comment = '## This is a script to run trnascan.';
     my $stdout = qq"${output_dir}/trnascan.stdout";
     my $stderr = qq"${output_dir}/trnascan.stderr";
+    my $stdout_v2 = qq"${output_dir}/trnascan_se.stdout";
+    my $stderr_v2 = qq"${output_dir}/trnascan_se.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
-$options->{tool} $options->{arbitrary} \\
+## Note, trnascan often dies with a SEGFAULT
+## I am wrapping it in a subshell, because this seems to happen
+## at the end of the process.
+first=\$($options->{tool} $options->{arbitrary} \\
   -o ${output_file} \\
   $options->{input} \\
   2>${stderr} \\
-  1>${stdout}
-if [[ "\$?" \!= "0" ]]; then
-  echo "First tRNAScan run failed, trying again with tRNAscan-SE." >> ${stderr}
-  tRNAscan-SE -G $options->{input} \\
-    -o ${output_file} \\
-    2>>${stderr} \\
-    1>>${stdout}
-  if [[ "\$?" \!= "0" ]]; then
-    echo "Both attempts at running tRNAscan failed." >> ${stderr}
-  fi
+  1>${stdout})
+if [[ "\$?" == "0" ]]; then
+  echo "First tRNAScan run passed, probably because it was in a subshell."
+else
+  echo "First tRNAScan run failed. >> ${stderr}
+fi
+
+second=\$(tRNAscan-SE -G $options->{input} \\
+  -o ${output_file} \\
+  2>>${stderr_v2} \\
+  1>>${stdout_v2})
+if [[ "\$?" == "0" ]]; then
+  echo "tRNAScan-SE passed." >> ${stderr_v2}
+else
+  echo "The tRNAScan-SE attempt failed." >> ${stderr_v2}
 fi
 !;
     my $trnascan = $class->Submit(
