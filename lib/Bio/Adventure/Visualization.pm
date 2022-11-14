@@ -88,6 +88,10 @@ cgview_xml_builder.pl -sequence ${xml_input} \\
   -output ${xml_output} \\
   ${option_string} \\
   2>${output_directory}/cgview.stderr 1>${output_directory}/cgview.stdout
+if [[ \$? \!= "0" ]]; then
+  echo "Unable to create initial xml file."
+  exit 0
+fi
 
 cgview -i ${xml_output} \\
   -o ${output_file}.png -f png \\

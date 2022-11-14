@@ -82,10 +82,11 @@ cd ${output_dir}
 bacphlip -f \${multi_arg} -i ${in_base} \\
   2>${out_base}.stderr \\
   1>${out_base}.stdout
-mv ${in_base}.6frame ${input_basename}.6frame
-mv ${in_base}.bacphlip ${input_basename}.bacphlip
-mv ${in_base}.hmmsearch ${input_basename}.hmmsearch
-mv ${in_base}.hmmsearch.tsv ${input_basename}.tsv
+## These mv commands fail if the --multi_fasta argument is in effect.
+## mv ${in_base}.6frame ${input_basename}.6frame
+## mv ${in_base}.bacphlip ${input_basename}.bacphlip
+## mv ${in_base}.hmmsearch ${input_basename}.hmmsearch
+## mv ${in_base}.hmmsearch.tsv ${input_basename}.tsv
 cd \${start}
 ?;
     my $job = $class->Submit(

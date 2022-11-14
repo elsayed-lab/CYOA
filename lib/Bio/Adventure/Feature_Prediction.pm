@@ -693,6 +693,7 @@ sub tRNAScan {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trnascan";
     my $output_file = qq"${output_dir}/trnascan_$options->{suffix}.txt";
+    my $output_file_v2 = qq"${output_dir}/trnascan_$options->{suffix}_se.txt";
     my $species_string = '';
     my $comment = '## This is a script to run trnascan.';
     my $stdout = qq"${output_dir}/trnascan.stdout";
@@ -708,21 +709,11 @@ first=\$($options->{tool} $options->{arbitrary} \\
   $options->{input} \\
   2>${stderr} \\
   1>${stdout})
-if [[ "\$?" == "0" ]]; then
-  echo "First tRNAScan run passed, probably because it was in a subshell."
-else
-  echo "First tRNAScan run failed. >> ${stderr}
-fi
 
 second=\$(tRNAscan-SE -G $options->{input} \\
-  -o ${output_file} \\
+  -o ${output_file_v2} \\
   2>>${stderr_v2} \\
   1>>${stdout_v2})
-if [[ "\$?" == "0" ]]; then
-  echo "tRNAScan-SE passed." >> ${stderr_v2}
-else
-  echo "The tRNAScan-SE attempt failed." >> ${stderr_v2}
-fi
 !;
     my $trnascan = $class->Submit(
         comment => $comment,
