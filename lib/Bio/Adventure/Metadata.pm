@@ -523,6 +523,7 @@ sub Merge_Annotations_Worker {
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
     my $log_fh = FileHandle->new(">${log}");
+    print "TESTME: Merging annotations and writing new output files.\n";
     print $log_fh "Merging annotations and writing new output files:
 gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## Here is a list of columns that will be created when merging these data sources.
@@ -623,6 +624,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
         primary_key => $options->{primary_key},
         output => $merged_data,
         input => $options->{input_tsv});
+
     if ($options->{input_trinotate} && -r $options->{input_trinotate}) {
         print $log_fh "Adding trinotate annotations from $options->{input_trinotate}.\n";
         ## 1b above, trinotate annotations.
@@ -662,7 +664,9 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             input_dtr => $options->{input_phageterm},
             input_fsa => $options->{input_fsa},
             log_fh => $log_fh);
-        print $log_fh "Adding phageterm DTRs.\n";
+        my $num_dtr = scalar(@{$dtr_features});
+        print "TESTME: Adding ${num_dtr} phageterm DTRs\n";
+        print $log_fh "Adding ${num_dtr} phageterm DTRs.\n";
     } else {
         print $log_fh "Not adding phageterm DTRs.\n";
     }
@@ -699,21 +703,32 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
     my @new_seq = ();
     my @new_features = ();
+    my $feature_contig_number = 0;
+    my $master_id = $output_name;
   SEQUENCES: while (my $seq = $seqio->next_seq) {
       my $seqid = $seq->id;
       push(@new_seq, $seqid);
       $seq_count++;
       my @feature_list = $seq->get_SeqFeatures();
+
       ## Check if we have the phageterm dtr feature, if so, put it at the beginning.
+      ## Make sure to only do this for the first sequence.
+      ## Actually no, we need to ensure that the contig ID matches.
       for my $d (@{$dtr_features}) {
-          unshift(@feature_list, $d);
+          if ($seqid eq $d->seq_id()) {
+              print "Adding the DTR to the beginning of the feature list for this sequence.\n";
+              unshift(@feature_list, $d);
+          }
       }
       for my $ara (@{$aragorn_features}) {
-          unshift(@feature_list, $ara);
+          if ($seqid eq $ara->seq_id()) {
+              unshift(@feature_list, $ara);
+          }
       }
 
     FEATURES: for my $feat (@feature_list) {
         my $contig = $feat->seq_id(); ## The contig ID
+
         my $primary = $feat->primary_tag(); ## E.g. the type gene/cds/misc/etc
         my $annot = $feat->annotation();
         my $locus = 'failed_locustag';
@@ -728,10 +743,15 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
         ## I want to mess with the CDS entries and leave the others alone.
         if ($type eq 'CDS') {
-            ## Get the information from our extra data source and add it as notes.
+            $feature_contig_number++;
             my @loci = $feat->get_tag_values('locus_tag');
             $locus = $loci[0];
+            print "TESTME AFTER RENAMING: $locus\n";
             my $new_info = $merged_data->{$locus};
+
+            ## FIXME: Set display name
+            my $set_name = $feat->display_name($locus);
+            print "FIXME: in contig: $contig Set display name to $locus\n";
             ## Pull out some sequence information to send back to $merged_data
             $merged_data->{$locus}->{start} = $feat->start;
             $merged_data->{$locus}->{end} = $feat->end;
@@ -823,6 +843,11 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 my @current_values = $feat->remove_tag('product');
                 my $new = $feat->add_tag_value('product', $product_string);
                 my $inf;
+
+                ## FIXME: Looking for missing display names
+                ## use Data::Dumper;
+                ## print Dumper $feat;
+
                 if ($product_string eq $signal_string) {
                     $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
                 } elsif ($product_string eq $tm_string) {
@@ -848,13 +873,20 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
       ## In theory, we now have a set of features with some new notes.
       ## So now let us steal the tbl writer from prokka and dump this new stuff...
-      print $log_fh "Writing new tbl file to ${output_tbl}.\n";
-      my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
-          tbl_file => $output_tbl,
-          taxonomy_information => $taxonomy_information,
-          sequences => \@new_seq,
-          features => \@new_features);
-  } ## End Iterating over every sequence
+
+      ## Looking for why sometimes tbl files are not getting all annotations.
+      ## use Data::Dumper;
+      ## print Dumper @new_features;
+
+  } ## End iterating over every sequence.
+
+    print "TESTME: Writing new tbl file to ${output_tbl}\n";
+    print $log_fh "Writing new tbl file to ${output_tbl}.\n";
+    my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
+        tbl_file => $output_tbl,
+        taxonomy_information => $taxonomy_information,
+        sequences => \@new_seq,
+        features => \@new_features);
 
     ## Remember that tbl2asn assumes the input files are all in the same directory.
     ## Before running tbl2asn, write a fresh copy of the fsa file containing the detected phage taxonomy.

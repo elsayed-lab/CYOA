@@ -1031,7 +1031,7 @@ sub Rename_Features {
         }
         $terminal_feature->add_tag_value('protein_id', $protein_name);
         push(@renamed, $terminal_feature);
-  }
+    }
 
     ## Finally, re-iterate over the features and add genes if requested.
     my @final_features = ();
@@ -1055,7 +1055,7 @@ sub Rename_Features {
           push(@final_features, $gene);
           push(@final_features, $f);
       } ## Finished iterating over the features and adding genes.
-  }
+    }
 
     my $len = scalar(@final_features);
     return(@final_features);
@@ -1143,71 +1143,71 @@ sub Write_CDS_from_SeqFeatures {
     my $count = 0;
     my $full_sequence;
     my $maximum_length = 0;
- FEATURES: for my $in (@features) {
-     $count++;
-     my $type = $in->primary_tag;
-     next FEATURES if ($type eq 'gene');
-     my $source = $in->source_tag;
-     my $contig = $in->seq_id;
-     my $name = $in->display_name;
-     my $start = $in->start;
-     my $end = $in->end;
-     my $strand = $in->strand;
-     my $full_sequence = $named_seq{$contig};
-     ## This is hopefully only happening when a phageterm-reorganized
-     ## genome is putting an ORF at the 'top of the clock'
-     ## My solution therefore will be to check that it is bound at the
-     ## new beginning.
-     my $cds_obj = '';
-     if ($end < $start) {
-         ## I am going to assume that any real orf in this context must
-         ## be no more than 5000 before and/or 5000 after the 0 point, thus
-         ## a 6k ORF ending at position 100 will fail this test.
-         my $post_dist = $end;
-         my $pre_dist = $full_sequence->length - $start;
-         if ($pre_dist < 5000 && $post_dist < 5000) {
-             print "Found an overlap with 12 on the clock.\n";
-             my $pre_sequence = $full_sequence->trunc($end, $pre_dist);
-             my $post_sequence = $full_sequence->trunc(1, $start);
-             if ($strand < 0) {
-                 $pre_sequence = $pre_sequence->revcom;
-                 $post_sequence = $post_sequence->revcom;
-             }
-             my $tmp_sequence_string = $pre_sequence->seq . $post_sequence->seq;
-             $cds_obj = Bio::Seq->new(-display_id => $name, -seq => $tmp_sequence_string);
-         } else {
-             print "Cannot deal with this sequence right now, start:${start}, end:${end}\n";
-             next FEATURES;
-         }
-     } else { ## Normal sequence where start < end
-         $cds_obj = $full_sequence->trunc($start, $end);
-         if ($strand < 0) {
-             $cds_obj = $cds_obj->revcom;
-         }
-     }
-     my $aa_obj = $cds_obj->translate;
-     my $cds_sequence_string = $cds_obj->seq;
-     my $aa_sequence_string = $aa_obj->seq;
-     $aa_sequence_string =~ s/\*$//g;
+  FEATURES: for my $in (@features) {
+      $count++;
+      my $type = $in->primary_tag;
+      next FEATURES if ($type eq 'gene');
+      my $source = $in->source_tag;
+      my $contig = $in->seq_id;
+      my $name = $in->display_name;
+      my $start = $in->start;
+      my $end = $in->end;
+      my $strand = $in->strand;
+      my $full_sequence = $named_seq{$contig};
+      ## This is hopefully only happening when a phageterm-reorganized
+      ## genome is putting an ORF at the 'top of the clock'
+      ## My solution therefore will be to check that it is bound at the
+      ## new beginning.
+      my $cds_obj = '';
+      if ($end < $start) {
+          ## I am going to assume that any real orf in this context must
+          ## be no more than 5000 before and/or 5000 after the 0 point, thus
+          ## a 6k ORF ending at position 100 will fail this test.
+          my $post_dist = $end;
+          my $pre_dist = $full_sequence->length - $start;
+          if ($pre_dist < 5000 && $post_dist < 5000) {
+              print "Found an overlap with 12 on the clock.\n";
+              my $pre_sequence = $full_sequence->trunc($end, $pre_dist);
+              my $post_sequence = $full_sequence->trunc(1, $start);
+              if ($strand < 0) {
+                  $pre_sequence = $pre_sequence->revcom;
+                  $post_sequence = $post_sequence->revcom;
+              }
+              my $tmp_sequence_string = $pre_sequence->seq . $post_sequence->seq;
+              $cds_obj = Bio::Seq->new(-display_id => $name, -seq => $tmp_sequence_string);
+          } else {
+              print "Cannot deal with this sequence right now, start:${start}, end:${end}\n";
+              next FEATURES;
+          }
+      } else { ## Normal sequence where start < end
+          $cds_obj = $full_sequence->trunc($start, $end);
+          if ($strand < 0) {
+              $cds_obj = $cds_obj->revcom;
+          }
+      }
+      my $aa_obj = $cds_obj->translate;
+      my $cds_sequence_string = $cds_obj->seq;
+      my $aa_sequence_string = $aa_obj->seq;
+      $aa_sequence_string =~ s/\*$//g;
 
-     my $cds_seq_obj = Bio::Seq->new(-display_id => $name, -seq => $cds_sequence_string);
-     $out_cds->write_seq($cds_seq_obj);
-     my $aa_seq_obj = Bio::Seq->new(-display_id => $name, -seq => $aa_sequence_string);
-     $out_faa->write_seq($aa_seq_obj);
-     $written++;
+      my $cds_seq_obj = Bio::Seq->new(-display_id => $name, -seq => $cds_sequence_string);
+      $out_cds->write_seq($cds_seq_obj);
+      my $aa_seq_obj = Bio::Seq->new(-display_id => $name, -seq => $aa_sequence_string);
+      $out_faa->write_seq($aa_seq_obj);
+      $written++;
 
-     ## Now figure out what information to write to the tsv file.
-     my @notes;
-     my $note;
-     if ($in->has_tag('note')) {
-         @notes = $in->get_tag_values('note');
-         $note = $notes[0];
-         $note =~ s/^cds_prediction:\s+//g;
-     }
+      ## Now figure out what information to write to the tsv file.
+      my @notes;
+      my $note;
+      if ($in->has_tag('note')) {
+          @notes = $in->get_tag_values('note');
+          $note = $notes[0];
+          $note =~ s/^cds_prediction:\s+//g;
+      }
 
-     my $tsv_line = qq"${name}\t${contig}\t${type}\t${source}\t${start}\t${end}\t${strand}\t${note}\t${aa_sequence_string}\n";
-     print $out_tsv $tsv_line;
- }
+      my $tsv_line = qq"${name}\t${contig}\t${type}\t${source}\t${start}\t${end}\t${strand}\t${note}\t${aa_sequence_string}\n";
+      print $out_tsv $tsv_line;
+  }
     $out_tsv->close();
     return($written);
 }
@@ -1377,7 +1377,6 @@ sub Write_Tbl_from_SeqFeatures {
     my $file = $args{tbl_file};
     my $taxonomy_information = $args{taxonomy_information};
     my @seq = @{$args{sequences}};
-
     my @features = @{$args{features}};
 
     my $tbl_fh = FileHandle->new(">${file}");
@@ -1392,57 +1391,63 @@ sub Write_Tbl_from_SeqFeatures {
     ## naming it %seq when you already have @seq and $seq is a bit insane and confusing.
 
     my %contig_to_orf = ();
-    for my $j (@features) {
-        my $orf_id = $j->display_name;
-        my $contig_id = $j->seq_id;
-        $contig_to_orf{$orf_id} = $contig_id;
-    }
+  FEATUREIDS: for my $j (@features) {
+      my $orf_id = $j->display_name;
+      my $contig_id = $j->seq_id;
+      next FEATUREIDS if (!defined($orf_id));
+      next FEATUREIDS if ($orf_id eq '');
+      $contig_to_orf{$orf_id} = $contig_id;
+  }
 
-    OUTERSEQ: for my $sid (@seq) {
-        print $tbl_fh ">Feature ${sid}\n";
-        INNERFEATURE: for my $f (@features) {
-            my $feature_name = $f->display_name;
-            next INNERFEATURE unless ($contig_to_orf{$feature_name} eq $sid);
-            if ($f->primary_tag eq 'source') {
-                $f->strand(1);
-                if (defined($taxonomy_information)) {
-                    my $org_set = $f->add_tag_value('organism', "Phage similar to $taxonomy_information->{taxon}.");
-                    my $strain_set = $f->add_tag_value('strain', "Similar accession: $taxonomy_information->{hit_accession}.");
-                    my $id_set = $f->seq_id("Phage species similar to $taxonomy_information->{taxon}.");
-                }
+  OUTERSEQ: for my $sid (@seq) {
+      print STDOUT "Working on feature: ${sid}\n";
+      print $tbl_fh ">Feature ${sid}\n";
+    INNERFEATURE: for my $f (@features) {
+        my $feature_name = $f->display_name;
+        ## use Data::Dumper;
+        ## print Dumper $f;
+        next INNERFEATURE unless ($contig_to_orf{$feature_name} eq $sid);
+        print "In ${sid} working on $feature_name\n";
+        if ($f->primary_tag eq 'source') {
+            $f->strand(1);
+            if (defined($taxonomy_information)) {
+                my $org_set = $f->add_tag_value('organism', "Phage similar to $taxonomy_information->{taxon}.");
+                my $strain_set = $f->add_tag_value('strain', "Similar accession: $taxonomy_information->{hit_accession}.");
+                my $id_set = $f->seq_id("Phage species similar to $taxonomy_information->{taxon}.");
             }
-            if ($f->primary_tag eq 'CDS' and not $f->has_tag('product')) {
-                my $product_set = $f->add_tag_value('product', $hypothetical_string);
-            }
-            if (my $name = TAG($f, 'gene')) {
-                my $name_set = $f->add_tag_value('Name', $name);
-            }
-            # Make sure we have valid frames/phases (GFF column 8)
-            $f->frame($f->primary_tag eq 'CDS' ? 0 : '.');
-            if (!defined($f->strand) || !defined($f->start) || !defined($f->end)) {
-                my $name = $f->display_name;
-                my $strand = $f->strand;
-                my $start = $f->start;
-                my $end = $f->end;
-                print "THERE IS A PROBLEM WITH: ${name}\n";
-                print "ONE OF STRAND:${strand} START:${start} OR END:${end} IS UNDEFINED.\n";
-            }
-            my ($L, $R) = ($f->strand >= 0) ? ($f->start, $f->end) : ($f->end, $f->start);
-            print $tbl_fh "${L}\t${R}\t", $f->primary_tag, "\n";
-            WRITE_TAGS: for my $tag ($f->get_all_tags) {
-                # remove GFF specific tags (start with uppercase letter)
-                next WRITE_TAGS if $tag =~ m/^[A-Z]/ and $tag !~ m/EC_number/i;
-                my @unwanted = ('gc_cont', 'sscore', 'phase', 'conf', 'tscore', 'partial', 'rbs_spacer', 'rbs_motif', 'cscore', 'start_type', 'uscore', 'seq_id', 'rscore', 'source', 'frame', 'score', 'type');
-                next WRITE_TAGS if (grep $_ eq $tag, @unwanted);
-                for my $value ($f->get_tag_values($tag)) {
-                    if (!defined($value)) {
-                        print $tbl_fh "\t\t\t${tag}\t\n";
-                    } else {
-                        print $tbl_fh "\t\t\t${tag}\t${value}\n";
-                    }
-                } ## End iterating over the tag values.
-            } ## End getting all tags
-        } ## End iterating over features
+        }
+        if ($f->primary_tag eq 'CDS' and not $f->has_tag('product')) {
+            my $product_set = $f->add_tag_value('product', $hypothetical_string);
+        }
+        if (my $name = TAG($f, 'gene')) {
+            my $name_set = $f->add_tag_value('Name', $name);
+        }
+        # Make sure we have valid frames/phases (GFF column 8)
+        $f->frame($f->primary_tag eq 'CDS' ? 0 : '.');
+        if (!defined($f->strand) || !defined($f->start) || !defined($f->end)) {
+            my $name = $f->display_name;
+            my $strand = $f->strand;
+            my $start = $f->start;
+            my $end = $f->end;
+            print "THERE IS A PROBLEM WITH: ${name}\n";
+            print "ONE OF STRAND:${strand} START:${start} OR END:${end} IS UNDEFINED.\n";
+        }
+        my ($L, $R) = ($f->strand >= 0) ? ($f->start, $f->end) : ($f->end, $f->start);
+        print $tbl_fh "${L}\t${R}\t", $f->primary_tag, "\n";
+      WRITE_TAGS: for my $tag ($f->get_all_tags) {
+          # remove GFF specific tags (start with uppercase letter)
+          next WRITE_TAGS if $tag =~ m/^[A-Z]/ and $tag !~ m/EC_number/i;
+          my @unwanted = ('gc_cont', 'sscore', 'phase', 'conf', 'tscore', 'partial', 'rbs_spacer', 'rbs_motif', 'cscore', 'start_type', 'uscore', 'seq_id', 'rscore', 'source', 'frame', 'score', 'type');
+          next WRITE_TAGS if (grep $_ eq $tag, @unwanted);
+          for my $value ($f->get_tag_values($tag)) {
+              if (!defined($value)) {
+                  print $tbl_fh "\t\t\t${tag}\t\n";
+              } else {
+                  print $tbl_fh "\t\t\t${tag}\t${value}\n";
+              }
+          } ## End iterating over the tag values.
+      } ## End getting all tags
+    } ## End iterating over features
     } ## End iterating over sequence objects.
     return(%contig_to_orf);
 }
@@ -1454,11 +1459,11 @@ sub Write_Tbl_from_SeqFeatures {
 
 =cut
 sub TAG {
-  my($f, $tag) = @_;
-  # very important to "return undef" here and not just "return"
-  # otherwise it becomes non-existent/collapsed in a list
-  return undef unless $f->has_tag($tag);
-  return ($f->get_tag_values($tag))[0];
+    my($f, $tag) = @_;
+    # very important to "return undef" here and not just "return"
+    # otherwise it becomes non-existent/collapsed in a list
+    return undef unless $f->has_tag($tag);
+    return ($f->get_tag_values($tag))[0];
 }
 
 1;

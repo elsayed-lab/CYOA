@@ -1189,6 +1189,67 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
+    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'vienna',);
+    ## Not setting last_job, allowing the next jobs to skip past this.
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for Restriction Sites.\n";
+    my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'restrict',);
+    $last_job = $re_search->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Running caical against the assumed host.\n";
+    my $caical = $class->Bio::Adventure::Phage::Caical(
+        input => $cds_merge->{output_cds},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'restrict',
+        species => 'host_species.txt',);
+    $last_job = $caical->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for Phage promoters.\n";
+    my $phagepromoter = $class->Bio::Adventure::Feature_Prediction::Phagepromoter(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'phagepromoter',);
+    $last_job = $phagepromoter->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for rho terminators.\n";
+    my $rhopredict = $class->Bio::Adventure::Feature_Prediction::Rho_Predict(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'rhopredict',);
+    $last_job = $rhopredict->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Using bacphlip to classify this phage.\n";
+    my $bacphlip = $class->Bio::Adventure::Phage::Bacphlip(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'bacphlip',);
+    $last_job = $bacphlip->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Merging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
         input_fsa => $cds_merge->{output_fsa},
@@ -1238,67 +1299,6 @@ sub Phage_Assemble {
         jdepends => $last_job,
         jprefix => $prefix,);
     ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
-    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
-        input => $merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'vienna',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for Restriction Sites.\n";
-    my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
-        input => $merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'restrict',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running caical against the assumed host.\n";
-    my $caical = $class->Bio::Adventure::Phage::Caical(
-        input => $cds_merge->{output_cds},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'restrict',
-        species => 'host_species.txt',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for Phage promoters.\n";
-    my $phagepromoter = $class->Bio::Adventure::Feature_Prediction::Phagepromoter(
-        input => $merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'phagepromoter',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for rho terminators.\n";
-    my $rhopredict = $class->Bio::Adventure::Feature_Prediction::Rho_Predict(
-        input => $merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'rhopredict',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Using bacphlip to classify this phage.\n";
-    my $bacphlip = $class->Bio::Adventure::Phage::Bacphlip(
-        input => $merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'bacphlip',);
-    $last_job = $bacphlip->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
