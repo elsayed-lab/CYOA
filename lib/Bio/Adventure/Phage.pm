@@ -1012,6 +1012,8 @@ sub Get_DTR {
     my $dtr_id = '';
     my @dtr_features = ();
     my $first_contig_id = '';
+    my $dtr_count = 0;
+    my $dtr_name = '';
     if ($has_dtr) {
         my $dtr_read = Bio::SeqIO->new(-file => $input_dtr, -format => 'Fasta');
       DTR: while (my $dtr_seq = $dtr_read->next_seq()) {
@@ -1031,6 +1033,8 @@ sub Get_DTR {
           }
           my $dtr_note = qq"Phageterm determined this DTR is of type ${dtr_type}.";
         DTR_SEARCH: while ($contig_sequence =~ m/$dtr_sequence/g) {
+            $dtr_count++;
+            my $dtr_name = qq"DTR${dtr_count}";
             my $dtr_end = pos($contig_sequence);
             my $dtr_start = $dtr_end - ($dtr_length - 1);
             my $dtr_feature = Bio::SeqFeature::Generic->new(
@@ -1047,11 +1051,14 @@ sub Get_DTR {
                     'inference' => 'COORDINATES:profile:PhageTerm',
                     'note' => $dtr_note,
                 },);
+            $dtr_feature->display_name($dtr_name);
             push(@dtr_features, $dtr_feature);
         } ## End matching on this contig
       } ## End iterating over the contigs
     } else {
         ## There is no dtr file, but there was a dtr type, so let us make a dummy feature for it.
+        $dtr_count++;
+        $dtr_name = qq"DTR${dtr_count}";
         my $dtr_feature = Bio::SeqFeature::Generic->new(
             -primary => 'misc_feature',
             -seq_id => $first_contig_id,
@@ -1066,6 +1073,7 @@ sub Get_DTR {
                 'inference' => 'COORDINATES:profile:PhageTerm',
                 'note' => 'PhageTerm is unable to explicitly define a start/end for this type of packing element, so this script arbitrarily put it as positions 1 and 2 of the first contig.',
             },);
+        $dtr_feature->display_name($dtr_name);
         push(@dtr_features, $dtr_feature);
     }
     return(\@dtr_features);
@@ -1195,6 +1203,12 @@ sub Phageterm_Worker {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
         ## I think abs_path only works on things which already exist.
         ## Which is a problem if we are running this in the middle of a pipeline
+        ## Add a check to see if we are rerunning phageterm following the compression of the inputs.
+        my $test_compressed = qq"$in[0].xz";
+        if (-f $test_compressed) {
+            $in[0] = qq"$in[0].xz";
+            $in[1] = qq"$in[1].xz" if ($in[1]);
+        }
         my $in_dir = dirname($in[0]);
         my $prefix = abs_path($in_dir);
         my $r1_dirname = dirname($in[0]);
@@ -1256,6 +1270,7 @@ PhageTerm.py -f ${read_string} \\
     ## Now that we have run phageterm on each contig
     ## Go back over them and find which (if any) have
     ## a DTR and put the first one on the front of the assembly.
+    ## We currently ignore a second to nth DTR and only focus on the first observed.
     print $phage_log "Looking through phageterm results for the first DTR.\n";
     my $dtr_contig = '0';
   DTR_HUNT: for my $num (1 .. $contig_number) {
@@ -1282,6 +1297,10 @@ PhageTerm.py -f ${read_string} \\
   echo 'no dtr' > ${workdir}/phageterm_final_nodtr.txt";
   } else {
       ## Otherwise, put the DTR as the first contig and copy the rest
+      ## There is a caveat here, I need to rename the DTR containing contig to #1
+      ## and then rename any following contigs to 2..n
+      my $new_contig_number = 1;
+      my $new_contig_name = qq"contig${new_contig_number}";
       print $phage_log "A DTR was found, writing to the phageterm output file.\n";
       my $out_assembly = Bio::SeqIO->new(-file => qq">${workdir}/phageterm_final_assembly.fasta",
                                          -format => 'Fasta');
@@ -1289,24 +1308,47 @@ PhageTerm.py -f ${read_string} \\
       my $in_assembly = Bio::SeqIO->new(-file => qq"<${workdir}/contig${dtr_contig}_sequence.fasta",
                                         -format => 'Fasta');
       while (my $sequence = $in_assembly->next_seq()) {
+          ## my $print_seq = $sequence->seq;
+          my $test_name = $sequence->display_name($new_contig_name);
           $out_assembly->write_seq($sequence);
       }
       ## For the rest of the contigs, copy the unmodified sequences to the final assembly.
       print $phage_log "Writing all other contigs to the final assembly.\n";
     CONTIG_LOOP: for my $num (1 .. $contig_number) {
-        next CONTIG_LOOP if ($num eq $dtr_contig);
+        if ($num eq $dtr_contig) {
+            ## print "This contig: ${num} $dtr_contig is the same as the dtr, skipping.\n";
+            next CONTIG_LOOP;
+        }
+        $new_contig_number++;
+        $new_contig_name = qq"contig{$new_contig_number}";
         print $phage_log "Writing contig ${num} to the final assembly.\n";
         my $last_contig = Bio::SeqIO->new(-file => qq"<${workdir}/contig${num}.fasta",
                                           -format => 'Fasta');
         while (my $seq = $last_contig->next_seq()) {
+            my $test_name = $seq->display_name($new_contig_name);
             $out_assembly->write_seq($seq);
         }
     } ## End the contig loop
+
       ## Now lets copy the DTR and nrt files
       my $dtr_file = qq"${workdir}/contig${dtr_contig}_direct-term-repeats.fasta";
       if (-r $dtr_file) {
           print $phage_log "Copying the dtr from contig ${dtr_contig} to phageterm_final_dtr.fasta.\n";
-          my $dtr_copy = qx"cp ${workdir}/contig${dtr_contig}_direct-term-repeats.fasta ${workdir}/phageterm_final_dtr.fasta";
+          ## Note, here too we must ensure that the new contig # is 1.
+          ## my $dtr_copy = qx"cp ${workdir}/contig${dtr_contig}_direct-term-repeats.fasta ${workdir}/phageterm_final_dtr.fasta";
+          ## So, copying the dtr file is not appropriate.
+          my $final_dtr_seq = Bio::SeqIO->new(-file => qq">${workdir}/phageterm_final_dtr.fasta",
+                                              -format => 'Fasta');
+          my $dtr_seq = Bio::SeqIO->new(-file => qq"<${dtr_file}",
+                                            -format => 'Fasta');
+          while (my $dtr_sequence = $dtr_seq->next_seq()) {
+              my $start_name = $dtr_sequence->display_name();
+              my $end_name = $start_name;
+              $end_name =~ s/^contig\d+/contig1/g;
+              my $test_name = $dtr_sequence->display_name($end_name);
+              print "Renamed dtr sequence from: $start_name to $end_name\n";
+              $final_dtr_seq->write_seq($dtr_sequence);
+          }
       } else {
           print $phage_log "There is not dtr fasta file for ${dtr_contig}.\n";
       }
@@ -1314,7 +1356,7 @@ PhageTerm.py -f ${read_string} \\
       my $ntr_copy = qx"cp ${workdir}/contig${dtr_contig}_nrt.txt ${workdir}/phageterm_final_nrt.txt";
   } ## End when we do find a DTR
     print $phage_log "Deleting the uncompressed input files.\n";
-    my $delete_crap = qx"rm -f ${workdir}/r1.fastq ${workdir}/r2.fastq ${workdir}/contig*.fasta 2>/dev/null 1>/dev/null";
+    my $delete_crap = qx"rm -f ${workdir}/r1.fastq ${workdir}/r2.fastq 2>/dev/null 1>/dev/null";
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
 }
@@ -1342,6 +1384,8 @@ sub Phastaf {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        input_phageterm => '',  ## In case we want to re-analyze the assembly
+        interpret => 1,
         jcpus => 8,
         jmem => 12,
         jprefix => '14',
@@ -1361,6 +1405,8 @@ sub Phastaf {
     }
     my $comment = '## This is a script to run phastaf.';
     my $coords = qq"${output_dir}/diamond.coords";
+    my $input_fna = qq"${output_dir}/contigs.fna";
+    my $bed = qq"${coords}.bed";
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
@@ -1373,6 +1419,7 @@ phastaf --force --outdir ${output_dir} \\
     my $phastaf = $class->Submit(
         comment => $comment,
         coordinates => $coords,
+        bed => $bed,
         jcpus => $options->{jcpus},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
@@ -1383,9 +1430,165 @@ phastaf --force --outdir ${output_dir} \\
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+
+    if ($options->{interpret}) {
+        my $interpret_comment = '## Count up the phastaf regions.';
+        my $interpret_jstring = qq?
+use Bio::Adventure;
+use Bio::Adventure::Phage;
+my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
+  input => '$bed',
+  input_fna => '$input_fna',
+  input_phageterm => '$options->{input_phageterm}',
+  jname => 'interpret_phastaf',
+  jprefix => '$options->{jprefix}',);
+?;
+        my $interpretation = $class->Submit(
+            comment => $interpret_comment,
+            input => $bed,
+            input_fna => $input_fna,
+            input_phageterm => $options->{input_phageterm},
+            jmem => $options->{jmem},
+            jname => 'interpret_phastaf',
+            jprefix => $options->{jprefix},
+            jstring => $interpret_jstring,
+            language => 'perl',);
+    }
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($phastaf);
+}
+
+sub Interpret_Phastaf_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        input_phageterm => '',
+        required => ['input', 'input_fna'],
+        jprefix => '14',);
+    my $output_dir = dirname($options->{input});
+    my $output_file = qq"${output_dir}/interpret_phastaf.txt";
+    my $log = FileHandle->new(">${output_dir}/interpret_phastaf.log");
+    my $out = FileHandle->new(">${output_file}");
+    my %contig_lengths = ();
+    my $contig_hits = {};
+
+    my $in_assembly = Bio::SeqIO->new(-file => $options->{input_fna} ,
+                                      -format => 'Fasta');
+    while (my $seqobj = $in_assembly->next_seq()) {
+        my $current_id = $seqobj->id();
+        my $current_length = $seqobj->length();
+        $contig_lengths{$current_id} = $current_length;
+    }
+    my $in = FileHandle->new("<$options->{input}");
+    while (my $line = <$in>) {
+        chomp $line;
+        my ($contig_number, $start, $end, $hit_name, $percent, $strand) = split(/\t/, $line);
+        my $contig_name = qq"contig${contig_number}";
+        my @simplified = split(/\|/, $hit_name);
+        my $simplified_name = $simplified[0];
+        $simplified_name =~ s/^PHAGE_//g;
+        my @simple_name = split(/_/, $simplified_name);
+        my $simple_genus = shift(@simple_name);
+        my $simple_strain = $simple_genus;
+        my $strain_end = 0;
+        my $strain_count = 0;
+        while ($strain_end == 0) {
+            $strain_end = 1 if ($simple_name[$strain_count + 1] =~ /gi$/);
+            $strain_end = 1 if ($simple_name[$strain_count + 2] =~ /gi$/);
+            $simple_strain = qq"${simple_strain} $simple_name[$strain_count]";
+            $strain_count++;
+        }
+        my $hit_len = $end - $start;
+        my $current_len = 0;
+        if ($contig_hits->{$contig_number}->{$simple_strain}) {
+            $current_len = $contig_hits->{$contig_number}->{$simple_strain};
+        }
+        $contig_hits->{$contig_number}->{$simple_strain} = $current_len + $hit_len;
+    } ## End looking over every hit.
+
+    my @contig_keys = ();
+    my $num_contigs = 0;
+    for my $contig (keys %{$contig_hits}) {
+        $num_contigs++;
+        my %strains = %{$contig_hits->{$contig}};
+        my $contig_len = $contig_lengths{$contig};
+        my @strains = keys %strains;
+        for my $strain (@strains) {
+            $contig_hits->{$contig}->{$strain} = $contig_hits->{$contig}->{$strain} / $contig_len
+        }
+        push(@contig_keys, @strains);
+    }
+
+    if ($num_contigs == 1) {
+        print $log "There appears to be a single contig.\n";
+    } elsif ($num_contigs == 2) {
+        print $log "There appears to be 2 contigs.  Let us see the intersection of them?\n";
+        my @first = $contig_keys[0];
+        my @second = $contig_keys[1];
+        my %union;
+        my %inter;
+        my @union_strains = ();
+        my @inter_strains = ();
+        foreach my $e (@first) {
+            $union{$e} = 1;
+        }
+        foreach my $e (@second) {
+            if ($union{$e}) {
+                $inter{$e} = 1
+            }
+            $union{$e} = 1;
+        }
+        @union_strains = keys %union;
+        @inter_strains = keys %inter;
+        my $num_inter = scalar(@inter_strains);
+        if ($num_inter == 0) {
+            print $log "These appear to be two totally separate strains.\n";
+            print $log "Separating the contigs in case one wishes to analyze them separately.\n";
+            my $in_assembly = Bio::SeqIO->new(-file => $options->{input_fna} ,
+                                              -format => 'Fasta');
+            my $contig = 0;
+            while (my $seqobj = $in_assembly->next_seq()) {
+                $contig++;
+                my $new_file = basename($options->{input_fna}, ('.fna'));
+                $new_file = qq"${output_dir}/${new_file}_${contig}.fna";
+                my $out = Bio::SeqIO->new(-file => ">${new_file}",
+                                          -format => 'Fasta');
+                my $current_id = $seqobj->id();
+                my $new_output_base = cwd();
+                my $current_base = basename($new_output_base);
+                my $new_id = qq"${current_base}_contig${contig}";
+                my $full_output_dir = qq"${new_output_base}/${new_id}";
+                my $full_input_phageterm = abs_path($options->{input_phageterm});
+                my $full_input = abs_path($new_file);
+                print "TESTME: $full_output_dir\n";
+                $seqobj->id($new_id);
+                my $current_seq = $seqobj->seq();
+                $out->write_seq($seqobj);
+                my $made = make_path($full_output_dir);
+                chdir($full_output_dir);
+                my $split_cyoa = Bio::Adventure->new(basedir => $full_output_dir,);
+                my $annotated = $split_cyoa->Bio::Adventure::Pipeline::Annotate_Phage(
+                    input_phageterm => $full_input_phageterm,
+                    input => $full_input);
+                chdir($new_output_base);
+            }
+        } else {
+            print $log "There are ${num_inter} shared strains in these two contigs.\n";
+        }
+    }
+
+    for my $c (keys %{$contig_hits}) {
+        my %strains = %{$contig_hits->{$c}};
+        my @keys = sort { $strains{$a} <=> $strains{$b} } keys(%strains);
+        for my $v (@keys) {
+            ##my @vals = @{$h}{@keys};
+            print $log "Contig: ${c}, strain: ${v}, percent: $strains{$v}.\n";
+        }
+    }
+
+    $log->close();
+    $out->close();
 }
 
 =head2 C<Restriction_Catalog>
@@ -1463,9 +1666,7 @@ sub Restriction_Catalog_Worker {
         output => 're_catalog.tsv',);
     my $output_dir = dirname($options->{output});
     my $log = FileHandle->new(">${output_dir}/re_catalog.log");
-
     my $collection = Bio::Restriction::EnzymeCollection->new();
-
     my $query = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
     my %data = ();
   SEARCHES: while (my $contig = $query->next_seq()) {

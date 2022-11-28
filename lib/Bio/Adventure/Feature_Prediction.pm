@@ -704,16 +704,20 @@ sub tRNAScan {
 ## Note, trnascan often dies with a SEGFAULT
 ## I am wrapping it in a subshell, because this seems to happen
 ## at the end of the process.
+set +o errexit
+echo "Starting trnascan at $(date)" > ${output_dir}/trnascan_return.txt
 first=\$($options->{tool} $options->{arbitrary} \\
   -o ${output_file} \\
   $options->{input} \\
   2>${stderr} \\
   1>${stdout})
+echo "Finished first run with $? at $(date)" >> ${output_dir}/trnascan_return.txt
 
-second=\$(tRNAscan-SE -G $options->{input} \\
+second=\$(tRNAscan-SE -Q -G $options->{input} \\
   -o ${output_file_v2} \\
   2>>${stderr_v2} \\
   1>>${stdout_v2})
+echo "Finished second run with $? at $(date)" >> ${output_dir}/trnascan_return.txt
 !;
     my $trnascan = $class->Submit(
         comment => $comment,
