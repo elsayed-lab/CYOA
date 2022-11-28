@@ -187,31 +187,21 @@ sub Annotate_Assembly {
 
 sub Annotate_Phage {
     my ($class, %args) = @_;
-    print "This annotation pipeline starts with the output of unicycler.\n";
     my $options = $class->Get_Vars(
-        args => \%args,);
+        args => \%args,
+        input_phageterm => '',
+        required => ['input']);
 
     my $prefix = sprintf("%02d", 7);
     my $final_locustag = basename(cwd());
-    my $assembly_output = qq"outputs/07unicycler/${final_locustag}_final_assembly.fasta";
-    my $filtered_reads = qq"outputs/05filter_kraken_host/r1_host_filtered.fastq.xz:outputs/05filter_kraken_host/r2_host_filtered.fastq.xz";
     my $last_job;
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nDepth filtering initial assembly.\n";
-    my $depth_filtered = $class->Bio::Adventure::Assembly::Unicycler_Filter_Depth(
-        jdepends => $last_job,
-        input => $assembly_output,
-        jprefix => $prefix,
-        jname => 'depth_filter',);
-    $last_job = $depth_filtered->{job_id};
-    sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
         jdepends => $last_job,
-        input => $depth_filtered->{output},
+        input => $options->{input},
+        interpret => 0,
         jprefix => $prefix,
         jname => 'phastaf',);
     $last_job = $phastaf->{job_id};
@@ -221,52 +211,17 @@ sub Annotate_Phage {
     print "\nRunning virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
         jdepends => $last_job,
-        input => $depth_filtered->{output},
+        input => $options->{input},
         jprefix => $prefix,
         jname => 'ictv',);
     $last_job = $ictv->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nSetting the Rosalind strand to the one with the most ORFs.\n";
-    my $rosalindplus = $class->Bio::Adventure::Annotation::Rosalind_Plus(
-        jdepends => $last_job,
-        input => $depth_filtered->{output},
-        jprefix => $prefix,
-        jname => 'rosalindplus',);
-    $last_job = $rosalindplus->{job_id};
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nUsing Phageterm to reorient the assembly to the terminii.\n";
-    my $phageterm = $class->Bio::Adventure::Phage::Phageterm(
-        jdepends => $last_job,
-        input => $filtered_reads,
-        jprefix => $prefix,
-        jname => 'phageterm',
-        library => $rosalindplus->{output},);
-    $last_job = $phageterm->{job_id};
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nPerforming reordering by putative terminase if phageterm failed.\n";
-    my $termreorder = $class->Bio::Adventure::Phage::Terminase_ORF_Reorder(
-        fasta_tool => 'fastx36',
-        input => $phageterm->{output},
-        library => 'terminase',
-        species => 'phages',
-        test_file => $phageterm->{test_file},
-        jprefix => $prefix,
-        jname => 'reorder',
-        jdepends => $last_job,);
-    $last_job = $termreorder->{job_id};
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nPerforming initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
         jdepends => $last_job,
-        input => $termreorder->{output},
+        input => $options->{input},
         jprefix => $prefix,
         jname => 'prokka',
         locus_tag => $final_locustag,);
@@ -304,11 +259,11 @@ sub Annotate_Phage {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nMerging the CDS predictions and writing an initial gbk file.\n";
     my $cds_merge = $class->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions(
-        jdepends => $last_job,
         input => $prokka->{output_genbank},
         input_glimmer => $glimmer->{output},
         input_phanotate => $phanotate->{output},
         input_prodigal => $prodigal->{output_gff},
+        jdepends => $last_job,
         jprefix => $prefix);
     $last_job = $cds_merge->{job_id};
     sleep($options->{jsleep});
@@ -334,13 +289,25 @@ sub Annotate_Phage {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Running relaxed tRNAscan to search for tmRNAs.\n";
+    my $trnascan = $class->Bio::Adventure::Feature_Prediction::tRNAScan(
+        arbitrary => ' -r ',
+        input => $prokka->{output_assembly},
+        jdepends => $last_job,
+        jname => 'trnascan',
+        jprefix => $prefix,
+        suffix => 'relaxed',);
+    $last_job = $trnascan->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\nInvoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
-        jdepends => $last_job,
+        config => 'phage.txt',
         input => $cds_merge->{output_cds},
+        jdepends => $last_job,
         jprefix => $prefix,
-        jname => 'trinotate',
-        config => 'phage.txt',);
+        jname => 'trinotate',);
     $last_job = $trinotate->{job_id};
     sleep($options->{jsleep});
 
@@ -357,11 +324,51 @@ sub Annotate_Phage {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nRunning interproscan.\n";
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
+        input => $cds_merge->{output_faa},
         jdepends => $last_job,
         jprefix => $prefix,
-        jname => 'interproscan',
-        input => $cds_merge->{output_faa},);
+        jname => 'interproscan',);
     $last_job = $interpro->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for Restriction Sites.\n";
+    my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'restrict',);
+    $last_job = $re_search->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for Phage promoters.\n";
+    my $phagepromoter = $class->Bio::Adventure::Feature_Prediction::Phagepromoter(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'phagepromoter',);
+    $last_job = $phagepromoter->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Searching for rho terminators.\n";
+    my $rhopredict = $class->Bio::Adventure::Feature_Prediction::Rho_Predict(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'rhopredict',);
+    $last_job = $rhopredict->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Using bacphlip to classify this phage.\n";
+    my $bacphlip = $class->Bio::Adventure::Phage::Bacphlip(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'bacphlip',);
+    $last_job = $bacphlip->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -375,7 +382,7 @@ sub Annotate_Phage {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{output_dtr},
+        input_phageterm => $options->{input_phageterm},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
@@ -395,7 +402,7 @@ sub Annotate_Phage {
         input_aragorn => $aragorn->{output},
         input_classifier => $ictv->{output},
         input_interpro => $interpro->{output_tsv},
-        input_phageterm => $phageterm->{output_dtr},
+        input_phageterm => $options->{input_phageterm},
         input_prodigal => $prodigal->{output},
         input_trinotate => $trinotate->{output},
         jprefix => $prefix,
@@ -416,13 +423,21 @@ sub Annotate_Phage {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning Vienna RNAfold on the assembly.\n";
-    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+    print "\n${prefix}: Collecting output files.\n";
+    my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
+        input_fsa => $merge->{output_fsa},
+        input_genbank => $merge->{output_gbk},
+        input_stripped => $merge2->{output_gbk},
+        input_tbl => $merge->{output_tbl},
+        input_tbl_stripped => $merge2->{output_tbl},
+        input_tsv => $merge->{output_tsv},
+        input_xlsx => $merge->{output_xlsx},
+        input_faa => $cds_merge->{output_faa},
+        input_cds => $cds_merge->{output_cds},
         jdepends => $last_job,
-        input => $merge2->{output_gbk},
         jprefix => $prefix,
-        jname => 'vienna',);
-    $last_job = $cds_merge->{job_id};
+        jname => 'collect',);
+    $last_job = $collect->{job_id};
     sleep($options->{jsleep});
 
 }
@@ -1009,16 +1024,6 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running phastaf.\n";
-    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
-        jdepends => $last_job,
-        input => $depth_filtered->{output},
-        jprefix => $prefix,
-        jname => 'phastaf',);
-    $last_job = $phastaf->{job_id};
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
         jdepends => $last_job,
@@ -1047,6 +1052,17 @@ sub Phage_Assemble {
         jname => 'phageterm',
         library => $rosalindplus->{output},);
     $last_job = $phageterm->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Running phastaf.\n";
+    my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
+        jdepends => $last_job,
+        input => $depth_filtered->{output},
+        input_phageterm => $phageterm->{output_dtr},
+        jprefix => $prefix,
+        jname => 'phastaf',);
+    $last_job = $phastaf->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));

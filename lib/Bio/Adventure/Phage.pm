@@ -1384,6 +1384,8 @@ sub Phastaf {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        input_phageterm => '',  ## In case we want to re-analyze the assembly
+        interpret => 1,
         jcpus => 8,
         jmem => 12,
         jprefix => '14',
@@ -1429,25 +1431,29 @@ phastaf --force --outdir ${output_dir} \\
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
 
-    my $interpret_comment = '## Count up the phastaf regions.';
-    my $interpret_jstring = qq?
+    if ($options->{interpret}) {
+        my $interpret_comment = '## Count up the phastaf regions.';
+        my $interpret_jstring = qq?
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
   input => '$bed',
   input_fna => '$input_fna',
+  input_phageterm => '$options->{input_phageterm}',
   jname => 'interpret_phastaf',
   jprefix => '$options->{jprefix}',);
 ?;
-    my $interpretation = $class->Submit(
-        comment => $interpret_comment,
-        input => $bed,
-        input_fna => $input_fna,
-        jmem => $options->{jmem},
-        jname => 'interpret_phastaf',
-        jprefix => $options->{jprefix},
-        jstring => $interpret_jstring,
-        language => 'perl',);
+        my $interpretation = $class->Submit(
+            comment => $interpret_comment,
+            input => $bed,
+            input_fna => $input_fna,
+            input_phageterm => $options->{input_phageterm},
+            jmem => $options->{jmem},
+            jname => 'interpret_phastaf',
+            jprefix => $options->{jprefix},
+            jstring => $interpret_jstring,
+            language => 'perl',);
+    }
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($phastaf);
@@ -1457,6 +1463,7 @@ sub Interpret_Phastaf_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        input_phageterm => '',
         required => ['input', 'input_fna'],
         jprefix => '14',);
     my $output_dir = dirname($options->{input});
@@ -1504,7 +1511,7 @@ sub Interpret_Phastaf_Worker {
     my $num_contigs = 0;
     for my $contig (keys %{$contig_hits}) {
         $num_contigs++;
-        my %strains = $contig_hits->{$contig};
+        my %strains = %{$contig_hits->{$contig}};
         my $contig_len = $contig_lengths{$contig};
         my @strains = keys %strains;
         for my $strain (@strains) {
@@ -1548,18 +1555,37 @@ sub Interpret_Phastaf_Worker {
                 my $out = Bio::SeqIO->new(-file => ">${new_file}",
                                           -format => 'Fasta');
                 my $current_id = $seqobj->id();
-                my $new_id = qq"${current_id}_${contig}";
+                my $new_output_base = cwd();
+                my $current_base = basename($new_output_base);
+                my $new_id = qq"${current_base}_contig${contig}";
+                my $full_output_dir = qq"${new_output_base}/${new_id}";
+                my $full_input_phageterm = abs_path($options->{input_phageterm});
+                my $full_input = abs_path($new_file);
+                print "TESTME: $full_output_dir\n";
                 $seqobj->id($new_id);
                 my $current_seq = $seqobj->seq();
                 $out->write_seq($seqobj);
+                my $made = make_path($full_output_dir);
+                chdir($full_output_dir);
+                my $split_cyoa = Bio::Adventure->new(basedir => $full_output_dir,);
+                my $annotated = $split_cyoa->Bio::Adventure::Pipeline::Annotate_Phage(
+                    input_phageterm => $full_input_phageterm,
+                    input => $full_input);
+                chdir($new_output_base);
             }
         } else {
             print $log "There are ${num_inter} shared strains in these two contigs.\n";
         }
     }
 
-    use Data::Dumper;
-    print Dumper $contig_hits;
+    for my $c (keys %{$contig_hits}) {
+        my %strains = %{$contig_hits->{$c}};
+        my @keys = sort { $strains{$a} <=> $strains{$b} } keys(%strains);
+        for my $v (@keys) {
+            ##my @vals = @{$h}{@keys};
+            print $log "Contig: ${c}, strain: ${v}, percent: $strains{$v}.\n";
+        }
+    }
 
     $log->close();
     $out->close();
