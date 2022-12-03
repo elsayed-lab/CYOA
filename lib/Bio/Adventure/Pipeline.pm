@@ -947,6 +947,7 @@ sub Phage_Assemble {
     print "\n${prefix}: Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{output},
+        jdepends => $last_job,
         jmem => 3,
         jnice => 100,
         jprefix => $prefix,);
@@ -967,8 +968,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Classifying sequences with Kraken using the standard database.\n";
     my $kraken_std = $class->Bio::Adventure::Annotation::Kraken(
-        jdepends => $last_job,
         input => $correct->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'krakenstd',
         library => 'standard',);
@@ -1006,8 +1007,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Creating initial assembly with Unicycler.\n";
     my $assemble = $class->Bio::Adventure::Assembly::Unicycler(
-        jdepends => $last_job,
         input => $filter->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'unicycler',);
     $last_job = $assemble->{job_id};
@@ -1016,8 +1017,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Depth filtering initial assembly.\n";
     my $depth_filtered = $class->Bio::Adventure::Assembly::Unicycler_Filter_Depth(
-        jdepends => $last_job,
         input => $assemble->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'depth_filter',);
     $last_job = $depth_filtered->{job_id};
@@ -1026,8 +1027,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
-        jdepends => $last_job,
         input => $depth_filtered->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'ictv',);
     $last_job = $ictv->{job_id};
@@ -1036,8 +1037,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Setting the Rosalind strand to the one with the most ORFs.\n";
     my $rosalindplus = $class->Bio::Adventure::Annotation::Rosalind_Plus(
-        jdepends => $last_job,
         input => $depth_filtered->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'rosalindplus',);
     $last_job = $rosalindplus->{job_id};
@@ -1046,8 +1047,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Using Phageterm to reorient the assembly to the terminii.\n";
     my $phageterm = $class->Bio::Adventure::Phage::Phageterm(
-        jdepends => $last_job,
         input => $filter->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'phageterm',
         library => $rosalindplus->{output},);
@@ -1057,9 +1058,9 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Running phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
-        jdepends => $last_job,
         input => $depth_filtered->{output},
         input_phageterm => $phageterm->{output_dtr},
+        jdepends => $last_job,
         jprefix => $prefix,
         jname => 'phastaf',);
     $last_job = $phastaf->{job_id};
@@ -1068,11 +1069,11 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Checking coverage.\n";
     my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
-        jdepends => $last_job,
         input => $filter->{output},
-        library => $assemble->{output},
+        jdepends => $last_job,
         jprefix => $prefix,
-        jname => 'coverage',);
+        jname => 'coverage',
+        library => $assemble->{output},);
     $last_job = $coverage->{job_id};
     sleep($options->{jsleep});
 
@@ -1205,16 +1206,6 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
-    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
-        input => $cds_merge->{output_fsa},
-        jdepends => $last_job,
-        jprefix => $prefix,
-        jname => 'vienna',);
-    ## Not setting last_job, allowing the next jobs to skip past this.
-    sleep($options->{jsleep});
-
-    $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Searching for Restriction Sites.\n";
     my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
         input => $cds_merge->{output_fsa},
@@ -1266,6 +1257,17 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
+    print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
+    my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
+        input => $cds_merge->{output_fsa},
+        jdepends => $last_job,
+        jprefix => $prefix,
+        jname => 'vienna',);
+    ## Not setting last_job, allowing the next jobs to skip past this.
+    $last_job = $vienna->{job_id};
+    sleep($options->{jsleep});
+
+    $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Merging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
         input_fsa => $cds_merge->{output_fsa},
@@ -1314,7 +1316,7 @@ sub Phage_Assemble {
         input => $merge->{output_gbk},
         jdepends => $last_job,
         jprefix => $prefix,);
-    ## Not setting last_job, allowing the next jobs to skip past this.
+    $last_job = $cgview->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -1343,8 +1345,8 @@ sub Phage_Assemble {
         $compress_input .= "qq:$filter->{output_unaligned}";
     }
     my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
-        jdepends => $last_job,
         input => qq"$filter->{output}:$filter->{output_unaligned}",
+        jdepends => $last_job,
         jname => 'comp_filtered',
         jprefix => $prefix,);
     $last_job = $compress_filtered->{job_id};
@@ -1353,8 +1355,8 @@ sub Phage_Assemble {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Compressing corrected fastq files.\n";
     my $compress_corrected = $class->Bio::Adventure::Compress::Compress(
-        jdepends => $last_job,
         input => $correct->{output},
+        jdepends => $last_job,
         jname => 'comp_corrected',
         jprefix => $prefix,);
     $last_job = $compress_corrected->{job_id};
