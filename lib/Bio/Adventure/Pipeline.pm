@@ -550,6 +550,7 @@ sub Process_RNAseq {
         host_filter => 0,
         gff_type => 'gene',
         gff_tag => 'ID',
+        stranded => 'reverse',
         intron => 0,
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 0);
@@ -587,14 +588,15 @@ sub Process_RNAseq {
     my $first_id = shift @id_list;
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing initial mapping against ${first_species}.\n";
+    print "\n${prefix}: Performing initial mapping against ${first_species} stranded: $options->{stranded}.\n";
     my $first_map = $class->Bio::Adventure::Map::Hisat2(
         jdepends => $last_job,
         input => $trim->{output},
         species => $first_species,
         gff_type => $first_type,
         gff_tag => $first_id,
-        jprefix => $prefix,);
+        jprefix => $prefix,
+        stranded => $options->{stranded});
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
     sleep($options->{jsleep});
@@ -631,6 +633,7 @@ sub Process_RNAseq {
                     jdepends => $last_job,
                     input => $first_map->{unaligned_comp},
                     species => $nth_species,
+                    stranded => $options->{stranded},
                     gff_type => $nth_type,
                     gff_tag => $nth_id,
                     jprefix => $prefix,);
@@ -641,6 +644,7 @@ sub Process_RNAseq {
                     jdepends => $last_sam_job,
                     input => $trim->{output},
                     species => $nth_species,
+                    stranded => $options->{stranded},
                     gff_type => $nth_type,
                     gff_tag => $nth_id,
                     jprefix => $prefix,);

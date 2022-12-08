@@ -104,7 +104,6 @@ sub Guess_Strand_Worker {
     my $number_reads = $aligns[2] + $unaligns[3];
     my $output_name = qq"$options->{input}.out";
     print $log "There are $number_reads alignments in $options->{input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
-    print "TESTME: There are $number_reads alignments in $options->{input} made of $aligns[2] aligned reads and $unaligns[3] unaligned reads.\n";
     my $forward_hit = 0;
     my $reverse_hit = 0;
     my %result = ();
@@ -143,7 +142,6 @@ sub Guess_Strand_Worker {
       }
 
       my @seq_array = split(//, $seq);
-      print "TESTME: This alignment on chr: $seqid starts at: $start, ends at $end on strand: $strand\n";
       my @tags = $align->get_all_tags;
       ## A reminder when playing with tag values and get_all_tags()
       ## These are coming from the 2nd sam column and are the result of a decimal->binary conversion:
@@ -162,7 +160,6 @@ sub Guess_Strand_Worker {
       ## 0x800(2048): this is a supplemental alignment.
       my $first = $align->get_tag_values('FIRST_MATE');
 
-      print "TESTME: rev: $reversedp mrev: $mate_reversedp proper: $properp\n";
       ## Look for a feature at this position...
       my %chr_features = %{$features->{$seqid}};
       for my $feat_id (keys %chr_features) {
@@ -171,8 +168,6 @@ sub Guess_Strand_Worker {
           ##  ------------------->>>>>-------<<<<<--------------------------
           ##                  >>>>>
           if ($start <= $feat{start} && $end >= $feat{start} && $end < $feat{end}) {
-              print "TESTME: This alignment started before the feature and ended before it.\n";
-              print "TESTME: rev: $reversedp mrev: $mate_reversedp proper: $properp\n";
               use Data::Dumper;
               print Dumper %feat;
           }
@@ -229,6 +224,7 @@ sub HT_Multi {
     } elsif ($stranded eq '0') {
         $stranded = 'no';
     }
+
     my $gff_type = $options->{gff_type};
     my $gff_tag = $options->{gff_tag};
     my @jobs = ();
@@ -265,6 +261,7 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
+                stranded => $options->{stranded},
                 suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
@@ -281,6 +278,7 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
+                stranded => $options->{stranded},
                 suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
@@ -304,6 +302,7 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $options->{postscript},
             prescript => $options->{prescript},
+            stranded => $options->{stranded},
             suffix => $options->{suffix},);
         push(@jobs, $ht);
     } elsif (-r "${gtf}") {
@@ -318,6 +317,7 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $args{postscript},
             prescript => $args{prescript},
+            stranded => $options->{stranded},
             suffix => $args{suffix},);
         push(@jobs, $ht);
     } else {

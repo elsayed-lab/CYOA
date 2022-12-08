@@ -844,7 +844,8 @@ sub Hisat2 {
         output_unaligned => undef,
         unaligned_discordant => undef,
         required => ['species', 'input',],
-        samtools => 1,);
+        samtools => 1,
+        stranded => 'reverse');
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
     die('Could not find hisat2 in your PATH.') unless($check);
@@ -1047,6 +1048,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     } else {
         $htseq_input = $sam_job->{output};
     }
+
     my $htmulti;
     if ($options->{count}) {
         if ($options->{libtype} eq 'rRNA') {
@@ -1059,7 +1061,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 jprefix => $new_jprefix,
                 libtype => $options->{libtype},
                 mapper => 'hisat2',
-                paired => $paired,);
+                paired => $paired,
+                stranded => $options->{stranded});
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 gff_tag => $options->{gff_tag},

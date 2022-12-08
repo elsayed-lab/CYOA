@@ -6,6 +6,7 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use File::Which qw"which";
 use Text::CSV;
 
 =head1 NAME
@@ -118,15 +119,17 @@ sub Fastq_Dump {
         required => ['input'],
         modules => ['sra',],
         output => undef);
-
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('fastq-dump');
+    die('Could not find fastq-dump in your PATH.') unless($check);
     my $fastq_comment = qq"## This script should download an sra accession to local fastq.gz files.
 ";
     my $job_basename = $class->Get_Job_Name();
-    my @inputs = split(/\,/, $options->{input});
+    my @inputs = split(/\,|\;|\:/, $options->{input});
     my @outputs = ();
     my $first_output = undef;
     if (defined($options->{output})) {
-        @outputs = split(/\,/, $options->{output});
+        @outputs = split(/\,|\;|\:/, $options->{output});
         $first_output = $outputs[0];
     }
 
@@ -140,17 +143,19 @@ sub Fastq_Dump {
         my $jstring = "";
         if (defined($outputs[$i]) || defined($first_output)) {
             $outputs[$i] = $first_output if (!defined($outputs[$i]));
-            $jstring = qq"mkdir -p $outputs[$i] && \\
-  fastq-dump --outdir $outputs[$i] \\
-    --gzip --skip-technical --readids \\
-    --read-filter pass --dumpbase \\
-    --split-3 --clip ${in} && \\
+            $jstring = qq"
+mkdir -p $outputs[$i]
+fastq-dump --outdir $outputs[$i] \\
+  --gzip --skip-technical --readids \\
+  --read-filter pass --dumpbase \\
+  --split-3 --clip ${in}
 ";
         } else {
-            $jstring = qq"mkdir -p ${in} && \\
-  fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
-    --read-filter pass --dumpbase \\
-    --split-3 --clip ${in}
+            $jstring = qq"
+mkdir -p ${in}
+fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
+  --read-filter pass --dumpbase \\
+  --split-3 --clip ${in}
 ";
         }
 
@@ -170,6 +175,9 @@ sub Fastq_Dump {
             $fastq_job = $current_fastq_job;
         }
     } ## Foreach my $input
+
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
     return($fastq_job);
 }
 
