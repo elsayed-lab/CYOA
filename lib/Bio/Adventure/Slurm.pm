@@ -7,6 +7,13 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+has sbatch => (is => 'rw', default => 'sbatch');
+has possible_qos => (is => 'rw', default => undef);
+has qos => (is => 'rw', default => undef);
+has associations => (is => 'rw', default => undef);
+has cluster => (is => 'rw', default => undef);
+has account => (is => 'rw', default => undef);
+has partition => (is => 'rw', default => undef);
 
 use Cwd;
 use File::Basename qw "basename dirname";
@@ -156,6 +163,7 @@ sub Get_Associations {
     }
     $assoc->close();
 }
+
 
 sub Choose_Spec {
     my %args = @_;
