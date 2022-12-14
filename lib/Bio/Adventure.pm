@@ -419,6 +419,12 @@ sub BUILD {
 
 sub Check_Libpath {
     my %args = @_;
+    if (!defined($args{libdir})) {
+        $args{libdir} = '\$HOME/libraries';
+    }
+    if (!defined($args{libpath})) {
+        $args{libpath} = "$ENV{HOME}/libraries";
+    }
     ## Make sure that the libdir and libpath agree with one another.
     ## I am intending to use libdir often(always?) as the shell variable $HOME.
     ## But this may change from host to host and I want to be able to
@@ -1008,7 +1014,7 @@ sub Get_TODOs {
         "splitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align::Split_Align'},
         "star+" => \$todo_list->{todo}{'Bio::Adventure::Map::STAR'},
         "tacheck+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::TA_Check'},
-        "test+" => \$todo_list->{todo}{'Bio::Adventure::PBS::Test_Job'},
+        "test+" => \$todo_list->{todo}{'Bio::Adventure::Slurm::Test_Job'},
         "tophat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Tophat'},
         "tpp+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Transit_TPP'},
         "trainprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Train_Prodigal'},
@@ -1393,6 +1399,11 @@ sub Set_Vars {
     }
     $class->{options} = $options;
     return($options);
+}
+
+sub Test_Job {
+    my $slurm = Bio::Adventure::Slurm->new();
+    $slurm->Get_Usage();
 }
 
 sub My_Which {

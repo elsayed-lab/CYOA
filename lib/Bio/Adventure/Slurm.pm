@@ -7,19 +7,61 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-has sbatch => (is => 'rw', default => 'sbatch');
-has possible_qos => (is => 'rw', default => undef);
-has qos => (is => 'rw', default => undef);
-has associations => (is => 'rw', default => undef);
+
+## hash of the associations for this person
+has association_data => (is => 'rw', default => undef);
+## hash of the qos and their attributes.
+has qos_data => (is => 'rw', default => undef);
+
+## List of accounts for this user
+has accounts => (is => 'rw', default => undef);
+## List of clusters available to this user
 has cluster => (is => 'rw', default => undef);
-has account => (is => 'rw', default => undef);
-has partition => (is => 'rw', default => undef);
+## List of qos names visible to this user
+has qos => (is => 'rw', default => undef);
+## Location of the sbatch executable.
+has sbatch => (is => 'rw', default => 'sbatch');
+## Current usage stats
+has usage => (is => 'rw', default => undef);
+has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 
 use Cwd;
 use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
+
+sub BUILD {
+    my ($class, $args) = @_;
+    my $assoc = $class->Get_Associations();
+    my $qos = $class->Get_QOS();
+    $class->{qos_data} = $qos;
+    my @qos_names = sort keys %{$qos};
+    $class->{qos} = \@qos_names;
+    my @clusters = keys %{$assoc};
+    my $cluster = $clusters[0];
+    $class->{cluster} = $cluster;
+    my @accounts = keys %{$assoc->{$cluster}};
+    $class->{accounts} = \@accounts;
+    ## Merge the qos information into the user's assocations
+    ## In the hopes that this makes it easier to pick and choose queues
+    ## So, when we wish to pull the current usage in a qos, we will
+    ## ask for: $assoc->{$cluster}->{$account}->{$qos}->{used_mem} or
+    ## whatever...  This does assume that the counters accross accounts
+    ## are not shared, something which I have not yet tested.
+    for my $cluster (keys %{$assoc}) {
+        for my $account (keys %{$assoc->{$cluster}}) {
+            my @account_qos = @{$assoc->{$cluster}->{$account}->{qos}};
+            for my $q (@account_qos) {
+                my %info = %{$qos->{$q}};
+                $assoc->{$cluster}->{$account}->{$q} = \%info;
+            }
+        }
+    }
+    $class->{association_data} = $assoc;
+    use Data::Dumper;
+    print Dumper $assoc;
+}
 
 sub Check_Sbatch {
     my ($class, %args) = @_;
@@ -28,6 +70,88 @@ sub Check_Sbatch {
         $path = which('bash');
     }
     return($path);
+}
+
+sub Choose_Spec {
+    my %args = @_;
+    my $associations = $args{associations};
+    my $qos_info = $args{qos_info};
+    my $wanted_spec = $args{wanted_spec};
+
+    my $chosen_account = '';
+    my $chosen_qos = '';
+  TOP: for my $cluster (keys %{$associations}) {
+    ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
+        my @qos = @{$associations->{$cluster}->{$account}->{qos}};
+        my $found_qos = 0;
+      QOS: for my $q (@qos) {
+          my $stringent_mem = $qos_info->{max_job_mem} + $qos_info->{used_mem};
+          my $stringent_cpu = $qos_info->{max_job_cpu} + $qos_info->{used_cpu};
+          my $stringent_gpu = $qos_info->{max_job_gpu} + $qos_info->{used_gpu};
+          my $stringent_hours = $qos_info->{max_hours} + $qos_info->{used_hours};
+          ## If we pass this initial test, then the job should start immediately.
+          if ($wanted_spec->{mem} <= $stringent_mem &&
+              $wanted_spec->{cpu} <= $stringent_cpu &&
+              $wanted_spec->{gpu} <= $stringent_gpu &&
+              $wanted_spec->{walltime} <= $stringent_hours) {
+              print "Found qos in first pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime} vs. $stringent_mem $stringent_cpu $stringent_hours\n";
+              $found_qos++;
+              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
+              $chosen_account = $account;
+              $chosen_qos = $q;
+              last TOP;
+          } ## End found a suitable qos
+      } ## End iterating over every qos
+
+        ## If we get here, then there is no place to immediately queue the job
+        ## because there are already jobs queued, so just pick a qos which is big enough.
+        my $found_qos2 = 0;
+      QOS2: for my $q (@qos) {
+          if ($wanted_spec->{mem} <= $qos_info->{max_job_mem} &&
+              $wanted_spec->{cpu} <= $qos_info->{max_job_cpu} &&
+              $wanted_spec->{gpu} <= $qos_info->{max_job_gpu} &&
+              $wanted_spec->{walltime} <= $qos_info->{max_mem}) {
+              print "Found qos in second pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime}\n";
+              $found_qos2++;
+              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
+              $chosen_account = $account;
+              $chosen_qos = $q;
+              last TOP;
+          } ## End found a suitable qos
+      } ## End iterating over every qos
+    }
+  }
+    print "Got $chosen_qos\n";
+    my $ret = {
+        qos_info => $qos_info,
+        choice => $chosen_qos,
+    };
+    return($ret);
+}
+
+sub Get_Associations {
+    my $associations = {};
+    my $assoc = FileHandle->new("sacctmgr -p show associations | grep $ENV{USER} |");
+    while (my $line = <$assoc>) {
+        my ($cluster, $account, $user, $partition, $share, $priority, $group_jobs, $group_tres,
+            $group_wall, $group_tresmin, $max_jobs, $max_tres, $max_tres_per_node, $max_submit,
+            $max_wall, $max_tres_min, $undef, $qos_lst, $def_qos, $group_tres_run_min) = split(/\|/, $line);
+        my @possible_qos = split(/\,/, $qos_lst);
+        my $inner_hash = {
+            share => $share,
+            qos => \@possible_qos,
+            partition => $partition,
+            default_qos => $def_qos };
+        $associations->{$cluster}->{$account} = $inner_hash;
+    }
+    $assoc->close();
+    return($associations);
 }
 
 sub Get_QOS {
@@ -145,90 +269,131 @@ sub Get_QOS {
             $avail_qos->{$n}->{max_hours} = $avail_qos->{default}->{max_hours};
         }
     }
+    return($avail_qos);
 }
 
-sub Get_Associations {
-    my $associations = {};
-    my $assoc = FileHandle->new("sacctmgr -p show associations | grep $ENV{USER} |");
-    while (my $line = <$assoc>) {
-        my ($cluster, $account, $user, $partition, $share, $priority, $group_jobs, $group_tres,
-            $group_wall, $group_tresmin, $max_jobs, $max_tres, $max_tres_per_node, $max_submit,
-            $max_wall, $max_tres_min, $undef, $qos_lst, $def_qos, $group_tres_run_min) = split(/\|/, $line);
-        my @possible_qos = split(/\,/, $qos_lst);
-        my $inner_hash = {
-            share => $share,
-            qos => \@possible_qos,
-            default_qos => $def_qos };
-        $associations->{$cluster}->{$account} = $inner_hash;
-    }
-    $assoc->close();
-}
+sub Get_Usage {
+    my $usage = FileHandle->new("squeue --me -o '%all' |");
+    my $current = {};  ## Hash of the current usage by user.
+    my $all_jobs = {};
+    my $count = 0;
+  USAGE: while (my $line = <$usage>) {
+      chomp $line;
+      next USAGE if ($line =~ /^ACCOUNT/);
+      $count++;
+      my ($account, $tres_per_node, $min_cpus, $min_tmp_disk, $end_time, $features, $group,
+          $over_sub, $job_id, $name, $comment, $time_limit, $min_memory, $req_nodes, $command,
+          $priority, $qos, $reason, $blank, $st, $user, $reservation, $wckey, $exclude_nodes,
+          $nice, $sct, $job_id2, $exec_host, $cpus, $nodes, $dependency, $array_job_id, $group2,
+          $sockets_per_node, $cores_per_socket, $threads_per_core, $array_task_id, $time_left,
+          $time, $nodeslist, $contiguous, $partition, $priority2, $nodelist_reason, $start_time,
+          $state, $uid, $submit_time, $licenses, $core_spec, $sched_nodes, $work_dir) = split(/\|/, $line);
+      ## Some notes about what some of the above variables look like:
+      ## tres_per_node: 'gres:gpu:3'
+      ## I suspect we can do something fun with the priority information, priority2 looks
+      ## like it would be easier to parse though.
+      ## the group variable looks like it currently contains what I think of as user?
+      $min_memory =~ s/G$//g;
+      my $internal = {
+          account => $account,
+          array_job_id => $array_job_id,
+          array_task_id => $array_task_id,
+          blank => $blank,
+          command => $command,
+          comment => $comment,
+          core_spec => $core_spec,
+          contiguous => $contiguous,
+          cores_per_socket => $cores_per_socket,
+          cpus => $cpus,
+          dependency => $dependency,
+          end_time => $end_time,
+          exclude_nodes => $exclude_nodes,
+          exec_host => $exec_host,
+          features => $features,
+          group => $group,
+          group2 => $group2,
+          jobid2 => $job_id2,
+          licenses => $licenses,
+          min_cpus => $min_cpus,
+          min_memory => $min_memory,
+          min_tmp => $min_tmp_disk,
+          name => $name,
+          nice => $nice,
+          nodelist_reason => $nodelist_reason,
+          nodes => $nodes,
+          nodes_list => $nodeslist,
+          over_sub => $over_sub,
+          partition => $partition,
+          priority => $priority,
+          priority2 => $priority2,
+          qos => $qos,
+          reason => $reason,
+          req_nodes => $req_nodes,
+          reservation => $reservation,
+          sched_nodes => $sched_nodes,
+          sct => $sct,
+          sockets_per_node => $sockets_per_node,
+          st => $st,
+          start_time => $start_time,
+          state => $state,
+          submit_time => $submit_time,
+          threads_per_core => $threads_per_core,
+          time => $time,
+          time_left => $time_left,
+          time_limit => $time_limit,
+          tres_per_node => $tres_per_node,
+          uid => $uid,
+          user => $user,
+          wckey => $wckey,
+          work_dir => $work_dir,
+      };
+      $all_jobs->{$job_id} = $internal;
 
-
-sub Choose_Spec {
-    my %args = @_;
-    my $associations = $args{associations};
-    my $qos_info = $args{qos_info};
-    my $wanted_spec = $args{wanted_spec};
-
-    my $chosen_account = '';
-    my $chosen_qos = '';
-  TOP: for my $cluster (keys %{$associations}) {
-    ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
-        my @qos = @{$associations->{$cluster}->{$account}->{qos}};
-        my $found_qos = 0;
-      QOS: for my $q (@qos) {
-          my $qos_info = $avail_qos->{$q};
-          my $stringent_mem = $qos_info->{max_job_mem} + $qos_info->{used_mem};
-          my $stringent_cpu = $qos_info->{max_job_cpu} + $qos_info->{used_cpu};
-          my $stringent_gpu = $qos_info->{max_job_gpu} + $qos_info->{used_gpu};
-          my $stringent_hours = $qos_info->{max_hours} + $qos_info->{used_hours};
-          ## If we pass this initial test, then the job should start immediately.
-          if ($wanted_spec->{mem} <= $stringent_mem &&
-              $wanted_spec->{cpu} <= $stringent_cpu &&
-              $wanted_spec->{gpu} <= $stringent_gpu &&
-              $wanted_spec->{walltime} <= $stringent_hours) {
-              print "Found qos in first pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime} vs. $stringent_mem $stringent_cpu $stringent_hours\n";
-              $found_qos++;
-              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
-              $chosen_account = $account;
-              $chosen_qos = $q;
-              last TOP;
-          } ## End found a suitable qos
-      } ## End iterating over every qos
-
-        ## If we get here, then there is no place to immediately queue the job
-        ## because there are already jobs queued, so just pick a qos which is big enough.
-        my $found_qos2 = 0;
-      QOS2: for my $q (@qos) {
-          my $qos_info = $avail_qos->{$q};
-          if ($wanted_spec->{mem} <= $qos_info->{max_job_mem} &&
-              $wanted_spec->{cpu} <= $qos_info->{max_job_cpu} &&
-              $wanted_spec->{gpu} <= $qos_info->{max_job_gpu} &&
-              $wanted_spec->{walltime} <= $qos_info->{max_mem}) {
-              print "Found qos in second pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime}\n";
-              $found_qos2++;
-              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
-              $chosen_account = $account;
-              $chosen_qos = $q;
-              last TOP;
-          } ## End found a suitable qos
-      } ## End iterating over every qos
-    }
+      my $instance = {
+          $partition => {
+              $account => {
+                  $qos => {
+                      mem => $min_memory,
+                      min_cpu => $min_cpus,
+                      jobs => 1,
+                  }, }, },
+      };
+      print "TESTME: $state\n";
+      if ($state eq 'RUNNING') {
+          $instance->{$partition}->{$account}->{$qos}->{running} = 1;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
+      } elsif ($state eq 'PENDING') {
+          $instance->{$partition}->{$account}->{$qos}->{running} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 1;
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
+      } elsif ($state eq 'COMPLETING') {
+          $instance->{$partition}->{$account}->{$qos}->{running} = 1;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
+      } else {
+          $instance->{$partition}->{$account}->{$qos}->{running} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 1;
+      }
+      if (!defined($current->{$user}->{$partition}->{$account}->{$qos})) {
+          $current->{$user} = $instance;
+      } else {
+          $current->{$user}->{$partition}->{$account}->{$qos}->{running} += $instance->{$partition}->{$account}->{$qos}->{running};
+          $current->{$user}->{$partition}->{$account}->{$qos}->{queued} += $instance->{$partition}->{$account}->{$qos}->{queued};
+          $current->{$user}->{$partition}->{$account}->{$qos}->{failed} += $instance->{$partition}->{$account}->{$qos}->{failed};
+          $current->{$user}->{$partition}->{$account}->{$qos}->{mem} += $instance->{$partition}->{$account}->{$qos}->{mem};
+          $current->{$user}->{$partition}->{$account}->{$qos}->{min_cpu} += $instance->{$partition}->{$account}->{$qos}->{min_cpu};
+          $current->{$user}->{$partition}->{$account}->{$qos}->{jobs} += 1;
+      }
   }
-    print "Got $chosen_qos\n";
-    my $ret = {
-        qos_info => $qos_info,
-        choice => $chosen_qos,
-    };
-    return($ret);
+    $usage->close();
+    use Data::Dumper;
+    print Dumper $current;
 }
+
+
+
 
 =head1 NAME
 
@@ -440,6 +605,13 @@ touch ${finished_file}
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
     return($job);
+}
+
+sub Test_Job {
+    my ($class, %args) = @_;
+    my $slurm = Bio::Adventure::Slurm->new();
+    my $test = $slurm->{slurm_test};
+    print "TESTME: ${test}\n";
 }
 
 =head1 AUTHOR - atb
