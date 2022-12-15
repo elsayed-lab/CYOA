@@ -1475,9 +1475,11 @@ sub Interpret_Phastaf_Worker {
     my %contig_lengths = ();
     my $contig_hits = {};
 
+    my $num_contigs = 0;
     my $in_assembly = Bio::SeqIO->new(-file => $options->{input_fna} ,
                                       -format => 'Fasta');
     while (my $seqobj = $in_assembly->next_seq()) {
+        $num_contigs++;
         my $current_id = $seqobj->id();
         my $current_length = $seqobj->length();
         $contig_lengths{$current_id} = $current_length;
@@ -1510,9 +1512,9 @@ sub Interpret_Phastaf_Worker {
     } ## End looking over every hit.
 
     my @contig_keys = ();
-    my $num_contigs = 0;
+    my $num_contigs_with_hits = 0;
     for my $contig (keys %{$contig_hits}) {
-        $num_contigs++;
+        $num_contigs_with_hits++;
         my %strains = %{$contig_hits->{$contig}};
         my $contig_len = $contig_lengths{$contig};
         my @strains = keys %strains;
@@ -1521,10 +1523,11 @@ sub Interpret_Phastaf_Worker {
         }
         push(@contig_keys, @strains);
     }
+    print $log "This assembly has ${num_contigs} contigs.\n";
 
     if ($num_contigs == 1) {
         print $log "There appears to be a single contig.\n";
-    } elsif ($num_contigs == 2) {
+    } elsif ($num_contigs == 2 && $num_contigs_with_hits == 2) {
         print $log "There appears to be 2 contigs.  Let us see the intersection of them?\n";
         my @first = $contig_keys[0];
         my @second = $contig_keys[1];
@@ -1559,11 +1562,11 @@ sub Interpret_Phastaf_Worker {
                 my $current_id = $seqobj->id();
                 my $new_output_base = cwd();
                 my $current_base = basename($new_output_base);
+                my $new_output_dir = dirname($new_output_base);
                 my $new_id = qq"${current_base}_contig${contig}";
-                my $full_output_dir = qq"${new_output_base}/${new_id}";
+                my $full_output_dir = qq"${new_output_dir}/${new_id}";
                 my $full_input_phageterm = abs_path($options->{input_phageterm});
                 my $full_input = abs_path($new_file);
-                print "TESTME: $full_output_dir\n";
                 $seqobj->id($new_id);
                 my $current_seq = $seqobj->seq();
                 $out->write_seq($seqobj);
