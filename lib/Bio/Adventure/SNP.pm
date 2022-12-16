@@ -668,20 +668,20 @@ sub SNP_Ratio_Worker {
       if (defined($chosen) && defined($datum->{chosen})) {
           if (defined($options->{min_value}) && defined($options->{max_value})) {
               if ($datum->{chosen} > $options->{max_value}) {
-                  ## print "TESTME: This position has exceeded max value: $options->{max_value}\n";
+                  ## print "This position has exceeded max value: $options->{max_value}\n";
                   next SHIFTER;
               } elsif ($datum->{chosen} < $options->{min_value}) {
-                  ## print "TESTME: This position is less than min value: $options->{min_value}\n";
+                  ## print "This position is less than min value: $options->{min_value}\n";
                   next SHIFTER;
               }
           } elsif (defined($options->{min_value})) {
               if ($datum->{chosen} < $options->{min_value}) {
-                  ## print "TESTME: This position is less than min value: $options->{min_value}\n";
+                  ## print "This position is less than min value: $options->{min_value}\n";
                   next SHIFTER;
               }
           } elsif (defined($options->{max_value})) {
               if ($datum->{chosen} > $options->{max_value}) {
-                  ## print "TESTME: This position has exceeded max value: $options->{max_value}\n";
+                  ## print "This position has exceeded max value: $options->{max_value}\n";
                   next SHIFTER;
               }
           }

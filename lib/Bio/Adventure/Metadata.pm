@@ -523,7 +523,7 @@ sub Merge_Annotations_Worker {
     my $log = qq"${output_dir}/${output_name}_runlog.txt";
 
     my $log_fh = FileHandle->new(">${log}");
-    print "TESTME: Merging annotations and writing new output files.\n";
+    print "Merging annotations and writing new output files.\n";
     print $log_fh "Merging annotations and writing new output files:
 gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     ## Here is a list of columns that will be created when merging these data sources.
@@ -665,7 +665,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             input_fsa => $options->{input_fsa},
             log_fh => $log_fh);
         my $num_dtr = scalar(@{$dtr_features});
-        print "TESTME: Adding ${num_dtr} phageterm DTRs\n";
+        print "Adding ${num_dtr} phageterm DTRs\n";
         print $log_fh "Adding ${num_dtr} phageterm DTRs.\n";
     } else {
         print $log_fh "Not adding phageterm DTRs.\n";
@@ -746,7 +746,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
             $feature_contig_number++;
             my @loci = $feat->get_tag_values('locus_tag');
             $locus = $loci[0];
-            print "TESTME AFTER RENAMING: $locus\n";
             my $new_info = $merged_data->{$locus};
 
             ## FIXME: Set display name
@@ -880,7 +879,7 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
 
   } ## End iterating over every sequence.
 
-    print "TESTME: Writing new tbl file to ${output_tbl}\n";
+    print "Writing new tbl file to ${output_tbl}\n";
     print $log_fh "Writing new tbl file to ${output_tbl}.\n";
     my $tbl_written = Bio::Adventure::Annotation_Genbank::Write_Tbl_from_SeqFeatures(
         tbl_file => $output_tbl,
@@ -1551,14 +1550,10 @@ sub Fastqc_Stats {
         required => ['input'],
         jmem => 1,
         jname => 'fqcst',
+        jprefix => 11,
         paired => 1,);
-    ## Dereferencing the options to keep a safe copy.
     my $jname = $options->{jname};
-    ## Dereferencing the options to keep a safe copy.
-    my $input_file = qq"$options->{input}/fastqc_data.txt";
-    if ($options->{paired}) {
-        $input_file = qq"$options->{input}/fastqc_data.txt";
-    }
+    my $input_file = $options->{input};
     my $stat_output = qq"outputs/fastqc_stats.csv";
     if ($options->{direction}) {
         $stat_output = qq"outputs/fastqc_$options->{direction}_stats.csv";

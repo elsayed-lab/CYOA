@@ -278,7 +278,6 @@ sub Extract_Features {
                 @loci = $feat->get_tag_values($t);
                 for my $l (@loci) {
                     $l = lc($l);
-                    print "TESTME: $l\n";
                     my $found = $l =~ m/${search}/;
                     if ($found) {
                         $num_hits++;

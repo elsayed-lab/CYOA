@@ -1563,7 +1563,6 @@ sub Interpret_Phastaf_Worker {
                 my $full_output_dir = qq"${new_output_base}/${new_id}";
                 my $full_input_phageterm = abs_path($options->{input_phageterm});
                 my $full_input = abs_path($new_file);
-                print "TESTME: $full_output_dir\n";
                 $seqobj->id($new_id);
                 my $current_seq = $seqobj->seq();
                 $out->write_seq($seqobj);

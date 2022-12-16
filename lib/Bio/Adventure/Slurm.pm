@@ -170,7 +170,6 @@ sub Choose_Spec {
         my @qos = @{$associations->{$cluster}->{$account}->{qos}};
         my $found_qos = 0;
       QOS: for my $q (@qos) {
-          my $qos_info = $avail_qos->{$q};
           my $stringent_mem = $qos_info->{max_job_mem} + $qos_info->{used_mem};
           my $stringent_cpu = $qos_info->{max_job_cpu} + $qos_info->{used_cpu};
           my $stringent_gpu = $qos_info->{max_job_gpu} + $qos_info->{used_gpu};
@@ -196,7 +195,6 @@ sub Choose_Spec {
         ## because there are already jobs queued, so just pick a qos which is big enough.
         my $found_qos2 = 0;
       QOS2: for my $q (@qos) {
-          my $qos_info = $avail_qos->{$q};
           if ($wanted_spec->{mem} <= $qos_info->{max_job_mem} &&
               $wanted_spec->{cpu} <= $qos_info->{max_job_cpu} &&
               $wanted_spec->{gpu} <= $qos_info->{max_job_gpu} &&

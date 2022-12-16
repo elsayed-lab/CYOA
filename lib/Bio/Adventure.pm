@@ -484,7 +484,7 @@ sub Get_Paths {
     if ($num_inputs == 0) {
         die("This requires an input filename.");
     }
-
+    print "TESTME: @inputs\n";
     my @outputs = ();
     for my $in (@inputs) {
         my $filename = basename($in);
@@ -1259,7 +1259,7 @@ sub Get_Vars {
     my $slurm_test = My_Which('sbatch');
     if (defined($returned_vars{cluster})) {
         ## print "TESTME: CLUSTER IS DEFINED $returned_vars{cluster}\n";
-        if ($returned_vars{cluster}) {
+        if ($returned_vars{cluster} ne 'bash') {
             $returned_vars{qsub_path} = $torque_test;
             $returned_vars{sbatch_path} = $slurm_test;
         } else {
@@ -1719,6 +1719,9 @@ sub Submit {
         $runner = Bio::Adventure::Torque->new();
     } elsif ($options->{cluster} eq 'bash') {
         ## I should probably have something to handle gracefully bash jobs.
+        $runner = Bio::Adventure::Local->new();
+    } elsif ($options->{cluster} eq '0') {
+        ## On occasion I set cluster to 0 which is bash.
         $runner = Bio::Adventure::Local->new();
     } else {
         carp("Could not find sbatch, qsub, nor bash.");

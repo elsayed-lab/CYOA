@@ -126,7 +126,13 @@ sub Fastqc {
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
-    my $dirname = $input_paths->[0]->{dirname};
+    my $dirname;
+    if (ref($input_paths) eq 'HASH') {
+        ## Then there is just one input file.
+        $dirname = $input_paths->{dirname};
+    } else {
+        $dirname = $input_paths->[0]->{dirname};
+    }
     my $jname = qq"fqc_${job_name}";
     if (defined($dirname)) {
         $jname .= qq"_${dirname}";
@@ -137,8 +143,11 @@ sub Fastqc {
     my $input_file_string = '';
     my $subshell = 0;
     my $modified_input = undef;
-    if ($options->{input} =~ /:|\,/) {
-        my @inputs = split(/:|\,/, $options->{input});
+    if (ref($input_paths) eq 'ARRAY') {
+        my @inputs;
+        for my $element (@{$input_paths}) {
+            push(@inputs, $input_paths->{$element}->{fullpath});
+        }
         for my $in (@inputs) {
             $modified_input = basename($in, ('.gz', '.bz2', '.xz')) unless(defined($modified_input));
             $input_file_string = qq"$input_file_string ${in} ";
@@ -158,7 +167,8 @@ sub Fastqc {
     $modified_input = basename($modified_input, ('.fastq'));
     $modified_input = qq"${modified_input}_fastqc";
     my $final_output = qq"${outdir}/${modified_input}";
-    my $txtfile = qq"${final_output}/summary.txt";
+    my $txtfile = qq"${final_output}/fastqc_data.txt";
+    my $summary = qq"${final_output}/summary.txt";
 
     ## This is where fastqc should put its various output files
     ## with one important exception: It tries to be smart and take its own basename of the input
@@ -210,9 +220,15 @@ echo "move finished with: $?"
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",
+        summary => $summary,
         txtfile => $txtfile,
         stdout => $stdout,
         stderr => $stderr);
+
+    my $stats = $class->Bio::Adventure::Metadata::Fastqc_Stats(
+        input => $fqc->{txtfile},
+        jdepends => $fqc->{job_id},);
+
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($fqc);

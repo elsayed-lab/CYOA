@@ -335,7 +335,7 @@ sub Hisat2_Index {
     if (-r $copied_location) {
         print "The indexes appear to exist at: ${copied_location}.\n";
     } else {
-        print "TESTME: Copying $options->{input} to ${copied_location}\n";
+        print "Copying $options->{input} to ${copied_location}\n";
         $copied = cp($options->{input}, $copied_location);
     }
     my $jstring = qq!
