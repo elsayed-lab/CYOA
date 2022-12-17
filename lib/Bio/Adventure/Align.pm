@@ -148,12 +148,16 @@ sub Get_Split {
     while (my $in_seq = $in->next_seq()) {
         $seqs++;
     }
-    my $ret = ceil($seqs / $options->{align_jobs});
+    my $seqs_per_job = ceil($seqs / $options->{align_jobs});
     if ($seqs < $options->{align_jobs}) {
         print "There are fewer sequences than the chosen number of split files, resetting that to ${seqs}.\n";
-        $options = $class->Set_Vars(options => $options, align_jobs => $seqs);
+        $seqs_per_job = $seqs;
     }
-    print "Get_Split: Making $options->{align_jobs} directories with ${ret} sequences.\n";
+    print "Get_Split: Making $options->{align_jobs} directories with ${seqs_per_job} sequences.\n";
+    my $ret = {
+        num_per_split => $seqs_per_job,
+        seqs => $seqs,
+    };
     return($ret);
 }
 

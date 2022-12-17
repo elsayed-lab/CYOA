@@ -17,7 +17,7 @@ chdir($new);
 my $input_file = dist_file('Bio-Adventure', 'test_forward.fastq.gz');
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 
-ok($cyoa->Bio::Adventure::QA::Fastqc_Single(input => $input_file),
+ok($cyoa->Bio::Adventure::QA::Fastqc(input => $input_file),
    'Run Fastqc');
 
 ok(-r 'scripts/01fqc_test_forward_Bio-Adventure.sh',
@@ -25,7 +25,7 @@ ok(-r 'scripts/01fqc_test_forward_Bio-Adventure.sh',
 
 ok(my $actual = $cyoa->Last_Stat(input => 'outputs/fastqc_stats.csv'),
    'Collect Fastqc Statistics');
-my $expected = 'fqc_test_forward_Bio-Adventure,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
+my $expected = 'fqcst,10000,0,pass,warn,pass,pass,pass,warn,fail,0';
 unless(ok($expected eq $actual,
           'Are the fastqc results the expected value?')) {
     my($old, $new) = diff($expected, $actual);

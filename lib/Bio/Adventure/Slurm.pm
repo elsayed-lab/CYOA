@@ -358,7 +358,7 @@ sub Get_Usage {
                       jobs => 1,
                   }, }, },
       };
-      print "TESTME: $state\n";
+
       if ($state eq 'RUNNING') {
           $instance->{$partition}->{$account}->{$qos}->{running} = 1;
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
@@ -388,12 +388,8 @@ sub Get_Usage {
       }
   }
     $usage->close();
-    use Data::Dumper;
-    print Dumper $current;
+    return($current);
 }
-
-
-
 
 =head1 NAME
 

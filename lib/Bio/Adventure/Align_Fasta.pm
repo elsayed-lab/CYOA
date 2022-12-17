@@ -53,6 +53,7 @@ sub Make_Fasta_Job {
         args => \%args,
         align_jobs => 1,
         fasta_tool => 'ggsearch36',
+        fasta_format => '9',
         split => 0,
         output_type => undef,
         cluster => 'slurm',
@@ -67,7 +68,7 @@ sub Make_Fasta_Job {
     my $array_string = qq"$options->{array_start}-${array_end}";
     my $jstring = '';
     my $type_string = '';
-    my $array_id_string = 'unknown_array_id';
+    my $array_id_string = 'single_job';
     if ($options->{cluster} eq 'slurm') {
         $array_id_string = '${SLURM_ARRAY_TASK_ID}';
     } elsif ($options->{cluster} eq 'torque') {
@@ -84,7 +85,7 @@ sub Make_Fasta_Job {
         $output = qq"$options->{basedir}/outputs/split/${array_id_string}.stdout";
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
+$options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
  outputs/split/${array_id_string}/in.fasta \\
  $options->{library} \\
  1>${output} \\
@@ -94,7 +95,7 @@ $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{jcpus
         $output = qq"$options->{workdir}/$options->{fasta_tool}.stdout";
         $jstring = qq!
 cd $options->{basedir}
-  $options->{fasta_tool} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
+  $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
   $options->{input} \\
   $options->{library} \\
   1>${output} \\
@@ -105,6 +106,7 @@ cd $options->{basedir}
 
     my $fasta_jobs = $class->Submit(
         array_string => $array_string,
+        cluster => $options->{cluster},
         comment => $comment,
         jdepends => $dep,
         jmem => $options->{jmem},
@@ -283,6 +285,7 @@ sub Parse_Fasta_Global {
     my $seq_count = 0;
     print $parsed "Query Name\tQuery length\tHit ID\tHit Length\tScore\tE\tIdentity\tHit length\tHit Matches\n";
     while (my $result = $searchio->next_result()) {
+        print "Looking at result!\n";
         $seq_count++;
         my $query_name = $result->query_name();
         my $entry = qq"${query_name}\t";
@@ -313,7 +316,7 @@ sub Parse_Fasta_Global {
               $entry .= "${acc2}:${ident}:${sig} ";
           }
           print $parsed "${query_name}\t${query_length}\t${acc2}\t${length}\t${score}\t${sig}\t${ident}\t${hit_len}\t${hit_matches}\n";
-      }                       ## End iterating over every hit for a sequence.
+      } ## End iterating over every hit for a sequence.
         $entry .= "\n";
         print $all $entry;
         if ($hit_count == 1) {
@@ -586,40 +589,43 @@ sub Split_Align_Fasta {
     my $zero = qq"${outdir}/${output}_zero.txt";
     my $all = qq"${outdir}/${output}_all.txt";
     my ($concat_job, $alignment);
-    if ($options->{cluster}) {
-        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        $options = $class->Set_Vars(options => $options, num_per_split => $num_per_split);
-        $options = $class->Set_Vars(options => $options, workdir => $outdir);
-        print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
+    my $split_data = 0;
+    if ($options->{cluster} eq 'slurm' || $options->{cluster} eq 'torque') {
+        $split_data = 1;
+    }
+    if ($split_data) {
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(
+            align_jobs => $options->{align_jobs},
+            input => $options->{input},);
         my $actual = $class->Bio::Adventure::Align::Make_Directories(
-            %args,
+            num_per_split => $num_per_split->{num_per_split},
             workdir => $outdir);
-        print "Actually used ${actual} directories to write files.\n";
         $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
-            %args,
             align_jobs => $actual,
-            workdir => $outdir,
             cluster => $options->{cluster},
-            split => 1);
+            fasta_tool => $options->{fasta_tool},
+            split => 1,
+            workdir => $outdir,);
         $concat_job = $class->Bio::Adventure::Align::Concatenate_Searches(
-            jdepends => $alignment->{job_id},
-            output => $output,
             cluster => $options->{cluster},
-            workdir => $outdir,
-            jprefix => '92',);
+            jdepends => $alignment->{job_id},
+            jprefix => '92',
+            output => $output,
+            workdir => $outdir,);
         ## Make sure that the alignment job gets the final output
         $alignment->{output} = $concat_job->{output};
     } else {
         ## If we don't have a queue, force the number of jobs to 1.
         $options->{align_jobs} = 1;
-        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
-        $options = $class->Set_Vars(options => $options, num_per_split => $num_per_split);
-        $options = $class->Set_Vars(options => $options, workdir => $outdir);
+        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(
+            align_jobs => $options->{align_jobs},
+            input => $options->{input},);
         $alignment = $class->Bio::Adventure::Align_Fasta::Make_Fasta_Job(
-            %args,
+            cluster => $options->{cluster},
+            fasta_tool => $options->{fasta_tool},
+            num_per_split => $num_per_split->{num_per_split},
             workdir => $outdir,
             align_jobs => 1);
-        print "Finished alignment with output: $alignment->{output}\n";
     }
 
     my $parse_input = $alignment->{output};
