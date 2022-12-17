@@ -39,7 +39,7 @@ my $run_fasta = $cyoa->Bio::Adventure::Align_Fasta::Split_Align_Fasta(
     library => $phix_local,
     fasta_tool => 'fasta36',
     number => 1,
-    parse => 0,);
+    parse => 1,);
 ok($run_fasta, 'Run Split_Align_Fasta.');
 
 ## my $parsed_file = 'outputs/fasta_phix_cds_nt_phix/phix_cds_nt_vs_phix.parsed.txt';

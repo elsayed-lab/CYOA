@@ -1895,6 +1895,7 @@ sub Terminase_ORF_Reorder_Worker {
     ## Collect the results from the fasta search and write them out.
     my $hit_fh = FileHandle->new(">${output_dir}/$options->{library}_summary.tsv");
     print $hit_fh "Name\tLength\tAccession\tDescription\tScore\tSignificance\tBit\tHitStrand\tQueryStrand\n";
+    print "Name\tLength\tAccession\tDescription\tScore\tSignificance\tBit\tHitStrand\tQueryStrand\n";
     my $result_data = {};
     my $search_output = Bio::SearchIO->new(-file => $fasta_outfile, -format => 'fasta');
     my $element_count = 0;
@@ -1926,20 +1927,25 @@ sub Terminase_ORF_Reorder_Worker {
         my $hit_descr = $hits->description();
         my $hit_score = $hits->score();
         my $hit_sig = $hits->significance();
+        print "TESTME: HIT_SIG $hit_sig\n";
         my $hit_bits = $hits->bits();
         my @hit_data = @{$result_data->{$query_name}->{hit_data}};
         my $hit_datum = {
             name => $hit_name,
             length => $hit_length,
             acc => $hit_acc,
-            description => $hit_descr,
+            hit_description => $hit_descr,
             score => $hit_score,
             sig => $hit_sig,
             bit => $hit_bits,
             hit_strand => $hit_strand,
             query_strand => $query_strand,
+            query_description => $query_descr,
+            query_length => $query_length,
+            query_name => $query_name,
         };
-        print $hit_fh "${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\n";
+        print $hit_fh "${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
+        print "HITLOOP: ${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
         push(@hit_data, $hit_datum);
         $result_data->{$query_name}->{hit_data} = \@hit_data;
         $hit_count++;
@@ -1980,36 +1986,51 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     ## The following loop will therefore go over the set of hits and look for the lowest E-value.
     my $best_score = 1;
     my $best_query = '';
-    my $best_description = '';
+    my $best_hit_description = '';
+    my $best_query_description = '';
     my $total_hits = 0;
     my $best_query_strand;
     my $best_hit_strand;
   SCANNER: foreach my $query_id (keys %{$result_data}) {
-      my $query_description = $result_data->{$query_id}->{description};
+      use Data::Dumper;
+      print Dumper $result_data->{$query_id};
+      my $query_description = $result_data->{$query_id}->{query_description};
       my @hit_arr = @{$result_data->{$query_id}->{hit_data}};
       my $hits = scalar(@hit_arr);
       $total_hits = $total_hits + $hits;
       if ($hits < 1) {
           next SCANNER;
       }
-      for my $hit (@hit_arr) {
-          if ($hit->{sig} < $best_score) {
-              $best_query = $query_id;
-              $best_query_strand = $hit->{query_strand};
-              $best_hit_strand = $hit->{hit_strand};
-              $best_description = $query_description;
-              $best_score = $hit->{sig};
-              my $hit_strand = $hit->{strand};
-              print $log "Found a new best hit: ${query_id} with evalue $hit->{sig}\n";
-              print $log "  This is on query strand: ${best_query_strand} and hit strand: ${best_hit_strand}\n";
-
-          } elsif ($hit->{sig} == $best_score) {
-              print $log "Found an equivalent hit: ${query_id} with evalue $hit->{sig}.\n";
-          }
-      }
+      my $new_best_hit = 0;
+    HITS: for my $hit (@hit_arr) {
+        if ($hit->{sig} > $best_score) {
+            $best_query = $query_id;
+            $best_query_strand = $hit->{query_strand};
+            $best_hit_strand = $hit->{hit_strand};
+            $best_hit_description = $hit->{hit_description};
+            $best_query_description = $hit->{query_description};
+            $best_score = $hit->{sig};
+            my $hit_strand = $hit->{strand};
+            print $log "Found a new best hit ${best_hit_description} ${best_query_description}: ${query_id} with evalue $hit->{sig}\n";
+            print "Found a new best hit ${best_hit_description} ${best_query_description}: ${query_id} with evalue $hit->{sig}\n";
+            print $log "  This is on query strand: ${best_query_strand} and hit strand: ${best_hit_strand}\n";
+            print "  This is on query strand: ${best_query_strand} and hit strand: ${best_hit_strand}\n";
+            $new_best_hit++;
+        } elsif ($hit->{sig} == $best_score) {
+            print $log "Found an equivalent hit: ${query_id} with evalue $hit->{sig}.\n";
+            print "Found an equivalent hit: ${query_id} with evalue $hit->{sig}.\n";
+        } else {
+            next HITS;
+        }
+    }
+      if ($new_best_hit == 0) {
+          next SCANNER;
+    }
   } ## Finished iterating over every potential result.
     print $log "Out of ${total_hits} hits, ${best_query} was chosen with an e-value of: ${best_score}.\n";
-    print $log "Best terminase description: ${best_description}\n";
+    print "Out of ${total_hits} hits, ${best_query} was chosen with an e-value of: ${best_score}.\n";
+    print $log "Best terminase description: ${best_query_description}\n";
+    print "Best terminase description: ${best_query_description} matches ${best_hit_description}\n";
     ## print "Best terminase description: ${best_description}\n";
     ## Now things get a bit confusing: Keep in mind that prodigal's ORFs are printed as:
     ## ${contig}_${orf} # start # end # strand # stuff, so the first thing to do is pull out the best contig.
@@ -2056,7 +2077,7 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
 
     ## The last thing to remember is that prodigal encodes its position information
     ## as a set of # thing # thing # things, so lets grab out the information of interest.
-    my @start_end_array = split(/\s*#\s*/, $best_description);
+    my @start_end_array = split(/\s*#\s*/, $best_query_description);
     my $best_seq_start = $start_end_array[1];
     $best_seq_start =~ s/\s*//g;
     my $best_seq_end = $start_end_array[2];
@@ -2077,6 +2098,8 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
         $second_end = $best_seq_start - 1;
         $first_seq = $first_object->subseq($first_start, $first_end);
         $second_seq = $first_object->subseq($second_start, $second_end);
+        print "Merging two + strand pieces:
+  ${first_start}:${first_end} and ${second_start}:${second_end}.\n";
         print $log "Merging two + strand pieces:
   ${first_start}:${first_end} and ${second_start}:${second_end}.\n";
     } else {
@@ -2090,6 +2113,8 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
         $first_seq = $first_object->subseq($first_start, $first_end);
         print $log "Merging two - strand pieces:
   ${first_start}:${first_end}";
+        print "Merging two - strand pieces:
+  ${first_start}:${first_end}";
 
         $first_seq = reverse($first_seq);
         $first_seq =~ tr/ATGCUatgcu/TACGAtacga/;
@@ -2098,8 +2123,10 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
             $second_seq = reverse($second_seq);
             $second_seq =~ tr/ATGCUatgcu/TACGAtacga/;
             print $log " and ${second_start}:${second_end}";
+            print " and ${second_start}:${second_end}";
         } else {
             print $log " and nothing, something is weird with the second sequence.";
+            print " and nothing, something is weird with the second sequence.";
         }
         print $log "\n";
     }

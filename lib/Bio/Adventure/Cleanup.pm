@@ -57,17 +57,35 @@ sub Cleanup_Phage_Assembly {
 
     my $jstring = qq!
 ## Rando fastq files
-rm -f \$(find . -type f -name '*.fastq')
+stuff=\$(find . -type f -name '*.fastq')
+if [[ \! -z "\${stuff}" ]]; then
+  rm -f "\${stuff}"
+fi
 ## Core dumps
-rm -f \$(find . -type f -name core)
+stuff=\$(find . -type f -name core)
+if [[ \! -z "\${stuff}" ]]; then
+  rm -f "\${stuff}"
+fi
 ## Hisat indexes
-rm -f \$(find . -type f -name '*.ht2')
+stuff=\$(find . -type f -name '*.ht2')
+if [[ \! -z "\${stuff}" ]]; then
+  rm -f "\${stuff}"
+fi
 ## tmp files from the various prediction tools
-rm -f \$(find . -type f -name '*.tmp.*')
+stuff=\$(find . -type f -name '*.tmp.*')
+if [[ \! -z "\${stuff}" ]]; then
+  rm -f "\${stuff}"
+fi
 ## Trinotate junk
-rm -r \$(find . -type d -name '*_dir*')
+stuff=\$(find . -type d -name '*_dir*')
+if [[ \! -z "\${stuff}" ]]; then
+  rm -rf "\${stuff}"
+fi
 ## Recompress random fastq files
-xz -9e -f \$(find . -name '*.fastq')
+stuff=\$(find . -name '*.fastq')
+if [[ \! -z "\${stuff}" ]]; then
+  xz -9e -f "${stuff}"
+fi
 !;
 
     my $comment = '## Cleanup some of the mess.';
