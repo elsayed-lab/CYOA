@@ -29,13 +29,16 @@ if (!-r 'genome/phix.gff') {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),
+    stranded => 'no');
 my $bt1 = $cyoa->Bio::Adventure::Map::Bowtie(
     input => qq"test_forward.fastq.gz",
-    htseq_id => 'gene_id',
-    htseq_type => 'gene',
+    gff_tag => 'gene_id',
+    gff_type => 'gene',
     jprefix => '22',
-    libdir => '.',
     species => 'phix',);
 ok($bt1, 'Run Bowtie1');
 my $sam_file = $bt1->{samtools}->{output};
@@ -46,7 +49,7 @@ ok(-f $htseq_file, 'The count table was created.');
 
 my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv');
 ok($actual, 'Collect Bowtie1 Statistics');
-my $expected = qq"test_output,v0M1,0,10000,30,9970,0,33333.3333333333,outputs/bowtie_phix/test_output-v0M1_all_sno_gene_gene_id.count.xz";
+my $expected = qq"test_output,v0M1,0,10000,30,9970,0,outputs/bowtie_phix/test_output-v0M1_all_sno_gene_gene_id.count.xz";
 unless(ok($expected eq $actual), 'Are the bowtie stats as expected?') {
     my ($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");

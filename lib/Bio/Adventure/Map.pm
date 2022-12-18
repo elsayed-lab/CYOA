@@ -204,28 +204,30 @@ bowtie \\
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 gff_tag => $options->{gff_tag},
-                input => $sam_job->{output},
                 gff_type => $options->{gff_type},
+                input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
-                libtype => $libtype,
                 jqueue => 'workstation',
-                suffix => $bt_type,
-                mapper => 'bowtie1',);
+                libtype => $libtype,
+                mapper => 'bowtie1',
+                stranded => $options->{stranded},
+                suffix => $bt_type,);
             $bt_job->{rRNA_count} = $htmulti;
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 gff_tag => $options->{gff_tag},
-                input => $sam_job->{output},
                 gff_type => $options->{gff_type},
+                input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
-                libtype => $libtype,
                 jqueue => 'workstation',
-                suffix => $bt_type,
-                mapper => 'bowtie1',);
+                libtype => $libtype,
+                mapper => 'bowtie1',
+                stranded => $options->{stranded},
+                suffix => $bt_type,);
             $bt_job->{htseq} = $htmulti;
         }
     }  ## End if ($count)

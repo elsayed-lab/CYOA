@@ -1408,9 +1408,7 @@ failed_tmp=\$( { grep "^# reads that failed to align" ${bt_input} || test \$? = 
 failed=\${failed_tmp:-0}
 sampled_tmp=\$( { grep "^# reads with alignments sampled" ${bt_input} || test \$? = 1; } | awk -F": " '{print \$2}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \${one_align})" 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},${bt_type},%s,%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}" "\$rpm")
+stat_string=\$(printf "$paths->{jbasename},${bt_type},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}")
 echo "\$stat_string" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,

@@ -40,6 +40,7 @@ sub BT1_Index {
         args => \%args,
         required => ['input'],
         modules => ['bowtie1'],);
+    print "STARTING BT1_Index: $options->{libdir} $class->{libdir}\n";
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
     $species = basename($species, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
@@ -53,6 +54,7 @@ sub BT1_Index {
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species}
 ## in $options->{libdir}/$options->{libtype}/indexes!;
+    print "TESTME: Starting BT1_Index Submission\n";
     my $bt1_index = $class->Submit(
         comment => $comment,
         jname => qq"bt1idx_${species}",
@@ -61,6 +63,7 @@ sub BT1_Index {
         jprefix => '10',
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    print "TESTME: Finished BT1_Index Submission\n";
     return($bt1_index);
 }
 

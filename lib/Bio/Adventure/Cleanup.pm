@@ -84,7 +84,7 @@ fi
 ## Recompress random fastq files
 stuff=\$(find . -name '*.fastq')
 if [[ \! -z "\${stuff}" ]]; then
-  xz -9e -f "${stuff}"
+  xz -9e -f "\${stuff}"
 fi
 !;
 

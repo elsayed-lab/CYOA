@@ -413,16 +413,23 @@ sub BUILD {
     }
     $class->{methods_to_run} = Get_TODOs(%{$class->{variable_getopt_overrides}});
     my $path_agrees = Check_Libpath(libdir => $class->{libdir}, libpath => $class->{libpath});
-    $class->{libpath} = $path_agrees if (defined($path_agrees));
+    $class->{libpath} = $path_agrees->{libpath};
+    $class->{libdir} = $path_agrees->{libdir};
     return($args);
 }
 
 sub Check_Libpath {
     my %args = @_;
-    if (!defined($args{libdir})) {
+    my $provided_libdir = 0;
+    if (defined($args{libdir})) {
+        $provided_libdir = 1;
+    } else {
         $args{libdir} = '\$HOME/libraries';
     }
-    if (!defined($args{libpath})) {
+    my $provided_libpath = 0;
+    if (defined($args{libpath})) {
+        $provided_libpath = 1;
+    } else {
         $args{libpath} = "$ENV{HOME}/libraries";
     }
     ## Make sure that the libdir and libpath agree with one another.
@@ -432,7 +439,7 @@ sub Check_Libpath {
     ## degree of flexibility.
     ## Thus, this will check if libdir starts with a \$, if so, extract that variable
     ## from the environment, and check if the libpath agrees with it.
-    my $path = $args{libpath};
+
     my $interpolated_libdir = $args{libdir};
     if ($args{libdir} =~ /\$/) {
         $interpolated_libdir =~ /^(.*)?\$\{*([A-Z]+)\}*(.*)$/;
@@ -441,11 +448,18 @@ sub Check_Libpath {
         my $suffix = $3;
         $interpolated_libdir = qq"${prefix}$ENV{$varname}${suffix}";
     }
-    if ($interpolated_libdir eq $path) {
-        return(undef);
-    } else {
-        return($path);
+
+    my $ret = {
+        libdir => $args{libdir},
+        libpath => $interpolated_libdir,
+    };
+
+    if ($provided_libdir && $provided_libpath) {
+        ## Both were passed to the constructure, check that they agree, if not
+        ## Then warn and go with libdir.
     }
+
+    return($ret);
 }
 
 =head2 C<Get_Lesspipe>
@@ -490,7 +504,6 @@ sub Get_Paths {
     if ($num_inputs == 0) {
         die("This requires an input filename.");
     }
-    print "TESTME: @inputs\n";
     my @outputs = ();
     for my $in (@inputs) {
         my $filename = basename($in);
@@ -1264,7 +1277,6 @@ sub Get_Vars {
     my $torque_test = My_Which('qsub');
     my $slurm_test = My_Which('sbatch');
     if (defined($returned_vars{cluster})) {
-        ## print "TESTME: CLUSTER IS DEFINED $returned_vars{cluster}\n";
         if ($returned_vars{cluster} ne 'bash') {
             $returned_vars{qsub_path} = $torque_test;
             $returned_vars{sbatch_path} = $slurm_test;
@@ -1273,9 +1285,7 @@ sub Get_Vars {
             $returned_vars{qsub_path} = '';
             $returned_vars{cluster} = 'bash';
         }
-        ## print "TESTME NOW? $returned_vars{cluster}\n";
     } else {
-        ## print "TESTME CLUSTER IS NOT DEFINED\n";
         if ($slurm_test) {
             $returned_vars{cluster} = 'slurm';
             $returned_vars{sbatch_path} = $slurm_test;
@@ -1285,7 +1295,6 @@ sub Get_Vars {
         } else {
             $returned_vars{cluster} = 'bash';
         }
-        ## print "TESTME NOW? $returned_vars{cluster}\n";
     }
 
     ## Final sanity check(s)
@@ -1677,7 +1686,6 @@ sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args);
-
     ## If we are invoking an indirect job, we need a way to serialize the options
     ## in order to get them passed to the eventual interpreter
     my $option_file = "";
@@ -1746,6 +1754,8 @@ sub Submit {
     }
     my $result = $runner->Submit($class, %args);
     $class = $class->Reset_Vars();
+
+
     return($result);
 }
 
