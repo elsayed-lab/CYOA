@@ -542,12 +542,7 @@ sub Get_Paths {
         push(@outputs, \%ret);
     }
 
-    my $final = \@outputs;
-    ## When there is just one file, just return its information.
-    if (scalar(@outputs) == 1) {
-        $final = $outputs[0];
-    }
-    return($final);
+    return(\@outputs);
 }
 
 =head2 C<Get_Term>
