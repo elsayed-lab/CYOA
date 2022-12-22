@@ -1624,21 +1624,23 @@ sub HT2_Stats {
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $output = qq"$options->{output_dir}/hisat2_stats.csv";
     my $jstring = qq!
-if [ \! -e "${output}" ]; then
-    echo "id, original reads, single hits, failed reads, multi-hits, rpm" > ${output}
-fi
-original_reads_tmp=\$( { grep " reads; of these" "${ht_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
-original_reads=\${original_reads_tmp:-0}
-one_align_tmp=\$( { grep " aligned exactly 1 time" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
-one_align=\${one_align_tmp:-0}
-failed_tmp=\$( { grep " aligned 0 times" "${ht_input}" || test \$? = 1; } | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
-failed=\${failed_tmp:-0}
-sampled_tmp=\$( { grep " aligned >1 times" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
-sampled=\${sampled_tmp:-0}
-rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
-rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
-echo "\$stat_string" >> ${output}!;
+
+## This is a placekeeper
+!;
+#if [ \! -e "${output}" ]; then
+#    echo "id, original reads, single hits, failed reads, multi-hits" > ${output}
+#fi
+#original_reads_tmp=\$( { grep " reads; of these" "${ht_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
+#original_reads=\${original_reads_tmp:-0}
+#one_align_tmp=\$( { grep " aligned exactly 1 time" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
+#one_align=\${one_align_tmp:-0}
+#failed_tmp=\$( { grep " aligned 0 times" "${ht_input}" || test \$? = 1; } | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
+#failed=\${failed_tmp:-0}
+#sampled_tmp=\$( { grep " aligned >1 times" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
+#sampled=\${sampled_tmp:-0}
+#stat_string=\$(printf "$paths->{jbasename},%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}")
+#echo "\$stat_string" >> ${output}
+#!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $ht_input,

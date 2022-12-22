@@ -126,13 +126,7 @@ sub Fastqc {
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
-    my $dirname;
-    if (ref($input_paths) eq 'HASH') {
-        ## Then there is just one input file.
-        $dirname = $input_paths->{dirname};
-    } else {
-        $dirname = $input_paths->[0]->{dirname};
-    }
+    my $dirname = $input_paths->[0]->{dirname};
     my $jname = qq"fqc_${job_name}";
     if (defined($dirname)) {
         $jname .= qq"_${dirname}";
@@ -143,10 +137,11 @@ sub Fastqc {
     my $input_file_string = '';
     my $subshell = 0;
     my $modified_input = undef;
-    if (ref($input_paths) eq 'ARRAY') {
+    if (scalar(@{$input_paths}) > 1) {
         my @inputs;
+        print "TESTME: $#$input_paths\n";
         for my $element (@{$input_paths}) {
-            push(@inputs, $input_paths->{$element}->{fullpath});
+            push(@inputs, $element->{fullpath});
         }
         for my $in (@inputs) {
             $modified_input = basename($in, ('.gz', '.bz2', '.xz')) unless(defined($modified_input));

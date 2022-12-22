@@ -38,29 +38,32 @@ sub BUILD {
     $class->{qos_data} = $qos;
     my @qos_names = sort keys %{$qos};
     $class->{qos} = \@qos_names;
+    my $cluster = undef;
+    my @accounts = ();
     my @clusters = keys %{$assoc};
-    my $cluster = $clusters[0];
-    $class->{cluster} = $cluster;
-    my @accounts = keys %{$assoc->{$cluster}};
-    $class->{accounts} = \@accounts;
-    ## Merge the qos information into the user's assocations
-    ## In the hopes that this makes it easier to pick and choose queues
-    ## So, when we wish to pull the current usage in a qos, we will
-    ## ask for: $assoc->{$cluster}->{$account}->{$qos}->{used_mem} or
-    ## whatever...  This does assume that the counters accross accounts
-    ## are not shared, something which I have not yet tested.
-    for my $cluster (keys %{$assoc}) {
-        for my $account (keys %{$assoc->{$cluster}}) {
-            my @account_qos = @{$assoc->{$cluster}->{$account}->{qos}};
-            for my $q (@account_qos) {
-                my %info = %{$qos->{$q}};
-                $assoc->{$cluster}->{$account}->{$q} = \%info;
+    if (scalar(@clusters) > 0) {
+        $cluster = $clusters[0];
+        @accounts = keys %{$assoc->{$cluster}};
+        ## Merge the qos information into the user's assocations
+        ## In the hopes that this makes it easier to pick and choose queues
+        ## So, when we wish to pull the current usage in a qos, we will
+        ## ask for: $assoc->{$cluster}->{$account}->{$qos}->{used_mem} or
+        ## whatever...  This does assume that the counters accross accounts
+        ## are not shared, something which I have not yet tested.
+        for my $iterate (keys @clusters) {
+            for my $account (keys %{$assoc->{$iterate}}) {
+                my @account_qos = @{$assoc->{$iterate}->{$account}->{qos}};
+                for my $q (@account_qos) {
+                    my %info = %{$qos->{$q}};
+                    $assoc->{$iterate}->{$account}->{$q} = \%info;
+                }
             }
         }
-    }
+    } ## End checking for associations.
+
+    $class->{cluster} = $cluster;
+    $class->{accounts} = \@accounts;
     $class->{association_data} = $assoc;
-    use Data::Dumper;
-    print Dumper $assoc;
 }
 
 sub Check_Sbatch {
@@ -593,10 +596,6 @@ touch ${finished_file}
     $job->{pid} = $sbatch_pid;
     $job->{script_file} = $script_file;
 
-    if ($options->{verbose}) {
-        use Data::Dumper;
-        print Dumper $job;
-    }
     ## Take a moment to reset the shell and language
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
