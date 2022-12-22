@@ -36,7 +36,10 @@ if (!-r $phix_annot) {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),);
 my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
     input => $phix_genome, gff => $phix_annot, libdir => '.');
 ok($gff2fasta, 'Run gff2fasta.');

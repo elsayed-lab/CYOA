@@ -30,12 +30,15 @@ if (!-r 'genome/phix.gff') {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),
+    stranded => 'no',);
 my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
     input => qq"test_forward.fastq.gz",
-    htseq_id => 'gene_id',
-    htseq_type => 'gene',
-    libdir => '.',
+    gff_tag => 'gene_id',
+    gff_type => 'gene',
     species => 'phix',);
 ok($hisat, 'Run Hisat2');
 my $sam_file = $hisat->{samtools}->{output};
@@ -52,7 +55,7 @@ ok($actual, 'Collect Hisat Statistics');
 my $expected = qq"test_output,10000,46,9954,0,21739.1304347826";
 unless(ok($expected eq $actual, 'Are the hisat stats as expected?')) {
     my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 $expected = qq"phiX174p01\t3
@@ -76,7 +79,7 @@ __alignment_not_unique\t0
 $actual = qx"less ${htseq_file}";
 unless(ok($expected eq $actual, 'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 chdir($start);

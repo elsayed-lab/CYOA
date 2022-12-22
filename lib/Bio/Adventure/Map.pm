@@ -846,8 +846,7 @@ sub Hisat2 {
         output_unaligned => undef,
         unaligned_discordant => undef,
         required => ['species', 'input',],
-        samtools => 1,
-        stranded => 'reverse');
+        samtools => 1,);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('hisat2-build');
     die('Could not find hisat2 in your PATH.') unless($check);

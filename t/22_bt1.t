@@ -52,7 +52,7 @@ ok($actual, 'Collect Bowtie1 Statistics');
 my $expected = qq"test_output,v0M1,0,10000,30,9970,0,outputs/bowtie_phix/test_output-v0M1_all_sno_gene_gene_id.count.xz";
 unless(ok($expected eq $actual), 'Are the bowtie stats as expected?') {
     my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 $expected = qq"phiX174p01\t1
@@ -76,7 +76,7 @@ __alignment_not_unique\t0
 $actual = qx"less ${htseq_file}";
 unless(ok($expected eq $actual, 'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 chdir($start);
