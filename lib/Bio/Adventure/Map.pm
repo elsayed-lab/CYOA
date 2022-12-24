@@ -630,7 +630,8 @@ sub BWA {
         $options->{jdepends} = $index_job->{job_id};
     }
 
-    my @bwa_methods = split(/,/, $options->{bwa_method});
+    my $method = $options->{bwa_method};
+    my @bwa_methods = split(/\,/, $options->{bwa_method});
     my $job_string = '';
     my $comment = '## A series of bwa commands.';
     my $sam_outs = '';

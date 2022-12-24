@@ -177,7 +177,7 @@ has interactive => (is => 'rw', default => 0); ## Is this an interactive session
 has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
-has jbasename => (is => 'rw', default => undef); ## Job basename
+has jbasename => (is => 'rw', default => 'base'); ## Job basename
 has jcpus => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request

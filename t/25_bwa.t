@@ -30,11 +30,13 @@ if (!-r 'genome/phix.gff') {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),);
 
 my $index = $cyoa->Bio::Adventure::Index::BWA_Index(
     input => $phix_fasta,
-    libdir => '.',
     species => 'phix');
 ## Check that the indexes were created:
 ok(-f $index->{output_sa}, "The .sa index file was created: $index->{output_sa}");
@@ -54,6 +56,8 @@ my $bwa = $cyoa->Bio::Adventure::Map::BWA(
 ok($bwa, 'Run Bwa.');
 
 ## Some files of interest:
+use Data::Dumper;
+print Dumper $bwa;
 my $htseq_mem = $bwa->{htseq_mem}->[0]->{output};
 my $htseq_aln = $bwa->{htseq_aln}->[0]->{output};
 my $reporter_sam = $bwa->{reporter}->{output};
