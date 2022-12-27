@@ -205,12 +205,7 @@ sub HT_Multi {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],
-        gff_type => 'gene',
-        stranded => 'reverse',
-        gff_tag => 'ID',
-        libtype => 'genome',
-        modules => ['htseq'],
-        paired => 1,);
+        modules => ['htseq'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('htseq-count');
     die('Could not find htseq in your PATH.') unless($check);
@@ -261,7 +256,6 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                stranded => $options->{stranded},
                 suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
@@ -278,7 +272,6 @@ sub HT_Multi {
                 jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
-                stranded => $options->{stranded},
                 suffix => $options->{suffix},);
             push(@jobs, $ht);
             $htseq_runs++;
@@ -302,7 +295,6 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $options->{postscript},
             prescript => $options->{prescript},
-            stranded => $options->{stranded},
             suffix => $options->{suffix},);
         push(@jobs, $ht);
     } elsif (-r "${gtf}") {
@@ -317,7 +309,6 @@ sub HT_Multi {
             jqueue => 'throughput',
             postscript => $args{postscript},
             prescript => $args{prescript},
-            stranded => $options->{stranded},
             suffix => $args{suffix},);
         push(@jobs, $ht);
     } else {
@@ -344,9 +335,7 @@ sub HT_Multi {
 sub HT_Types {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
-        args => \%args,
-        gff_type => 'gene',
-        gff_tag => 'ID',);
+        args => \%args,);
     my $my_type = $options->{gff_type};
     my $my_id = $options->{gff_tag};
     print "Calling htseq with options for type: ${my_type} and tag: ${my_id}.\n";
@@ -465,15 +454,9 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_args',],
-        gff_type => 'gene',
-        gff_tag => 'ID',
         jname => '',
         jprefix => '',
-        libtype => 'genome',
-        mapper => 'hisat2',
-        modules => ['htseq'],
-        paired => 1,
-        stranded => 'reverse');
+        modules => ['htseq'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {
@@ -481,6 +464,7 @@ sub HTSeq {
     } elsif ($stranded eq '0') {
         $stranded = 'no';
     }
+    print "Note, this is running with stranded: $options->{stranded}\n";
     my $gff_tag = $options->{gff_tag};
     my $htseq_input = $options->{input};
     my $gff_type = 'all';

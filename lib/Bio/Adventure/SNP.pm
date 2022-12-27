@@ -37,11 +37,7 @@ sub Align_SNP_Search {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        gff_tag => 'ID',
-        gff_type => 'gene',
-        modules => ['bowtie2', 'samtools'],
-        vcf_cutoff => 5,
-        vcf_minpct => 0.8,);
+        modules => ['bowtie2', 'samtools'],);
 
     my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
@@ -55,12 +51,9 @@ sub Align_SNP_Search {
         species => $options->{species},);
     my $bamfile = $bt2_job->{samtools}->{output};
     print "About to start SNP search of ${bamfile} against $options->{species}\n";
-    my $search = $class->Bio::Adventure::SNP::SNP_Search(
-        gff_tag => $options->{gff_tag},
-        gff_type => $options->{gff_type},
+    my $search = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
         input => $bamfile,
-        jdepends => $bt2_job->{samtools}->{job_id},
-        species => $options->{species},);
+        jdepends => $bt2_job->{samtools}->{job_id},);
     return($search);
 }
 

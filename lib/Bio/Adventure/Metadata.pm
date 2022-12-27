@@ -1386,7 +1386,7 @@ sub BT1_Stats {
     $bt_type = $options->{bt_type} if ($options->{bt_type});
     my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$paths->{jbasename}_stats";
+    my $jobid = qq"$paths->[0]->{jbasename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     my $stat_output = qq"outputs/bowtie_stats.csv";
@@ -1408,7 +1408,7 @@ failed_tmp=\$( { grep "^# reads that failed to align" ${bt_input} || test \$? = 
 failed=\${failed_tmp:-0}
 sampled_tmp=\$( { grep "^# reads with alignments sampled" ${bt_input} || test \$? = 1; } | awk -F": " '{print \$2}' | sed 's/ .*//g')
 sampled=\${sampled_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},${bt_type},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}")
+stat_string=\$(printf "$paths->[0]->{jbasename},${bt_type},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${one_align}" "\${failed}" "\${sampled}")
 echo "\$stat_string" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,
@@ -1442,7 +1442,7 @@ sub BT2_Stats {
     my $paths = $class->Get_Paths($bt_input);
     my $jname = 'bt2_stats';
     $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$paths->{jbasename}_stats";
+    my $jobid = qq"$paths->[0]->{jbasename}_stats";
     my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
@@ -1461,7 +1461,7 @@ sampled_tmp=\$( { grep " aligned >1 times" "${bt_input}" || test \$? = 1; } | aw
 sampled=\${sampled_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \$(( \${one_align} + \${sampled} )) ) " 2>/dev/null)
 rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
+stat_string=\$(printf "$paths->[0]->{jbasename},%s,%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}" "\${rpm}")
 echo "\$stat_string" >> ${output}!;
     my $stats = $class->Submit(
         comment => $comment,
@@ -1496,7 +1496,7 @@ sub BWA_Stats {
 
     my $jname = 'bwa_stats';
     $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$paths->{jbasename}_stats";
+    my $jobid = qq"$paths->[0]->{jbasename}_stats";
     my $count_table = '';
     $count_table = $options->{count_table} if ($options->{count_table});
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
@@ -1517,7 +1517,7 @@ mem_aligned_tmp=\$( { grep "^Mapped reads" ${mem_input} || test \$? = 1; } | awk
 mem_aligned=\${mem_aligned_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aln_aligned}" "\${mem_aligned}" "\$rpm")
+stat_string=\$(printf "$paths->[0]->{jbasename},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aln_aligned}" "\${mem_aligned}" "\$rpm")
 echo "\${stat_string}" >> ${stat_output}!;
     my $stats = $class->Submit(
         comment => $comment,
@@ -1624,23 +1624,20 @@ sub HT2_Stats {
     my $comment = qq!## This is a stupidly simple job to collect alignment statistics.!;
     my $output = qq"$options->{output_dir}/hisat2_stats.csv";
     my $jstring = qq!
-
-## This is a placekeeper
+if [ \! -e "${output}" ]; then
+    echo "id, original reads, single hits, failed reads, multi-hits" > ${output}
+fi
+original_reads_tmp=\$( { grep " reads; of these" "${ht_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
+original_reads=\${original_reads_tmp:-0}
+one_align_tmp=\$( { grep " aligned exactly 1 time" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
+one_align=\${one_align_tmp:-0}
+failed_tmp=\$( { grep " aligned 0 times" "${ht_input}" || test \$? = 1; } | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
+failed=\${failed_tmp:-0}
+sampled_tmp=\$( { grep " aligned >1 times" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
+sampled=\${sampled_tmp:-0}
+stat_string=\$(printf "$paths->[0]->{jbasename},%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}")
+echo "\$stat_string" >> ${output}
 !;
-#if [ \! -e "${output}" ]; then
-#    echo "id, original reads, single hits, failed reads, multi-hits" > ${output}
-#fi
-#original_reads_tmp=\$( { grep " reads; of these" "${ht_input}" 2>/dev/null || test \$? = 1; } | awk '{print \$1}' | sed 's/ //g')
-#original_reads=\${original_reads_tmp:-0}
-#one_align_tmp=\$( { grep " aligned exactly 1 time" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
-#one_align=\${one_align_tmp:-0}
-#failed_tmp=\$( { grep " aligned 0 times" "${ht_input}" || test \$? = 1; } | tail -n 1 | awk '{print \$1}' | sed 's/ .*//g')
-#failed=\${failed_tmp:-0}
-#sampled_tmp=\$( { grep " aligned >1 times" "${ht_input}" || test \$? = 1; } | awk '{print \$1}' | sed 's/ .*//g')
-#sampled=\${sampled_tmp:-0}
-#stat_string=\$(printf "$paths->{jbasename},%s,%s,%s,%s" "\${original_reads}" "\${one_align}" "\${failed}" "\${sampled}")
-#echo "\$stat_string" >> ${output}
-#!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $ht_input,
@@ -1669,7 +1666,7 @@ sub Salmon_Stats {
     my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
     my $paths = $class->Get_Paths($options->{input});
-    my $jobid = qq"$paths->{jbasename}_stats";
+    my $jobid = qq"$paths->[0]->{jbasename}_stats";
     my $outdir = dirname($options->{input});
     my $output = qq"${outdir}/salmon_stats.csv";
     my $comment = qq"## This is a stupidly simple job to collect salmon alignment statistics.";
@@ -1687,7 +1684,7 @@ inconsistent_tmp=\$( { grep "inconsistent" $options->{input} || test \$? = 1; } 
 inconsistent=\${inconsistent_tmp:-0}
 bias_tmp=\$( { grep "mapping_bias" $options->{input} || test \$? = 1; } | awk '{print \$2}' | sed 's/\,//g')
 bias=\${bias_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
+stat_string=\$(printf "$paths->[0]->{jbasename},$options->{species},%s,%s,%s,%s,%s" "\${reads}" "\${aligned}" "\${consistent}" "\${inconsistent}" "\${bias}")
 echo "\$stat_string" >> "${output}"!;
     my $stats = $class->Submit(
         comment => $comment,
@@ -1723,7 +1720,7 @@ sub Tophat_Stats {
     my $read_info = $options->{prep_input};
     my $jname = 'stats';
     $jname = $options->{jname} if ($options->{jname});
-    my $jobid = qq"$paths->{jbasename}_stats";
+    my $jobid = qq"$paths->[0]->{jbasename}_stats";
     my $count_table = "";
     $count_table = $options->{count_table} if ($options->{count_table});
     ## FIXME: Put this in the tophat_directory, but maybe who cares, just delete tophat.
@@ -1751,7 +1748,7 @@ failed_tmp=\$( { grep "^Total reads" ${unaccepted_output} || test \$? = 1; } | a
 failed=\${failed_tmp:-0}
 rpm_tmp=\$(perl -e "printf(1000000 / \${aligned})" 2>/dev/null)
 rpm=\${rpm_tmp:-0}
-stat_string=\$(printf "$paths->{jbasename},$options->{species},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aligned}" "\${failed}" "\$rpm")
+stat_string=\$(printf "$paths->[0]->{jbasename},$options->{species},%s,%s,%s,%s,%s,${count_table}" "\${original_reads}" "\${reads}" "\${aligned}" "\${failed}" "\$rpm")
 echo "\$stat_string" >> "${output}"!;
     my $stats = $class->Submit(
         comment => $comment,

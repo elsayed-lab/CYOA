@@ -316,13 +316,14 @@ sub Phagepromoter {
     my $output_dir = qq"outputs/$options->{jprefix}phagepromoter";
     my $output_file = qq"${output_dir}/${job_name}_phagepromoter.tsv";
     my $input_paths = $class->Get_Paths($options->{input});
+    my $input_full = $input_paths->[0]->{fullpath};
     my $comment = '## This is a script to run phagepromoter.';
     my $output_fasta = qq"${output_dir}/output.fasta";
     my $jstring = qq!start=\$(pwd)
 mkdir -p ${output_dir}
 cd ${output_dir}
 if phagepromoter.py $options->{format} \\
-  $input_paths->{fullpath} \\
+  ${input_full} \\
   $options->{both_strands} $options->{cutoff} \\
   $options->{family} $options->{host} \\
   $options->{phage_type} $options->{model} \\
@@ -389,7 +390,6 @@ sub Phanotate {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phanotate";
     my $output_file = qq"${output_dir}/${job_name}_phanotate.tsv";
-    my $input_paths = $class->Get_Paths($output_file);
     my $comment = '## This is a script to run phanotate.';
     my $jstring = qq!
 phanotate.py \\
@@ -568,7 +568,8 @@ sub Rho_Predict {
         required => ['input',],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input_paths = $class->Get_Paths($options->{input});
-    my $input_full = $input_paths->{fullpath};
+    my $input_full = $input_paths->[0]->{fullpath};
+    my $input_file = $input_paths->[0]->{filename};
     my $cwd_name = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_${cwd_name}";
     my $output_file = qq"${output_dir}/predictions_coordinates_${cwd_name}_1.csv";
@@ -577,7 +578,7 @@ sub Rho_Predict {
 start=\$(pwd)
 cp $options->{input} ${output_dir}/
 cd ${output_dir}
-echo $input_paths->{filename} | RhoTermPredict_algorithm.py \\
+echo ${input_file} | RhoTermPredict_algorithm.py \\
   2>rhotermpredict.stderr \\
   1>rhotermpredict.stdout
 cd \${start}

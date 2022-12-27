@@ -36,19 +36,19 @@ if (!-r $phix_annot) {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),
+    species => 'phix',);
 my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
-    input => $phix_genome, gff => $phix_annot, libdir => '.');
+    input => $phix_genome, gff => $phix_annot,);
 ok($gff2fasta, 'Run gff2fasta.');
 
 my $index = $cyoa->Bio::Adventure::Index::Kallisto_Index(
-    input => $phix_transcripts,
-    species => 'phix');
+    input => $phix_transcripts,);
 my $kallisto = $cyoa->Bio::Adventure::Map::Kallisto(
-    input => 'test_forward.fastq.gz',
-    jprefix => '26',
-    libdir => '.',
-    species => 'phix',);
+    input => 'test_forward.fastq.gz',);
 ok($kallisto, 'Run Kallisto');
 
 ##my $kallisto_file = 'outputs/46kallisto_phix/abundance.tsv';

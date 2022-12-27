@@ -54,12 +54,12 @@ sub CGView {
     my $job_name = $class->Get_Job_Name();
     ## Reminder, this gives me: filename, directory, dirname, fullpath
     my $job_paths = $class->Get_Paths($options->{input});
+    my $job_filename = $job_paths->[0]->{filename};
     my $output_directory = qq"outputs/$options->{jprefix}cgview";
-    my $output_base = basename($job_paths->{filename}, ('.gbk'));
+    my $output_base = basename($job_filename, ('.gbk'));
     my $xml_input = qq"$options->{input}";
     my $xml_output = qq"${output_directory}/${output_base}.xml";
     my $output_file = qq"${output_directory}/${output_base}";
-    my $out_paths = $class->Get_Paths($output_file);
 
     ## Some potential options when making the input xml file:
     ## -linear add a glyph for linear genomes

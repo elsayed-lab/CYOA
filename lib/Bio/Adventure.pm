@@ -17,6 +17,7 @@ use Bio::Tools::GFF;
 use Capture::Tiny qw":all";
 use Carp qw"croak carp confess cluck longmess";
 use Cwd qw"abs_path getcwd cwd";
+use Data::Dumper;
 use Env qw"COMPRESSION XZ_OPTS XZ_DEFAULTS HOME";
 use Env::Modulecmd;
 use File::Basename;
@@ -117,7 +118,7 @@ use Bio::Adventure::Pipeline;
 has align_blast_format => (is => 'rw', default => 5); ## Which alignment type should we use? (5 is blastxml)
 has align_jobs => (is => 'rw', default => 40); ## How many blast/fasta alignment jobs should we make when splitting alignments across nodes?
 has align_parse => (is => 'rw', default => 1); ## Parse blast searches into a table?
-has arbitrary => (is => 'rw', default => undef); ## Extra arbitrary arguments to pass
+has arbitrary => (is => 'rw', default => ''); ## Extra arbitrary arguments to pass
 has array_start => (is => 'rw', default => 100);
 has bamfile => (is => 'rw', default => undef); ## Default bam file for converting/reading/etc.
 has basedir => (is => 'rw', default => cwd());  ## This was cwd() but I think that may cause problems.
@@ -131,11 +132,13 @@ has bt_marg => (is => 'rw', default => '-M 0');
 has bt_larg => (is => 'rw', default => '-y -l 15');
 has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favorite bowtie2 arguments
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
+has bwa_method => (is => 'rw', default => 'mem,aln'); ## Default bwa method to use.
 has clean => (is => 'rw', default => 0); ## Cleanup after yourself?
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
 has compress => (is => 'rw', default => 1); ## Impress output files?
 has config => (is => 'rw', default => undef); ## Not sure
+has count => (is => 'rw', default => 1); ## Quantify reads after mapping?
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
@@ -177,7 +180,7 @@ has interactive => (is => 'rw', default => 0); ## Is this an interactive session
 has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
-has jbasename => (is => 'rw', default => 'base'); ## Job basename
+has jbasename => (is => 'rw', default => basename(cwd())); ## Job basename
 has jcpus => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
@@ -218,7 +221,7 @@ has outgroup => (is => 'rw', default => undef); ## Outgroup for phylogenetic too
 has output => (is => 'rw', default => undef); ## Generic output argument
 has outdir => (is => 'rw', default => undef);
 has overlap => (is => 'rw', default => 20);
-has paired => (is => 'rw', default => 0); ## Is the input paired?
+has paired => (is => 'rw', default => 1); ## Is the input paired?
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.
 has prescript => (is => 'rw', default => undef); ## String to put before a cluster job.
@@ -256,7 +259,8 @@ has search_string => (is => 'rw', default => 'tail');
 has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
 has starting_tree => (is => 'rw', default => undef); ## Starting tree for phylogenetic analyses
-has stranded => (is => 'rw', default => 1); ## Did this data come from a stranded library kit?
+## Note 202212: Now most of the sequencing kits used by our sequencer are reverse.
+has stranded => (is => 'rw', default => 'reverse'); ## Did this data come from a stranded library kit?
 has suffixes => (is => 'rw', default => '.fastq,.gz,.xz,.fasta,.sam,.bam,.count,.csfasta,.qual,.fsa,.faa,.fna,.gbf,.gbk,.tsv,.csv,.gff,.tbl,.ffn,.sf'); ## Suffixes to remove when invoking basename
 has ta_offset => (is => 'rw', default => 0); ## When counting TAs, this is either 0 or 2 depending on if the TA was removed.
 has task => (is => 'rw', default => 'tnseq');
@@ -266,7 +270,7 @@ has threshold => (is => 'rw', default => 0.05); ## A second cutoff value (lookin
 has type => (is => 'rw', default => undef); ## Possibly superceded by htseq_type
 has varfilter => (is => 'rw', default => 1); ## use a varfilter when performing variant searches.
 has verbose => (is => 'rw', default => 0); ## Print extra information while running?
-has vcf_cutoff => (is => 'rw', default => 10); ## Minimum depth cutoff for variant searches
+has vcf_cutoff => (is => 'rw', default => 5); ## Minimum depth cutoff for variant searches
 has vcf_method => (is => 'rw', default => 'freebayes');
 has vcf_minpct => (is => 'rw', default => 0.8); ## Minimum percent agreement for variant searches.
 ## A few variables which are by definition hash references and such
@@ -1357,7 +1361,7 @@ sub Reset_Vars {
     my ($class, %args) = @_;
     my %original_values = (
         array_string => undef,
-        jbasename => undef,
+        jbasename => basename(cwd()),
         jdepends => undef,
         jmem => 12,
         jname => 'undefined',
@@ -1722,7 +1726,6 @@ sub Submit {
         } catch ($e) {
             warn "An error occurred when storing the options: $e";
             print "HERE ARE THE OPTIONS:\n";
-            use Data::Dumper;
             print Dumper \%saved_options;
         }
     }

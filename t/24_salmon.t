@@ -61,10 +61,10 @@ ok(-f $stats_file, "The salmon stats file was created: ${stats_file}");
 my $actual = $cyoa->Last_Stat(input => $stats_file);
 ok($actual, 'Collect salmon Statistics');
 
-my $expected = qq"test_output,phix,44,44,44,0,0.4318181818181818";
+my $expected = qq"lib_format_counts.json,phix,44,44,44,0,0.4318181818181818";
 unless(ok($expected eq $actual, 'Are the mapping stats from salmon expected?')) {
     my ($old, $new) = diff($expected, $actual);
-    diag("--\n${old}\n--\n${new}\n");
+    diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 $expected = qq"Name\tLength\tEffectiveLength\tTPM\tNumReads

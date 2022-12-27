@@ -348,10 +348,10 @@ sub Prokka {
     ## useful/interesting.  If not, it will not likely be of use but instead be '.'
     ## Let us check for that and set $input_name to something useful in that case.
     my $input_name;
-    if (defined($input_paths->{dirname})) {
-        $input_name = $input_paths->{dirname};
+    if (defined($input_paths->[0]->{dirname})) {
+        $input_name = $input_paths->[0]->{dirname};
     } else {
-        $input_name = $input_paths->{filebase_extension};
+        $input_name = $input_paths->[0]->{filebase_extension};
     }
     my $locus_tag;
     if ($options->{locus_tag}) {
@@ -883,57 +883,59 @@ sub Trinotate {
     ## Once again, abs_path only works on stuff which already exists.
     ## So create the output directory, and use that.
     my $input_paths = $class->Get_Paths($options->{input});
-    my $input_full = $input_paths->{fullpath};
+    my $input_full = $input_paths->[0]->{fullpath};
+    my $input_file = $input_paths->[0]->{filename};
+    my $input_dir = $input_paths->[0]->{dirname};
     my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa', '.ffn'));
     $output_name = qq"${output_name}.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate";
     my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
     my $stderr = qq"${output_dir}/trinotate_${job_name}.stderr";
-    $output_dir .= qq"$input_paths->{dirname}" if (defined($input_paths->{dirname}));
+    $output_dir .= qq"${input_dir}" if (defined($input_dir));
     my $expected_config = qq"${trinotate_exe_dir}/auto/$options->{config}";
     $expected_config = qq"${trinotate_exe_dir}/auto/conf.txt" unless (-r $expected_config);
     my $comment = qq!## This is a trinotate submission script
 !;
     my $jstring = qq!
 function cleanup {
-  echo "Removing /tmp/$input_paths->{filename}.sqlite"
-  rm  -f /tmp/$input_paths->{filename}.sqlite
+  echo "Removing /tmp/${input_file}.sqlite"
+  rm  -f /tmp/${input_file}.sqlite
 }
 trap cleanup EXIT
 
 mkdir -p ${output_dir}
 start=\$(pwd)
 cd ${output_dir}
-ln -sf "$input_paths->{fullpath}" .
-rm -f "$input_paths->{filename}.gene_trans_map"
-if [[ -f "$input_paths->{filename}.gene_trans_map" ]]; then
+ln -sf "${input_full}" .
+rm -f "${input_file}.gene_trans_map"
+if [[ -f "${input_file}.gene_trans_map" ]]; then
   echo "The gene to transcript map already exists."
 else
-  ids=\$({ grep "^>" $input_paths->{fullpath} || test \$? = 1; } | sed 's/>//g' | awk '{print \$1}')
+  ids=\$({ grep "^>" ${input_full} || test \$? = 1; } | sed 's/>//g' | awk '{print \$1}')
   for i in \${ids}; do
-    echo "\${i}	\${i}" >> $input_paths->{filename}.gene_trans_map
+    echo "\${i}	\${i}" >> ${input_file}.gene_trans_map
   done
 fi
 
-cp ${trinotate_exe_dir}/Trinotate.sqlite /tmp/$input_paths->{filename}.sqlite
+cp ${trinotate_exe_dir}/Trinotate.sqlite /tmp/${input_file}.sqlite
 ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --conf ${expected_config} \\
-  --Trinotate_sqlite /tmp/$input_paths->{filename}.sqlite \\
-  --transcripts $input_paths->{filename} \\
-  --gene_to_trans_map $input_paths->{filename}.gene_trans_map \\
+  --Trinotate_sqlite /tmp/${input_file}.sqlite \\
+  --transcripts ${input_file} \\
+  --gene_to_trans_map ${input_file}.gene_trans_map \\
   --CPU 6 \\
   2>trinotate_${job_name}.stderr \\
   1>trinotate_${job_name}.stdout
 mv Trinotate.tsv ${output_name}
 rm -f *.ok *.out *.outfmt6 *.cmds *.log
-rm -rf TMHMM_* $input_paths->{filename}.ffn.trans*
+rm -rf TMHMM_* ${input_file}.ffn.trans*
 cd \${start}
 !;
     my $trinotate = $class->Submit(
         comment => $comment,
         jcpus => 6,
         jdepends => $options->{jdepends},
-        jname => qq"trinotate_$input_paths->{filename}_${job_name}",
+        jname => qq"trinotate_${input_file}_${job_name}",
         jprefix => $options->{jprefix},
         jqueue => 'large',
         jstring => $jstring,

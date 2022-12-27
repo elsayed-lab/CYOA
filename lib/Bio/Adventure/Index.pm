@@ -54,7 +54,6 @@ sub BT1_Index {
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species}
 ## in $options->{libdir}/$options->{libtype}/indexes!;
-    print "TESTME: Starting BT1_Index Submission\n";
     my $bt1_index = $class->Submit(
         comment => $comment,
         jname => qq"bt1idx_${species}",
@@ -63,7 +62,6 @@ sub BT1_Index {
         jprefix => '10',
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    print "TESTME: Finished BT1_Index Submission\n";
     return($bt1_index);
 }
 

@@ -50,11 +50,13 @@ sub Abricate {
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
+    my $input_dir = $input_paths->[0]->{dirname};
+    my $input_ext = $input_paths->[0]->{filebase_extension};
     my $input_name;
-    if (defined($input_paths->{dirname})) {
-        $input_name = $input_paths->{dirname};
+    if (defined($input_dir)) {
+        $input_name = $input_dir;
     } else {
-        $input_name = $input_paths->{filebase_extension};
+        $input_name = $input_ext;
     }
     my $output_dir = qq"outputs/$options->{jprefix}abricate_${input_name}";
     my $species_string = '';

@@ -30,17 +30,17 @@ if (!-r 'genome/phix.gff') {
     ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
-my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
-
-my $index = $cyoa->Bio::Adventure::Index::BT2_Index(input => $phix_fasta,
-                                                    libdir => '.', species => 'phix');
-
-my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(
-    input => qq"test_forward.fastq.gz",
-    htseq_id => 'ID',
-    htseq_type => 'CDS',
-    libdir => '.',
+my $cyoa = Bio::Adventure->new(
+    cluster => 0,
+    basedir => cwd(),
+    libdir => cwd(),
     species => 'phix',
+    gff_tag => 'ID',
+    gff_type => 'CDS',
+    stranded => 'no',
     vcf_cutoff => 1,);
 
+my $index = $cyoa->Bio::Adventure::Index::BT2_Index(input => $phix_fasta,);
+my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(
+    input => qq"test_forward.fastq.gz",);
 ok($variant, 'Ran variant search.');

@@ -139,7 +139,6 @@ sub Fastqc {
     my $modified_input = undef;
     if (scalar(@{$input_paths}) > 1) {
         my @inputs;
-        print "TESTME: $#$input_paths\n";
         for my $element (@{$input_paths}) {
             push(@inputs, $element->{fullpath});
         }

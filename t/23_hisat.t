@@ -33,13 +33,13 @@ if (!-r 'genome/phix.gff') {
 my $cyoa = Bio::Adventure->new(
     cluster => 0,
     basedir => cwd(),
-    libdir => cwd(),
-    stranded => 'no',);
-my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
-    input => qq"test_forward.fastq.gz",
     gff_tag => 'gene_id',
     gff_type => 'gene',
-    species => 'phix',);
+    libdir => cwd(),
+    species => 'phix',
+    stranded => 'no',);
+my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
+    input => qq"test_forward.fastq.gz",);
 ok($hisat, 'Run Hisat2');
 my $sam_file = $hisat->{samtools}->{output};
 my $htseq_file = $hisat->{htseq}->[0]->{output};
@@ -52,7 +52,7 @@ ok(-f $stats_file, 'The hisat stats were recorded.');
 my $actual = $cyoa->Last_Stat(input => $stats_file);
 ok($actual, 'Collect Hisat Statistics');
 
-my $expected = qq"test_output,10000,46,9954,0,21739.1304347826";
+my $expected = qq"hisat2_phix_genome_test_output.stderr,10000,46,9954,0";
 unless(ok($expected eq $actual, 'Are the hisat stats as expected?')) {
     my ($old, $new) = diff($expected, $actual);
     diag("--Expected--\n${old}\n--Actual--\n${new}\n");

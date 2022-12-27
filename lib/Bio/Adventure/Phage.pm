@@ -293,7 +293,7 @@ sub Classify_Phage {
         jprefix => '18',
         modules => ['blastdb', 'blast'],);
     my $paths = $class->Get_Paths($options->{input});
-    my $output_dir = qq"outputs/$options->{jprefix}classify_$paths->{dirname}";
+    my $output_dir = qq"outputs/$options->{jprefix}classify_$paths->[0]->{dirname}";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
@@ -1397,9 +1397,9 @@ sub Phastaf {
 
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
-    my $input_full = $input_paths->{fullpath};
+    my $input_full = $input_paths->[0]->{fullpath};
     my $output_dir = qq"outputs/$options->{jprefix}phastaf";
-    $output_dir .= "_$input_paths->{dirname}" if (defined($input_paths->{dirname}));
+    $output_dir .= "_$input_paths->[0]->{dirname}" if (defined($input_paths->[0]->{dirname}));
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
@@ -1927,7 +1927,6 @@ sub Terminase_ORF_Reorder_Worker {
         my $hit_descr = $hits->description();
         my $hit_score = $hits->score();
         my $hit_sig = $hits->significance();
-        print "TESTME: HIT_SIG $hit_sig\n";
         my $hit_bits = $hits->bits();
         my @hit_data = @{$result_data->{$query_name}->{hit_data}};
         my $hit_datum = {

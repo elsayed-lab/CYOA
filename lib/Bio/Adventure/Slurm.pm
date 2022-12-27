@@ -606,7 +606,6 @@ sub Test_Job {
     my ($class, %args) = @_;
     my $slurm = Bio::Adventure::Slurm->new();
     my $test = $slurm->{slurm_test};
-    print "TESTME: ${test}\n";
 }
 
 =head1 AUTHOR - atb

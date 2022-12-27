@@ -68,8 +68,6 @@ sub Bowtie {
         bt_type => 'v0M1',
         count => 1,
         libtype => 'genome',
-        gff_type => 'gene',
-        gff_tag => 'ID',
         jmem => 12,
         jprefix => '10',
         modules => ['bowtie1'],);
@@ -203,8 +201,6 @@ bowtie \\
     if ($count) {
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                gff_tag => $options->{gff_tag},
-                gff_type => $options->{gff_type},
                 input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
@@ -217,8 +213,6 @@ bowtie \\
             $bt_job->{rRNA_count} = $htmulti;
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                gff_tag => $options->{gff_tag},
-                gff_type => $options->{gff_type},
                 input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
@@ -283,8 +277,6 @@ sub Bowtie2 {
         args => \%args,
         required => ['species', 'input',],
         count => 1,
-        gff_type => 'gene',
-        gff_tag => 'ID',
         jmem => 28,
         jprefix => '20',
         modules => ['bowtie2']);
@@ -416,8 +408,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         if ($libtype eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
                 input => $sam_job->{output},
-                gff_type => $options->{gff_type},
-                gff_tag => $options->{gff_tag},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 5,
@@ -426,8 +416,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 input => $sam_job->{output},
-                gff_type => $options->{gff_type},
-                gff_tag => $options->{gff_tag},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 6,
@@ -485,8 +473,6 @@ sub BT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        gff_type => 'gene',
-        gff_tag => 'ID',
         required => ['species', 'input'],);
     my $bt_input = $options->{input};
     my $species = $options->{species};
@@ -542,16 +528,10 @@ sub BWA {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        arbitrary => '',
-        bwa_method => 'mem',
-        count => 1,
-        gff_type => 'gene',
-        gff_tag => 'ID',
         jcpus => 8,
         jmem => 40,
         jprefix => 30,
         jwalltime => '72:00:00',
-        libtype => 'genome',
         modules => ['bwa'],
         required => ['input', 'species'],
         samtools_mapped => 1,
@@ -559,7 +539,6 @@ sub BWA {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('bwa');
     die('Could not find bwa in your PATH.') unless($check);
-
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -635,8 +614,10 @@ sub BWA {
     my $job_string = '';
     my $comment = '## A series of bwa commands.';
     my $sam_outs = '';
+    my @sam_files = ();
     for my $method (@bwa_methods) {
         my $sam_out = qq"${bwa_dir}/$options->{jbasename}_${method}.sam";
+        push(@sam_files, $sam_out);
         $sam_outs = qq"${sam_out}:";
         my $extra_args = qq" $options->{arbitrary} -t $options->{jcpus} ";
         if ($method eq 'mem') {
@@ -765,16 +746,15 @@ fi
         input => $bwa_input,
         jdepends => $options->{jdepends},
         jname => qq"bwa_$options->{species}",
-        output => $sam_outs,
         jprefix => $options->{jprefix},
         jstring => $job_string,
         jmem => $options->{jmem},
         modules => $options->{modules},
+        output => $sam_outs,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',);
 
-    my @sam_files = split(/:/, $sam_outs);
     my @samtools_jobs = ();
     my $sam_count = 0;
     for my $sam (@sam_files) {
@@ -785,16 +765,13 @@ fi
             jname => qq"s2b_${sam_method}",
             jmem => '30',
             jprefix => $options->{jprefix},
-            samtools_mapped => 1,
-            samtools_unmapped => 1,);
+            samtools_mapped => $options->{samtools_mapped},
+            samtools_unmapped => $options->{samtools_unmapped},);
         my $sam_name = qq"samtools_${sam_method}";
         my $htseq_name = qq"htseq_${sam_method}";
         $bwa_job->{$sam_name} = $sam_job;
-
         if ($options->{count}) {
             my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                gff_tag => $options->{gff_tag},
-                gff_type => $options->{gff_type},
                 input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => $htseq_name,
@@ -834,8 +811,6 @@ sub Hisat2 {
         args => \%args,
         compress => 1,
         count => 1,
-        gff_type => 'gene',
-        gff_tag => 'ID',
         jmem => 48,
         jname => 'hisat2',
         jprefix => '40',
@@ -1055,8 +1030,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     if ($options->{count}) {
         if ($options->{libtype} eq 'rRNA') {
             $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                gff_tag => $options->{gff_tag},
-                gff_type => $options->{gff_type},
                 input => $htseq_input,
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
@@ -1067,8 +1040,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 stranded => $options->{stranded});
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                gff_tag => $options->{gff_tag},
-                gff_type => $options->{gff_type},
                 input => $htseq_input,
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
@@ -1673,8 +1644,6 @@ fi
     $count_table = $options->{count_table} if ($options->{count_table});
     my $htmulti = $class->Bio::Adventure::Count::HT_Multi(
         htseq_input => $accepted,
-        gff_tag => $options->{gff_tag},
-        gff_type => $options->{gff_type},
         jdepends => $tophat->{job_id},
         jname => qq"hts_$options->{species}",
         jprefix => '32',
@@ -1684,8 +1653,6 @@ fi
     if ($paired) {
         my $ht_paired = $class->Bio::Adventure::Count::HT_Multi(
             htseq_input => qq"${tophat_dir}/accepted_paired.bam",
-            gff_tag => $options->{gff_tag},
-            gff_type => $options->{gff_type},
             jdepends => $tophat->{job_id},
             jname => qq"htsp_$options->{species}",
             jprefix => '32',
