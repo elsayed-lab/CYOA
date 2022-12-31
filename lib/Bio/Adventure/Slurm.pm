@@ -8,28 +8,29 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
-## hash of the associations for this person
-has association_data => (is => 'rw', default => undef);
-## hash of the qos and their attributes.
-has qos_data => (is => 'rw', default => undef);
-
-## List of accounts for this user
-has accounts => (is => 'rw', default => undef);
-## List of clusters available to this user
-has cluster => (is => 'rw', default => undef);
-## List of qos names visible to this user
-has qos => (is => 'rw', default => undef);
-## Location of the sbatch executable.
-has sbatch => (is => 'rw', default => 'sbatch');
-## Current usage stats
-has usage => (is => 'rw', default => undef);
-has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
-
 use Cwd;
 use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
+
+## List of accounts for this user
+has accounts => (is => 'rw', default => undef);
+## hash of the associations for this person
+has association_data => (is => 'rw', default => undef);
+## List of clusters available to this user
+has cluster => (is => 'rw', default => undef);
+## List of qos names visible to this user
+has qos => (is => 'rw', default => undef);
+## hash of the qos and their attributes.
+has qos_data => (is => 'rw', default => undef);
+has language => (is => 'rw', default => 'bash');
+## Location of the sbatch executable.
+has sbatch => (is => 'rw', default => 'sbatch');
+has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
+## Current usage stats
+has usage => (is => 'rw', default => undef);
+
 
 sub BUILD {
     my ($class, $args) = @_;
@@ -415,7 +416,6 @@ sub Submit {
     my ($class, $parent, %args) = @_;
     my $options = $parent->Get_Vars(
         args => \%args,
-        jprefix => '',
         jname => 'unknown',);
     my $sbatch = $class->Check_Sbatch();
     my $depends_prefix = '--dependency=afterok';
@@ -423,7 +423,7 @@ sub Submit {
     ## then overwrite with any application specific requests from %args
     my $sbatch_log = 'outputs/log.txt';
 
-    my $depends_string = "";
+    my $depends_string = '';
     if ($options->{jdepends}) {
         $depends_string = qq"${depends_prefix}:$options->{jdepends}";
     }
@@ -599,6 +599,7 @@ touch ${finished_file}
     ## Take a moment to reset the shell and language
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
+    $parent->{language} = 'bash';
     return($job);
 }
 

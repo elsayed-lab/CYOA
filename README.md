@@ -209,6 +209,15 @@
     16.  Visualization (TODO: Clean up my circos invocation and add it)
         * (cgview): Invoke cgview to visualize a genome.
 
+# Installation
+
+* perl Build.PL
+* Build installdeps
+* Build install
+
+The only likely dependency which causes trouble is Bio::DB::Sam
+because it looks for a samtools < version 1.0 libbam.a
+
 # Footnotes
 
 1. [share/phage_annotation_pipeline.png](share/phage_annotation_pipeline.png)

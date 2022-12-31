@@ -115,7 +115,7 @@
     alignment as a set of TSV columns.
   best_only(0) - When this is turned on, then parsed alignments will
     have only 1 line per query sequence, describing the best hit.
-  blast_params( -e 10 ) - Set my favorite blast parameters.  This may
+  blast_params(-e 10) - Set my favorite blast parameters.  This may
     warrant moving into the catch-all 'arbitrary' argument.
   blast_tool(blastn) - Pick the appropriate blast executable here.  I
     think I added a little logic which should warn the user if one is
