@@ -26,6 +26,7 @@ has qos => (is => 'rw', default => undef);
 has qos_data => (is => 'rw', default => undef);
 has language => (is => 'rw', default => 'bash');
 ## Location of the sbatch executable.
+has partitions => (is => 'rw', default => undef);
 has sbatch => (is => 'rw', default => 'sbatch');
 has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 ## Current usage stats
@@ -37,6 +38,8 @@ sub BUILD {
     my $assoc = $class->Get_Associations();
     my $qos = $class->Get_QOS();
     $class->{qos_data} = $qos;
+    my $partitions = $class->Get_Partitions();
+    $class->{partitions} = $partitions;
     my @qos_names = sort keys %{$qos};
     $class->{qos} = \@qos_names;
     my $cluster = undef;
@@ -136,6 +139,8 @@ sub Choose_Spec {
         qos_info => $qos_info,
         choice => $chosen_qos,
     };
+    use Data::Dumper;
+    print Dumper $chosen_qos;
     return($ret);
 }
 
@@ -156,6 +161,37 @@ sub Get_Associations {
     }
     $assoc->close();
     return($associations);
+}
+
+sub Get_Partitions {
+    my $avail_part = {};
+    my $part = FileHandle->new("sinfo -a --long -r |");
+    my $count = 0;
+  PART: while (my $line = <$part>) {
+      $count++;
+      next QOS if ($count < 2); ## First line is a timestamp, second is a header
+      my ($part, $avail, $timelimit, $jobsize, $root,
+          $over, $groups, $nodes, $state, $nodelist) = split(/\s+/, $line);
+      my $default = 0;
+      if ($part =~ /\*$/) {
+          $default = 1;
+      }
+      $part =~ s/\*$//g;
+      $avail_part->{$part} = {
+          avail => $avail,
+          timelimit => $timelimit,
+          jobsize => $jobsize,
+          root => $root,
+          oversub => $over,
+          groups => $groups,
+          nodes => $nodes,
+          state => $state,
+          nodelist => $nodelist,
+          default => $default,
+      }
+  }
+    $part->close();
+    return($avail_part);
 }
 
 sub Get_QOS {
@@ -423,6 +459,17 @@ sub Submit {
     ## then overwrite with any application specific requests from %args
     my $sbatch_log = 'outputs/log.txt';
 
+    my $wanted = {
+        mem => $options->{jmem},
+        cpu => $options->{jcpu},
+        gpu => $options->{gpu},
+        walltime => $options->{walltime},
+    };
+    my $chosen_qos = Choose_Spec(associations => $class->{association_data},
+                                 qos_info => $class->{qos_data},
+                                 wanted_spec => $wanted,);
+
+
     my $depends_string = '';
     if ($options->{jdepends}) {
         $depends_string = qq"${depends_prefix}:$options->{jdepends}";
@@ -520,16 +567,44 @@ ${perl_file} \\
     my $array_string = '';
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
 
+
     my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
-#SBATCH --partition=$options->{jpartition}
-#SBATCH --qos=$options->{jqueue} ${nice_string}
-#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$options->{jcpus}
-#SBATCH --time=$options->{jwalltime}
-#SBATCH --job-name=${jname}
-#SBATCH --mem=$options->{jmem}G
+#SBATCH --job-name=${jname} ${nice_string}
 #SBATCH --output=${sbatch_log}.sbatch
+?;
+    if (defined($chosen_qos->{partition})) {
+        $script_start .= qq?
+#SBATCH --partition=$chosen_qos->{partition}
+?;
+    }
+    if (defined($chosen_qos->{qos})) {
+        $script_start .= qq?
+#SBATCH --partition=$chosen_qos->{qos}
+?;
+    }
+    if (defined($chosen_qos->{cpu})) {
+        $script_start .= qq?
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$chosen_qos->{cpu}
+?;
+    }
+    if (defined($chosen_qos->{time})) {
+        $script_start .= qq?
+#SBATCH --time=$chosen_qos->{time}
+?;
+    }
+    if (defined($chosen_qos->{mem})) {
+        $script_start .= qq?
+#SBATCH --time=$chosen_qos->{mem}
+?;
+    }
+    if (defined($chosen_qos->{account})) {
+        $script_start .= qq?
+#SBATCH --account=$chosen_qos->{account}
+?;
+    }
+$script_start .= qq?
 ${array_string}
 ${module_string}
 set -o errexit
@@ -607,6 +682,22 @@ sub Test_Job {
     my ($class, %args) = @_;
     my $slurm = Bio::Adventure::Slurm->new();
     my $test = $slurm->{slurm_test};
+    $slurm->Get_Usage();
+    my $wanted = {
+        mem => 40,
+        cpu => 4,
+        gpu => undef,
+        walltime => '4:00:00',
+    };
+    use Data::Dumper;
+    print "TESTME: association_data\n";
+    print Dumper $slurm->{association_data};
+    print "TESTME: qos_data\n";
+    print Dumper $slurm->{qos_data};
+    ##my $chosen_qos = Choose_Spec(associations => $slurm->{association_data},
+    ##                             qos_info = $slurm->{qos_data},
+    ##                             wanted_spec => $wanted,);
+
 }
 
 =head1 AUTHOR - atb

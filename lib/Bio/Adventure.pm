@@ -1409,11 +1409,6 @@ sub Set_Vars {
     return($options);
 }
 
-sub Test_Job {
-    my $slurm = Bio::Adventure::Slurm->new();
-    $slurm->Get_Usage();
-}
-
 sub My_Which {
     my $executable = shift;
     my $result = which($executable);
