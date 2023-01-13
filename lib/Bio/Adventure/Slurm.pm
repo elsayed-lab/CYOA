@@ -9,6 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Cwd;
+use Data::Dumper;
 use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
@@ -18,56 +19,81 @@ use IO::Handle;
 has accounts => (is => 'rw', default => undef);
 ## hash of the associations for this person
 has association_data => (is => 'rw', default => undef);
+has chosen_account => (is => 'rw', default => '');
+has chosen_cluster => (is => 'rw', default => '');
+has chosen_partition => (is => 'rw', default => '');
+has chosen_qos => (is => 'rw', default => '');
 ## List of clusters available to this user
 has cluster => (is => 'rw', default => undef);
 ## List of qos names visible to this user
 has qos => (is => 'rw', default => undef);
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
-has language => (is => 'rw', default => 'bash');
+## Any attributes here which are also in Adventure.pm get set to the values
+## from Adventure.pm which is confusing to me.
+##has jprefix => (is => 'rw', default => '00');
+##has jname => (is => 'rw', default => 'unknown');
+##has language => (is => 'rw', default => 'bash');
 ## Location of the sbatch executable.
 has partitions => (is => 'rw', default => undef);
-has sbatch => (is => 'rw', default => 'sbatch');
+##has sbatch => (is => 'rw', default => 'sbatch');
 has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 ## Current usage stats
 has usage => (is => 'rw', default => undef);
 
-
 sub BUILD {
     my ($class, $args) = @_;
-    my $assoc = $class->Get_Associations();
-    my $qos = $class->Get_QOS();
-    $class->{qos_data} = $qos;
-    my $partitions = $class->Get_Partitions();
-    $class->{partitions} = $partitions;
-    my @qos_names = sort keys %{$qos};
-    $class->{qos} = \@qos_names;
-    my $cluster = undef;
-    my @accounts = ();
-    my @clusters = keys %{$assoc};
-    if (scalar(@clusters) > 0) {
-        $cluster = $clusters[0];
-        @accounts = keys %{$assoc->{$cluster}};
-        ## Merge the qos information into the user's assocations
-        ## In the hopes that this makes it easier to pick and choose queues
-        ## So, when we wish to pull the current usage in a qos, we will
-        ## ask for: $assoc->{$cluster}->{$account}->{$qos}->{used_mem} or
-        ## whatever...  This does assume that the counters accross accounts
-        ## are not shared, something which I have not yet tested.
-        for my $iterate (keys @clusters) {
-            for my $account (keys %{$assoc->{$iterate}}) {
-                my @account_qos = @{$assoc->{$iterate}->{$account}->{qos}};
-                for my $q (@account_qos) {
-                    my %info = %{$qos->{$q}};
-                    $assoc->{$iterate}->{$account}->{$q} = \%info;
+
+    if (!defined($class->{qos_data})) {
+        my $qos_data = Get_QOS();
+        print "In BUILD Looking at qos data.\n";
+        print Dumper $qos_data;
+        my @qos_names = sort keys %{$qos_data};
+        $class->{qos} = \@qos_names;
+        $class->{qos_data} = $qos_data;
+    }
+
+    if (!defined($class->{partitions})) {
+        $class->{partitions} = Get_Partitions();
+    }
+
+    if (!defined($class->{usage})) {
+        $class->{usage} = Get_Usage();
+    }
+
+    ## Give me the set of partitions/clusters/qos available to my current user.
+    if (!defined($class->{assciation_data})) {
+        my $assoc = $class->Get_Associations();
+        my $qos = $class->{qos_data};
+
+        my $cluster = undef;
+        my @accounts = ();
+        my @clusters = keys %{$assoc};
+        if (scalar(@clusters) > 0) {
+            $cluster = $clusters[0];
+            @accounts = keys %{$assoc->{$cluster}};
+            ## Merge the qos information into the user's assocations
+            ## In the hopes that this makes it easier to pick and choose queues
+            ## So, when we wish to pull the current usage in a qos, we will
+            ## ask for: $assoc->{$cluster}->{$account}->{$qos}->{used_mem} or
+            ## whatever...  This does assume that the counters accross accounts
+            ## are not shared, something which I have not yet tested.
+            for my $iterate (keys @clusters) {
+                for my $account (keys %{$assoc->{$iterate}}) {
+                    my @account_qos = @{$assoc->{$iterate}->{$account}->{qos}};
+                    for my $q (@account_qos) {
+                        my %info = %{$qos->{$q}};
+                        $assoc->{$iterate}->{$account}->{$q} = \%info;
+                    }
                 }
             }
-        }
-    } ## End checking for associations.
+        } ## End checking for associations.
 
-    $class->{cluster} = $cluster;
-    $class->{accounts} = \@accounts;
-    $class->{association_data} = $assoc;
+        $class->{cluster} = $cluster;
+        $class->{accounts} = \@accounts;
+        $class->{association_data} = $assoc;
+    }
+    return($class);
 }
 
 sub Check_Sbatch {
@@ -79,34 +105,50 @@ sub Check_Sbatch {
     return($path);
 }
 
-sub Choose_Spec {
-    my %args = @_;
-    my $associations = $args{associations};
-    my $qos_info = $args{qos_info};
+sub Choose_QOS {
+    my ($class, %args) = @_;
     my $wanted_spec = $args{wanted_spec};
+    my $current_usage = $args{current_usage};
+    my $associations = $class->{association_data};
+    my $qos_info = $class->{qos_data};
+    print "TESTME wanted spec in Choose_Spec: \n";
+    print Dumper $wanted_spec;
+    print "TESTME: Current usage in Choose_Spec:\n";
+    print Dumper $current_usage;
+    print "TESTME: QOS Info:\n";
+    print Dumper $qos_info;
+    $wanted_spec->{walltime_hours} = Convert_to_Hours($wanted_spec->{walltime});
 
     my $chosen_account = '';
     my $chosen_qos = '';
   TOP: for my $cluster (keys %{$associations}) {
     ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
         my @qos = @{$associations->{$cluster}->{$account}->{qos}};
+        print "TESTME qos array: @qos\n";
         my $found_qos = 0;
       QOS: for my $q (@qos) {
-          my $stringent_mem = $qos_info->{max_job_mem} + $qos_info->{used_mem};
-          my $stringent_cpu = $qos_info->{max_job_cpu} + $qos_info->{used_cpu};
-          my $stringent_gpu = $qos_info->{max_job_gpu} + $qos_info->{used_gpu};
-          my $stringent_hours = $qos_info->{max_hours} + $qos_info->{used_hours};
+          my $info = $qos_info->{$q};
+          ## As currently written, this info->{used_mem} is incorrect because it _should_ be
+          ## getting that information from %current_usage, once we add those up and compare
+          ## to the maximum, then we should be able to match up to a correct qos
+          ## Ideally, I would like to have some knowledge about which qos/nodes are idle
+          ## and choose those, but I think I don't sufficiently understand the cluster to do that yet...
+          my $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
+          my $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
+          my $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
+          my $stringent_hours = $info->{max_hours} + $info->{used_hours};
+          print "TESTME stringent: <$stringent_mem> <$stringent_cpu> <$stringent_gpu> <$stringent_hours>\n";
           ## If we pass this initial test, then the job should start immediately.
           if ($wanted_spec->{mem} <= $stringent_mem &&
               $wanted_spec->{cpu} <= $stringent_cpu &&
               $wanted_spec->{gpu} <= $stringent_gpu &&
-              $wanted_spec->{walltime} <= $stringent_hours) {
+              $wanted_spec->{walltime_hours} <= $stringent_hours) {
               print "Found qos in first pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime} vs. $stringent_mem $stringent_cpu $stringent_hours\n";
               $found_qos++;
-              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
+              $qos_info->{$q}->{used_mem} = $qos_info->{$q}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{$q}->{used_cpu} = $qos_info->{$q}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{$q}->{used_gpu} = $qos_info->{$q}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{$q}->{used_hours} = $qos_info->{$q}->{used_hours} + $wanted_spec->{walltime_hours};
               $chosen_account = $account;
               $chosen_qos = $q;
               last TOP;
@@ -117,16 +159,16 @@ sub Choose_Spec {
         ## because there are already jobs queued, so just pick a qos which is big enough.
         my $found_qos2 = 0;
       QOS2: for my $q (@qos) {
-          if ($wanted_spec->{mem} <= $qos_info->{max_job_mem} &&
-              $wanted_spec->{cpu} <= $qos_info->{max_job_cpu} &&
-              $wanted_spec->{gpu} <= $qos_info->{max_job_gpu} &&
-              $wanted_spec->{walltime} <= $qos_info->{max_mem}) {
+          if ($wanted_spec->{mem} <= $qos_info->{$q}->{max_job_mem} &&
+              $wanted_spec->{cpu} <= $qos_info->{$q}->{max_job_cpu} &&
+              $wanted_spec->{gpu} <= $qos_info->{$q}->{max_job_gpu} &&
+              $wanted_spec->{walltime_hours} <= $qos_info->{$q}->{max_mem}) {
               print "Found qos in second pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime}\n";
               $found_qos2++;
-              $qos_info->{used_mem} = $qos_info->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{used_cpu} = $qos_info->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{used_gpu} = $qos_info->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{used_hours} = $qos_info->{used_hours} + $wanted_spec->{walltime};
+              $qos_info->{used_mem} = $qos_info->{$q}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{used_cpu} = $qos_info->{$q}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{used_gpu} = $qos_info->{$q}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{used_hours} = $qos_info->{$q}->{used_hours} + $wanted_spec->{walltime_hours};
               $chosen_account = $account;
               $chosen_qos = $q;
               last TOP;
@@ -134,14 +176,53 @@ sub Choose_Spec {
       } ## End iterating over every qos
     }
   }
-    print "Got $chosen_qos\n";
+    print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {
         qos_info => $qos_info,
         choice => $chosen_qos,
     };
-    use Data::Dumper;
-    print Dumper $chosen_qos;
+    print Dumper $ret;
     return($ret);
+}
+
+sub Convert_to_Hours {
+    my $string = shift;
+    my $days = 0;
+    my $hms = '00:00:00';
+    if ($string =~ m/\-/) {
+        ($days, $hms) = split(/\-/, $string);
+    } else {
+        $hms = $string;
+    }
+
+    my $hours = 1;
+    my $min = 0;
+    my $sec = 0;
+    if ($hms =~ m/:/) {
+        ($hours, $min, $sec) = split(/:/, $hms);
+    } else {
+        $hours = $hms;
+    }
+    my $final_hours = ($days * 24) + $hours;
+    if ($sec > 0) {
+        $min++;
+    }
+    if ($min > 0) {
+        $final_hours++;
+    }
+    ## E.g. round up, effectively ignoring minutes and seconds.
+    return($final_hours);
+}
+
+sub Convert_to_Walltime {
+    my $hours = shift;
+    my $walltime = qq"${hours}:00:00";
+    if ($hours > 24) {
+        my $days = floor($hours / 24);
+        my $hours = $hours % 24;
+        $walltime = qq"${days}-${hours}:00:00";
+    }
+    return($walltime);
 }
 
 sub Get_Associations {
@@ -169,7 +250,7 @@ sub Get_Partitions {
     my $count = 0;
   PART: while (my $line = <$part>) {
       $count++;
-      next QOS if ($count < 2); ## First line is a timestamp, second is a header
+      next PART if ($count < 2); ## First line is a timestamp, second is a header
       my ($part, $avail, $timelimit, $jobsize, $root,
           $over, $groups, $nodes, $state, $nodelist) = split(/\s+/, $line);
       my $default = 0;
@@ -177,6 +258,9 @@ sub Get_Partitions {
           $default = 1;
       }
       $part =~ s/\*$//g;
+      if ($part eq 'PARTITION') {
+          next PART;
+      }
       $avail_part->{$part} = {
           avail => $avail,
           timelimit => $timelimit,
@@ -263,7 +347,7 @@ sub Get_QOS {
           my ($days, $hms) = split(/\-/, $max_wall);
           my ($hours, $min, $sec) = split(/:/, $hms);
           $days = 0 if (!defined($days));
-          $hours = 0 if (!defined($hours));
+          $hours = 1 if (!defined($hours));
           $max_hours = ($days * 24) + $hours;
       }
 
@@ -312,6 +396,77 @@ sub Get_QOS {
     return($avail_qos);
 }
 
+sub Get_Spec {
+    my ($class, %args) = @_;
+    my $options = $args{options};
+    my $wanted = {
+        mem => 1,
+        cpu => 1,
+        gpu => 0,
+        walltime => 1
+    };
+
+    if (defined($options->{mem}) && defined($options->{jmem})) {
+        print "Both mem and jmem are defined, that is confusing, using jmem.\n";
+        $wanted->{mem} = $options->{jmem};
+    } elsif (defined($options->{mem})) {
+        print "Mem is defined, ideally this should be jmem.\n";
+        $wanted->{mem} = $options->{mem};
+    } elsif (defined($options->{jmem})) {
+        $wanted->{mem} = $options->{jmem};
+    } else {
+        print "Neither mem nor jmem is defined, defaulting to 10G.\n";
+        $wanted->{mem} = 10;
+    }
+
+    my $walltime_string = '00:40:00';
+    if (defined($options->{walltime}) && defined($options->{jwalltime})) {
+        print "Both walltime and jwalltime are defined, that is confusing, using jwalltime.\n";
+        $walltime_string = $options->{jwalltime};
+    } elsif (defined($options->{walltime})) {
+        print "Walltime is defined, ideally this should be jwalltime.\n";
+        $walltime_string = $options->{walltime};
+    } elsif (defined($options->{jwalltime})) {
+        $walltime_string = $options->{jwalltime};
+    } else {
+        print "Neither walltime nor jwalltime is defined, defaulting to 40 minutes.\n";
+    }
+    print "About to convert to hours: $walltime_string\n";
+    my $walltime_hours = Convert_to_Hours($walltime_string);
+    $wanted->{walltime_hours} = $walltime_hours;
+    $wanted->{walltime} = Convert_to_Walltime($walltime_hours);
+
+    if (defined($options->{cpu}) && defined($options->{jcpu})) {
+        print "Both cpu and jcpu are defined, that is confusing, using jcpu.\n";
+        $wanted->{cpu} = $options->{jcpu};
+    } elsif (defined($options->{cpu})) {
+        print "Cpu is defined, ideally this should be jcpu.\n";
+        $wanted->{cpu} = $options->{cpu};
+    } elsif (defined($options->{jcpu})) {
+        $wanted->{cpu} = $options->{jcpu};
+    } else {
+        print "Neither cpu nor jcpu is defined, defaulting to 1.\n";
+        $wanted->{cpu} = 1;
+    }
+
+    if (defined($options->{gpu}) && defined($options->{jgpu})) {
+        print "Both gpu and jgpu are defined, that is confusing, using jgpu.\n";
+        $wanted->{gpu} = $options->{jgpu};
+    } elsif (defined($options->{gpu})) {
+        print "Gpu is defined, ideally this should be jgpu.\n";
+        $wanted->{gpu} = $options->{gpu};
+    } elsif (defined($options->{jgpu})) {
+        $wanted->{gpu} = $options->{jgpu};
+    } else {
+        print "Neither gpu nor jgpu is defined, defaulting to 0.\n";
+        $wanted->{gpu} = 0;
+    }
+
+    print "TESTME: END OF Get_Spec: $wanted->{walltime}\n";
+
+    return($wanted);
+}
+
 sub Get_Usage {
     my $usage = FileHandle->new("squeue --me -o '%all' |");
     my $current = {};  ## Hash of the current usage by user.
@@ -334,6 +489,9 @@ sub Get_Usage {
       ## like it would be easier to parse though.
       ## the group variable looks like it currently contains what I think of as user?
       $min_memory =~ s/G$//g;
+      ## FIXME: If we are getting a M, then we need to divide the memory by
+      ## 1000 if we want to keep counting by gigs.
+      $min_memory =~ s/M$//g;
       my $internal = {
           account => $account,
           array_job_id => $array_job_id,
@@ -412,6 +570,8 @@ sub Get_Usage {
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
           $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
       } else {
+          ## I think I would like this to print some information about failed jobs perhaps here?
+          print "TESTME: Get_Usage state: $state\n";
           $instance->{$partition}->{$account}->{$qos}->{running} = 0;
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
           $instance->{$partition}->{$account}->{$qos}->{failed} = 1;
@@ -450,6 +610,7 @@ parameters for various jobs on our Slurm cluster.
 =cut
 sub Submit {
     my ($class, $parent, %args) = @_;
+    my $class_jprefix = $class->{jprefix};
     my $options = $parent->Get_Vars(
         args => \%args,
         jname => 'unknown',);
@@ -459,16 +620,26 @@ sub Submit {
     ## then overwrite with any application specific requests from %args
     my $sbatch_log = 'outputs/log.txt';
 
-    my $wanted = {
-        mem => $options->{jmem},
-        cpu => $options->{jcpu},
-        gpu => $options->{gpu},
-        walltime => $options->{walltime},
-    };
-    my $chosen_qos = Choose_Spec(associations => $class->{association_data},
-                                 qos_info => $class->{qos_data},
-                                 wanted_spec => $wanted,);
-
+    ## Get my current usage, which fills in a hash of:
+    ## usage->{user}->{partition}->{account}->{qos}->{mem, cpu, jobs, running, queued, failed}
+    ## This at least in theory could also hold the various 50+ pieces of information acquired from
+    ## $(squeue --me -o '%all')
+    my $usage = $class->Get_Usage();
+    ## Get_Spec takes the putative requirements of the job, which reside in $options->{jmem, jcpu, jwalltime}
+    ## and return a fully numeric specification of time, cpus, gpus, memory.
+    ## I state 'fully numeric' because the walltime is written as a string and I convert it to hours
+    ## with a minimum of 1.
+    my $wanted = $class->Get_Spec(options => $options);
+    ## Choose_QOS should take the current usage and spec for this job and find a combination of
+    ## cluster/partition/account/qos which will work and return that information.
+    ## with the caveat that scavenger is a weirdo special case.
+    ## In order to do this, it pulls the user's associations from the constructor.
+    ## Reminder, this is a hash of assoc->{cluster}->{account}->{qos} -- which may be a bad organizational
+    ## choice because the partition is inside this innermost hash.  I don't yet fully understand
+    ## slurm queueing and organization, so keep this in mind until I do...
+    my $chosen_qos = $class->Choose_QOS(wanted_spec => $wanted,
+                                        current_usage => $usage);
+    $class->{chosen_qos} = $chosen_qos->{choice};
 
     my $depends_string = '';
     if ($options->{jdepends}) {
@@ -476,6 +647,9 @@ sub Submit {
     }
     if (!defined($options->{jname})) {
         $options->{jname} = $class->Get_Job_Name();
+    }
+    if (!defined($options->{jprefix})) {
+        $options->{jprefix} = '';
     }
     my $jname = qq"$options->{jprefix}$options->{jname}";
     my $finished_file = qq"outputs/logs/${jname}.finished";
@@ -490,6 +664,18 @@ sub Submit {
     foreach my $w (@wanted_vars) {
         $job->{$w} = $options->{$w} if (!defined($job->{$w}));
     }
+    ## Now fill in the job's qos etc from the slurm instance
+    $options->{account} = $class->{chosen_account} if ($class->{chosen_account});
+    $options->{cluster} = $class->{chosen_cluster} if ($class->{chosen_cluster});
+    $options->{partition} = $class->{chosen_partition} if ($class->{chosen_partition});
+    $options->{qos} = $class->{chosen_qos} if ($class->{chosen_qos});
+    ##  Need to catch the special case of scavenger
+    if ($options->{qos} eq 'scavenger') {
+        $options->{account} = 'scavenger';
+        $options->{partition} = 'scavenger';
+    }
+    print "Filled qos info: account: $options->{account} cluster: $options->{cluster} partition $options->{partition} qos: $options->{qos}\n";
+
     if ($options->{restart} && -e $finished_file) {
         print "The restart option is on, and this job appears to have finished.\n";
         return($job);
@@ -567,52 +753,26 @@ ${perl_file} \\
     my $array_string = '';
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
 
-
     my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --job-name=${jname} ${nice_string}
 #SBATCH --output=${sbatch_log}.sbatch
 ?;
-    if (defined($chosen_qos->{partition})) {
-        $script_start .= qq?
-#SBATCH --partition=$chosen_qos->{partition}
-?;
-    }
-    if (defined($chosen_qos->{qos})) {
-        $script_start .= qq?
-#SBATCH --partition=$chosen_qos->{qos}
-?;
-    }
-    if (defined($chosen_qos->{cpu})) {
-        $script_start .= qq?
-#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$chosen_qos->{cpu}
-?;
-    }
-    if (defined($chosen_qos->{time})) {
-        $script_start .= qq?
-#SBATCH --time=$chosen_qos->{time}
-?;
-    }
-    if (defined($chosen_qos->{mem})) {
-        $script_start .= qq?
-#SBATCH --time=$chosen_qos->{mem}
-?;
-    }
-    if (defined($chosen_qos->{account})) {
-        $script_start .= qq?
-#SBATCH --account=$chosen_qos->{account}
-?;
-    }
-$script_start .= qq?
-${array_string}
-${module_string}
-set -o errexit
+    $script_start .= qq?#SBATCH --account=$options->{account}\n? if ($options->{account});
+    $script_start .= qq?#SBATCH --partition=$options->{partition}\n? if ($options->{partition});
+    $script_start .= qq?#SBATCH --qos=$options->{qos}\n? if (defined($options->{qos}));
+    ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
+    $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
+    $script_start .= qq?#SBATCH --time=$wanted->{walltime}\n? if (defined($wanted->{time}));
+    $script_start .= qq?#SBATCH --time=$wanted->{mem}\n? if (defined($wanted->{mem}));
+    $script_start .= qq"${array_string}\n" if ($array_string);
+    $script_start .= qq"${module_string}\n" if ($module_string);
+    $script_start .= qq?set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
-
 ?;
 
     my $script_end = qq!
@@ -654,7 +814,7 @@ touch ${finished_file}
         $job_id =~ s/^.*Submitted batch job (\d+)/$1/g;
     }
     if (!defined($job_id)) {
-        warn("The job id did not get defined.  sbatch likely failed.");
+        warn("The job id did not get defined, submission likely failed.");
         return(undef);
     }
     sleep($options->{jsleep});
@@ -680,24 +840,23 @@ touch ${finished_file}
 
 sub Test_Job {
     my ($class, %args) = @_;
-    my $slurm = Bio::Adventure::Slurm->new();
-    my $test = $slurm->{slurm_test};
-    $slurm->Get_Usage();
-    my $wanted = {
-        mem => 40,
-        cpu => 4,
-        gpu => undef,
-        walltime => '4:00:00',
-    };
-    use Data::Dumper;
-    print "TESTME: association_data\n";
-    print Dumper $slurm->{association_data};
-    print "TESTME: qos_data\n";
-    print Dumper $slurm->{qos_data};
-    ##my $chosen_qos = Choose_Spec(associations => $slurm->{association_data},
-    ##                             qos_info = $slurm->{qos_data},
-    ##                             wanted_spec => $wanted,);
+    my $cyoa = Bio::Adventure->new();
+    my $options = $cyoa->Get_Vars(
+        args => \%args,
+        jmem => 10,
+        jwalltime => 4,);
 
+    my $jstring = qq?echo "Starting test job."
+sleep 300
+echo "Ending test job."
+?;
+    my $job = $cyoa->Submit(
+        input => 'test',
+        jstring => $jstring,
+        jmem => $options->{jmem},
+        jcpu => $options->{jcpu},
+        jwalltime => $options->{jwalltime});
+    print Dumper $job;
 }
 
 =head1 AUTHOR - atb
