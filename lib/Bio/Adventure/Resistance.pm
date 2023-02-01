@@ -118,7 +118,6 @@ sub Resfinder {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        species => undef,
         jprefix => '18',
         arbitrary => ' -l 0.6 -t 0.8 --acquired ',
         modules => ['resfinder'],);

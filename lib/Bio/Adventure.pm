@@ -187,7 +187,7 @@ has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
 has jnice => (is => 'rw', default => 0); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
 has jpartition => (is => 'rw', default => 'dpart');
-has jprefix => (is => 'rw', default => undef); ## Prefix number for the job
+has jprefix => (is => 'rw', default => ''); ## Prefix number for the job
 has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs default to?
 has jqueues => (is => 'rw', default => 'throughput,workstation,long,large'); ## Other possible queues
 has jsleep => (is => 'rw', default => '0.5'); ## Set a sleep between jobs
@@ -1366,7 +1366,7 @@ sub Reset_Vars {
         jmem => 12,
         jname => 'undefined',
         jqueue => 'workstation',
-        jprefix => '',
+        jprefix => 'xx',
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
@@ -1407,11 +1407,6 @@ sub Set_Vars {
     }
     $class->{options} = $options;
     return($options);
-}
-
-sub Test_Job {
-    my $slurm = Bio::Adventure::Slurm->new();
-    $slurm->Get_Usage();
 }
 
 sub My_Which {

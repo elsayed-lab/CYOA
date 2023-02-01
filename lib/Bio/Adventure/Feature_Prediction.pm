@@ -392,6 +392,7 @@ sub Phanotate {
     my $output_file = qq"${output_dir}/${job_name}_phanotate.tsv";
     my $comment = '## This is a script to run phanotate.';
     my $jstring = qq!
+mkdir -p ${output_dir}
 phanotate.py \\
   --outfile ${output_file} \\
   $options->{input} \\
