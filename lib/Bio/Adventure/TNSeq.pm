@@ -958,7 +958,7 @@ sub Transit_TPP {
         required => ['species', 'input',],
         htseq_type => 'gene',
         htseq_id => 'locus_tag',
-        jprefix => '09',
+        jprefix => '60',
         modules => ['bwa', 'transit', 'htseq'],
         primer => 'GGGACTTATCATCCAACCTGT',
         protocol => 'Sassetti', ## Or Mme1 or Tn5
@@ -970,17 +970,6 @@ sub Transit_TPP {
 
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
-
-    if ($options->{species} =~ /\:/) {
-        my @species_lst = split(/:/, $options->{species});
-        my @result_lst = ();
-        foreach my $sp (@species_lst) {
-            print "Invoking tpp on ${sp}\n";
-            my $result = $class->Bio::Adventure::TNSeq::TPP(species => $sp);
-            push (@result_lst, $result);
-        }
-        return(@result_lst);
-    }
 
     my $ready = $class->Check_Input(files => $options->{input},);
     my $sleep_time = 3;
@@ -996,17 +985,19 @@ sub Transit_TPP {
         $suffix_name .= qq"_$options->{jname}";
     }
 
-    my $tpp_dir = qq"outputs/transit_$options->{species}";
+    my $tpp_dir = qq"outputs/$options->{jprefix}transit_$options->{species}";
     if ($args{tpp_dir}) {
         $tpp_dir = $args{tpp_dir};
     }
     my $tpp_input = $options->{input};
 
-    my $tpp_basename = "";
     my $test_file = "";
     my $tpp_pre;
     my $tpp_post;
+    my $tpp_basename = basename(cwd());
+    my $paired = 0;
     if ($tpp_input =~ /\:|\;|\,|\s+/) {
+        $paired = 1;
         my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
@@ -1014,19 +1005,16 @@ sub Transit_TPP {
         $tpp_post = qq"rm ${tpp_dir}/r1.fastq ${tpp_dir}/r2.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq -reads2 ${tpp_dir}/r2.fastq ";
         $test_file = $pair_listing[0];
-        $tpp_basename = basename($pair_listing[0], ('.gz', '.xz'));
-        $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
         $tpp_pre = qq"less ${tpp_input} > ${tpp_dir}/r1.fastq";
         $tpp_post = qq"rm ${tpp_dir}/r1.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq ";
-        $tpp_basename = basename($test_file, ('.gz', '.xz'));
-        $tpp_basename = basename($tpp_basename, ('.fastq', '.fasta'));
     }
 
-    my $tpp_genome = "$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
-    my $sam_filename = qq"${tpp_dir}/${tpp_name}.sam";
+    my $tpp_genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
+    my $tpp_output = qq"${tpp_dir}/${tpp_basename}";
+    my $sam_filename = qq"${tpp_output}.sam";
 
     my $error_file = qq"${tpp_dir}/tpp_$options->{species}_${tpp_basename}.stderr";
     my $comment = qq!## This is a transit preprocessing alignment of $options->{input} against
@@ -1040,7 +1028,7 @@ tpp -ref ${tpp_genome} \\
   -primer $options->{primer} \\
   -bwa \$(which bwa) \\
   ${tpp_input} \\
-  -output ${tpp_dir}/${tpp_basename}
+  -output ${tpp_output}
 ${tpp_post}
 !;
     my $tpp_job = $class->Submit(
@@ -1056,32 +1044,32 @@ ${tpp_post}
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
 
-    my $sam_job = Bio::Adventure::Convert::Samtools(
-        $class,
+    my $jprefix = $options->{jprefix} + 1;
+    my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $tpp_job->{job_id},
         jname => "s2b_${tpp_name}",
-        jprefix => "61",);
+        jprefix => $jprefix);
+    $jprefix++;
     $tpp_job->{samtools} = $sam_job;
-    my $htseq_input = $sam_job->{job_output};
+    my $htseq_input = $sam_job->{output};
+    $htseq_input = $sam_job->{paired_output} if ($paired);
     my $htmulti;
     if ($options->{do_htseq}) {
         if ($libtype eq 'rRNA') {
-            $htmulti = Bio::Adventure::Count::HTSeq(
-                $class,
-                htseq_input => $sam_job->{job_output},
+            $htmulti = $class->Bio::Adventure::Count::HTSeq(
+                input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
-                jprefix => '62',
+                jprefix => $jprefix,
                 libtype => $libtype,
                 mapper => 'hisat2',);
         } else {
-            $htmulti = Bio::Adventure::Count::HT_Multi(
-                $class,
-                htseq_input => $sam_job->{job_output},
+            $htmulti = $class->Bio::Adventure::Count::HT_Multi(
+                input => $sam_job->{output},
                 jdepends => $sam_job->{job_id},
                 jname => $suffix_name,
-                jprefix => '62',
+                jprefix => $jprefix,
                 libtype => $libtype,
                 mapper => 'bwa',);
             $tpp_job->{htseq} = $htmulti;

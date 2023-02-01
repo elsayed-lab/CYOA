@@ -465,6 +465,13 @@ sub HTSeq {
         $stranded = 'no';
     }
     print "Note, this is running with stranded: $options->{stranded}\n";
+
+    my $aqual = $options->{qual};
+    if (!defined($aqual)) {
+        print "Setting minimum quality to 0.\n";
+        $aqual = '0';
+    }
+
     my $gff_tag = $options->{gff_tag};
     my $htseq_input = $options->{input};
     my $gff_type = 'all';
@@ -524,7 +531,9 @@ sub HTSeq {
 
     my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
     my $htseq_invocation = qq!htseq-count \\
-  -q -f bam -s ${stranded} ${gff_type_arg} ${gff_tag_arg} \\!;
+  -q -f bam \\
+  -s ${stranded} -a ${aqual} \\
+  ${gff_type_arg} ${gff_tag_arg} \\!;
     my $jstring = qq!
 ${htseq_invocation}
   ${htseq_input} \\

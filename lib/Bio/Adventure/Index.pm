@@ -611,6 +611,9 @@ ${index_string} \\
         say("Waiting 10 seconds to see if you want to quit and gather that genome,
 otherwise a decoy-less index will be generated.");
         sleep(10);
+        $jstring = qq!${index_string} \\
+  2>salmon_index.stderr 1>salmon_index.stdout
+!;
     }
 
     my $comment = qq!## Generating salmon indexes for species: ${species}

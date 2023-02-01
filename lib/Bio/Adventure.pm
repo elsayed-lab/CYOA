@@ -706,7 +706,7 @@ sub Get_Menus {
                 '(slsearch): Count frequency of SL (or an arbitrary) sequences.' => \&Bio::Adventure::Count::SLSearch,
             },
         },
-        Feature_Prediction => {
+        FeaturePrediction => {
             name => 'features',
             message => '',
             choices => {
