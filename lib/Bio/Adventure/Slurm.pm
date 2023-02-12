@@ -14,6 +14,7 @@ use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
+use POSIX qw"floor";
 
 ## List of accounts for this user
 has accounts => (is => 'rw', default => undef);
@@ -46,8 +47,8 @@ sub BUILD {
 
     if (!defined($class->{qos_data})) {
         my $qos_data = Get_QOS();
-        print "In BUILD Looking at qos data.\n";
-        print Dumper $qos_data;
+        ## print "In BUILD Looking at qos data.\n";
+        ## print Dumper $qos_data;
         my @qos_names = sort keys %{$qos_data};
         $class->{qos} = \@qos_names;
         $class->{qos_data} = $qos_data;
@@ -111,12 +112,12 @@ sub Choose_QOS {
     my $current_usage = $args{current_usage};
     my $associations = $class->{association_data};
     my $qos_info = $class->{qos_data};
-    print "TESTME wanted spec in Choose_Spec: \n";
-    print Dumper $wanted_spec;
-    print "TESTME: Current usage in Choose_Spec:\n";
-    print Dumper $current_usage;
-    print "TESTME: QOS Info:\n";
-    print Dumper $qos_info;
+    ## print "TESTME wanted spec in Choose_Spec: \n";
+    ## print Dumper $wanted_spec;
+    ## print "TESTME: Current usage in Choose_Spec:\n";
+    ## print Dumper $current_usage;
+    ## print "TESTME: QOS Info:\n";
+    ## print Dumper $qos_info;
     $wanted_spec->{walltime_hours} = Convert_to_Hours($wanted_spec->{walltime});
 
     my $chosen_account = '';
@@ -159,10 +160,14 @@ sub Choose_QOS {
         ## because there are already jobs queued, so just pick a qos which is big enough.
         my $found_qos2 = 0;
       QOS2: for my $q (@qos) {
+          print "TESTME one of these is undefined sometimes: mem: $wanted_spec->{mem} vs $qos_info->{$q}->{max_job_mem}
+cpu: $wanted_spec->{cpu} vs $qos_info->{$q}->{max_job_cpu}
+gpu: $wanted_spec->{gpu} vs $qos_info->{$q}->{max_job_gpu}
+time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_wall}\n";
           if ($wanted_spec->{mem} <= $qos_info->{$q}->{max_job_mem} &&
               $wanted_spec->{cpu} <= $qos_info->{$q}->{max_job_cpu} &&
               $wanted_spec->{gpu} <= $qos_info->{$q}->{max_job_gpu} &&
-              $wanted_spec->{walltime_hours} <= $qos_info->{$q}->{max_mem}) {
+              $wanted_spec->{walltime_hours} <= $qos_info->{$q}->{max_wall}) {
               print "Found qos in second pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime}\n";
               $found_qos2++;
               $qos_info->{used_mem} = $qos_info->{$q}->{used_mem} + $wanted_spec->{mem};
@@ -181,7 +186,7 @@ sub Choose_QOS {
         qos_info => $qos_info,
         choice => $chosen_qos,
     };
-    print Dumper $ret;
+    ## print Dumper $ret;
     return($ret);
 }
 
@@ -674,6 +679,14 @@ sub Submit {
         $options->{account} = 'scavenger';
         $options->{partition} = 'scavenger';
     }
+    if ($options->{account} eq 'scavenger') {
+        $options->{qos} = 'scavenger';
+        $options->{partition} = 'scavenger';
+    }
+    if ($options->{partition} eq 'scavenger') {
+        $options->{qos} = 'scavenger';
+        $options->{account} = 'scavenger';
+    }
     print "Filled qos info: account: $options->{account} cluster: $options->{cluster} partition $options->{partition} qos: $options->{qos}\n";
 
     if ($options->{restart} && -e $finished_file) {
@@ -856,7 +869,7 @@ echo "Ending test job."
         jmem => $options->{jmem},
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});
-    print Dumper $job;
+    ## print Dumper $job;
 }
 
 =head1 AUTHOR - atb
