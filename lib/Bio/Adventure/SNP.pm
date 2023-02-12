@@ -451,7 +451,6 @@ sub SNP_Ratio_Worker {
     ## values of every observed tag.  For now I am just going to hard-code the order,
     ## but it should not be difficult to parse this out of the header lines of the
     ## bcf file.
-
     my @mpileup_tag_order = (
         'DP', 'ADF', 'AD', 'VDB', 'SGB', 'MQ0F', 'RPB', 'MQB', 'BQB', 'MQSB', 'ADR', 'GT',
         'ICB', 'HOB', 'AC', 'AN', 'DP4', 'MQ',);

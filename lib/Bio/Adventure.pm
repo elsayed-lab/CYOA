@@ -133,6 +133,7 @@ has bt_larg => (is => 'rw', default => '-y -l 15');
 has bt2_args => (is => 'rw', default => ' --very-sensitive -L 14 '); ## My favorite bowtie2 arguments
 has btmulti => (is => 'rw', default => 0); ## Perform multiple bowtie searches?
 has bwa_method => (is => 'rw', default => 'mem,aln'); ## Default bwa method to use.
+has chosen_tag => (is => 'rw', default => 'ODDS');
 has clean => (is => 'rw', default => 0); ## Cleanup after yourself?
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
@@ -140,6 +141,7 @@ has compress => (is => 'rw', default => 1); ## Impress output files?
 has config => (is => 'rw', default => undef); ## Not sure
 has count => (is => 'rw', default => 1); ## Quantify reads after mapping?
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
+has coverage_tag => (is => 'rw', default => 'DP');
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
 has debug => (is => 'rw', default => 0); ## Print debugging information.
@@ -157,6 +159,8 @@ has gff_tag => (is => 'rw', default => 'gene_id'); ## Likely redundant with htse
 ## Ahh I remember, htseq_type was added to facilitate performing multiple htseq counts on multiple gff files.
 ## Notably the interCDS for bacterial genomes.
 has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole gff file, otherwise use that suffix.
+has gff_cds_parent_type => (is => 'rw', default => 'mRNA');
+has gff_cds_type => (is => 'rw', default => 'CDS');
 has help => (is => 'rw', default => undef); ## Ask for help?
 has host_filter => (is => 'rw', default => 1);  ## When performing an assembly, do a host filter?
 has htseq_args => (is => 'rw', default => ' --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union '); ## Most likely htseq options
