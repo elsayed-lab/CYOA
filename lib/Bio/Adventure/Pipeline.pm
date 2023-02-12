@@ -571,6 +571,7 @@ sub Process_RNAseq {
     print "\n${prefix}: Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{input},
+        jdepends => $last_job,
         jnice => 100,
         jprefix => $prefix,);
     push(@jobs, $fastqc);
