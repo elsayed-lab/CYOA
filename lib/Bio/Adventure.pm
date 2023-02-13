@@ -706,6 +706,7 @@ sub Get_Menus {
                 '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
                 '(mash): Use mash to count pairwise distances among sequences.' => \&Bio::Adventure::Count::Mash,
                 '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
+                '(mpileup): Count coverage with mpileup.' => \&Bio::Adventure::Count::Mpileup,
                 '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
                 '(slsearch): Count frequency of SL (or an arbitrary) sequences.' => \&Bio::Adventure::Count::SLSearch,
             },
@@ -841,6 +842,7 @@ sub Get_Menus {
             name => 'snp',
             message => qq"When my god comes back I'll be waiting for him with a shotgun.  And I'm keeping the last shell for myself. (inexact quote)  Go to page 667408",
             choices => {
+                '(mpileup): Count coverage with mpileup.' => \&Bio::Adventure::Count::Mpileup,
                 '(trim): Trim sequence with an additional rule to remove the first 10 nucleotides.' => \&Bio::Adventure::Trim::Trimomatic,
                 '(bwa): Map reads with bwa and count with htseq.' => \&Bio::Adventure::Map::BWA,
                 '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => \&Bio::Adventure::Map::Bowtie,

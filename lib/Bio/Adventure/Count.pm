@@ -901,6 +901,58 @@ sub Read_Mi {
     return(\%sequences);
 }
 
+=head2 C<Mpileup>
+
+ Run samtools mpileup.
+
+=cut
+sub Mpileup {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'species'],
+        jprefix => 61,
+        modules => ['samtools'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('samtools');
+    die('Could not find samtools in your PATH.') unless($check);
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    ## Unlike most of my jobs, the input argument here is a directory, so just grab it
+    my $cwd_name = basename($options->{input});
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
+    my $output_dir = qq"outputs/$options->{jprefix}mpileup_$options->{species}";
+    my $pileup_error = qq"${output_dir}/mpileup.stderr";
+    my $pileup_output = qq"${output_dir}/mpileup.bcf";
+    my $final_error = qq"${output_dir}/mpileup_bcf.stderr";
+    my $comment = qq"## Playing with samtools mpileup";
+    my $jstring = qq!mkdir -p ${output_dir}
+echo "Started samtools sort at \$(date)" >> ${output_dir}/mpileup_$options->{species}.stdout
+
+samtools sort -l 9 -@ 4 $options->{input} -o ${output_dir}/sorted.bam \\
+samtools index ${output_dir}/sorted.bam
+if [ \! -r "${genome}.fai" ]; then
+    samtools faidx ${genome}
+fi
+samtools mpileup -uvf ${genome} 2>${output_dir}/samtools_mpileup.stderr \\
+    ${output_dir}/sorted.vcf
+bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
+!;
+
+    my $mpileup = $class->Submit(
+        comment => $comment,
+        jcpus => $options->{jcpus},
+        jdepends => $options->{jdepends},
+        jmem => 12,
+        jname => 'mpileup',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        modules => $options->{modules},);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($mpileup);
+}
+
 =head2 C<Read_Mappings_Mi>
 
  Read an miRNA database and get the connections between the various IDs, mature
