@@ -1514,7 +1514,9 @@ Read a fasta file and return the chromosomes.
 =cut
 sub Read_Genome_Fasta {
     my ($class, %args) = @_;
-    my $options = $class->Get_Vars(args => \%args);
+    my $options = $class->Get_Vars(
+        args => \%args,
+        extra => 0);
     my $chromosomes = {};
     ## FIXME: This should be removed and I need to
     ## ensure that all calls use either fasta or genome.
@@ -1536,9 +1538,11 @@ sub Read_Genome_Fasta {
         my $length = $genome_seq->length;
         my $empty_forward = [];
         my $empty_reverse = [];
-        for my $c (0 .. $length) {
-            $empty_forward->[$c] = 0;
-            $empty_reverse->[$c] = 0;
+        if ($options->{extra}) {
+            for my $c (0 .. $length) {
+                $empty_forward->[$c] = 0;
+                $empty_reverse->[$c] = 0;
+            }
         }
         $chromosomes->{$id}->{forward} = $empty_forward;
         $chromosomes->{$id}->{sequence} = $sequence;
