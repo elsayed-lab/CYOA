@@ -567,7 +567,6 @@ sub SNP_Ratio_Worker {
 
     ## Here is an arbitrary vcf line as a refresher to make sure I grabbed them all:
     ## NC_045512.2     3037    .       C       T       224     PASS    DP=244;ADF=0,121;ADR=0,121;AD=0,242;VDB=0;SGB=-0.693147;MQSB=0.976205;MQ0F=0;AC=2;AN=2;DP4=0,0,121,121;MQ=42    GT:PL:DP:SP:ADF:ADR:AD  1/1:254,255,0:242:0:0,121:0,121:0,242
-
     print $log "Reading bcf file.\n";
     my $count = 0; ## Use this to count the positions changed in the genome.
     my $num_variants = 0; ## Use this to count the variant positions of reasonably high confidence.
@@ -943,7 +942,7 @@ sub SNP_Ratio_Intron_Worker {
         my %internal = %{$input_genome->{$chr_key}};
         $original_genome{$chr_key} = \%internal;
     }
-
+    print "TESTME: Copied genome to original.\n";
     ## Ok, so I want to simplify the vcf output so that I can create a pseudo
     ## count table of every potential SNP position I want to create a 2 column
     ## file where the first column is a unique ID containing 'chr_pos_ref_new'

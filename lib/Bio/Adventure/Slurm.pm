@@ -10,7 +10,7 @@ extends 'Bio::Adventure';
 
 use Cwd;
 use Data::Dumper;
-use File::Basename qw "basename dirname";
+use File::Basename qw"basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
@@ -25,9 +25,9 @@ has chosen_cluster => (is => 'rw', default => '');
 has chosen_partition => (is => 'rw', default => '');
 has chosen_qos => (is => 'rw', default => '');
 ## List of clusters available to this user
-has cluster => (is => 'rw', default => undef);
+has cluster => (is => 'rw', default => '');
 ## List of qos names visible to this user
-has qos => (is => 'rw', default => undef);
+has qos => (is => 'rw', default => '');
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
 ## Any attributes here which are also in Adventure.pm get set to the values
@@ -37,6 +37,7 @@ has qos_data => (is => 'rw', default => undef);
 ##has language => (is => 'rw', default => 'bash');
 ## Location of the sbatch executable.
 has partitions => (is => 'rw', default => undef);
+has partition => (is => 'rw', default => '');
 ##has sbatch => (is => 'rw', default => 'sbatch');
 has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 ## Current usage stats
@@ -644,6 +645,8 @@ sub Submit {
     ## slurm queueing and organization, so keep this in mind until I do...
     my $chosen_qos = $class->Choose_QOS(wanted_spec => $wanted,
                                         current_usage => $usage);
+    use Data::Dumper;
+    print Dumper $chosen_qos;
     $class->{chosen_qos} = $chosen_qos->{choice};
 
     my $depends_string = '';
@@ -673,7 +676,24 @@ sub Submit {
     $options->{account} = $class->{chosen_account} if ($class->{chosen_account});
     $options->{cluster} = $class->{chosen_cluster} if ($class->{chosen_cluster});
     $options->{partition} = $class->{chosen_partition} if ($class->{chosen_partition});
-    $options->{qos} = $class->{chosen_qos} if ($class->{chosen_qos});
+    $options->{qos} = $class->{chosen_qos};
+    if (!defined($options->{qos})) {
+        print "QOS is not defined, setting it to the empty string\n";
+        $options->{qos} = '';
+    }
+    if (!defined($options->{account})) {
+        print "account is not defined, setting it to the empty string\n";
+        $options->{account} = '';
+    }
+    if (!defined($options->{cluster})) {
+        print "cluster is not defined, setting it to the empty string.\n";
+        $options->{cluster} = '';
+    }
+    if (!defined($options->{partition})) {
+        print "partition is not defined, setting it to the empty string\n";
+        $options->{partition} = '';
+    }
+    print "TESTME: account: $options->{account} cluster: $options->{cluster} partition: $options->{partition} qos: $options->{qos}\n";
     ##  Need to catch the special case of scavenger
     if ($options->{qos} eq 'scavenger') {
         $options->{account} = 'scavenger';
@@ -774,7 +794,7 @@ ${perl_file} \\
 ?;
     $script_start .= qq?#SBATCH --account=$options->{account}\n? if ($options->{account});
     $script_start .= qq?#SBATCH --partition=$options->{partition}\n? if ($options->{partition});
-    $script_start .= qq?#SBATCH --qos=$options->{qos}\n? if (defined($options->{qos}));
+    $script_start .= qq?#SBATCH --qos=$options->{qos}\n? if ($options->{qos});
     ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
     $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
     $script_start .= qq?#SBATCH --time=$wanted->{walltime}\n? if (defined($wanted->{time}));
