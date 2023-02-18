@@ -878,7 +878,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         gff_cds_parent_type => $options->{gff_cds_parent_type},
         gff_cds_type => $options->{gff_cds_type},
         jdepends => $options->{jdepends},
-        jmem => 48,
+        jmem => 64,
         jname => $options->{jname},
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
@@ -1047,13 +1047,15 @@ sub SNP_Ratio_Intron_Worker {
     print $all_out qq"${header_line}\n";
 
     ## Read the data base of gff annotations, the genome, and begin hunting for variants by gene.
-    print $log "ReReading in the original fasta/gff data.\n";
+    print "Reading the gff into a DB::SeqFeature Store.\n";
+    print $log "Reading the gff into a DB::SeqFeature Store.\n";
     my $db = Bio::DB::SeqFeature::Store->new(
         -index_subfeatures => 1,
         -adaptor => 'memory',
         -fasta => $genome,
         -gff => $gff);
     print $log "Extracting sequence data.\n";
+    print "Finished the gff reader.\n";
 
     my %gathered_data = ();
     ## The set of @all_mrna provides the start and end points of each exon.

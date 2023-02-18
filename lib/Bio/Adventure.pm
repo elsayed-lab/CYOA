@@ -299,6 +299,12 @@ $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $ENV{LESS} = '--buffers 0 -B';
 my $lessopen = Get_Lesspipe();
+## Added to test Bio:DB::SeqFeature::Store
+if (!defined($ENV{PERL_INLINE_DIRECTORY})) {
+    my $filename = File::Temp::tempnam('/tmp', "inline_$ENV{USER}");
+    $ENV{PERL_INLINE_DIRECTORY} = $filename;
+    my $made = make_path($filename);
+}
 
 =item C<Help>
 
@@ -1757,8 +1763,6 @@ sub Submit {
     }
     my $result = $runner->Submit($class, %args);
     $class = $class->Reset_Vars();
-
-
     return($result);
 }
 

@@ -64,7 +64,6 @@ sub Submit {
     }
 
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
-    my $bash_cmd_line = qq"bash ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
@@ -146,7 +145,6 @@ touch ${finished_file}
     $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
     $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
     $total_script_string .= qq"${script_end}\n";
-
     my $script = FileHandle->new(">$script_file");
     if (!defined($script)) {
         die("Could not write the script: $script_file, check its permissions.")
@@ -155,22 +153,24 @@ touch ${finished_file}
     $script->close();
     chmod(0755, $script_file);
     my $job_text = '';
-    my $handle = IO::Handle->new;
-    my $bash_pid = open($handle, qq"${bash_cmd_line} |");
-    while (my $line = <$handle>) {
-        $job_text = $job_text . $line;
-    }
-    sleep($options->{jsleep});
-    my $job_id = $bash_pid;
 
-    print "Starting a new job: ${job_id} $options->{jname}";
+    my $handle;
+    my $bash_pid = open($handle, qq"${script_file} |") or
+        die("The script: ${script_file}
+failed with error: $!.\n");
+    print "Starting a new job: ${bash_pid} $options->{jname}";
     if ($options->{jdepends}) {
         print ", depending on $options->{jdepends}.";
     }
     print "\n";
+    while (my $line = <$handle>) {
+        $job_text = $job_text . $line;
+    }
+    close($handle);
+    print "Finished running, outputs should be in $options->{output}.\n";
+
     $job->{log} = $bash_log;
-    $job->{job_id} = $job_id;
-    $job->{pid} = $bash_pid;
+    $job->{job_id} = $bash_pid;
     $job->{script_file} = $script_file;
 
     if ($options->{verbose}) {

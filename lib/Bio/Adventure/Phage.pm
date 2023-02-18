@@ -630,7 +630,8 @@ sub Filter_Host_Kraken {
         required => ['input', 'input_fastq'],
         jdepends => '',
         jmem => 8,
-        jprefix => '06',);
+        jprefix => '06',
+        htseq_stranded => 'no',);
     my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
     make_path($output_dir);
@@ -656,7 +657,8 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
   job_log => '${log}',
   output => '${output_files}',
   output_unaligned => '${unal_files}',
-  output_dir => '${output_dir}',);
+  output_dir => '${output_dir}',
+  stranded => '$options->{stranded}',);
 !;
     my $host = $class->Submit(
         comment => $comment,
@@ -672,7 +674,8 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         language => 'perl',
         output => $output_files,
         output_unaligned => $unal_files,
-        output_dir => $output_dir,);
+        output_dir => $output_dir,
+        stranded => $options->{stranded},);
     return($host);
 }
 
@@ -699,6 +702,7 @@ sub Filter_Kraken_Worker {
         jprefix => '06',
         required => ['input', 'output'],
         output_unaligned => undef,
+        stranded => 'no',
         type => 'species',);
     my $separator;
     if ($options->{type} eq 'domain') {
@@ -930,7 +934,8 @@ sub Filter_Kraken_Worker {
         jprefix => $options->{jprefix},
         output_dir => $options->{output_dir},
         output_unaligned => $options->{output_unaligned},
-        species => $host_species_accession,);
+        species => $host_species_accession,
+        stranded => $options->{stranded},);
     my $filtered_reads = $filter->{unaligned};
     my ($in_r1, $in_r2) = split(/\:|\;|\,|\s+/, $filtered_reads);
     $in_r1 = File::Spec->rel2abs($in_r1);
