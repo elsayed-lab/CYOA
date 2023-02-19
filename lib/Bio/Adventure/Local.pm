@@ -9,7 +9,7 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Cwd;
-use File::Basename qw "basename";
+use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
@@ -62,9 +62,15 @@ sub Submit {
         print "The restart option is on, and this job appears to have finished.\n";
         return($job);
     }
-
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $mycwd = getcwd();
+    if (!defined($options->{output})) {
+        warn("Every job should have an output defined, setting it to outputs/unknown.txt\n");
+        $options->{output} = "outputs/unknown.txt";
+        sleep(5);
+    }
+    my $out_dir = dirname($options->{output});
+    make_path($out_dir, {verbose => 0}) unless (-r $out_dir);
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
@@ -72,8 +78,8 @@ sub Submit {
     ## Remove the need for two functions that do the same thing except one for perl and one for bash
     if ($options->{language} eq 'perl') {
         my $perl_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.pl";
-        my $perl_stderr = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.stderr";
-        my $perl_stdout = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.stdout";
+        my $perl_stderr = qq"${out_dir}/$options->{jprefix}$options->{jname}.stderr";
+        my $perl_stdout = qq"${out_dir}/$options->{jprefix}$options->{jname}.stdout";
         my $perl_start = qq?#!/usr/bin/env perl
 use strict;
 use FileHandle;
@@ -86,8 +92,10 @@ my \$h = Bio::Adventure->new();
 ?;
         if (defined($parent->{option_file})) {
             $perl_start .= qq!
-## Pull options from the option file: $parent->{option_file}
-my \$loaded = \$h->Load_Vars(input => '$parent->{option_file}');
+if (-r "$parent->{option_file}") {
+  ## Pull options from the option file: $parent->{option_file}
+  my \$loaded = \$h->Load_Vars(input => '$parent->{option_file}');
+}
 !;
         }
         my $perl_end = qq!## The following lines give status codes and some logging
@@ -159,14 +167,18 @@ touch ${finished_file}
         die("The script: ${script_file}
 failed with error: $!.\n");
     print "Starting a new job: ${bash_pid} $options->{jname}";
-    if ($options->{jdepends}) {
+    if (defined($options->{jdepends})) {
         print ", depending on $options->{jdepends}.";
     }
     print "\n";
     while (my $line = <$handle>) {
         $job_text = $job_text . $line;
     }
-    close($handle);
+    if (defined($handle)) {
+        close($handle);
+    } else {
+        print "The handle appears to be gone in Local::Submit() $!.\n";
+    }
     print "Finished running, outputs should be in $options->{output}.\n";
 
     $job->{log} = $bash_log;

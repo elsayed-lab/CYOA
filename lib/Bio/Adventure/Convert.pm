@@ -622,7 +622,7 @@ sub Samtools {
         modules => ['samtools', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
-
+    print "TESTME: Starting samtools with input: $input\n";
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
     my $sorted_name = $input;
@@ -750,7 +750,7 @@ xz -9e -f ${unmapped}
         input => $input,
         jstring => $jstring,
         modules => $options->{modules},
-        output => qq"${output}",
+        output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
         postscript => $options->{postscript},
