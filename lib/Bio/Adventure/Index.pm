@@ -40,17 +40,20 @@ sub BT1_Index {
         args => \%args,
         required => ['input'],
         modules => ['bowtie1'],);
-    print "STARTING BT1_Index: $options->{libdir} $class->{libdir}\n";
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
     $species = basename($species, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     if (!-f $copied_location) {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}bt1index";
+    my $stdout = qq"${output_dir}/bt1_index.stdout";
+    my $stderr = qq"${output_dir}/bt1_index.stderr";
 
-    my $jstring = qq!bowtie-build $options->{input} \\
+    my $jstring = qq!mkdir -p ${output_dir}
+bowtie-build $options->{input} \\
   $options->{libdir}/$options->{libtype}/indexes/${species} \\
-  2>bt1_index.stderr 1>bt1_index.stdout
+  2>${stderr} 1>${stdout}
 !;
     my $comment = qq!## Generating bowtie1 indexes for species: ${species}
 ## in $options->{libdir}/$options->{libtype}/indexes!;
@@ -60,6 +63,7 @@ sub BT1_Index {
         jdepends => $options->{jdepends},
         jstring => $jstring,
         jprefix => '10',
+        output => $stderr,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($bt1_index);
@@ -96,9 +100,12 @@ sub BT2_Index {
     if (!-f $copied_location) {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
+    my $output_dir = qq"$options->{basedir}/$options->{jprefix}bt2_index";
+    my $stdout = qq"${output_dir}/bt2_index.stdout";
+    my $stderr = qq"${output_dir}/bt2_index.stderr";
     my $jstring = qq!bowtie2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
-  2>bt2_index.stderr 1>bt2_index.stdout
+  2>${stderr} 1>${stdout}
 !;
     my $comment = qq!## Generating bowtie2 indexes for species: ${species}
 ## in $options->{libdir}/${libtype}/indexes!;
@@ -109,6 +116,7 @@ sub BT2_Index {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
+        output => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($indexer);
@@ -327,11 +335,16 @@ sub Hisat2_Index {
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
     my $stdout = qq"hisat2_index_${species}.stdout";
     my $stderr = qq"hisat2_index_${species}.stderr";
-    if (defined($options->{output_dir})) {
-        make_path($options->{output_dir});
-        $stdout = qq"$options->{output_dir}/${stdout}";
-        $stderr = qq"$options->{output_dir}/${stderr}";
+    my $output_dir;
+    if (!defined($options->{output_dir})) {
+        $output_dir = $options->{output_dir};
+    } else {
+        $output_dir = qq"$options->{basedir}/$options->{jprefix}hisat2_index";
     }
+    $stdout = qq"${output_dir}/${stdout}";
+    $stderr = qq"${output_dir}/${stderr}";
+    make_path($output_dir, {verbose => 0}) unless (-r $output_dir);
+
     my $copied = undef;
     if (-r $copied_location) {
         print "The indexes appear to exist at: ${copied_location}.\n";
@@ -353,6 +366,7 @@ hisat2-build $options->{input} \\
         jname => qq"ht2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        output => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($indexer);

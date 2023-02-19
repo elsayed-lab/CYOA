@@ -986,6 +986,7 @@ sub Phage_Assemble {
         $prefix = sprintf("%02d", ($prefix + 1));
         print "\n${prefix}: Using Kraken results to filter likely host sequences.\n";
         $filter = $class->Bio::Adventure::Phage::Filter_Host_Kraken(
+            htseq_stranded => 'no',
             input => $kraken_std->{output},
             input_fastq => $correct->{output},
             jdepends => $last_job,
