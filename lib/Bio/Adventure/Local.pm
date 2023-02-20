@@ -67,21 +67,6 @@ sub Submit {
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $mycwd = getcwd();
     my $out_dir;
-    if (!defined($options->{stdout}) && !defined($options->{output})) {
-        die("Every job must have either output or stdout defined.");
-    } elsif (!defined($options->{stdout})) {
-        $out_dir = dirname($options->{output});
-        warn("Every job should have a stdout defined, setting it to the output directory: $out_dir.\n");
-        $options->{stdout} = $out_dir;
-        sleep(5);
-    } elsif (!defined($options->{output})) {
-        warn("Every job should have an output defined, setting it to $options->{stdout}.");
-        $options->{output} = $options->{stdout};
-        $out_dir = dirname($options->{stdout});
-        sleep(5);
-    } else {
-        $out_dir = dirname($options->{stdout});
-    }
     make_path($out_dir, {verbose => 0}) unless (-r $out_dir);
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");

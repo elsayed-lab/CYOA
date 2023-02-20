@@ -140,28 +140,35 @@ sub Fastq_Dump {
         $count++;
         my $in = $inputs[$i];
         print "Invoking fastq-dump for ${in}.\n";
+        my $stderr = qq"${in}/${in}_fastqdump.stderr";
+        my $stdout = qq"${in}/${in}_fastqdump.stdout";
         my $jstring = "";
         if (defined($outputs[$i]) || defined($first_output)) {
             $outputs[$i] = $first_output if (!defined($outputs[$i]));
             $jstring = qq"
 mkdir -p $outputs[$i]
+prefetch ${in} 2>${stderr} 1>${stdout}
 fastq-dump --outdir $outputs[$i] \\
   --gzip --skip-technical --readids \\
   --read-filter pass --dumpbase \\
-  --split-3 --clip ${in}
+  --split-3 --clip ${in} \\
+  2>>${stderr} 1>>${stdout}
 ";
         } else {
             $jstring = qq"
 mkdir -p ${in}
+prefetch ${in} 2>${stderr} 1>${stdout}
 fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
   --read-filter pass --dumpbase \\
-  --split-3 --clip ${in}
+  --split-3 --clip ${in} \\
+  2>>${stderr} 1>>${stdout}
 ";
         }
-
         my $current_fastq_job = $class->Submit(
             comment => $fastq_comment,
             input => $in,
+            stdout => $stdout,
+            stderr => $stderr,
             jdepends => $options->{jdepends},
             jname => qq"fqd_${in}",
             jstring => $jstring,

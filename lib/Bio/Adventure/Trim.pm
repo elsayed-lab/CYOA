@@ -163,8 +163,8 @@ xz -9e -f ${too_long}
             jdepends => $cutadapt->{job_id},
             jname => qq"tacheck_${job_name}",
             jprefix => $options->{jprefix} + 1,);
+        $cutadapt->{tacheck} = $ta_check;
     }
-    $cutadapt->{tacheck} = $ta_check;
     return($cutadapt);
 }
 
