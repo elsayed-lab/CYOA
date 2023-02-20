@@ -160,7 +160,7 @@ sub TA_Check {
     my $jstring = qq"
 use Bio::Adventure;
 use Bio::Adventure::TNSeq;
-my \$ret = \$h->Bio::Adventure::TNSeq::Do_TA_Check(
+my \$ret = \$h->Bio::Adventure::TNSeq::TA_Check_Worker(
   input => '$options->{input}',);
 ";
     my $input_base = basename($options->{input}, ('.gz', '.xz', '.bz2'));
@@ -188,7 +188,7 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_TA_Check(
  Actually invoke the check for TAs.
 
 =cut
-sub Do_TA_Check {
+sub TA_Check_Worker {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args);
     my $input = $options->{input};

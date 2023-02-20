@@ -622,7 +622,6 @@ sub Samtools {
         modules => ['samtools', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
-    print "TESTME: Starting samtools with input: $input\n";
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
     my $sorted_name = $input;
@@ -634,6 +633,9 @@ sub Samtools {
     ## Add a samtools version check because *sigh*
     my $samtools_version = qx"samtools 2>&1 | grep 'Version'";
     ## Start out assuming we will use the new samtools syntax.
+
+    my $stderr = qq"${output}_samtools.stderr";
+    my $stdout = qq"${output}_samtools.stdout";
     my $samtools_first = qq!
 ## If a previous sort file exists due to running out of memory,
 ## then we need to get rid of them first.
@@ -643,26 +645,31 @@ if [[ -f "${output}.tmp.000.bam" ]]; then
 fi
 samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} -o ${output}  \\
-  2>${output}_samtools.stderr \\
-  1>${output}_samtools.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
 
     my $samtools_second = qq"samtools sort -l 9 ${output} \\
   -o ${sorted_name}.bam \\
-  2>${sorted_name}_samtools.stderr \\
-  1>${sorted_name}_samtools.stdout";
+  2>>${stderr} \\
+  1>>${stdout}";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
         $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output}";
         $samtools_second = qq"samtools sort -l 9 ${output} \\
   ${sorted_name} \\
-  2>>${sorted_name}_samtools.stderr \\
-  1>>${sorted_name}_samtools.stdout";
+  2>>${stderr} \\
+  1>>${stdout}";
     }
     my $jstring = qq!
 echo "Starting samtools"
-if [[ \! -f "${input}" ]]; then
+if [[ -f "${output}" && -f "${input}" ]]; then
+  echo "Both the bam and sam files exist, rerunning."
+elif [[ -f "${output}" ]]; then
+  echo "The output file exists, quitting."
+  exit 0
+elif [[ \! -f "${input}" ]]; then
   echo "Could not find the samtools input file."
   exit 1
 fi
@@ -673,8 +680,8 @@ rm ${output}
 rm ${input}
 mv ${sorted_name}.bam ${output}
 samtools index ${output} \\
-  2>>${sorted_name}_samtools.stderr \\
-  1>>${sorted_name}_samtools.stderr
+  2>>${stderr} \\
+  1>>${stdout}
 echo "Second samtools command finished with \$?"
 bamtools stats -in ${output} \\
   2>>${output}_samtools.stats 1>&2
@@ -686,11 +693,11 @@ echo "Bamtools finished with \$?"
 samtools view -b -f 2 \\
   -o ${paired_name}.bam \\
   ${output} \\
-  2>>${sorted_name}_samtools.stderr \\
-  1>>${sorted_name}_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 samtools index ${paired_name}.bam \\
-  2>>${sorted_name}_samtools.stderr \\
-  1>>${sorted_name}_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 bamtools stats -in ${paired_name}.bam \\
   2>>${output}_samtools.stats 1>&2
 !;
@@ -712,8 +719,8 @@ bamtools filter -tag XM:0 \\
 echo "bamtools filter finished with: \$?"
 samtools index \\
   ${sorted_name}_nomismatch.bam \\
-  2>>${sorted_name}_samtools.stderr \\
-  1>>${sorted_name}_samtools.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 echo "final samtools index finished with: \$?"
 !;
     }
@@ -753,6 +760,8 @@ xz -9e -f ${unmapped}
         output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
+        stderr => $stderr,
+        stdout => $stdout,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jmem => $options->{jmem},

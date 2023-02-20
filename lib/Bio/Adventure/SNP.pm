@@ -138,6 +138,8 @@ rm ${output_file}
         jprefix => $options->{jprefix},
         job_type => 'snpsearch',
         jstring => $jstring,
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_bcf,);
 
     my $prefix = sprintf("%02d", ($options->{jprefix} + 1));
@@ -283,6 +285,8 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
         jstring => $jstring,
         jwalltime => '10:00:00',
         input_pileup => $pileup_input,
+        stderr => $gatk_stderr,
+        stdout => $gatk_stdout,
         output_call => $call_output,
         output_filter => $filter_output,
         output_final => $final_output,
@@ -349,6 +353,8 @@ sub SNP_Ratio {
 ## and a modified genome: ${print_output}/modified.fasta
 !;
 
+    my $stdout = qq"${print_output}/stdout";
+    my $stderr = qq"${print_output}/stderr";
     my $output_all = qq"${print_output}/all_tags.txt";
     my $output_count = qq"${print_output}/count.txt";
     my $output_genome = qq"${print_output}/modified.fasta";
@@ -384,6 +390,8 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
         jwalltime => '10:00:00',
         language => 'perl',
         output_dir => $output_dir,
+        stdout => $stdout,
+        stderr => $stderr,
         output => $output_all,
         output_count => $output_count,
         output_genome => $output_genome,
@@ -842,6 +850,8 @@ sub SNP_Ratio_Intron {
 ## and a modified genome: ${print_output}/modified.fasta
 !;
 
+    my $stdout = qq"${print_output}/stdout";
+    my $stderr = qq"${print_output}/stderr";
     my $output_all = qq"${print_output}/all_tags.txt";
     my $output_count = qq"${print_output}/count.txt";
     my $output_genome = qq"${print_output}/modified.fasta";
@@ -886,6 +896,8 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         jwalltime => '10:00:00',
         language => 'perl',
         output_dir => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_all,
         output_count => $output_count,
         output_genome => $output_genome,
@@ -942,7 +954,6 @@ sub SNP_Ratio_Intron_Worker {
         my %internal = %{$input_genome->{$chr_key}};
         $original_genome{$chr_key} = \%internal;
     }
-    print "TESTME: Copied genome to original.\n";
     ## Ok, so I want to simplify the vcf output so that I can create a pseudo
     ## count table of every potential SNP position I want to create a 2 column
     ## file where the first column is a unique ID containing 'chr_pos_ref_new'
@@ -1394,6 +1405,8 @@ sub Snippy {
     }
 
     my $snippy_dir = qq"outputs/snippy_$options->{species}";
+    my $stdout = qq"${snippy_dir}/snippy.stdout";
+    my $stderr = qq"${snippy_dir}/snippy.stderr";
     my $jstring = qq!mkdir -p ${snippy_dir}
 echo "Started snippy at \$(date)" >> ${snippy_dir}/snippy_$options->{species}.stdout
 
@@ -1413,6 +1426,8 @@ snippy --force \\
         jqueue => 'workstation',
         jwalltime => '10:00:00',
         jmem => 48,
+        stdout => $stdout,
+        stderr => $stderr,
         output => qq"${snippy_dir}",);
     return($snippy);
 }

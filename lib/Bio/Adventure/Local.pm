@@ -7,6 +7,8 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+use feature 'try';
+no warnings 'experimental::try';
 
 use Cwd;
 use File::Basename qw "basename dirname";
@@ -64,12 +66,22 @@ sub Submit {
     }
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $mycwd = getcwd();
-    if (!defined($options->{output})) {
-        warn("Every job should have an output defined, setting it to outputs/unknown.txt\n");
-        $options->{output} = "outputs/unknown.txt";
+    my $out_dir;
+    if (!defined($options->{stdout}) && !defined($options->{output})) {
+        die("Every job must have either output or stdout defined.");
+    } elsif (!defined($options->{stdout})) {
+        $out_dir = dirname($options->{output});
+        warn("Every job should have a stdout defined, setting it to the output directory: $out_dir.\n");
+        $options->{stdout} = $out_dir;
         sleep(5);
+    } elsif (!defined($options->{output})) {
+        warn("Every job should have an output defined, setting it to $options->{stdout}.");
+        $options->{output} = $options->{stdout};
+        $out_dir = dirname($options->{stdout});
+        sleep(5);
+    } else {
+        $out_dir = dirname($options->{stdout});
     }
-    my $out_dir = dirname($options->{output});
     make_path($out_dir, {verbose => 0}) unless (-r $out_dir);
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
@@ -86,7 +98,7 @@ use FileHandle;
 use Bio::Adventure;
 my \$out = FileHandle->new(">>${bash_log}");
 my \$d = qx'date';
-print \$out "###Started $script_file at \${d}";
+print \$out "###Started ${script_base} at \${d}";
 chdir("$options->{basedir}");
 my \$h = Bio::Adventure->new();
 ?;
@@ -132,11 +144,12 @@ ${perl_file} \\
 
     my $script_start = qq?#!$options->{shell}
 ${module_string}
+cd $options->{basedir}
 set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='$ENV{LESS}'
-echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${bash_log}
+echo "## Started ${script_base} at \$(date) on \$(hostname)." >> ${bash_log}
 
 ?;
     my $script_end = qq!
@@ -153,9 +166,9 @@ touch ${finished_file}
     $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
     $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
     $total_script_string .= qq"${script_end}\n";
-    my $script = FileHandle->new(">$script_file");
+    my $script = FileHandle->new(">${script_file}");
     if (!defined($script)) {
-        die("Could not write the script: $script_file, check its permissions.")
+        die("Could not write the script: ${script_file}, check its permissions.")
     }
     print $script $total_script_string;
     $script->close();
@@ -163,7 +176,7 @@ touch ${finished_file}
     my $job_text = '';
 
     my $handle;
-    my $bash_pid = open($handle, qq"${script_file} |") or
+    my $bash_pid = open($handle, '-|', ${script_file}) or
         die("The script: ${script_file}
 failed with error: $!.\n");
     print "Starting a new job: ${bash_pid} $options->{jname}";
@@ -174,12 +187,14 @@ failed with error: $!.\n");
     while (my $line = <$handle>) {
         $job_text = $job_text . $line;
     }
-    if (defined($handle)) {
-        close($handle);
-    } else {
-        print "The handle appears to be gone in Local::Submit() $!.\n";
+    my $closed;
+    try {
+        $closed = close($handle);
+    } catch ($e) {
+        warn "Unabled to close script filehandle return: $? error: $!\n";
     }
-    print "Finished running, outputs should be in $options->{output}.\n";
+    print "Finished running, outputs should be in $options->{output}.\n\n";
+
 
     $job->{log} = $bash_log;
     $job->{job_id} = $bash_pid;

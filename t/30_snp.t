@@ -38,7 +38,8 @@ my $cyoa = Bio::Adventure->new(
     gff_tag => 'ID',
     gff_type => 'CDS',
     stranded => 'no',
-    vcf_cutoff => 1,);
+    vcf_cutoff => 1,
+    jprefix => '30');
 
 my $index = $cyoa->Bio::Adventure::Index::BT2_Index(input => $phix_fasta,);
 my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(

@@ -95,6 +95,8 @@ cd \${start}
         output_hmm => $output_hmm,
         output_frames => $output_frames,
         output_tsv => $output_tsv,
+        stderr => $stderr,
+        stdout => $stdout,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => $options->{jname},
@@ -297,6 +299,8 @@ sub Classify_Phage {
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
+    my $stderr = qq"${output_dir}/$options->{library}.stderr";
+    my $stdout = qq"${output_dir}/$options->{library}.stdout";
     my $output_tsv = qq"${output_dir}/$options->{library}_filtered.tsv";
     my $output_blast = qq"${output_dir}/$options->{library}_hits.txt";
     my $output_log = qq"${output_dir}/classify.log";
@@ -329,6 +333,8 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         language => 'perl',
         library => $options->{library},
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_tsv,
         output_blast => $output_blast,
         output_dir => $output_dir,
@@ -634,6 +640,8 @@ sub Filter_Host_Kraken {
         htseq_stranded => 'no',);
     my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
+    my $stderr = qq"${output_dir}/filter_host.stderr";
+    my $stdout = qq"${output_dir}/filter_host.stdout";
     make_path($output_dir);
     my $out_r1_name = 'r1_host_filtered.fastq';
     my $out_r2_name = 'r2_host_filtered.fastq';
@@ -672,6 +680,8 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         jstring => $jstring,
         job_log => $log,
         language => 'perl',
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_files,
         output_unaligned => $unal_files,
         output_dir => $output_dir,
@@ -1142,6 +1152,8 @@ sub Phageterm {
 !;
     my $test_file = qq"${output_dir}/${cwd_name}_direct-term-repeats.fasta";
     my $cwd_test_file = basename($test_file);
+    my $stdout = qq"${output_dir}/phageterm.stdout";
+    my $stderr = qq"${output_dir}/phageterm.stderr";
     my $output_file = qq"${output_dir}/phageterm_final_assembly.fasta";
     my $dtr_type_file = qq"${output_dir}/phageterm_final_nrt.txt";
     my $dtr_sequence_file = qq"${output_dir}/phageterm_final_dtr.fasta";
@@ -1163,6 +1175,8 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         output_dtr => $dtr_sequence_file,
         test_file => $dtr_test_file,
         language => 'perl',
+        stderr => $stderr,
+        stdout => $stdout,
         comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
@@ -1405,6 +1419,8 @@ sub Phastaf {
     my $input_full = $input_paths->[0]->{fullpath};
     my $output_dir = qq"outputs/$options->{jprefix}phastaf";
     $output_dir .= "_$input_paths->[0]->{dirname}" if (defined($input_paths->[0]->{dirname}));
+    my $stdout = qq"${output_dir}/phastaf.stdout";
+    my $stderr = qq"${output_dir}/phastaf.stderr";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
     }
@@ -1417,8 +1433,8 @@ mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
   --cpus $options->{jcpus} \\
   $options->{input} \\
-  2>${output_dir}/phastaf.stderr \\
-  1>${output_dir}/phastaf.stdout
+  2>${stderr} \\
+  1>${stdout}
 ?;
     my $output_file = qq"${output_dir}/something.txt";
     my $phastaf = $class->Submit(
@@ -1433,6 +1449,8 @@ phastaf --force --outdir ${output_dir} \\
         jstring => $jstring,
         modules => $options->{modules},
         output => $output_file,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
 
@@ -1454,6 +1472,8 @@ my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
             input => $bed,
             input_fna => $input_fna,
             input_phageterm => $options->{input_phageterm},
+            stderr => $stderr,
+            stdout => $stdout,
             jdepends => $phastaf->{job_id},
             jmem => $options->{jmem},
             jname => 'interpret_phastaf',
@@ -1630,6 +1650,8 @@ sub Restriction_Catalog {
         jprefix => '29',);
     my $output_dir = qq"outputs/$options->{jprefix}re_catalog";
     my $re_output = qq"${output_dir}/re_catalog.tsv";
+    my $stdout = qq"${output_dir}/re_catalog.stdout";
+    my $stderr = qq"${output_dir}/re_catalog.stderr";
     my $host_output = qq"${output_dir}/re_host_catalog.tsv";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
@@ -1656,6 +1678,8 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
         language => 'perl',
         library => $options->{library},
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         output => $re_output,);
     return($re_job);
 }
@@ -1764,6 +1788,8 @@ sub Terminase_ORF_Reorder {
         modules => ['fasta', 'blast', 'blastdb'],);
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
+    my $stderr = qq"${output_dir}/termreorder.stderr";
+    my $stdout = qq"${output_dir}/termreorder.stdout";
     my $final_output = qq"${output_dir}/final_assembly.fasta";
     if (-d $output_dir) {
         my $removed = rmtree($output_dir);
@@ -1822,6 +1848,8 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         jname => 'terminase_reorder',
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        stderr => $stderr,
+        stdout => $stdout,
         modules => $options->{modules},);
     $tjob->{prodigal_job} = $term_prodigal;
     return($tjob);
@@ -2190,6 +2218,7 @@ my \$result = Bio::Adventure::Phage::Xref_Crispr_Worker(\$h,
     my $xref = $class->Submit(
         input => $options->{input},
         output => $final_output,
+        stdout => $final_output,
         output_dir => $output_dir,
         test_file => $options->{test_file},
         language => 'perl',

@@ -137,7 +137,8 @@ sub Bowtie {
 
     my $bowtie_input_flag = "-q"; ## fastq by default
     $bowtie_input_flag = "-f" if ($options->{input} =~ /\.fasta/);
-    my $error_file = qq"${bt_dir}/$options->{jbasename}-${bt_type}.stderr";
+    my $stderr = qq"${bt_dir}/$options->{jbasename}-${bt_type}.stderr";
+    my $stdout = qq"${bt_dir}/$options->{jbasename}-${bt_type}.stdout";
     my $comment = qq!## This is a bowtie1 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt_args}.!;
     my $aligned_filename = qq"${bt_dir}/$options->{jbasename}-${bt_type}_aligned_${species}.fastq";
@@ -152,8 +153,8 @@ bowtie \\
   --un ${unaligned_filename} \\
   --al ${aligned_filename} \\
   -S ${sam_filename} \\
-  2>${error_file} \\
-  1>${bt_dir}/$options->{jbasename}-${bt_type}.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
 
     my $bt_job = $class->Submit(
@@ -170,6 +171,8 @@ bowtie \\
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         jqueue => 'workstation',
+        stderr => $stderr,
+        stdout => $stdout,
         unaligned => $unaligned_filename,);
     if (defined($index_job)) {
         $bt_job->{index} = $index_job;
@@ -227,7 +230,7 @@ bowtie \\
     }  ## End if ($count)
 
     my $stats = $class->Bio::Adventure::Metadata::BT1_Stats(
-        input => $error_file,
+        input => $stderr,
         bt_type => $bt_type,
         count_table => $bt_job->{htseq}->[0]->{output},
         jdepends => $bt_job->{job_id},
@@ -348,7 +351,8 @@ sub Bowtie2 {
     $bowtie_input_flag = '-f ' if (${bt_input} =~ /\.fasta$/);
 
     my $jcpus = $options->{jcpus};
-    my $error_file = qq"${bt_dir}/$options->{jbasename}.stderr";
+    my $stderr = qq"${bt_dir}/$options->{jbasename}.stderr";
+    my $stdout = qq"${bt_dir}/$options->{jbasename}.stdout";
     my $comment = qq!## This is a bowtie2 alignment of ${bt_input} against
 ## ${bt_reflib} using arguments: ${bt2_args}.
 !;
@@ -362,8 +366,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     --un ${unaligned_filename} \\
     --al ${aligned_filename} \\
     -S ${sam_filename} \\
-    2>${error_file} \\
-    1>${bt_dir}/$options->{jbasename}.stdout
+    2>${stderr} \\
+    1>${stdout}
 !;
     my $bt2_job = $class->Submit(
         aligned => $aligned_filename,
@@ -378,6 +382,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
+        stderr => $stderr,
+        stdout => $stdout,
         unaligned => $unaligned_filename,);
     my $compression_files = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq:${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
@@ -390,7 +396,7 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     ## BT1_Stats also reads the trimomatic output, which perhaps it should not.
     ## my $trim_output_file = qq"outputs/$options->{jbasename}-trimomatic.out";
     my $stats = $class->Bio::Adventure::Metadata::BT2_Stats(
-        input => $error_file,
+        input => $stderr,
         count_table => qq"$options->{jbasename}.count.xz",
         jdepends => $bt2_job->{job_id},
         jname => qq"bt2st_${suffix_name}",
@@ -615,6 +621,9 @@ sub BWA {
     my $comment = '## A series of bwa commands.';
     my $sam_outs = '';
     my @sam_files = ();
+    my $stderr = qq"${bwa_dir}/bwa.stderr";
+    my $stdout = qq"${bwa_dir}/bwa.stdout";
+
     for my $method (@bwa_methods) {
         my $sam_out = qq"${bwa_dir}/$options->{jbasename}_${method}.sam";
         push(@sam_files, $sam_out);
@@ -631,8 +640,8 @@ bwa ${method} \\
   ${bwa_input} \\
   -o ${sam_out} \\
   ${extra_args} \\
-  1>${bwa_dir}/bwa_${method}.stdout \\
-  2>>${bwa_dir}/bwa_${method}.stderr
+  1>${stdout} \\
+  2>>${stderr}
 test=\$?
 if [[ "\${test}" -eq "0" ]]; then
   echo "bwa ${method} finished happily with return 0." >> ${bwa_dir}/bwa_${method}.stderr
@@ -753,6 +762,8 @@ fi
         output => $sam_outs,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
+        stdout => $stdout,
+        stderr => $stderr,
         jqueue => 'workstation',);
 
     my @samtools_jobs = ();
@@ -912,14 +923,14 @@ sub Hisat2 {
     $hisat_input_flag = '-f ' if (${hisat_input} =~ /\.fasta$/);
     my $jcpus = $options->{jcpus};
 
-    my $error_file = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}";
-    my $stdout_file = $error_file;
+    my $stderr = qq"${hisat_dir}/hisat2_$options->{species}_$options->{libtype}";
+    my $stdout = $stderr;
     if (defined($options->{jbasename})) {
-        $error_file .= "_$options->{jbasename}.stderr";
-        $stdout_file .= "_$options->{jbasename}.stdout";
+        $stderr .= "_$options->{jbasename}.stderr";
+        $stdout .= "_$options->{jbasename}.stdout";
     } else {
-        $error_file .= ".stderr";
-        $stdout_file .= ".stdout";
+        $stderr .= ".stderr";
+        $stdout .= ".stdout";
     }
 
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
@@ -968,8 +979,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     }
     my $all_filenames = qq"${aligned_filenames}:${unaligned_filenames}";
     $jstring .= qq!  -S ${sam_filename} \\
-  2>${error_file} \\
-  1>${stdout_file}
+  2>${stderr} \\
+  1>${stdout}
 !;
     my $hisat_job = $class->Submit(
         comment => $comment,
@@ -986,6 +997,8 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         postscript => $options->{postscript},
         aligned => $aligned_filenames,
         aligned_comp => $aligned_xz,
+        stderr => $stderr,
+        stdout => $stdout,
         unaligned => $unaligned_filenames,
         unaligned_dis => $unaligned_discordant_filename,
         unaligned_comp => $unaligned_xz,);
@@ -1059,7 +1072,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         $htseq_out = $hisat_job->{htseq}->{output};
     }
     my $stats = $class->Bio::Adventure::Metadata::HT2_Stats(
-        ht_input => $error_file,
+        input => $stderr,
         count_table => $htseq_out,
         jdepends => $hisat_job->{job_id},
         jname => qq"hisat2st_${suffix_name}",
@@ -1151,7 +1164,8 @@ sub Kallisto {
     }
 
     my $outdir = qq"outputs/$options->{jprefix}kallisto_${species}";
-    my $error_file = qq"${outdir}/kallisto_${species}.stderr";
+    my $stderr = qq"${outdir}/kallisto_${species}.stderr";
+    my $stdout = qq"${outdir}/kallisto_${species}.stdout";
     my $output_sam = qq"${outdir}/kallisto_${species}.sam";
     my $output_bam = qq"${outdir}/kallisto_${species}.bam";
     my $output_stats = qq"${outdir}/kallisto_${species}.stats";
@@ -1171,10 +1185,11 @@ kallisto quant ${ka_args} \\
   -o ${outdir} \\
   -i ${ka_reflib} \\
   ${ka_input} \\
-  2>${error_file} \\
+  2>${stderr} \\
   1>${output_sam} && \\
   cut -d "	" -f 1,4 ${outdir}/abundance.tsv > ${outdir}/${input_name}_abundance.count && \\
   xz -9e -f ${outdir}/${input_name}_abundance.count
+  echo "Finished kallisto." >${stdout}
 !;
     ## Newer kallisto does not seem to do this well anymore...
 ##  samtools view -u -t ${ka_reflib} -S ${output_sam} \\
@@ -1196,9 +1211,10 @@ kallisto quant ${ka_args} \\
         jmem => $options->{jmem},
         output => qq"${outdir}/abundance.tsv",
         count => qq"${outdir}/${input_name}_abundance.count",
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $args{prescript},
         postscript => $args{postscript},);
-
     $kallisto->{index} = $index_job;
     return($kallisto);
 }
@@ -1266,14 +1282,16 @@ sub RSEM {
     }
 
     my $rsem_dir = qq"outputs/rsem_$options->{species}";
+    my $stderr = qq"${rsem_dir}/$options->{species}.stderr";
+    my $stdout = qq"${rsem_dir}/$options->{species}.stdout";
     my $rsem_comment = '## This is a rsem invocation script.';
     my $output_file = qq"$options->{species}_something.txt";
     my $jstring = qq"mkdir -p ${rsem_dir} && rsem-calculate-expression --bowtie2 \\
   --calc-ci ${rsem_input} \\
   ${idx} \\
   ${rsem_dir}/$options->{species} \\
-  2>${rsem_dir}/$options->{species}.stderr \\
-  1>${rsem_dir}/$options->{species}.stdout
+  2>${stderr} \\
+  1>${stdout}
 ";
     my $rsem = $class->Submit(
         comment => $rsem_comment,
@@ -1285,6 +1303,8 @@ sub RSEM {
         mem => $options->{jmem},
         modules => $options->{modules},
         output => $output_file,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $rsem->{index_job} = $index_job;
@@ -1358,7 +1378,8 @@ sub Salmon {
     }
 
     my $outdir = qq"outputs/$options->{jprefix}salmon_${species}";
-    my $error_file = qq"${outdir}/salmon_${species}.stderr";
+    my $stderr = qq"${outdir}/salmon_${species}.stderr";
+    my $stdout = qq"${outdir}/salmon_${species}.stdout";
     my $comment = qq!## This is a salmon pseudoalignment of ${sa_input} against
 ## ${sa_reflib}.
 !;
@@ -1367,7 +1388,8 @@ salmon quant -i ${sa_reflib} \\
   -l A --gcBias --validateMappings  \\
   ${sa_args} \\
   -o ${outdir} \\
-  2>${error_file} 1>${outdir}/salmon.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
 
     my $salmon = $class->Submit(
@@ -1380,6 +1402,8 @@ salmon quant -i ${sa_reflib} \\
         jmem => $options->{jmem},
         modules => $options->{modules},
         output => qq"${outdir}/quant.sf",
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $args{prescript},
         postscript => $args{postscript},);
     $salmon->{index_job} = $index_job;
@@ -1450,7 +1474,8 @@ sub STAR {
         $options->{jdepends} = $index_job->{job_id};
     }
     my $outdir = qq"outputs/star_${species}";
-    my $error_file = qq"${outdir}/star_${species}.stderr";
+    my $stderr = qq"${outdir}/star_${species}.stderr";
+    my $stdout = qq"${outdir}/star_${species}.stdout";
     my $comment = qq!## This is a star pseudoalignment of ${star_input} against
 ## ${star_reflib}.
 ## This jobs depended on: $options->{jdepends}
@@ -1467,7 +1492,8 @@ STAR \\
   --readFilesIn ${star_inputstring} \\
   --readFilesCommand /usr/bin/lesspipe.sh \\
   --runThreadN 6 \\
-  2>${error_file} 1>${outdir}/star_${species}.stdout
+  2>${stderr} \\
+  1>${stdout}
 
 STAR \\
   --genomeDir ${star_refdir} \\
@@ -1479,7 +1505,8 @@ STAR \\
   --readFilesIn ${star_inputstring} \\
   --readFilesCommand /usr/bin/lesspipe.sh \\
   --runThreadN 6 \\
-  2>>${error_file} 1>>${outdir}/star_${species}.stdout
+  2>>${stderr} \\
+  1>>${stdout}
 !;
 
     my $star_job = $class->Submit(
@@ -1493,6 +1520,8 @@ STAR \\
         modules => $options->{modules},
         prescript => $args{prescript},
         postscript => $args{postscript},
+        stderr => $stderr,
+        stdout => $stdout,
         jqueue => 'large',);
     $star_job->{index_job} = $index_job;
     return($star_job);
@@ -1579,13 +1608,16 @@ sub Tophat {
         $gtf_file =~ s/\.gtf/\.gff/;
     }
 
+    my $stderr = qq"${tophat_dir}/tophat.stderr";
+    my $stdout = qq"${tophat_dir}/tophat.stdout";
     my $spliced = 0;
     if ($options->{spliced}) {
         $spliced = 1;
     }
     my $jname = qq"th_$options->{species}";
     my $jstring = qq!
-mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
+mkdir -p ${tophat_dir}
+tophat ${tophat_args} \\
   -G ${gtf_file} \\
   -p ${tophat_cpus} -o ${tophat_dir} \\
 !;
@@ -1595,21 +1627,21 @@ mkdir -p ${tophat_dir} && tophat ${tophat_args} \\
     }
     $jstring .= qq!  $options->{libpath}/genome/indexes/$options->{species} \\
   ${inputs} \\
-  2>${tophat_dir}/tophat.stderr \\
-  1>${tophat_dir}/tophat.stdout && \\
- samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam \\
-  2>${tophat_dir}/samtools_sort.stderr 1>${tophat_dir}/samtools_sort.stdout && \\
- samtools index ${tophat_dir}/accepted_hits.bam \\
-  2>${tophat_dir}/samtools_index.stderr 1>${tophat_dir}/samtools_index.stdout && \\
- samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam \\
-  2>>${tophat_dir}/samtools_sorted.stderr 1>>${tophat_dir}/samtools_sort.stdout && \\
- samtools index ${tophat_dir}/unmapped.bam \\
+  2>${stderr} \\
+  1>${stdout}
+samtools sort -l 9 -n ${tophat_dir}/accepted_hits.bam -o ${tophat_dir}/accepted_sorted.bam \\
+  2>${tophat_dir}/samtools_sort.stderr 1>${tophat_dir}/samtools_sort.stdout
+samtools index ${tophat_dir}/accepted_hits.bam \\
+  2>${tophat_dir}/samtools_index.stderr 1>${tophat_dir}/samtools_index.stdout
+samtools sort -l 9 -n ${tophat_dir}/unmapped.bam -o ${tophat_dir}/unmapped_sorted.bam \\
+  2>>${tophat_dir}/samtools_sorted.stderr 1>>${tophat_dir}/samtools_sort.stdout
+samtools index ${tophat_dir}/unmapped.bam \\
   2>>${tophat_dir}/samtools_index.stderr 1>>${tophat_dir}/samtools_sort.stdout
 !;
     if ($paired) {
         $jstring .= qq!
 if [ -r "${tophat_dir}/accepted_hits.bam" ]; then
-  samtools view -b -f 2 ${tophat_dir}/accepted_hits.bam > ${tophat_dir}/accepted_paired.bam && \\
+  samtools view -b -f 2 ${tophat_dir}/accepted_hits.bam > ${tophat_dir}/accepted_paired.bam
   samtools index ${tophat_dir}/accepted_paired.bam
 fi
 !;
@@ -1632,6 +1664,8 @@ fi
         jstring => $jstring,
         jmem => $tophat_mem,
         modules => $options->{mdules},
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => $tophat_queue,

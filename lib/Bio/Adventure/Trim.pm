@@ -37,7 +37,7 @@ sub Cutadapt {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'type'],
+        required => ['input'],
         arbitrary => undef,
         maxlength => 42,
         maxerr => 0.1,
@@ -47,6 +47,7 @@ sub Cutadapt {
         left => undef,
         right => undef,
         either => undef,
+        type => 'rnaseq',
         jmem => 12,
         jwalltime => '48:00:00',
         jprefix => '12',);
@@ -55,18 +56,8 @@ sub Cutadapt {
     my $inputs = $class->Get_Paths($options->{input});
     my $check = which('cutadapt');
     die('Could not find cutadapt in your PATH.') unless($check);
-
-    if ($options->{task}) {
-        $options->{type} = $options->{task};
-    }
-    $options->{type} = lc($options->{type});
-    my $type = 'rnaseq';
-    if ($options->{type}) {
-        $type = $options->{type};
-    } else {
-        $type = 'tnseq';
-    }
-
+    my $minlength = $options->{minlength};
+    my $maxlength = $options->{maxlength};
     my $arbitrary = '';
     if (defined($options->{arbitrary})) {
         $arbitrary = $options->{arbitrary};
@@ -77,13 +68,17 @@ sub Cutadapt {
     my $basename = basename($input, @suffixes);
     $basename = basename($basename, @suffixes);
     my $adapter_flags = "";
-    if ($type eq 'tnseq') {
+
+    if ($options->{type} eq 'old_tnseq') {
         $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATC -a ACAGTCCCCGGTCTGACACATCTCCCTAT -a ACAGTCCNCGGTCTGACACATCTCCCTAT ';
-        $options->{maxlength} = 20;
-    } elsif ($type eq 'riboseq') {
+        $maxlength = 20;
+    } elsif ($options->{type} eq 'riboseq') {
         $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ';
-        $options->{minlength} = 16;
+        $minlength = 16;
+        $maxlength = 42;
     } else {
+        $minlength = 30;
+        $maxlength = undef;
         $adapter_flags = ' -a ACAGGTTGGATGATAAGTCCCCGGTCTGACACATCTCCCTAT -a AGATCGGAAGAGCACACGTCTGAAC -b AGATCGGAAGAGCACACGTCTGAAC ';
     }
 
@@ -91,6 +86,8 @@ sub Cutadapt {
 ## and separate the sequence file into a few pieces depending on size
 ## and adapter status.  It also performs some simple graphs of the data.!;
     my $out_dir = qq"outputs/$options->{jprefix}cutadapt";
+    my $stderr = qq"${out_dir}/cutadapt.stderr";
+    my $stdout = qq"${out_dir}/cutadapt.stdout";
     my $type_flag = '';
     my $out_suffix = 'fastq';
     my $input_flags = qq"less ${input} | cutadapt - ";
@@ -103,46 +100,71 @@ sub Cutadapt {
         $input_flags = qq"less ${input} | cutadapt - $options->{qual} "; ## If we are keeping quality files
         $out_suffix = 'fastq';
     }
+    my $minarg = '';
+    my $too_short = undef;
+    if ($minlength) {
+        $too_short = qq"${out_dir}/${basename}_too_short.${out_suffix}";
+        $minarg = qq" -m ${minlength} --too-short-output=${too_short}";
+    }
+    my $maxarg = '';
+    my $too_long = undef;
+    if ($maxlength) {
+        $too_long = qq"${out_dir}/${basename}_too_long.${out_suffix}";
+        $maxarg = qq" -M ${maxlength} --too-long-output=${too_long}";
+    }
+    my $maxerr = '';
+    if ($options->{maxerr}) {
+        $maxerr = qq" -e $options->{maxerr}";
+    }
     my $output = qq"${out_dir}/${basename}-trimmed_ca.${out_suffix}";
-    my $compressed_out = qq"${out_dir}/${output}.xz";
-    my $jstring = qq!
-mkdir -p ${out_dir} && \\
- ${input_flags} \\
+    my $compressed_out = qq"${output}.xz";
+    my $jstring = qq!## I am putting the args in an odd order in case some are not defined.
+mkdir -p ${out_dir}
+${input_flags} \\
   ${type_flag} ${adapter_flags} ${arbitrary} \\
-  -o ${output} \\
-  -e $options->{maxerr} -n $options->{maxremoved} \\
-  -m $options->{minlength} -M $options->{maxlength} \\
-  --too-short-output=${out_dir}/${basename}_tooshort.${out_suffix} \\
-  --too-long-output=${out_dir}/${basename}_toolong.${out_suffix} \\
+  -o ${output} ${minarg} \\
+  -n $options->{maxremoved} ${maxerr} ${maxarg} \\
   --untrimmed-output=${out_dir}/${basename}_untrimmed.${out_suffix} \\
-  2>${out_dir}/cutadapt.stderr \\
-  1>${out_dir}/cutadapt.stdout
+  2>${stderr} \\
+  1>${stdout}
 xz -9e -f ${output}
-xz -9e -f ${out_dir}/${basename}_tooshort.${out_suffix}
-xz -9e -f ${out_dir}/${basename}_toolong.${out_suffix}
 xz -9e -f ${out_dir}/${basename}_untrimmed.${out_suffix}
 !;
+    if (defined($too_short)) {
+        $jstring .= qq!
+xz -9e -f ${too_short}
+!;
+    }
+    if (defined($too_long)) {
+        $jstring .= qq!
+xz -9e -f ${too_long}
+!;
+    }
+
     my $cutadapt = $class->Submit(
         comment => $comment,
         input => $input,
         jmem => $options->{jmem},
-        jname => qq"ca_${job_name}",
-        jprefix => '07',
+        jname => qq"cutadapt_${job_name}",
+        jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '8:00:00',
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => $compressed_out,);
-    if ($type eq 'tnseq') {
+    if ($options->{type} eq 'old_tnseq') {
         my $ta_check = $class->Bio::Adventure::TNSeq::TA_Check(
             comment => '## Check that TAs exist.',
             input => $compressed_out,
             jdepends => $cutadapt->{job_id},
-            jname => qq"tach_${job_name}",
-            jprefix => '08',);
+            jname => qq"tacheck_${job_name}",
+            jprefix => $options->{jprefix} + 1,);
     }
+    $cutadapt->{tacheck} = $ta_check;
     return($cutadapt);
 }
 
@@ -517,6 +539,8 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         length => $options->{length},
         modules => $options->{modules},
         output => $output,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},

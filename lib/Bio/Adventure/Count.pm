@@ -38,6 +38,7 @@ sub Guess_Strand {
         output => 'strand_counts.txt',);
     my $job_name = $class->Get_Job_Name();
     my $output = $options->{output};
+    my $stdout = dirname($output) . qq"/stranded_test.stdout";
     my $comment = '## This submits a job to figure out the strandedness of a library.';
     my $jstring = qq!
 use Bio::Adventure;
@@ -65,6 +66,7 @@ my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         output => $output,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         species => $options->{species},);
@@ -175,8 +177,6 @@ sub Guess_Strand_Worker {
   } ## End reading each bam entry
     $log->close();
 }
-
-
 
 =head2 C<HT_Multi>
 
@@ -562,6 +562,8 @@ xz -f -9e ${output} \\
         jstring => $jstring,
         modules => $options->{modules},
         output => $output,
+        stderr => $error,
+        stdout => $output,
         postscript => $args{postscript},
         prescript => $args{prescript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -638,18 +640,20 @@ sub Jellyfish {
     my $count_fasta = qq"${jelly_base}_by_count.fasta";
     my $matrix_file = qq"${jelly_base}_matrix.csv";
     my $comment = '## Invoke jellyfish on some sequence!';
+    my $stdout = qq"${jelly_base}.stdout";
+    my $stderr = qq"${jelly_base}.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 jellyfish count -m $options->{length} \\
   -o ${count_file} \\
   -s 50000 -t 4 \\
   ${input_string} \\
-  2>${jelly_base}.stderr 1>${jelly_base}.stdout
+  2>${stderr} 1>${stdout}
 jellyfish info ${count_file} > ${info_file} \\
-  2>>${jelly_base}.stderr
+  2>>${stderr}
 jellyfish histo ${count_file} > ${histogram_file} \\
-  2>>${jelly_base}.stderr
+  2>>${stderr}
 jellyfish dump ${count_file} > ${count_fasta} \\
-  2>>${jelly_base}.stderr
+  2>>${stderr}
 !;
 
     my $jelly = $class->Submit(
@@ -666,6 +670,8 @@ jellyfish dump ${count_file} > ${count_fasta} \\
         histogram_file => $histogram_file,
         count_fasta => $count_fasta,
         output => $matrix_file,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
@@ -693,6 +699,7 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
         jprefix => $new_prefix,
         jstring => $jstring,
         output => $matrix_file,
+        stdout => $stdout,
         language => 'perl',);
     $jelly->{matrix_job} = $matrix_job;
 
@@ -788,6 +795,8 @@ sub Mash {
     my $cwd_name = basename($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}mash_${cwd_name}/dist";
     my $sketch_dir = qq"outputs/$options->{jprefix}mash_${cwd_name}/sketch";
+    my $stderr = qq"outputs/$options->{jprefix}mash_${cwd_name}.stderr";
+    my $stdout = qq"outputs/$options->{jprefix}mash_${cwd_name}.stdout";
     my $comment = qq"## Playing with mash";
     my $jstring = qq!mkdir -p ${output_dir}
 mkdir -p ${sketch_dir}
@@ -796,7 +805,8 @@ for fasta in $options->{input}/*; do
   mash sketch \\
     -s $options->{sketch} -k $options->{length} \\
     $options->{input}/\${fasta} \\
-    -o ${sketch_dir}/\${name}
+    -o ${sketch_dir}/\${name} \\
+    2>>${stderr} 1>>${stdout}
 done
 
 for outer in ${sketch_dir}/*; do
@@ -805,7 +815,8 @@ for outer in ${sketch_dir}/*; do
     mash dist \\
       ${sketch_dir}/\${outer} \\
       ${sketch_dir}/\${inner} >> \\
-      ${output_dir}/pairwise_distances_s$options->{sketch}_k$options->{length}.txt
+      ${output_dir}/pairwise_distances_s$options->{sketch}_k$options->{length}.txt \\
+      2>>${stderr} 1>>${stdout}
 !;
 
     my $mash = $class->Submit(
@@ -816,6 +827,8 @@ for outer in ${sketch_dir}/*; do
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        stderr => $stderr,
+        stdout => $stdout,
         modules => $options->{modules},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -925,6 +938,7 @@ sub Mpileup {
     my $pileup_error = qq"${output_dir}/mpileup.stderr";
     my $pileup_output = qq"${output_dir}/mpileup.bcf";
     my $final_error = qq"${output_dir}/mpileup_bcf.stderr";
+    my $stdout = qq"${output_dir}/mpileup.stdout";
     my $comment = qq"## Playing with samtools mpileup";
     my $jstring = qq!mkdir -p ${output_dir}
 echo "Started samtools sort at \$(date)" >> ${output_dir}/mpileup_$options->{species}.stdout
@@ -947,6 +961,8 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
         jname => 'mpileup',
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        stderr => $final_error,
+        stdout => $stdout,
         modules => $options->{modules},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -1337,6 +1353,8 @@ sub SLSearch {
     my $output_dir =  qq"outputs/$options->{jprefix}SL_search";
     my $output_made = make_path($output_dir);
     my $comment = '## Search for SL sub-sequences.';
+    my $stdout = qq"${output_dir}/slsearch.stdout";
+    my $stderr = qq"${output_dir}/slsearch.stderr";
     my $jstring = qq?
 use Bio::Adventure::Count;
 my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
@@ -1355,6 +1373,8 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_dir,);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';

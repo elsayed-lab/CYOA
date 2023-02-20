@@ -77,6 +77,8 @@ sub Make_Fasta_Job {
     if (defined($output_type)) {
         $type_string = "-m ${output_type}";
     }
+    my $stdout = qq"$options->{basedir}/split_align.stdout";
+    my $stderr = qq"$options->{basedir}/split_align.stderr";
     my $output = '';
     ## Important Note:  fasta36's command line parsing fails on path names > 128 or 256 characters.
     ## Thus my usual '$options->{workdir}' will cause this to fail in many instances
@@ -89,7 +91,7 @@ $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type
  outputs/split/${array_id_string}/in.fasta \\
  $options->{library} \\
  1>${output} \\
- 2>>$options->{basedir}/split_align.stderr
+ 2>>${stderr}
 !;
     } else {
         $output = qq"$options->{workdir}/$options->{fasta_tool}.stdout";
@@ -99,7 +101,7 @@ cd $options->{basedir}
   $options->{input} \\
   $options->{library} \\
   1>${output} \\
-  2>>$options->{basedir}/split_align.stderr
+  2>>${stderr}
 !;
     }
     my $comment = qq!## Running $options->{align_jobs} fasta job(s).!;
@@ -115,6 +117,8 @@ cd $options->{basedir}
         jprefix => "91",
         modules => $options->{modules},
         output => $output,
+        stdout => $stdout,
+        stderr => $stderr,
         jqueue => 'long',
         jwalltime => '96:00:00',);
     return($fasta_jobs);
@@ -627,6 +631,8 @@ sub Split_Align_Fasta {
             workdir => $outdir,
             align_jobs => 1);
     }
+    my $stdout = qq"${outdir}/align_fasta.stdout";
+    my $stderr = qq"${outdir}/align_fasta.stdout";
 
     my $parse_input = $alignment->{output};
     my $comment_string = qq!## I don't know if this will work.!;
@@ -662,6 +668,8 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
         jname => 'parse_search',
         jstring => $jstring,
         jprefix => '93',
+        stdout => $stdout,
+        stderr => $stderr,
         language => 'perl',);
     $parse_job->{align} = $alignment;
     $parse_job->{concat} = $concat_job;

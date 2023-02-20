@@ -63,7 +63,9 @@ bowtie-build $options->{input} \\
         jdepends => $options->{jdepends},
         jstring => $jstring,
         jprefix => '10',
-        output => $stderr,
+        output => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($bt1_index);
@@ -100,9 +102,9 @@ sub BT2_Index {
     if (!-f $copied_location) {
         my $copied = qx"less $options->{input} > ${copied_location}";
     }
-    my $output_dir = qq"$options->{basedir}/$options->{jprefix}bt2_index";
-    my $stdout = qq"${output_dir}/bt2_index.stdout";
-    my $stderr = qq"${output_dir}/bt2_index.stderr";
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}bt2_index";
+    my $stdout = qq"${output_dir}/index.stdout";
+    my $stderr = qq"${output_dir}/index.stderr";
     my $jstring = qq!bowtie2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
   2>${stderr} 1>${stdout}
@@ -116,7 +118,9 @@ sub BT2_Index {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
-        output => $stdout,
+        output => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($indexer);
@@ -139,13 +143,16 @@ sub BWA_Index {
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}bwa_index";
+    my $stdout = qq"${output_dir}/bwa_index.stdout";
+    my $stderr = qq"${output_dir}/bwa_index.stderr";
     my $jstring = qq!
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes
 ln -sf ../${species}.fa .
 bwa index ${species}.fa \\
-  2>bwa_index.stderr \\
-  1>bwa_index.stdout
+  2>${stderr} \\
+  1>${stdout}
 cd \$start
 !;
     my $basedir = qq"$options->{libpath}/$options->{libtype}/indexes";
@@ -165,12 +172,15 @@ cd \$start
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
+        output => $output_dir,
         output_sa => $index_sa,
         output_pac => $index_pac,
         output_bwt => $index_bwt,
         output_ann => $index_ann,
         output_amb => $index_amb,
         output_fa => $index_fa,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($bwa_index);
@@ -283,21 +293,23 @@ sub Extend_Kraken_DB {
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qw"outputs/extend_kraken";
 
+    my $stderr = qq"${output_dir}/kraken2-build.stderr";
+    my $stdout = qq"${output_dir}/kraken2-build.stdout";
     my $comment = '## This is a script to extend an existing kraken2 library with some new sequences.';
     my $jstring = qq!mkdir -p ${output_dir}
 kraken2-build --download-taxonomy --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>${output_dir}/kraken2-build.stderr \\
-              1>${output_dir}/kraken2-build.stdout
+              2>${stderr} \\
+              1>${stdout}
 kraken2-build --add-to-library $options->{input} --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.stderr \\
-              1>>${output_dir}/kraken2-build.stdout
+              2>>${stderr} \\
+              1>>${stdout}
 kraken2-build --download-library $options->{library} \\
               --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.stderr \\
-              1>>${output_dir}/kraken2-build.stdout
+              2>>${stderr} \\
+              1>>${stdout}
 kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
-              2>>${output_dir}/kraken2-build.stderr \\
-              1>>${output_dir}/kraken2-build.stdout
+              2>>${stderr} \\
+              1>>${stdout}
 !;
     my $kraken = $class->Submit(
         comment => $comment,
@@ -309,6 +321,8 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
         jmem => 96,
         modules => $options->{modules},
         output => qq"${output_dir}/kraken2-build.out",
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'large',);
@@ -367,6 +381,8 @@ hisat2-build $options->{input} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         output => $stdout,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($indexer);
@@ -393,11 +409,14 @@ sub Kallisto_Index {
         cp($options->{input}, $copied_location);
     }
     my $libtype = $options->{libtype};
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}kallisto_index";
+    my $stdout = qq"${output_dir}/index.stdout";
+    my $stderr = qq"${output_dir}/index.stderr";
     my $input = File::Spec->rel2abs($options->{input});
     my $jstring = qq!
 kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
   ${input} \\
-  2>kallisto_index.stderr 1>kallisto_index.stdout
+  2>${stderr} 1>${stdout}
 !;
     my $comment = qq!## Generating kallisto indexes for species: ${species}
 ## in $options->{libdir}/${libtype}/indexes!;
@@ -408,6 +427,8 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
         jname => 'kalidx',
         jprefix => $options->{jprefix},
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($ka_index);
@@ -540,11 +561,13 @@ sub RSEM_Index {
     if (!-f $copied_location) {
         cp($options->{input}, $copied_location);
     }
-
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}rsem_index";
+    my $stdout = qq"${output_dir}/index.stdout";
+    my $stderr = qq"${output_dir}/index.stderr";
     my $comment = '## RSEM Index creation.';
     my $jstring = qq!
 rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
-  2>rsem_prepare.stderr 1>rsem_prepare.stdout
+  2>${stderr} 1>${stdout}
 !;
     my $jobid = $class->Submit(
         comment => $comment,
@@ -553,6 +576,8 @@ rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
         jname => 'rsemidx',
         jprefix => $options->{jprefix},
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($jobid);
@@ -598,6 +623,11 @@ sub Salmon_Index {
     }
     my $decoy_copy_string = qq'';
     my $jstring = qq'';
+
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}salmon_index";
+    my $stdout = qq"${output_dir}/index.stdout";
+    my $stderr = qq"${output_dir}/index.stderr";
+
     my $index_input = $options->{input};
     my $index_string = qq!
 salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
@@ -618,7 +648,7 @@ salmon index \\
         $jstring = qq!${decoy_copy_string}
 ${index_string} \\
   --decoys ${decoy_location}.txt \\
-  2>salmon_index.stderr 1>salmon_index.stdout
+  2>${stderr} 1>${stdout}
 !;
     } else {
         warn("This function would prefer to make a decoy aware index set which requires the full genome.");
@@ -626,7 +656,7 @@ ${index_string} \\
 otherwise a decoy-less index will be generated.");
         sleep(10);
         $jstring = qq!${index_string} \\
-  2>salmon_index.stderr 1>salmon_index.stdout
+  2>${stderr} 1>${stdout}
 !;
     }
 
@@ -640,6 +670,8 @@ otherwise a decoy-less index will be generated.");
         jmem => 24,
         jprefix => '15',
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($jobid);
@@ -665,6 +697,9 @@ sub STAR_Index {
         cp($options->{input}, $copied_location);
     }
     my $star_refdir = "$options->{libdir}/${libtype}/indexes/${species}_star_index";
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}star_index";
+    my $stdout = qq"${output_dir}/index.stdout";
+    my $stderr = qq"${output_dir}/index.stderr";
     my $jstring = qq!
 STAR \\
   --runMode genomeGenerate \\
@@ -673,7 +708,7 @@ STAR \\
   --genomeFastaFiles $options->{libdir}/${libtype}/${species}.fasta \\
   --sjdbGTFfile $options->{libdir}/${libtype}/${species}.gtf \\
   --limitGenomeGenerateRAM 160000000000 \\
-  2>star_index.stderr 1>star_index.stdout
+  2>${stderr} 1>${stdout}
 
 !;
     my $jobid = $class->Submit(
@@ -686,6 +721,8 @@ STAR \\
         modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
+        stderr => $stderr,
+        stdout => $stdout,
         jqueue => 'xlarge',);
     return($jobid);
 }

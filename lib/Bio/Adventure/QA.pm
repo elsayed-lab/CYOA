@@ -46,6 +46,9 @@ sub Biopieces_Graph {
     $jname = qq"biop_${jname}";
     my @inputs = split(/\,|\:|\;/, $input);
     my $comment = '## This script uses biopieces to draw some simple graphs of the sequence.';
+    my $output_dir = 'output/biopieces';
+    my $stdout = qq"${output_dir}/biopieces.stdout";
+    my $stderr = qq"${output_dir}/biopieces.stderr";
     my $bp;
     if (scalar(@inputs) > 1) { ## multiple comma/colon/semicolon inputs were provided.
         foreach my $in (@inputs) {
@@ -75,6 +78,8 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
                 jqueue => 'long',
                 jstring => $jstring,
                 modules => $options->{modules},
+                stderr => $stderr,
+                stdout => $stdout,
                 prescript => $args{prescript},
                 postscript => $args{postscript},);
         }
@@ -102,6 +107,8 @@ less ${input} | read_fastq -i - -e base_33 |\\
             jprefix => $options->{jprefix},
             jstring => $jstring,
             modules => $options->{modules},
+            stderr => $stderr,
+            stdout => $stdout,
             prescript => $options->{prescript},
             postscript => $options->{postscript},);
     }

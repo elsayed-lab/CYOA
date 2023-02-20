@@ -68,6 +68,7 @@ rm -f ${output} && for i in \$(/bin/ls outputs/split/*.stdout); do xz -9e -c \$i
         jmem => $options->{jmem},
         jstring => $jstring,
         jprefix => $options->{jprefix},
+        stdout => $output,
         output => $output,);
     return($concatenate);
 }
@@ -503,6 +504,8 @@ orthofinder -f $options->{input} \\
         jname => ${jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        stderr => $error_file,
+        stdout => $stdout_file,
         jmem => $options->{jmem},
         modules => $options->{modules},);
     return($ortho);

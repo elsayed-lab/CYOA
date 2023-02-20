@@ -83,7 +83,8 @@ sub Collect_Assembly {
     }
     $output_dir = qq"${output_dir}/collected_assemblies";
     my $made = make_path($output_dir);
-
+    my $stderr = qq"${output_dir}/cp.stderr";
+    my $stdout = qq"${output_dir}/cp.stdout";
     my $input_base = basename($options->{input_fsa}, ('.fsa'));
     my $jstring = '';
     $jstring .= qq"cp $options->{input_fsa} ${output_dir}/\n" if ($options->{input_fsa});
@@ -105,6 +106,8 @@ sub Collect_Assembly {
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
         jwalltime => '00:01:00',
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_dir,);
     return($collect);
 }
@@ -136,6 +139,8 @@ sub Generate_Samplesheet {
     my $cwd_name = basename(cwd());
     my $output_filename = basename($options->{input}, ('.xlsx', '.tsv', '.csv'));
     my $output_dir = dirname($options->{input});
+    my $stdout = qq"${output_dir}/create_samplesheet.stdout";
+    my $stderr = qq"${output_dir}/create_samplesheet.stderr";
     my $output_file = qq"${output_dir}/${output_filename}_modified.xlsx";
     my $jstring = qq!
 library(hpgltools)
@@ -146,6 +151,8 @@ meta_written <- gather_preprocessing_metadata("$options->{input}")
         jstring => $jstring,
         language => 'R',
         output => $output_file,
+        stderr => $stderr,
+        stdout => $stdout,
         jmem => $options->{jmem},
         shell => '/usr/bin/env Rscript',);
     return($sample_sheet);
@@ -328,6 +335,8 @@ sub Kraken_Best_Hit {
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}kraken_$options->{library}";
+    my $stdout = qq"${output_dir}/kraken_best.stdout";
+    my $stderr = qq"${output_dir}/kraken_best.stderr";
     make_path($output_dir);
     my $input_string = "";
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
@@ -343,7 +352,7 @@ sub Kraken_Best_Hit {
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-  2>${output_dir}/kraken.stderr 1>${output_dir}/kraken.stdout
+  2>${stderr} 1>${stdout}
 !;
     my $kraken = $class->Submit(
         comment => $comment,
@@ -354,6 +363,8 @@ sub Kraken_Best_Hit {
         jstring => $jstring,
         jmem => $options->{jmem},
         jqueue => 'large',
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         modules => $options->{modules},
@@ -454,6 +465,7 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         language => 'perl',
         library => $options->{library},
         locus_tag => 1,
+        stdout => qq"${output_dir}/collect_annotations.stdout",
         output_dir => $output_dir,
         output_fsa => $output_fsa,
         output_gbf => $output_gbf,
@@ -1420,6 +1432,7 @@ echo "\$stat_string" >> ${stat_output}!;
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 1,
+        stdout => $stat_output,
         jqueue => 'throughput',
         jwalltime => '00:01:00',);
     return($stats);
@@ -1470,6 +1483,7 @@ echo "\$stat_string" >> ${output}!;
         jdepends => $options->{jdepends},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        stdout => $output,
         jname => $jname,
         jmem => 1,
         jqueue => 'throughput',
@@ -1529,6 +1543,7 @@ echo "\${stat_string}" >> ${stat_output}!;
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
+        stdout => $stat_output,
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1597,7 +1612,8 @@ echo "\$stat_string" >> ${stat_output}
         jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
-        output => qq"${stat_output}",);
+        stdout => $stat_output,
+        output => $stat_output,);
     ## Added to return the state of the system to what it was
     ## before we messed with the options.
     return($stats);
@@ -1614,7 +1630,7 @@ sub HT2_Stats {
         args => \%args,
         jmem => 1,
         output_dir => 'outputs',);
-    my $ht_input = $options->{ht_input};
+    my $ht_input = $options->{input};
     my $paths = $class->Get_Paths($ht_input);
     my $jname = 'ht2_stats';
     $jname = $options->{jname} if ($options->{jname});
@@ -1649,6 +1665,7 @@ echo "\$stat_string" >> ${output}
         jstring => $jstring,
         jwalltime => '00:01:00',
         jqueue => 'throughput',
+        stdout => $output,
         output => $output,);
     return($stats);
 }
@@ -1697,6 +1714,7 @@ echo "\$stat_string" >> "${output}"!;
         jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
+        stdout => $output,
         output => $output,);
     return($stats);
 }
@@ -1753,6 +1771,7 @@ echo "\$stat_string" >> "${output}"!;
     my $stats = $class->Submit(
         comment => $comment,
         input => $accepted_input,
+        stdout => $output,
         jcpus => 1,
         jdepends => $options->{jdepends},
         jmem => 1,
@@ -1830,6 +1849,7 @@ echo "\$stat_string" >> ${stat_output}
         jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
+        stdout => $stat_output,
         output => $stat_output,);
     return($stats);
 }

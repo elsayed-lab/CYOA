@@ -113,12 +113,6 @@ sub Choose_QOS {
     my $current_usage = $args{current_usage};
     my $associations = $class->{association_data};
     my $qos_info = $class->{qos_data};
-    ## print "TESTME wanted spec in Choose_Spec: \n";
-    ## print Dumper $wanted_spec;
-    ## print "TESTME: Current usage in Choose_Spec:\n";
-    ## print Dumper $current_usage;
-    ## print "TESTME: QOS Info:\n";
-    ## print Dumper $qos_info;
     $wanted_spec->{walltime_hours} = Convert_to_Hours($wanted_spec->{walltime});
 
     my $chosen_account = '';
@@ -126,7 +120,6 @@ sub Choose_QOS {
   TOP: for my $cluster (keys %{$associations}) {
     ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
         my @qos = @{$associations->{$cluster}->{$account}->{qos}};
-        print "TESTME qos array: @qos\n";
         my $found_qos = 0;
       QOS: for my $q (@qos) {
           my $info = $qos_info->{$q};
@@ -139,7 +132,6 @@ sub Choose_QOS {
           my $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
           my $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
           my $stringent_hours = $info->{max_hours} + $info->{used_hours};
-          print "TESTME stringent: <$stringent_mem> <$stringent_cpu> <$stringent_gpu> <$stringent_hours>\n";
           ## If we pass this initial test, then the job should start immediately.
           if ($wanted_spec->{mem} <= $stringent_mem &&
               $wanted_spec->{cpu} <= $stringent_cpu &&
@@ -468,8 +460,6 @@ sub Get_Spec {
         $wanted->{gpu} = 0;
     }
 
-    print "TESTME: END OF Get_Spec: $wanted->{walltime}\n";
-
     return($wanted);
 }
 
@@ -577,7 +567,6 @@ sub Get_Usage {
           $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
       } else {
           ## I think I would like this to print some information about failed jobs perhaps here?
-          print "TESTME: Get_Usage state: $state\n";
           $instance->{$partition}->{$account}->{$qos}->{running} = 0;
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
           $instance->{$partition}->{$account}->{$qos}->{failed} = 1;
@@ -693,7 +682,6 @@ sub Submit {
         print "partition is not defined, setting it to the empty string\n";
         $options->{partition} = '';
     }
-    print "TESTME: account: $options->{account} cluster: $options->{cluster} partition: $options->{partition} qos: $options->{qos}\n";
     ##  Need to catch the special case of scavenger
     if ($options->{qos} eq 'scavenger') {
         $options->{account} = 'scavenger';

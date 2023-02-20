@@ -129,7 +129,8 @@ sub Glimmer {
     die('Could not find glimmer in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
-
+    my $stdout = qq"${output_dir}/cyoa_glimmer.stdout";
+    my $stderr = qq"${output_dir}/cyoa_glimmer.stderr";
     my $comment = '## This is a script to run glimmer.';
 ##    my $jstring = qq!mkdir -p ${output_dir}
 ##long-orfs -n -t 1.15 $options->{input} ${output_dir}/first_run_longorfs.txt \\
@@ -157,7 +158,9 @@ sub Glimmer {
 ##  ${output_dir}/second_run.out
 ##!;
     my $jstring = qq!
-cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
+cyoa_invoke_glimmer.pl --input $options->{input} \\
+  --jprefix $options->{jprefix} \\
+  2>${stderr} 1>{$stdout}
 !;
 
     ## FIXME: There are a bunch of potentially useful glimmer outputs which should be put here.
@@ -173,6 +176,8 @@ cyoa_invoke_glimmer.pl --input $options->{input} --jprefix $options->{jprefix}
         output => qq"${output_dir}/${job_name}_glimmer.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
+        stderr => $stderr,
+        stdout => $stdout,
         jqueue => 'workstation',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -251,6 +256,8 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
         output_icm => qq"${output_dir}/single_run.icm",
         output_longorfs => qq"${output_dir}/longorfs.txt",
         output_training => qq"${output_dir}/training.txt",
+        stderr => $final_error,
+        stdout => $final_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
@@ -314,6 +321,8 @@ sub Phagepromoter {
     die('Could not find phagepromoter in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phagepromoter";
+    my $stdout = qq"${output_dir}/phagepromoter.stdout";
+    my $stderr = qq"${output_dir}/phagepromoter.stderr";
     my $output_file = qq"${output_dir}/${job_name}_phagepromoter.tsv";
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->[0]->{fullpath};
@@ -347,6 +356,8 @@ cd \${start}
         modules => $options->{modules},
         output => qq"${output_file}.xz",
         output_fasta => $output_fasta,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
@@ -389,6 +400,8 @@ sub Phanotate {
     die('Could not find phanotate in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phanotate";
+    my $stderr = qq"${output_dir}/phanotate.stderr";
+    my $stdout = qq"${output_dir}/phanotate.stdout";
     my $output_file = qq"${output_dir}/${job_name}_phanotate.tsv";
     my $comment = '## This is a script to run phanotate.';
     my $jstring = qq!
@@ -396,8 +409,8 @@ mkdir -p ${output_dir}
 phanotate.py \\
   --outfile ${output_file} \\
   $options->{input} \\
-  2>${output_dir}/phanotate.stderr \\
-  1>${output_dir}/phanotate.stdout
+  2>${stderr} \\
+  1>${stdout}
 xz -9e -f ${output_file}
 !;
     my $phanotate = $class->Submit(
@@ -410,6 +423,8 @@ xz -9e -f ${output_file}
         jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_file}.xz",
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
@@ -484,7 +499,8 @@ sub Prodigal {
     } else {
         $output_dir = qq"outputs/$options->{jprefix}prodigal_${in_name}";
     }
-
+    my $stdout = qq"${output_dir}/prodigal.stdout";
+    my $stderr = qq"${output_dir}/prodigal.stderr";
     my ($cds_file, $translated_file, $scores_file, $gff_file, $gbk_file);
     if ($options->{prodigal_outname}) {
         $cds_file = qq"${output_dir}/$options->{prodigal_outname}_cds.fasta";
@@ -508,13 +524,13 @@ if prodigal ${train_string} ${edge_string} \\
   -d ${cds_file} \\
   -s ${scores_file} \\
   -f gff -o ${gff_file} \\
-  2>${output_dir}/prodigal_gff.stderr \\
-  1>${output_dir}/prodigal_gff.stdout ; then
+  2>${stderr} \\
+  1>${stdout} ; then
   prodigal ${edge_string} ${train_string} \\
     -i $options->{input} \\
     -f gbk -o ${gbk_file} \\
-    2>${output_dir}/prodigal_gbk.stderr \\
-    1>${output_dir}/prodigal_gbk.stdout
+    2>${stderr} \\
+    1>${stdout}
 else
   echo "Prodigal failed, perhaps the contig was too short?"
 fi
@@ -530,6 +546,8 @@ sleep 3
         jqueue => 'workstation',
         jstring => $jstring,
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         output => $gbk_file,
         output_cds => $cds_file,
         output_gff => $gff_file,
@@ -573,6 +591,8 @@ sub Rho_Predict {
     my $input_file = $input_paths->[0]->{filename};
     my $cwd_name = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}rhotermpredict_${cwd_name}";
+    my $stderr = qq"${output_dir}/rhotermpredict.stderr";
+    my $stdout = qq"${output_dir}/rhotermpredict.stdout";
     my $output_file = qq"${output_dir}/predictions_coordinates_${cwd_name}_1.csv";
     my $info_file = qq"${output_dir}/info_about_predictions_${cwd_name}.csv";
     my $jstring = qq?mkdir -p ${output_dir}
@@ -593,6 +613,8 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
         output => $output_file,
         output_info => $info_file,);
     return($rhoterm);
@@ -631,12 +653,14 @@ sub Train_Prodigal {
     my $output_dir = qq"$options->{libpath}/hmm";
     my $made = make_path($output_dir);
     my $output = qq"${output_dir}/$options->{species}_gc$options->{gcode}.training";
+    my $stdout = qq"${output_dir}/prodigal_training.stdout";
+    my $stderr = qq"${output_dir}/prodigal_training.stderr";
     my $comment = '## This is a script to train prodigal.';
     my $jstring = qq!mkdir -p ${output_dir}
 prodigal -i $options->{input} \\
   -t ${output} \\
-  2>${output_dir}/prodigal_training.stderr \\
-  1>${output_dir}/prodigal_training.stdout
+  2>${stderr} \\
+  1>${stdout}
 !;
     my $prodigal = $class->Submit(
         jcpus => 1,
@@ -648,6 +672,8 @@ prodigal -i $options->{input} \\
         jmem => $options->{jmem},
         modules => $options->{modules},
         output => $output,
+        stderr => $stderr,
+        stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
