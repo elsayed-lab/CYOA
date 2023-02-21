@@ -67,6 +67,22 @@ sub Submit {
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $mycwd = getcwd();
     my $out_dir;
+    if (!defined($options->{stdout}) && !defined($options->{output})) {
+        die("Every job must have either output or stdout defined.");
+    } elsif (!defined($options->{stdout})) {
+        $out_dir = dirname($options->{output});
+        warn("Every job should have a stdout defined, setting it to the output directory: $out_dir.\n");
+        $options->{stdout} = $out_dir;
+        sleep(5);
+    } elsif (!defined($options->{output})) {
+        warn("Every job should have an output defined, setting it to $options->{stdout}.");
+        $options->{output} = $options->{stdout};
+        $out_dir = dirname($options->{stdout});
+        sleep(5);
+    } else {
+        $out_dir = dirname($options->{stdout});
+    }
+
     make_path($out_dir, {verbose => 0}) unless (-r $out_dir);
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
@@ -165,7 +181,7 @@ touch ${finished_file}
         die("The script: ${script_file}
 failed with error: $!.\n");
     print "Starting a new job: ${bash_pid} $options->{jname}";
-    if (defined($options->{jdepends})) {
+    if ($options->{jdepends}) {
         print ", depending on $options->{jdepends}.";
     }
     print "\n";
@@ -190,7 +206,7 @@ failed with error: $!.\n");
         print Dumper $job;
     }
     ## Reset the environment in case we left any cruft behind
-    ## my $reset = Bio::Adventure::Reset_Vars($class);
+    my $reset = Bio::Adventure::Reset_Vars($class);
     return($job);
 }
 

@@ -1714,7 +1714,7 @@ echo "\$stat_string" >> "${output}"!;
         jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
-        stdout => $output,
+        stdout => '',
         output => $output,);
     return($stats);
 }

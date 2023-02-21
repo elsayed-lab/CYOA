@@ -186,7 +186,7 @@ has jobs => (is => 'rw', default => undef); ## List of currently active jobs, po
 has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
 has jbasename => (is => 'rw', default => basename(cwd())); ## Job basename
 has jcpus => (is => 'rw', default => 2); ## Number of processors to request in jobs
-has jdepends => (is => 'rw', default => undef);  ## Flag to start a dependency chain
+has jdepends => (is => 'rw', default => '');  ## Flag to start a dependency chain
 has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
 has jnice => (is => 'rw', default => 0); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
@@ -1374,7 +1374,7 @@ sub Reset_Vars {
     my %original_values = (
         array_string => undef,
         jbasename => basename(cwd()),
-        jdepends => undef,
+        jdepends => '',
         jmem => 12,
         jname => 'undefined',
         jqueue => 'workstation',
@@ -1716,7 +1716,7 @@ sub Submit {
         $Storable::Deparse = 1;
         $Storable::Eval = 1;
         $option_file = File::Temp->new(
-            TEMPLATE => 'optionsXXXX',
+            TEMPLATE => qq"$options->{jname}XXXX",
             DIR => $option_directory,
             UNLINK => 0,
             SUFFIX => '.pdata',);

@@ -10,10 +10,12 @@ use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Cwd;
 use File::Basename;
+use File::Copy qw"copy move";
 use File::Find;
 use File::Path qw"make_path remove_tree";
+use File::Temp qw"tmpnam";
 use File::Which qw"which";
-use POSIX qw"ceil";
+use POSIX qw"ceil strftime";
 
 =head1 NAME
 
@@ -486,16 +488,38 @@ sub OrthoFinder {
     my $loaded = $class->Module_Loader(modules => $options->{modules});
 
     my $jname = qq'orthofinder';
-
     my $outdir = qq"outputs/$options->{jprefix}orthofinder";
-    my $error_file = qq"${outdir}/orthofinder.stderr";
-    my $stdout_file = qq"${outdir}/orthofinder.stdout";
+    make_path(qq"${outdir}/input");
+    if (-d "${outdir}/output") {
+        warn("The output directory already exists, moving it to a randomly generated name.");
+        my $move_path = tmpnam();
+        my $move_name = basename($move_path);
+        my $new_dir = qq"${outdir}/output_${move_name}";
+        print "Moving from ${outdir}/output to ${outdir}/${new_dir}\n";
+        my $moved = qx!mv "${outdir}/output", "${outdir}/${new_dir}"!;
+    }
+
+    my $month_date = strftime "%h%d", localtime;
+
+    ## Check that it is not a set of files
+    if ($options->{input} =~ /\:|\,|\;/) {
+        my @inputs = split(/\:|\,|\;/, $options->{input});
+        for my $in (@inputs) {
+            my $copied = copy($in, qq"${outdir}/input");
+        }
+        $options->{input} = qq"${outdir}/input";
+    }
+
+    my $stderr = qq"${outdir}/orthofinder.stderr";
+    my $stdout = qq"${outdir}/orthofinder.stdout";
     my $comment = qq!## Attempting to run orthofinder using a faa directory in $options->{input}.
 !;
     my $jstring = qq!
 orthofinder -f $options->{input} \\
-  -o ${outdir} \\
-  2>>${error_file} 1>>${stdout_file}
+  -o ${outdir}/output \\
+  2>>${stderr} 1>>${stdout}
+mv ${outdir}/outputs/Results_${month_date}/* ${outdir}/outputs
+rmdir ${outdir}/outputs/Results_${month_date}
 !;
     my $ortho = $class->Submit(
         comment => $comment,
@@ -504,8 +528,8 @@ orthofinder -f $options->{input} \\
         jname => ${jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        stderr => $error_file,
-        stdout => $stdout_file,
+        stderr => $stderr,
+        stdout => $stdout,
         jmem => $options->{jmem},
         modules => $options->{modules},);
     return($ortho);

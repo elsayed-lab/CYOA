@@ -1,7 +1,10 @@
 use strict;
 use warnings;
-
 use ExtUtils::MakeMaker;
+use File::ShareDir::Install;
+
+install_share 'share';
+
 WriteMakefile(
     NAME => 'Bio-Adventure',
     AUTHOR => 'Ashton Trey Belew <abelew@gmail.com>',
@@ -67,3 +70,6 @@ WriteMakefile(
          'script/cyoa.pl'
      ],
     );
+
+package MY;
+use File::ShareDir::Install qw"postamble";

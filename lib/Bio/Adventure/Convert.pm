@@ -42,37 +42,101 @@ sub Gb2Gff {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
+        jprefix => '78');
+    my $base = basename($options->{input}, ('.xz', '.gz', '.bz2'));
+    $base = basename($base, ('.gb', '.gba', '.gbk', '.genbank'));
+    my $dir = dirname($options->{input});
+    if (defined($options->{output_dir})) {
+        $dir = $options->{output_dir};
+    }
+    my $output_fasta = qq"${dir}/${base}.fsa";
+    my $output_all_gff = qq"${dir}/${base}_all.gff";
+    my $output_gene_gff = qq"${dir}/${base}.gff";
+    my $output_cds_gff = qq"${dir}/${base}_cds.gff";
+    my $output_inter_gff = qq"${dir}/${base}_interCDS.gff";
+    my $output_cds_fasta = qq"${dir}/${base}.ffn";
+    my $output_pep_fasta = qq"${dir}/${base}.faa";
+    my $output_rrna_gff = qq"${dir}/${base}_rrna.gff";
+    my $output_rrna_fasta = qq"${dir}/${base}_rrna.fasta";
+
+    my $stderr = qq"${base}_convert.stderr";
+    my $stdout = qq"${base}_convert.stdout";
+    my $comment = '## Convert from genbank to other formats.';
+    my $jname = qq"${base}_convert";
+    my $jstring = qq!use Bio::Adventure::Convert;
+my \$result = \$h->Bio::Adventure::Convert::Gb2Gff_Worker(
+  input => '$options->{input}',
+  jdepends => '$options->{jdepends}',
+  jname => '${jname}',
+  jprefix => '$options->{jprefix}',
+  output => '${output_fasta}',
+  output_fasta => '${output_fasta}',
+  output_all_gff => '${output_all_gff}',
+  output_gene_gff => '${output_gene_gff}',
+  output_cds_gff => '${output_cds_gff}',
+  output_inter_gff => '${output_inter_gff}',
+  output_cds_fasta => '${output_cds_fasta}',
+  output_pep_fasta => '${output_pep_fasta}',
+  output_rrna_gff => '${output_rrna_gff}',
+  output_rrna_fasta => '${output_rrna_fasta}',
+  stdout => '${stdout}',
+  stderr => '${stderr}',);
+!;
+    my $convert = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        jdepends => $options->{jdepends},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        output => $output_fasta,
+        output_fasta => $output_fasta,
+        output_all_gff => $output_all_gff,
+        output_gene_gff => $output_gene_gff,
+        output_cds_gff => $output_cds_gff,
+        output_inter_gff => $output_inter_gff,
+        output_cds_fasta => $output_cds_fasta,
+        output_pep_fasta => $output_pep_fasta,
+        output_rrna_gff => $output_rrna_gff,
+        output_rrna_fasta => $output_rrna_fasta,
+        stdout => $stdout,
+        stderr => $stderr,
+        language => 'perl',);
+    return($convert);
+}
+
+sub Gb2Gff_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        output_fasta => 'output.fsa',
+        output_all_gff => 'all.gff',
+        output_gene_gff => 'gene_gff',
         required => ['input']);
-    my $input = $options->{input};
 
-    my $base = basename($input, ('.gz', '.xz', '.bz2'));
-    my @suffix = ('.gb', '.gbk', '.gbff', '.genbank');
-    $base = basename($base, @suffix);
-    my $dir = dirname($input);
-
-    my $in = FileHandle->new("less ${input} |");
+    my $in = FileHandle->new("less $options->{input} |");
     my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
     my $seq_count = 0;
     my $total_nt = 0;
     my $feature_count = 0;
-    my $output_fasta = qq"${dir}/${base}.fsa";
-    my $fasta = Bio::SeqIO->new(-file => qq">${output_fasta}", -format => 'fasta', -flush => 0);
-    my $all_gff = qq"${dir}/${base}_all.gff";
-    my $gffout = Bio::Tools::GFF->new(-file => ">${all_gff}", -gff_version => 3);
-    my $output_gff = qq"${dir}/${base}.gff";
-    my $gene_gff = Bio::Tools::GFF->new(-file => ">${output_gff}", -gff_version => 3);
-    my $output_cds_gff = qq"${dir}/${base}_cds.gff";
-    my $cds_gff = Bio::Tools::GFF->new(-file => ">${output_cds_gff}", -gff_version => 3);
-    my $output_inter_gff = qq"${dir}/${base}_interCDS.gff";
-    my $inter_gffout = Bio::Tools::GFF->new(-file => ">${output_inter_gff}", -gff_version => 3);
-    my $output_cds_fasta = qq"${dir}/${base}.ffn";
-    my $cds_fasta = Bio::SeqIO->new(-file => qq">${output_cds_fasta}", -format => 'Fasta');
-    my $output_pep_fasta = qq"${dir}/${base}.faa";
-    my $pep_fasta = Bio::SeqIO->new(-file => qq">${output_pep_fasta}", -format => 'Fasta');
-    my $output_rrna_gff = qq"${dir}/${base}_rrna.gff";
-    my $rrna_gffout = Bio::Tools::GFF->new(-file => ">${output_rrna_gff}", -gff_version => 3);
-    my $output_rrna_fasta = qq"${dir}/${base}_rrna.fasta";
-    my $rrna_fasta = Bio::SeqIO->new(-file => qq">${output_rrna_fasta}", -format => 'Fasta');
+
+    my $fasta = Bio::SeqIO->new(-file => qq">$options->{output_fasta}",
+                                -format => 'fasta', -flush => 0);
+    my $gffout = Bio::Tools::GFF->new(-file => ">$options->{output_all_gff}",
+                                      -gff_version => 3);
+    my $gene_gff = Bio::Tools::GFF->new(-file => ">$options->{output_gene_gff}",
+                                        -gff_version => 3);
+    my $cds_gff = Bio::Tools::GFF->new(-file => ">$options->{output_cds_gff}",
+                                       -gff_version => 3);
+    my $inter_gffout = Bio::Tools::GFF->new(-file => ">$options->{output_inter_gff}",
+                                            -gff_version => 3);
+    my $cds_fasta = Bio::SeqIO->new(-file => qq">$options->{output_cds_fasta}",
+                                    -format => 'Fasta');
+    my $pep_fasta = Bio::SeqIO->new(-file => qq">$options->{output_pep_fasta}",
+                                    -format => 'Fasta');
+    my $rrna_gffout = Bio::Tools::GFF->new(-file => ">$options->{output_rrna_gff}", -gff_version => 3);
+    my $rrna_fasta = Bio::SeqIO->new(-file => qq">$options->{output_rrna_fasta}", -format => 'Fasta');
     while (my $seq = $seqio->next_seq) {
         $seq_count++;
         $total_nt = $total_nt + $seq->length();
@@ -263,15 +327,15 @@ sub Gb2Gff {
         num_sequences => $seq_count,
         total_nt => $total_nt,
         num_features => $feature_count,
-        fasta_out => $output_fasta,
-        gff_out => $all_gff,
-        gene_gff => $output_gff,
-        inter_cds => $output_inter_gff,
-        cds_fasta => $output_cds_fasta,
-        cds_gff => $output_cds_gff,
-        pep_fasta => $output_pep_fasta,
-        rrna_gff => $output_rrna_gff,
-        rrna_fasta => $output_rrna_fasta,
+        fasta_out => $options->{output_fasta},
+        all_gff_out => $options->{output_all_gff},
+        gene_gff => $options->{output_gene_gff},
+        inter_cds => $options->{output_inter_gff},
+        cds_fasta => $options->{output_cds_fasta},
+        cds_gff => $options->{output_cds_gff},
+        pep_fasta => $options->{output_pep_fasta},
+        rrna_gff => $options->{output_rrna_gff},
+        rrna_fasta => $options->{output_rrna_fasta},
     };
     close($in);
     $fasta->close();

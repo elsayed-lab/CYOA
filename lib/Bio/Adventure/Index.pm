@@ -350,7 +350,7 @@ sub Hisat2_Index {
     my $stdout = qq"hisat2_index_${species}.stdout";
     my $stderr = qq"hisat2_index_${species}.stderr";
     my $output_dir;
-    if (!defined($options->{output_dir})) {
+    if (defined($options->{output_dir})) {
         $output_dir = $options->{output_dir};
     } else {
         $output_dir = qq"$options->{basedir}/$options->{jprefix}hisat2_index";
@@ -428,6 +428,7 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
         jprefix => $options->{jprefix},
         modules => $options->{modules},
         stderr => $stderr,
+        output => $output_dir,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -670,6 +671,7 @@ otherwise a decoy-less index will be generated.");
         jmem => 24,
         jprefix => '15',
         modules => $options->{modules},
+        output => $output_dir,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
