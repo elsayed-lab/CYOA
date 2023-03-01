@@ -1,4 +1,4 @@
-package Bio::Adventure;
+ package Bio::Adventure;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -341,6 +341,11 @@ sub BUILD {
     ## There are a few default variables which we cannot fill in with MOO defaults.
     ## Make a hash of the defaults in order to make pulling command line arguments easier
     my %defaults;
+
+    ## The modulecmd comand is kind of a hard-prerequisite for this to work.
+    my $check = which('modulecmd');
+    die('Could not find environment modules in your PATH.') unless($check);
+
     my @ignored;
     if (defined($class->{slots_ignored})) {
         @ignored = split(/\,/, $class->{slots_ignored});
@@ -659,9 +664,9 @@ sub Get_Menus {
                 '(abricate): Search for Resistance genes across databases.' => \&Bio::Adventure::Resistance::Abricate,
                 '(casfinder): Search for Crispr/Cas9 cassettes/sequences in a bacterial assembly.' => \&Bio::Adventure::Annotation::Casfinder,
                 '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
-                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Annotation::Extend_Kraken_DB,
+                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Index::Extend_Kraken_DB,
                 '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
-                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
+                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Count::Kraken,
                 '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
                 '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,
                 '(rhopredict): Search for rho terminators.' => \&Bio::Adventure::Feature_Prediction::Rho_Predict,
@@ -680,7 +685,7 @@ sub Get_Menus {
                 '(assemblycoverage): Calculate Assembly coverage across contigs.' => \&Bio::Adventure::Assembly::Assembly_Coverage,
                 '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
                 '(filterdepth): Filter contigs based on sequencing depth.' => \&Bio::Adventure::Assembly::Unicycler_Filter_Depth,
-                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Annotation::Kraken,
+                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Count::Kraken,
                 '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
                 '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Annotation::Trinotate,
                 '(trinity): Perform de novo transcriptome assembly with trinity.' => \&Bio::Adventure::Assembly::Trinity,
@@ -961,7 +966,7 @@ sub Get_TODOs {
         "cutadapt+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cutadapt'},
         "download+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Download_NCBI_Accessions'},
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
-        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extend_Kraken_DB'},
+        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Index::Extend_Kraken_DB'},
         "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extract_Trinotate'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastado+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Do_Fasta'},
@@ -996,7 +1001,7 @@ sub Get_TODOs {
         "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
         "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
-        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Kraken'},
+        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Count::Kraken'},
         "mash+" => \$todo_list->{todo}{'Bio::Adventure::Count::Mash'},
         "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annotations'},
         "mergecds+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions'},
@@ -1696,6 +1701,15 @@ sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args);
+    ## Check that the module command is available as a bash function.
+    ## I was initially going to do this in BUILD(), but I think that might mess up jobs
+    ## which set the jprefix parameter.
+    my $modulecmd_check = qx'bash -i "type module" 2>/dev/null';
+    unless($modulecmd_check) {
+        ## $options->{jprefix} .= 'export -f module; module() { eval $(/usr/bin/modulecmd bash $*); }
+        $options->{jprefix} = qq"source $ENV{HOME}/.bashrc";
+    }
+
     ## If we are invoking an indirect job, we need a way to serialize the options
     ## in order to get them passed to the eventual interpreter
     my $option_file = "";

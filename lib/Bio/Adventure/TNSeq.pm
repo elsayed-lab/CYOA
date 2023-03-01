@@ -958,12 +958,13 @@ sub Transit_TPP {
         required => ['species', 'input',],
         htseq_type => 'gene',
         htseq_id => 'locus_tag',
-        jprefix => '60',
         modules => ['bwa', 'transit', 'htseq'],
-        primer => 'GGGACTTATCATCCAACCTGT',
+        ## primer => 'GGGACTTATCATCCAACCTGT',
+        primer => '',
         protocol => 'Sassetti', ## Or Mme1 or Tn5
         transposon => 'Himar1',
-        do_htseq => 1,);
+        do_htseq => 1,
+        jprefix => '61',);
         my $loaded = $class->Module_Loader(modules => $options->{modules});
         my $check = which('tpp');
     die("Could not find tpp in your PATH.") unless($check);
@@ -991,9 +992,12 @@ sub Transit_TPP {
     }
     my $tpp_input = $options->{input};
 
+    my $primer_string = " -primer '' ";
+    if ($options->{primer}) {
+        $primer_string = qq" -primer $options->{primer} ";
+    }
     my $test_file = "";
     my $tpp_pre;
-    my $tpp_post;
     my $tpp_basename = basename(cwd());
     my $paired = 0;
     if ($tpp_input =~ /\:|\;|\,|\s+/) {
@@ -1001,17 +1005,19 @@ sub Transit_TPP {
         my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
         $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
         $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
-        $tpp_pre = qq"less $pair_listing[0] > ${tpp_dir}/r1.fastq && less $pair_listing[1] > ${tpp_dir}/r2.fastq";
-        $tpp_post = qq"rm ${tpp_dir}/r1.fastq ${tpp_dir}/r2.fastq";
+        $tpp_pre = qq"less $pair_listing[0] > ${tpp_dir}/r1.fastq
+less $pair_listing[1] > ${tpp_dir}/r2.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq -reads2 ${tpp_dir}/r2.fastq ";
         $test_file = $pair_listing[0];
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
         $tpp_pre = qq"less ${tpp_input} > ${tpp_dir}/r1.fastq";
-        $tpp_post = qq"rm ${tpp_dir}/r1.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq ";
     }
+    my $tpp_post = qq"rm -f ${tpp_dir}/r1.fastq ${tpp_dir}/r2.fastq";
 
+    my $stdout = qq"${tpp_dir}/${tpp_basename}.stdout";
+    my $stderr = qq"${tpp_dir}/${tpp_basename}.stderr";
     my $tpp_genome = qq"$options->{libdir}/$options->{libtype}/$options->{species}.fasta";
     my $tpp_output = qq"${tpp_dir}/${tpp_basename}";
     my $sam_filename = qq"${tpp_output}.sam";
@@ -1021,14 +1027,16 @@ sub Transit_TPP {
 ## ${tpp_genome} using arguments: ${tpp_args}.
 !;
     my $jstring = qq!mkdir -p ${tpp_dir}
+rm -f tpp.cfg
 sleep ${sleep_time}
 ${tpp_pre}
 tpp -ref ${tpp_genome} \\
   -protocol $options->{protocol} \\
-  -primer $options->{primer} \\
+  ${primer_string} \\
   -bwa \$(which bwa) \\
   ${tpp_input} \\
-  -output ${tpp_output}
+  -output ${tpp_output} \\
+  2>${stderr} 1>${stdout}
 ${tpp_post}
 !;
     my $tpp_job = $class->Submit(
@@ -1041,6 +1049,8 @@ ${tpp_post}
         jmem => 24,
         jwalltime => '124:00:00',
         output => $sam_filename,
+        stdout => $stdout,
+        stderr => $stderr,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
 

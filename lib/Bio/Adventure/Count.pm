@@ -772,6 +772,98 @@ sub Jellyfish_Matrix {
     return($nmer_count);
 }
 
+=head2 C<Kraken>
+
+ Use kraken2 to taxonomically classify reads.
+
+ Kraken2 is a kmer-based read classifier.  It is quite fast once its
+ databases are built.
+
+=item C<Arguments>
+
+ input(required): Set of fastq reads.
+ library('viral'): Kraken2 database to classify against.
+ jprefix(11): Prefix for the job name and output directory.
+ modules('kraken'): Environment module to load.
+
+=item C<Invocation>
+
+> cyoa --task annot --method kraken --input read1.fastq.xz:read2.fastq.xz --library standard
+
+=cut
+sub Kraken {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'viral',
+        jprefix => '11',
+        clean => 1,
+        modules => ['kraken'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('kraken2');
+    die('Could not find kraken2 in your PATH.') unless($check);
+    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
+    my $job_name = $class->Get_Job_Name();
+    my $input_directory = basename(cwd());
+    my $output_dir = qq"outputs/$options->{jprefix}kraken_$options->{library}";
+    make_path($output_dir);
+    my $input_string = "";
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @in = split(/\:|\;|\,|\s+/, $options->{input});
+        $input_string = qq" --paired <(less $in[0]) <(less $in[1]) ";
+        if ($in[0] =~ /\.fastq$/) {
+            $input_string = qq" --paired $in[0] $in[1] ";
+        }
+    } else {
+        $input_string = qq"<(less $options->{input}) ";
+        if ($options->{input} =~ /\.fastq$/) {
+            $input_string = qq" $options->{input} ";
+        }
+    }
+    my $comment = qq!## This is a kraken2 submission script
+!;
+    my $stdout = qq"${output_dir}/kraken.stdout";
+    my $stderr = qq"${output_dir}/kraken.stderr";
+    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
+  --report ${output_dir}/kraken_report.txt --use-mpa-style \\
+  --use-names ${input_string} \\
+  --classified-out ${output_dir}/classified#.fastq.gz \\
+  --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
+  2>${stderr} \\
+  1>${stdout}
+if [ "\$?" -ne "0" ]; then
+  echo "Kraken returned an error."
+fi
+!;
+
+    if ($options->{clean}) {
+        $jstring .= qq"
+## Cleaning up after running kraken.
+rm -f ${stdout}
+rm -f ${output_dir}/*.fastq.gz
+";
+    }
+    my $kraken = $class->Submit(
+        comment => $comment,
+        jcpus => 6,
+        jdepends => $options->{jdepends},
+        jmem => 96,
+        jname => "kraken_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'large',
+        jstring => $jstring,
+        modules => $options->{modules},
+        output => qq"${output_dir}/kraken_report.txt",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        stdout => $stdout,
+        stderr => $stderr);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($kraken);
+}
+
 =head2 C<Mash>
 
  Calculate distances using mash

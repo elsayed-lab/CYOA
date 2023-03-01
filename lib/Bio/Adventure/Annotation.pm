@@ -21,7 +21,7 @@ use File::Spec;
 use File::Path qw"make_path";
 use File::Which qw"which";
 use File::ShareDir qw":ALL";
-use List::MoreUtils qw"any";
+use List::MoreUtils qw"any uniq";
 use Template;
 use Text::CSV_XS::TSV;
 
@@ -146,6 +146,7 @@ sub Interproscan {
     my $input_path = abs_path($input_dir);
     $input_path = qq"${input_path}/${input_filename}";
     my $output_dir = qq"outputs/$options->{jprefix}interproscan_${input_dirname}";
+    $output_dir =~ s/_\.$//g;
     my $comment = qq!## This is a interproscan submission script
 !;
     my $stdout = qq"${output_dir}/interproscan.stdout";
@@ -154,7 +155,8 @@ sub Interproscan {
 start=\$(pwd)
 cd ${output_dir}
 perl -pe 's/\\*//g' ${input_path} > ${input_filename}
-interproscan.sh -i ${input_filename} \\
+interproscan.sh --enable-tsv-residue-annot \\
+  --iprlookup --pathways -i ${input_filename} \\
   2>interproscan.stderr \\
   1>interproscan.stdout
 test=\$?
@@ -192,98 +194,6 @@ cd \${start}
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($interproscan);
-}
-
-=head2 C<Kraken>
-
- Use kraken2 to taxonomically classify reads.
-
- Kraken2 is a kmer-based read classifier.  It is quite fast once its
- databases are built.
-
-=item C<Arguments>
-
- input(required): Set of fastq reads.
- library('viral'): Kraken2 database to classify against.
- jprefix(11): Prefix for the job name and output directory.
- modules('kraken'): Environment module to load.
-
-=item C<Invocation>
-
-> cyoa --task annot --method kraken --input read1.fastq.xz:read2.fastq.xz --library standard
-
-=cut
-sub Kraken {
-    my ($class, %args) = @_;
-    my $options = $class->Get_Vars(
-        args => \%args,
-        required => ['input'],
-        library => 'viral',
-        jprefix => '11',
-        clean => 1,
-        modules => ['kraken'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
-    ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
-    my $job_name = $class->Get_Job_Name();
-    my $input_directory = basename(cwd());
-    my $output_dir = qq"outputs/$options->{jprefix}kraken_$options->{library}";
-    make_path($output_dir);
-    my $input_string = "";
-    if ($options->{input} =~ /\:|\;|\,|\s+/) {
-        my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq" --paired <(less $in[0]) <(less $in[1]) ";
-        if ($in[0] =~ /\.fastq$/) {
-            $input_string = qq" --paired $in[0] $in[1] ";
-        }
-    } else {
-        $input_string = qq"<(less $options->{input}) ";
-        if ($options->{input} =~ /\.fastq$/) {
-            $input_string = qq" $options->{input} ";
-        }
-    }
-    my $comment = qq!## This is a kraken2 submission script
-!;
-    my $stdout = qq"${output_dir}/kraken.stdout";
-    my $stderr = qq"${output_dir}/kraken.stderr";
-    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
-  --report ${output_dir}/kraken_report.txt --use-mpa-style \\
-  --use-names ${input_string} \\
-  --classified-out ${output_dir}/classified#.fastq.gz \\
-  --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
-  2>${stderr} \\
-  1>${stdout}
-if [ "\$?" -ne "0" ]; then
-  echo "Kraken returned an error."
-fi
-!;
-
-    if ($options->{clean}) {
-        $jstring .= qq"
-## Cleaning up after running kraken.
-rm -f ${stdout}
-rm -f ${output_dir}/*.fastq.gz
-";
-    }
-    my $kraken = $class->Submit(
-        comment => $comment,
-        jcpus => 6,
-        jdepends => $options->{jdepends},
-        jmem => 96,
-        jname => "kraken_${job_name}",
-        jprefix => $options->{jprefix},
-        jqueue => 'large',
-        jstring => $jstring,
-        modules => $options->{modules},
-        output => qq"${output_dir}/kraken_report.txt",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        stdout => $stdout,
-        stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-    return($kraken);
 }
 
 =head2 C<Prokka>
@@ -461,6 +371,7 @@ fi
 ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
+    my $output = qq"${output_dir}/interproscan.tsv";
     my $interproscan = $class->Submit(
         comment => $comment,
         jcpus => $options->{jcpus},
@@ -471,7 +382,7 @@ cd \${start}
         jqueue => 'large',
         jstring => $jstring,
         modules => $options->{modules},
-        output => qq"${output_dir}/interproscan.tsv",
+        output => $output,
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
         prescript => $options->{prescript},
@@ -479,11 +390,163 @@ cd \${start}
         stdout => $stdout,
         stderr => $stderr,
         walltime => '144:00:00',);
-
+    my $l2w_output_dir = dirname($options->{output});
+    my $l2w_output_base = basename($options->{output}, ('.tsv'));
+    my $l2w_output = qq"${l2w_output_dir}/${l2w_output_base}_wide.tsv";
+    my $l2w_stderr = qq"${l2w_output_dir}/${l2w_output_base}_wide.stderr";
+    my $l2w_stdout = qq"${l2w_output_dir}/${l2w_output_base}_wide.stdout";
+    print "Submitting L2W with input $output and output $l2w_output\n";
+    my $long_to_wide = $class->Bio::Adventure::Annotation::Interpro_Long2Wide(
+        input => $output,
+        jdepends => $interproscan->{job_id},
+        jname => 'long2wide',
+        output => $l2w_output,
+        stdout => $l2w_stdout,
+        stdout => $l2w_stderr,
+        jprefix => $options->{jprefix} + 1,);
+    $interproscan->{long2wide} = $long_to_wide;
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($interproscan);
+}
 
+sub Interpro_Long2Wide {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'output'],
+        jmem => 8,
+        jprefix => '19',
+        stdout => '',
+        stderr => '',);
+    print "TESTME: Starting L2W with input $options->{input} and output $options->{output}\n";
+    my $comment = '## Convert the wonky interproscan output to a simpler tsv';
+    my $jstring = qq?
+use Bio::Adventure::Annotation;
+my \$result = \$h->Bio::Adventure::Annotation::Interpro_Long2Wide_Worker(
+  input => '$options->{input}',
+  jprefix => '$options->{jprefix}',
+  jname => '$options->{jname}',
+  output => '$options->{output}',
+  stdout => '$options->{stdout}',
+  stderr => '$options->{stderr}',);
+?;
+    my $job = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => $options->{jname},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        output => $options->{output},
+        stdout => $options->{stdout},
+        stderr => $options->{stderr});
+    return($job);
+}
+
+## Copying from Metadata::Merge_Interpro
+sub Interpro_Long2Wide_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'output'],);
+
+    print "Reading interpro tsv.\n";
+    my $inter_fh = FileHandle->new("<$options->{input}");
+    my $results = {};
+    my $db_counter = {};
+    my @gene_ids = ();
+    my @keys = ('id', 'name', 'start', 'end', 'score', 'interpro_id', 'interpro_name');
+    while (my $line = <$inter_fh>) {
+        chomp $line;
+        my ($gene_id, $md5, $gene_length, $source, $hit_id, $hit_name,
+            $hit_start, $hit_end, $hit_score, $hit_boolean, $hit_date,
+            $interpro_id, $interpro_name) = split(/\t/, $line);
+        push(@gene_ids, $gene_id);
+        my $new_hit = {
+            id => $hit_id,
+            name => $hit_name,
+            start => $hit_start,
+            end => $hit_end,
+            score => $hit_score,
+            bool => $hit_boolean,
+            interpro_id => $interpro_id,
+            interpro_name => $interpro_name
+        };
+        ## Make a tally of how many hits were observed in each database
+        ## This also serves to define the columns in our final output.
+        if (defined($db_counter->{$source})) {
+            $db_counter->{$source}++;
+        } else {
+            $db_counter->{$source} = 1;
+        }
+
+        if (defined($results->{$gene_id}->{$source})) {
+            ## Then there is already a hit for this gene from this database.
+            my @hits = @{$results->{$gene_id}->{$source}};
+            push(@hits, $new_hit);
+            $results->{$gene_id}->{$source} = \@hits;
+        } elsif (defined($results->{$gene_id})) {
+            ## Then there are already results from other databases for this gene.
+            my @hits = ($new_hit);
+            $results->{$gene_id}->{$source} = \@hits;
+        } else {
+            ## There has not been an observed hit for this gene.
+            my @hits = ($new_hit);
+            $results->{$gene_id}->{$source} = \@hits;
+        }
+    }
+    $inter_fh->close();
+    my @output_columns = ('id', keys(%{$db_counter}));
+    my $out = FileHandle->new(">$options->{output}");
+    my $header_string = '';
+    HEADER: for my $h (@output_columns) {
+        if ($h eq 'id') {
+            $header_string = qq"${h}\t";
+            next HEADER;
+        }
+        for my $i (@keys) {
+            $header_string .= qq"${h}_${i}\t";
+        }
+    }
+    $header_string .= "\n";
+    print $out $header_string;
+    @gene_ids = uniq @gene_ids;
+    for my $g (@gene_ids) {
+        my $tsv_line = '';
+        for my $h (@output_columns) {
+            if ($h eq 'id') {
+                $tsv_line = qq"$g\t";
+            } elsif (defined($results->{$g}->{$h})) {
+                my @info = @{$results->{$g}->{$h}};
+                for my $k (@keys) {
+                    my $element = '';
+                    if (scalar(@info) > 1) {
+                        for my $i (@info) {
+                            ## Writing to column "${h}_${k}";
+                            $element .= qq"$i->{$k}; ";
+                        }
+                        $element .= "\t";
+                    } else {
+                        $element = qq"$info[0]->{$k}\t";
+                    }
+                    $tsv_line .= $element;
+                }
+            } else {
+                for my $k (@keys) {
+                    $tsv_line .= "\t";
+                }
+            }
+        }
+        $tsv_line .= "\n";
+        print $out $tsv_line;
+    }
+    for my $k (keys %{$db_counter}) {
+        print "Database $k had $db_counter->{$k} hits.\n";
+    }
+    return($db_counter);
 }
 
 =head2 C<Extract_Annotations>
