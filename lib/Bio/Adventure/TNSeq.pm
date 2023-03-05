@@ -30,6 +30,166 @@ use String::Approx qw"amatch";
 
 =head1 METHODS
 
+=head2 C<Consolidate_TAs>
+
+ Given a set of trimmed reads, check both reads of each read pair for
+ a beginning TA and return the read with that as the beginning so that
+ it is easier to see the 'good' reads.
+
+ This function is intended for a Sassetti-like dataset where the final
+ library product is expected to begin/end with an invariant mariner
+ region which is removed by my cutadapt script (using
+ -g GGGACTTATCATCCAACCTGT for read1 and -b ACAGGTTGGATGATAAGTCCC for
+ read2) followed immediately by the transposition TA.
+
+ The current default input for this is weird because I have been using
+ a random cutadapt script to do the above trimming, and it was the 3rd
+ iteration of me messing with trimming parameters.  Thus r1 or r2 ca
+ (cutadapt) v3 (version 3 of me messing with it).
+
+=cut
+sub Consolidate_TAs {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        input => 'r1_ca_v3.fastq.gz:r2_ca_v3.fastq.gz',
+        output => 'consolidated.fastq',
+        minlength => 14,
+        nota => 'notas.fastq',
+        jmem => 8,
+        jname => 'consolidate',
+        jprefix => '59',);
+    my $stderr = 'consolidated.stderr';
+    my $stdout = 'consolidated.stdout';
+    my $jstring = qq!use Bio::Adventure::TNSeq;
+my \$result = \$h->Bio::Adventure::TNSeq::Consolidate_TAs_Worker(
+  input => '$options->{input}',
+  output => '$options->{output}',
+  nota => '$options->{nota}',
+  minlength => '$options->{minlength}',);
+!;
+    my $consolidate = $class->Submit(
+        comment => '# consolidate reads',
+        jstring => $jstring,
+        input => $options->{input},
+        output => $options->{output},
+        nota => $options->{nota},
+        minlength => $options->{minlength},
+        stdout => $stdout,
+        stderr => $stderr,
+        jname => $options->{jname},
+        language => 'perl',);
+    return($consolidate);
+}
+
+sub Consolidate_TAs_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        output => 'consolidated.fastq',
+        nota => 'nota.fastq',
+        minlength => 14,);
+    my ($first, $second) = split(/:|\;|\,/, $options->{input});
+    my $ta_out = Bio::SeqIO->new(-file => ">$options->{output}", -format => 'Fastq');
+    my $nota_out = Bio::SeqIO->new(-file => ">$options->{nota}", -format => 'Fastq');
+    my $result = {
+        entries => {},
+        r1 => 0,
+        r2 => 0,
+        r1_ta => 0,
+        r2_ta => 0,
+        r1_nota => 0,
+        r2_nota => 0,
+        r1_write => 0,
+        r2_write => 0,
+    };
+    my $r2_result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
+        input => $second, read => 'r2', result => $result,
+        ta_out => $ta_out, nota_out => $nota_out, minlength => $options->{minlength},);
+    my $r1_result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
+        input => $first, read => 'r1', result => $result,
+        ta_out => $ta_out, nota_out => $nota_out, minlength => $options->{minlength},);
+    print "There are $result->{r1} unique reads on r1\n";
+    print "There are $result->{r2} unique reads on r2\n";
+    print "There were $result->{r1_ta} reads with TA on r1.\n";
+    print "There were $result->{r1_nota} reads without TA on r1.\n";
+    print "There were $result->{r2_ta} reads with TA on r2.\n";
+    print "There were $result->{r2_nota} reads without TA on r2.\n";
+    print "$result->{r1_write} reads from r1 were recorded.\n";
+    print "$result->{r2_write} reads from r2 were recorded.\n";
+}
+
+sub Consolidate_Read_Pair {
+    my (%args) = @_;
+    my $in = $args{input};
+    my $read = $args{read};
+    my $result = $args{result};
+    my $ta_out = $args{ta_out};
+    my $nota_out = $args{nota_out};
+    my $minlength = $args{minlength};
+    my $finished = 0;
+    my $loops = 0;
+    print "Opening ${in} for reading.\n";
+    my $in_fh = FileHandle->new("less ${in} |");
+    my $in_seq = Bio::SeqIO->new(-fh => $in_fh, -format => 'Fastq');
+    my $skips = 0;
+    my $count = 0;
+    my $entry;
+  LOOP: while ($entry = $in_seq->next_seq) {
+      $count++;
+      my $new_entry = {
+          write_ta => 0,
+          r1 => 0,
+          r2 => 0,
+          r1_ta => 0,
+          r2_ta => 0,
+      };
+
+      if (!defined($entry)) {
+          print "The ${count} sequence is not defined, incrementing skips.\n";
+          $skips++;
+          next LOOP;
+      }
+      $loops++;
+      my $current_id = $entry->id;
+      if ($result->{entries}->{$current_id}) {
+          if ($result->{entries}->{$current_id}->{write_ta}) {
+              next LOOP;
+          }
+      } else {
+          $result->{entries}->{$current_id} = $new_entry;
+      }
+
+      if ($read eq 'r2') {
+          $result->{r2}++;
+          $entry = $entry->revcom;
+      } else {
+          $result->{r1}++;
+      }
+      $result->{entries}->{$current_id}->{$read}++;
+      my $seq = $entry->seq;
+      if ($seq =~ /^TA/ && $entry->length >= $minlength) {
+          my $key = qq"${read}_ta";
+          $result->{entries}->{$current_id}->{$key}++;
+          $result->{$key}++;
+          if ($result->{$current_id}->{write_ta}) {
+              next LOOP;
+          } else {
+              $ta_out->write_seq($entry);
+              $result->{entries}->{$current_id}->{write_ta}++;
+              $key = qq"${read}_write";
+              $result->{$key}++;
+          }
+      } else {
+          my $key = qq"${read}_nota";
+          $result->{$key}++;
+      }
+  }
+    ## $in_fh->close();
+    return($loops);
+}
+
 =head2 C<Essentiality_TAs>
 
  Count up the TAs in a TNSeq dataset in preparation for running the essentiality tools.
@@ -964,6 +1124,8 @@ sub Transit_TPP {
         protocol => 'Sassetti', ## Or Mme1 or Tn5
         transposon => 'Himar1',
         do_htseq => 1,
+        jmem => 20,
+        jwalltime => 8,
         jprefix => '61',);
         my $loaded = $class->Module_Loader(modules => $options->{modules});
         my $check = which('tpp');
@@ -1000,6 +1162,8 @@ sub Transit_TPP {
     my $tpp_pre;
     my $tpp_basename = basename(cwd());
     my $paired = 0;
+    ## I think these libraries are either forward stranded or not, never reverse.
+    my $stranded = $options->{stranded};
     if ($tpp_input =~ /\:|\;|\,|\s+/) {
         $paired = 1;
         my @pair_listing = split(/\:|\;|\,|\s+/, $tpp_input);
@@ -1009,10 +1173,12 @@ sub Transit_TPP {
 less $pair_listing[1] > ${tpp_dir}/r2.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq -reads2 ${tpp_dir}/r2.fastq ";
         $test_file = $pair_listing[0];
+        $stranded = 'yes';
     } else {
         $test_file = File::Spec->rel2abs($tpp_input);
         $tpp_pre = qq"less ${tpp_input} > ${tpp_dir}/r1.fastq";
         $tpp_input = qq"-reads1 ${tpp_dir}/r1.fastq ";
+        $stranded = 'no';
     }
     my $tpp_post = qq"rm -f ${tpp_dir}/r1.fastq ${tpp_dir}/r2.fastq";
 
@@ -1039,51 +1205,37 @@ tpp -ref ${tpp_genome} \\
   2>${stderr} 1>${stdout}
 ${tpp_post}
 !;
+    print "About to submit with jprefix: $class->{jprefix} vs $options->{jprefix}\n";
     my $tpp_job = $class->Submit(
         comment => $comment,
         input => $tpp_input,
         jname => $tpp_name,
-        jdepends => $options->{jdepends},
         jstring => $jstring,
-        jprefix => $options->{jprefix},
-        jmem => 24,
-        jwalltime => '124:00:00',
         output => $sam_filename,
         stdout => $stdout,
-        stderr => $stderr,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},);
+        stderr => $stderr,);
 
-    my $jprefix = $options->{jprefix} + 1;
+    $options->{jprefix} = $options->{jprefix} + 1;
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,
         jdepends => $tpp_job->{job_id},
         jname => "s2b_${tpp_name}",
-        jprefix => $jprefix);
-    $jprefix++;
+        jprefix => $options->{jprefix},);
+    $options->{jprefix} = $options->{jprefix} + 1;
     $tpp_job->{samtools} = $sam_job;
     my $htseq_input = $sam_job->{output};
     $htseq_input = $sam_job->{paired_output} if ($paired);
     my $htmulti;
     if ($options->{do_htseq}) {
-        if ($libtype eq 'rRNA') {
-            $htmulti = $class->Bio::Adventure::Count::HTSeq(
-                input => $sam_job->{output},
-                jdepends => $sam_job->{job_id},
-                jname => $suffix_name,
-                jprefix => $jprefix,
-                libtype => $libtype,
-                mapper => 'hisat2',);
-        } else {
-            $htmulti = $class->Bio::Adventure::Count::HT_Multi(
-                input => $sam_job->{output},
-                jdepends => $sam_job->{job_id},
-                jname => $suffix_name,
-                jprefix => $jprefix,
-                libtype => $libtype,
-                mapper => 'bwa',);
-            $tpp_job->{htseq} = $htmulti;
-        }
+        $htmulti = $class->Bio::Adventure::Count::HT_Multi(
+            input => $sam_job->{output},
+            jdepends => $sam_job->{job_id},
+            jname => $suffix_name,
+            jprefix => $options->{jprefix},
+            libtype => $libtype,
+            mapper => 'bwa',
+            stranded => $stranded,);
+        $tpp_job->{htseq} = $htmulti;
     }
     return($tpp_job);
 }

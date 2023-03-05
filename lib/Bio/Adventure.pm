@@ -872,6 +872,7 @@ sub Get_Menus {
             message => 'You have enterred a world of jumping DNA, be ware and go to page 42.',
             choices => {
                 '(sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.' => \&Bio::Adventure::TNSeq::Sort_Indexes,
+                '(consolidate): Extract the reads of read-pairs with beginning TAs.' => \&Bio::Adventure::TNSeq::Consolidate_TAs,
                 '(cutadapt): Use cutadapt to remove the odd tnseq adapters.' => \&Bio::Adventure::Trim::Cutadapt,
                 '(tacheck): Make certain that all reads have a leading or terminal TA.' => \&Bio::Adventure::TNSeq::TA_Check,
                 '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => \&Bio::Adventure::QA::Biopieces_Graph,
@@ -960,6 +961,7 @@ sub Get_TODOs {
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
         "collectassembly+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Collect_Assembly'},
+        "consolidate+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Consolidate_TAs'},
         "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
         "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
         "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
@@ -1383,7 +1385,7 @@ sub Reset_Vars {
         jmem => 12,
         jname => 'undefined',
         jqueue => 'workstation',
-        jprefix => 'xx',
+        jprefix => '01',
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
@@ -1705,9 +1707,9 @@ sub Submit {
     ## I was initially going to do this in BUILD(), but I think that might mess up jobs
     ## which set the jprefix parameter.
     my $modulecmd_check = qx'bash -i "type module" 2>/dev/null';
-    unless($modulecmd_check) {
-        ## $options->{jprefix} .= 'export -f module; module() { eval $(/usr/bin/modulecmd bash $*); }
-        $options->{jprefix} = qq"source $ENV{HOME}/.bashrc";
+    if ($options->{language} eq 'bash' && !$modulecmd_check) {
+        $options->{prescript} .= 'module() { eval $(/usr/bin/modulecmd bash $*); }; export -f module';
+        ## $options->{prescript} = qq"source $ENV{HOME}/.bashrc";
     }
 
     ## If we are invoking an indirect job, we need a way to serialize the options
@@ -1729,29 +1731,33 @@ sub Submit {
         ## https://metacpan.org/pod/release/AMS/Storable-2.21/Storable.pm#CODE_REFERENCES
         $Storable::Deparse = 1;
         $Storable::Eval = 1;
-        $option_file = File::Temp->new(
-            TEMPLATE => qq"$options->{jname}XXXX",
-            DIR => $option_directory,
-            UNLINK => 0,
-            SUFFIX => '.pdata',);
-        my $option_filename = $option_file->filename;
-        $options->{option_file} = $option_filename;
-        $class->{option_file} = $option_filename;
-        ## Code references are invalid for these things...
-        ## Why is it that periodically I get this error?
-        ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?
-        my %saved_options = ();
-        SAVED: foreach my $k (keys %{$options}) {
-            my $r = ref($options->{$k});
-            next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
-            $saved_options{$k} = $options->{$k};
-        }
-        try {
-            my $stored = lock_store(\%saved_options, $option_file);
-        } catch ($e) {
-            warn "An error occurred when storing the options: $e";
-            print "HERE ARE THE OPTIONS:\n";
-            print Dumper \%saved_options;
+        if ($options->{pdata}) {
+            my $jname = 'unknown';
+            $jname = $options->{jname} if (defined($options->{jname}));
+            $option_file = File::Temp->new(
+                TEMPLATE => qq"${jname}XXXX",
+                DIR => $option_directory,
+                UNLINK => 0,
+                SUFFIX => '.pdata',);
+            my $option_filename = $option_file->filename;
+            $options->{option_file} = $option_filename;
+            $class->{option_file} = $option_filename;
+            ## Code references are invalid for these things...
+            ## Why is it that periodically I get this error?
+            ## The result of B::Deparse::coderef2text was empty - maybe you're trying to serialize an XS function?
+            my %saved_options = ();
+          SAVED: foreach my $k (keys %{$options}) {
+              my $r = ref($options->{$k});
+              next SAVED if ($r eq 'ARRAY' || $r eq 'HASH' || $r eq 'GLOB');
+              $saved_options{$k} = $options->{$k};
+          }
+            try {
+                my $stored = lock_store(\%saved_options, $option_file);
+          } catch ($e) {
+              warn "An error occurred when storing the options: $e";
+              print "HERE ARE THE OPTIONS:\n";
+              print Dumper \%saved_options;
+          }
         }
     }
     my $runner;

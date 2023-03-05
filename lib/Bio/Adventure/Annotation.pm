@@ -40,6 +40,7 @@ sub Casfinder {
         jcpus => 4,
         jprefix => '22',
         jmem => 8,
+        jwalltime => 8,
         modules => ['casfinder'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('casfinder.sh');
@@ -92,7 +93,7 @@ cd \${start}
         jqueue => 'large',
         stdout => $stdout,
         stderr => $stderr,
-        walltime => '144:00:00',);
+        jwalltime => $options->{jwalltime},);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -127,6 +128,7 @@ sub Interproscan {
         jcpus => 4,
         jprefix => '21',
         jmem => 8,
+        jwalltime => 36,
         modules => ['interproscan'],
         required => ['input'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
@@ -189,7 +191,7 @@ cd \${start}
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr,
-        walltime => '144:00:00',);
+        jwalltime => $options->{jwalltime},);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -389,7 +391,7 @@ cd \${start}
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr,
-        walltime => '144:00:00',);
+        jwalltime => '144:00:00',);
     my $l2w_output_dir = dirname($options->{output});
     my $l2w_output_base = basename($options->{output}, ('.tsv'));
     my $l2w_output = qq"${l2w_output_dir}/${l2w_output_base}_wide.tsv";

@@ -773,7 +773,9 @@ ${perl_file} \\
     }
     my $array_string = '';
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
-
+    my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
+    my $mem_string = qq"$wanted->{mem}G";
+    print "TESTME $walltime_string and $mem_string\n";
     my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
@@ -785,8 +787,8 @@ ${perl_file} \\
     $script_start .= qq?#SBATCH --qos=$options->{qos}\n? if ($options->{qos});
     ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
     $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
-    $script_start .= qq?#SBATCH --time=$wanted->{walltime}\n? if (defined($wanted->{time}));
-    $script_start .= qq?#SBATCH --time=$wanted->{mem}\n? if (defined($wanted->{mem}));
+    $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
+    $script_start .= qq?#SBATCH --mem=$wanted->{mem}\n? if (defined($wanted->{mem}));
     $script_start .= qq"${array_string}\n" if ($array_string);
     $script_start .= qq"${module_string}\n" if ($module_string);
     $script_start .= qq?set -o errexit
@@ -820,7 +822,8 @@ touch ${finished_file}
 
     my $script = FileHandle->new(">$script_file");
     if (!defined($script)) {
-        die("Could not write the script: $script_file, check its permissions.")
+        die("Could not write the script: $script_file
+  $!");
     }
     print $script $total_script_string;
     $script->close();

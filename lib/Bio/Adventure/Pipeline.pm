@@ -855,7 +855,7 @@ sub Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\nClassifying sequences with Kraken2.\n";
-    my $kraken = $class->Bio::Adventure::Annotation::Kraken(
+    my $kraken = $class->Bio::Adventure::Count::Kraken(
         jdepends => $correct->{job_id},
         input => $correct->{output},
         jprefix => $prefix,
@@ -972,7 +972,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Classifying sequences with Kraken using the standard database.\n";
-    my $kraken_std = $class->Bio::Adventure::Annotation::Kraken(
+    my $kraken_std = $class->Bio::Adventure::Count::Kraken(
         input => $correct->{output},
         jdepends => $last_job,
         jprefix => $prefix,
@@ -1001,7 +1001,7 @@ sub Phage_Assemble {
 
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Classifying sequences with Kraken using the viral database.\n";
-    my $kraken = $class->Bio::Adventure::Annotation::Kraken(
+    my $kraken = $class->Bio::Adventure::Count::Kraken(
         jdepends => $last_job,
         input => $filter->{output},
         jprefix => $prefix,
