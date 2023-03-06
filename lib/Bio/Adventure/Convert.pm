@@ -380,77 +380,69 @@ sub Gff2Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['gff', 'input'],
-        htseq_id => 'gene_id',
-        htseq_type => undef,);
-    my $genome = $options->{input};
-    my $gff = $options->{gff};
-    my $tag = $options->{htseq_id};
-    my $ftype = $options->{htseq_type};
-    my $genome_basename = basename($genome, ('.fasta'));
-    my $out_dir = dirname($genome);
+        required => ['species'],
+        gff_tag => 'gene_id',
+        gff_type => 'cds',);
+    my $input_base = qq"$options->{libpath}/genome/$options->{species}";
+    my $genome = qq"${input_base}.fasta";
+    my $gff = qq"${input_base}.gff";
+    my $wanted_tag = $options->{gff_tag};
+    my $wanted_type = $options->{gff_type};
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
     my $gff_handle = FileHandle->new("less ${gff} |");
-    my $out_fasta_amino = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_aa.fasta");
-    my $out_fasta_nt = FileHandle->new(qq">${out_dir}/${genome_basename}_cds_nt.fasta");
-    my @tag_list = ('ID', 'gene_id', 'locus_tag', 'transcript_id');
+    my $nt_out = Bio::SeqIO->new(
+        -format => 'Fasta',
+        -file => qq">$options->{species}_${wanted_type}_${wanted_tag}_nt.fasta");
+    my $aa_out = Bio::SeqIO->new(
+        -format => 'Fasta',
+        -file => qq">$options->{species}_${wanted_type}_${wanted_tag}_aa.fasta");
+    ## Note that this and the next line might not be a good idea,
+    ## HT_Types only looks at the first n (40,000) records and uses that as a heuristic
+    ## to see that the wanted type is actually in the gff file.
     my $feature_type = $class->Bio::Adventure::Count::HT_Types(
         annotation => $gff,
-        feature_type => $ftype,);
+        feature_type => $wanted_type,);
     $feature_type = $feature_type->[0];
     my $annotation_in = Bio::Tools::GFF->new(-fh => $gff_handle, -gff_version => 3);
     my $features_written = 0;
     my $features_read = 0;
   LOOP: while (my $feature = $annotation_in->next_feature()) {
       $features_read++;
-      next LOOP unless ($feature->{_primary_tag} eq $feature_type);
-      my $location = $feature->{_location};
-      my $start = $location->start();
-      my $end = $location->end();
-      my $strand = $location->strand();
-      my @something = $feature->each_tag_value();
+      my $primary_type = $feature->primary_tag();
+      unless ($primary_type eq $wanted_type) {
+          next LOOP;
+      }
+      my $start = $feature->start();
+      my $end = $feature->end();
+      my $strand = $feature->strand();
+      my $gff_chr = $feature->seq_id();
       my @ids;
       my $e;
       try {
-          @ids = $feature->each_tag_value($tag);
+          @ids = $feature->each_tag_value($wanted_tag);
       }
       catch ($e) {
-          print "Did not find the tag: ${tag}, perhaps check the gff file.\n";
+          print "Did not find the tag: ${wanted_tag}, perhaps check the gff file.\n";
           next LOOP;
       }
-      my $gff_chr = $feature->{_gsf_seq_id};
-      my $gff_string = $annotation_in->{$gff_chr};
-      if (!defined($chromosomes->{$gff_chr})) {
-          print STDERR "Something is wrong with $gff_chr\n";
-          next LOOP;
-      }
-      my $id = '';
-      foreach my $i (@ids) {
-          $id .= qq"${i} ";
-      }
-      $id =~ s/(\s+$)//g;
+      my $id = $ids[0];
       my $genome_obj = $chromosomes->{$gff_chr}->{obj};
-      my $cds = $genome_obj->subseq($start, $end);
+      my $cds = $genome_obj->trunc($start, $end);
       if ($strand == -1) {
-          $cds = reverse($cds);
-          $cds =~ tr/ATGCatgc/TACGtacg/;
+          $cds = $cds->revcom;
       }
-      my $seq_obj = Bio::Seq->new();
-      $seq_obj->seq($cds);
-      my $aa_cds = $seq_obj->translate->seq();
-      $aa_cds = join("\n", ($aa_cds =~ m/.{1,80}/g));
-      $cds = join("\n", ($cds =~ m/.{1,80}/g));
-      print $out_fasta_amino qq">${gff_chr}_${id}_${features_read}
-${aa_cds}
-";
-      print $out_fasta_nt qq">${gff_chr}_${id}_${features_read}
-${cds}
-";
+      my $id_string = qq"chr_${gff_chr}_id_${id}_start_${start}_end_${end}";
+      my $nt_sequence = Bio::Seq->new(
+          -id => $id_string,
+          -seq => $cds->seq());
+      $nt_out->write_seq($nt_sequence);
+      my $aa_sequence = Bio::Seq->new(
+          -id => $id_string,
+          -seq => $cds->translate->seq());
+      $aa_out->write_seq($aa_sequence);
       $features_written++;
   } ## End LOOP
     $gff_handle->close();
-    $out_fasta_amino->close();
-    $out_fasta_nt->close();
     return($features_written);
 }
 

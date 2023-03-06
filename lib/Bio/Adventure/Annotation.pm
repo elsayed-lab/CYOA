@@ -127,7 +127,7 @@ sub Interproscan {
         args => \%args,
         jcpus => 4,
         jprefix => '21',
-        jmem => 8,
+        jmem => 24,
         jwalltime => 36,
         modules => ['interproscan'],
         required => ['input'],);
@@ -176,22 +176,14 @@ cd \${start}
 !;
     my $interproscan = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
-        jdepends => $options->{jdepends},
-        jmem => 16,
         jname => "interproscan_${job_name}",
-        jprefix => $options->{jprefix},
         jqueue => 'large',
         jstring => $jstring,
-        modules => $options->{modules},
         output => qq"${output_dir}/interproscan.tsv",
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
         stdout => $stdout,
-        stderr => $stderr,
-        jwalltime => $options->{jwalltime},);
+        stderr => $stderr,);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
