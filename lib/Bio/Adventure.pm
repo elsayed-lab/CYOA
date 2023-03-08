@@ -1,4 +1,4 @@
- package Bio::Adventure;
+package Bio::Adventure;
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;

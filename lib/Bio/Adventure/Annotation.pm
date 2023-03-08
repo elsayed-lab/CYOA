@@ -413,7 +413,6 @@ sub Interpro_Long2Wide {
         jprefix => '19',
         stdout => '',
         stderr => '',);
-    print "TESTME: Starting L2W with input $options->{input} and output $options->{output}\n";
     my $comment = '## Convert the wonky interproscan output to a simpler tsv';
     my $jstring = qq?
 use Bio::Adventure::Annotation;

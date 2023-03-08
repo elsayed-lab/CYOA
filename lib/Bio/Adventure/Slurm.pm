@@ -775,7 +775,6 @@ ${perl_file} \\
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
     my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
     my $mem_string = qq"$wanted->{mem}G";
-    print "TESTME $walltime_string and $mem_string\n";
     my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
