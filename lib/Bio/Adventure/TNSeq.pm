@@ -59,8 +59,11 @@ sub Consolidate_TAs {
         jmem => 8,
         jname => 'consolidate',
         jprefix => '59',);
-    my $stderr = 'consolidated.stderr';
-    my $stdout = 'consolidated.stdout';
+    my $input_base = basename($options->{output}, ('.fastq'));
+    my $output_dir = qq"outputs/$options->{jprefix}${input_base}";
+    my $stderr = qq"${output_dir}/consolidated.stderr";
+    my $stdout = qq"${output_dir}/consolidated.stdout";
+    my $made = make_path($output_dir);
     my $jstring = qq!use Bio::Adventure::TNSeq;
 my \$result = \$h->Bio::Adventure::TNSeq::Consolidate_TAs_Worker(
   input => '$options->{input}',
@@ -104,20 +107,23 @@ sub Consolidate_TAs_Worker {
         r1_write => 0,
         r2_write => 0,
     };
-    my $r2_result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
+    $result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
         input => $second, read => 'r2', result => $result,
         ta_out => $ta_out, nota_out => $nota_out, minlength => $options->{minlength},);
-    my $r1_result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
+    $result = Bio::Adventure::TNSeq::Consolidate_Read_Pair(
         input => $first, read => 'r1', result => $result,
         ta_out => $ta_out, nota_out => $nota_out, minlength => $options->{minlength},);
+    my $sum_reads = $result->{r2_write} + $result->{r1_write};
     print "There are $result->{r1} unique reads on r1\n";
     print "There are $result->{r2} unique reads on r2\n";
     print "There were $result->{r1_ta} reads with TA on r1.\n";
     print "There were $result->{r1_nota} reads without TA on r1.\n";
     print "There were $result->{r2_ta} reads with TA on r2.\n";
     print "There were $result->{r2_nota} reads without TA on r2.\n";
-    print "$result->{r1_write} reads from r1 were recorded.\n";
-    print "$result->{r2_write} reads from r2 were recorded.\n";
+    print "$result->{write} reads from r1 were recorded.\n";
+    print "$result->{write} reads from r2 were recorded.\n";
+    print "Total reads recorded: ${sum_reads}.\n";
+    return($result);
 }
 
 sub Consolidate_Read_Pair {
@@ -135,8 +141,8 @@ sub Consolidate_Read_Pair {
     my $in_seq = Bio::SeqIO->new(-fh => $in_fh, -format => 'Fastq');
     my $skips = 0;
     my $count = 0;
-    my $entry;
-  LOOP: while ($entry = $in_seq->next_seq) {
+    my $fastq_seq;
+  LOOP: while ($fastq_seq = $in_seq->next_seq) {
       $count++;
       my $new_entry = {
           write_ta => 0,
@@ -146,15 +152,16 @@ sub Consolidate_Read_Pair {
           r2_ta => 0,
       };
 
-      if (!defined($entry)) {
+      if (!defined($fastq_seq)) {
           print "The ${count} sequence is not defined, incrementing skips.\n";
           $skips++;
           next LOOP;
       }
       $loops++;
-      my $current_id = $entry->id;
-      if ($result->{entries}->{$current_id}) {
+      my $current_id = $fastq_seq->id;
+      if (exists($result->{entries}->{$current_id})) {
           if ($result->{entries}->{$current_id}->{write_ta}) {
+              ## This read has already been written from the other strand, skip it.
               next LOOP;
           }
       } else {
@@ -163,20 +170,20 @@ sub Consolidate_Read_Pair {
 
       if ($read eq 'r2') {
           $result->{r2}++;
-          $entry = $entry->revcom;
+          $fastq_seq = $fastq_seq->revcom;
       } else {
           $result->{r1}++;
       }
       $result->{entries}->{$current_id}->{$read}++;
-      my $seq = $entry->seq;
-      if ($seq =~ /^TA/ && $entry->length >= $minlength) {
+      my $seq = $fastq_seq->seq;
+      if ($seq =~ /^TA/ && $fastq_seq->length >= $minlength) {
           my $key = qq"${read}_ta";
           $result->{entries}->{$current_id}->{$key}++;
           $result->{$key}++;
           if ($result->{$current_id}->{write_ta}) {
               next LOOP;
           } else {
-              $ta_out->write_seq($entry);
+              $ta_out->write_seq($fastq_seq);
               $result->{entries}->{$current_id}->{write_ta}++;
               $key = qq"${read}_write";
               $result->{$key}++;
@@ -186,8 +193,8 @@ sub Consolidate_Read_Pair {
           $result->{$key}++;
       }
   }
-    ## $in_fh->close();
-    return($loops);
+    $in_fh->close();
+    return($result);
 }
 
 =head2 C<Essentiality_TAs>

@@ -105,7 +105,8 @@ sub BT2_Index {
     my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}bt2_index";
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
-    my $jstring = qq!bowtie2-build $options->{input} \\
+    my $jstring = qq!mkdir -p ${output_dir}
+bowtie2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
   2>${stderr} 1>${stdout}
 !;
@@ -146,7 +147,7 @@ sub BWA_Index {
     my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}bwa_index";
     my $stdout = qq"${output_dir}/bwa_index.stdout";
     my $stderr = qq"${output_dir}/bwa_index.stderr";
-    my $jstring = qq!
+    my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes
 ln -sf ../${species}.fa .
@@ -366,7 +367,7 @@ sub Hisat2_Index {
         print "Copying $options->{input} to ${copied_location}\n";
         $copied = cp($options->{input}, $copied_location);
     }
-    my $jstring = qq!
+    my $jstring = qq!mkdir -p ${output_dir}
 hisat2-build $options->{input} \\
   $options->{libdir}/${libtype}/indexes/${species} \\
   2>${stderr} \\
@@ -413,7 +414,7 @@ sub Kallisto_Index {
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
     my $input = File::Spec->rel2abs($options->{input});
-    my $jstring = qq!
+    my $jstring = qq!mkdir -i ${output_dir}
 kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
   ${input} \\
   2>${stderr} 1>${stdout}
@@ -455,7 +456,9 @@ sub Make_Codon_Table {
         jprefix => '80',);
     my $out_table = qq"$options->{libpath}/codon_tables/$options->{species}.txt";
     my $out_dir = dirname($out_table);
-    my $made = make_path($out_dir) unless (-d $out_dir);
+    unless (-d $out_dir) {
+        my $made = make_path($out_dir);
+    }
 
     ## I have a few suffixes for writing genbank files.
     my @potential_suffixes = ('gbff', 'gbk', 'gbf', 'gb', 'genbank');
@@ -566,7 +569,7 @@ sub RSEM_Index {
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
     my $comment = '## RSEM Index creation.';
-    my $jstring = qq!
+    my $jstring = qq!mkdir -p ${output_dir}
 rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
   2>${stderr} 1>${stdout}
 !;
@@ -641,7 +644,7 @@ salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${specie
 less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy_location}.txt
 !;
         $index_input = $decoy_location;
-        $index_string = qq!
+        $index_string = qq!mkdir -p ${output_dir}
 salmon index \\
   -t ${index_input} \\
   -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index \\
@@ -702,7 +705,7 @@ sub STAR_Index {
     my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}star_index";
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
-    my $jstring = qq!
+    my $jstring = qq!mkdir -p ${output_dir}
 STAR \\
   --runMode genomeGenerate \\
   --runThreadN 12 \\

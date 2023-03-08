@@ -950,6 +950,7 @@ sub Get_TODOs {
         "blastparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Blast_Parse'},
         "blastsplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Split_Align_Blast'},
         "bowtie+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie'},
+        "bowtie2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie2'},
         "bowtierrna+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie_RRNA'},
         "rrnabowtie+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie_RRNA'},
         "bt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie2'},
@@ -1389,6 +1390,8 @@ sub Reset_Vars {
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
+        prescript => '',
+        postscript => '',
         shell => '/usr/bin/env bash',);
     for my $k (keys %original_values) {
         $class->{$k} = $original_values{$k};
