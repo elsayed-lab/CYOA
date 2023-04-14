@@ -789,7 +789,6 @@ ${perl_file} \\
     $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
     $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
     $script_start .= qq"${array_string}\n" if ($array_string);
-    $script_start .= qq"${module_string}\n" if ($module_string);
     $script_start .= qq?set -o errexit
 set -o errtrace
 set -o pipefail
@@ -805,7 +804,16 @@ echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it too
 if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   echo "  walltime used by \${SLURM_JOBID} was: \${minutes_used:-null} minutes." >> ${sbatch_log}
   maxmem=\$(sstat -n -P --format=MaxVMSize -j "\${SLURM_JOBID}")
-  echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem:-null}." >> ${sbatch_log}
+  ## I am not sure why, but when I run a script in an interactive session, the maxmem variable
+  ## gets set correctly everytime, but when it is run by another node, sometimes it does not.
+  ## Lets try and figure that out...
+  echo "TESTME: \${maxmem}"
+  if [[ \! -z "\${maxmem}" ]]; then
+    echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem}." >> ${sbatch_log}
+  else
+    echo "  The maximum memory did not get set?  "
+    sstat -P -j "\${SLURM_JOBID}" >> ${sbatch_log}
+  fi
   echo "" >> ${sbatch_log}
 fi
 touch ${finished_file}
@@ -815,6 +823,10 @@ touch ${finished_file}
     $total_script_string .= qq"${script_start}\n";
     $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
     $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
+    ## The prescript contains the module() definition when needed.
+    ## So put that after it.
+    $total_script_string .= qq"${module_string}\n" if ($module_string);
+
     $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
     $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
     $total_script_string .= "${script_end}\n";
