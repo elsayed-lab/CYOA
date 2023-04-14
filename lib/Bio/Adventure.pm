@@ -1796,14 +1796,8 @@ sub Submit {
     for my $k (keys %{$options}) {
         $runner->{$k} = $options->{$k};
     }
-    print "-----------------------
-Sending a submit to the runner.
--------------------\n";
     my $result = $runner->Submit($class, %args);
     $class = $class->Reset_Vars();
-    print "------------------
-Finished receiving job from runner.
--------------------\n";
     return($result);
 }
 
