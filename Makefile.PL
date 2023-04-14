@@ -2,9 +2,11 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 use File::ShareDir::Install;
+use inc::Module::Install;
 
 install_share 'share';
-
+auto_install(
+	 force => 1,);
 WriteMakefile(
     NAME => 'Bio-Adventure',
     AUTHOR => 'Ashton Trey Belew <abelew@gmail.com>',
