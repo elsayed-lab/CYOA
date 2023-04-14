@@ -1,7 +1,6 @@
 # -*-Perl-*-
 use Test::More qw"no_plan";
 use File::Path qw"remove_tree";
-
 my $test_directory = 'test_output';
 if (-d $test_directory) {
     ok(remove_tree($test_directory), 'Removed previous test directory.');

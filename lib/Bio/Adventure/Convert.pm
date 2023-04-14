@@ -380,22 +380,39 @@ sub Gff2Fasta {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species'],
+        species => '',
+        input => '',
+        gff => '',
         gff_tag => 'gene_id',
         gff_type => 'cds',);
-    my $input_base = qq"$options->{libpath}/genome/$options->{species}";
-    my $genome = qq"${input_base}.fasta";
-    my $gff = qq"${input_base}.gff";
+    unless ($options->{species} || ($options->{input} && $options->{gff})) {
+        die("This requires either a species or an input gff/fasta.")
+    }
+    my $genome;
+    my $gff;
+    my $species;
+    if ($options->{species}) {
+        my $input_base = qq"$options->{libpath}/genome/$options->{species}";
+        $genome = qq"${input_base}.fasta";
+        $gff = qq"${input_base}.gff";
+        $species = $options->{species};
+    } elsif ($options->{input} && $options->{gff}) {
+        $genome = $options->{input};
+        $gff = $options->{gff};
+        $species = basename($genome, split(/,/, $class->{suffixes}));
+        $species = basename($genome, ('.fasta', '.fna', '.faa'));
+    }
+
     my $wanted_tag = $options->{gff_tag};
     my $wanted_type = $options->{gff_type};
     my $chromosomes = $class->Read_Genome_Fasta(genome => $genome);
     my $gff_handle = FileHandle->new("less ${gff} |");
     my $nt_out = Bio::SeqIO->new(
         -format => 'Fasta',
-        -file => qq">$options->{species}_${wanted_type}_${wanted_tag}_nt.fasta");
+        -file => qq">${species}_${wanted_type}_${wanted_tag}_nt.fasta");
     my $aa_out = Bio::SeqIO->new(
         -format => 'Fasta',
-        -file => qq">$options->{species}_${wanted_type}_${wanted_tag}_aa.fasta");
+        -file => qq">${species}_${wanted_type}_${wanted_tag}_aa.fasta");
     ## Note that this and the next line might not be a good idea,
     ## HT_Types only looks at the first n (40,000) records and uses that as a heuristic
     ## to see that the wanted type is actually in the gff file.

@@ -532,7 +532,190 @@ rmdir ${outdir}/outputs/Results_${month_date}
         stdout => $stdout,
         jmem => $options->{jmem},
         modules => $options->{modules},);
+    my $orthofinder_all_output = qq"${outdir}/outputs/Orthogroups/Orthogroups.tsv";
+    my $orthofinder_single_output = qq"${outdir}/outputs/Orthogroups/Orthogroups_SingleCopy_Orthologues.txt";
+    my $namer_out = qq"${outdir}/orthogroups_all_named.tsv";
+    my $single_out = qq"${outdir}/orthogroups_single_named.tsv";
+    my $fasta_dir = dirname($options->{input});
+    $comment = qq'## Extracting ortholog names.';
+    $stdout = qq"${outdir}/name_orthogroups.stdout";
+    $stderr = qq"${outdir}/name_orthogroups.stderr";
+    $jstring = qq!use Bio::Adventure::Align;
+my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
+  all_input => '$orthofinder_all_output',
+  single_input => '$orthofinder_single_output',
+  fasta_dir => '$fasta_dir',
+  stdout => '$stdout',
+  stderr => '$stderr',);
+!;
+    my $namer = $class->Submit(
+        comment => $comment,
+        all_input => $orthofinder_all_output,
+        single_input => $orthofinder_single_output,
+        fasta_dir => $fasta_dir,
+        stdout => $stdout,
+        stderr => $stderr,
+        jstring => $jstring,
+        jdepends => $ortho->{job_id},
+        language => 'perl');
+
     return($ortho);
+}
+
+sub Orthofinder_Names_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jmem => 24,
+        jprefix => '50',);
+    my $protein_desc = {};
+    my $ortho_names = {};
+    my $all_groups = $options->{all_input};
+    my $single_groups = $options->{single_input};
+    my $outdir = dirname($all_groups);
+    my $all_out = qq"${outdir}/all_orthogroups_named.tsv";
+    my $single_out = qq"${outdir}/single_orthogroups_named.tsv";
+    my $fasta_dir = $options->{fasta_dir};
+    my @input_files = glob("${fasta_dir}/*.fa*");
+    for my $in (@input_files) {
+        my $species_name = basename($in, ('.faa'));
+        ## my $protein_desc->{$species_name} = {};
+        print "TESTME: reading $in\n";
+        my $seqio_in = Bio::SeqIO->new(-format => 'fasta', -file => $in);
+        my $id_count = 0;
+      SEQ: while (my $seq = $seqio_in->next_seq) {
+          my $id = $seq->id;
+          my $desc = $seq->desc;
+          $desc =~ s/^.* \[protein=//g;
+          $desc =~ s/^(.*?)\].*$/$1/g;
+          $desc =~ s/\r\n/\n/g;
+          $desc =~ s/\r/\n/g;
+          if ($desc =~ /description:/) {
+              $desc =~ s/^(.*)description:(.*)$/$2/g;
+          }
+          if ($desc =~ / ; /) {
+              $desc =~ s/^(.*) ; (.*)$/$2/g;
+          }
+          if ($desc =~ / \[.*/) {
+              $desc =~ s/ \[.*//g;
+          }
+          ##while ($id_count < 10) {
+          ##    print "TESTME species: $species_name  ID: $id  Description: $desc\n";
+          ##    $id_count++;
+          ##}
+
+          $protein_desc->{$species_name}->{$id} = $desc;
+      }
+        print "Finished extracting ids from: ${species_name}.\n";
+    }
+    ##use Data::Dumper;
+    ##print Dumper $protein_desc;
+
+    print "Opening: ${all_groups}\n";
+    my $orth = FileHandle->new("<${all_groups}");
+    print "Opening: ${all_out}\n";
+    my $new_orth = FileHandle->new(">${all_out}");
+    print $new_orth "Orthogroup\t";
+    for my $n (sort keys %{$protein_desc}) {
+        print $new_orth "${n}\t";
+    }
+    print $new_orth "\n";
+
+    my $line_count = 0;
+    my @group_order = ();
+  LOOP: while (my $line = <$orth>) {
+      ## Dos2unix!  It is not clear to me if these are encoded as \r or \r\n?
+      $line =~ s/\r\n/\n/g;
+      $line =~ s/\r/\n/g;
+      chomp $line;
+      $line_count++;
+      my @groups = split(/\t/, $line);
+      my $group = shift @groups;
+      if ($line_count == 1) {
+          @group_order = @groups;
+          print "TESTME: group order: @group_order\n";
+          next LOOP;
+      }
+
+      my $write_string = qq!"${group}"!;
+      my $species_count = 0;
+    SPECIES_IDS: for my $sp (0 .. $#group_order) {
+        my $species = $group_order[$sp];
+        print "Seeking out species IDs for ${species}\n";
+        my $group_ids = $groups[$sp];
+        my @species_gene_ids = ();
+        my $species_gene_id = '';
+        if ($group_ids) {
+            @species_gene_ids = split(/\,/, $group_ids);
+        } else {
+            print "I do not have group IDs for $species on line $line_count\n";
+            print "$line\n";
+        }
+        my $first_name = 'undef';
+
+        if (scalar(@species_gene_ids) > 0) {
+            $species_gene_id = $species_gene_ids[0];
+            ## print "The first ID in this group is: $species_gene_id\n";
+            my $test_name = $protein_desc->{$species}->{$species_gene_id};
+            if (defined($protein_desc->{$species}->{$species_gene_id})) {
+                ## print "And it has name: $test_name\n";
+                my $tmp = 0;
+            } else {
+                my $tmp = 0;
+                ## print "I do not appear to have an entry for $species and $species_gene_id\n";
+            }
+        } elsif (scalar(@species_gene_ids) == 0) {
+            $species_gene_id = $group_ids;
+        } else {
+            $species_gene_id = 'undefined';
+        }
+
+        print "About to extract first name: $species_gene_id\n";
+
+        my $first_description = '';
+        if (defined($protein_desc->{$species}->{$species_gene_id})) {
+            $first_description = $protein_desc->{$species}->{$species_gene_id};
+        }
+        $write_string .= qq!\t"$groups[$species_count]"\t"${species_gene_id}"\t"${first_description}"!;
+        $ortho_names->{$species}->{$group}->{id} = $species_gene_id;
+        $ortho_names->{$species}->{$group}->{descr} = $first_description;
+
+        $species_count++;
+    }
+      $write_string .= "\n";
+      print $new_orth $write_string;
+  }
+
+    $orth->close();
+    $new_orth->close();
+
+    my $single_orth = FileHandle->new("<${single_groups}");
+    my $new_single_orth = FileHandle->new(">${single_out}");
+
+    print $new_single_orth "Orthogroup\t";
+    for my $sp (@group_order) {
+        print $new_single_orth qq"${sp}\t";
+    }
+    print $new_single_orth "\n";
+
+    print "About to read $single_groups\n";
+  SINGLES: while (my $group = <$single_orth>) {
+      $group =~ s/\r\n/\n/g;
+      $group =~ s/\r/\n/g;
+      chomp $group;
+      my $print_string = qq"${group}\t";
+      for my $sp (@group_order) {
+          ## $ortho_names->{$sp}->{$group} = $first_species_name;
+          $print_string .= qq"$ortho_names->{$sp}->{$group}->{id}\t$ortho_names->{$sp}->{$group}->{descr}\t";
+      }
+      $print_string .= "\n";
+      print $new_single_orth $print_string;
+  }
+    $single_orth->close();
+    $new_single_orth->close();
+
+
+
 }
 
 =head1 AUTHOR - atb

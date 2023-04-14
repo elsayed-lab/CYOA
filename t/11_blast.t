@@ -17,7 +17,7 @@ my $phix_fasta = dist_file('Bio-Adventure', 'genome/phix.fasta');
 my $phix_gff = dist_file('Bio-Adventure', 'genome/phix.gff');
 my $phix_local = 'genome/phix.fasta';
 my $gff_local = 'genome/phix.gff';
-my $cds_local = 'genome/phix_cds_nt.fasta';
+my $cds_local = 'phix_gene_gene_id_nt.fasta';
 
 make_path('genome'); ## Make a directory for the phix indexes.
 if (!-r $phix_local) {
@@ -27,12 +27,11 @@ if (!-r $phix_local) {
 if (!-r $gff_local) {
     ok(cp($phix_gff, $gff_local), 'Copying phix gff file.');
 }
-
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
-
 if (!-r $cds_local) {
     my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
         input => $phix_local, gff => $gff_local,
+        gff_tag => 'gene_id', gff_type => 'gene',
         libdir => 'share');
     ok($gff2fasta, 'Run gff2fasta.');
 }
@@ -44,6 +43,7 @@ my $phix_library = $cyoa->Bio::Adventure::Index::Check_Blastdb(
 ok($phix_library, 'Run Check_Blastdb()');
 ok($phix_library eq 'blastdb/phix', 'The database name is "phix".');
 $ENV{BLASTDB} = 'blastdb';
+print "TESTME Finished checking blastdb\n";
 ## Run a standalone blast search of the phix CDSes vs. the phix genome.
 my $standalone = $cyoa->Bio::Adventure::Align_Blast::Run_Parse_Blast(
     input => $cds_local,

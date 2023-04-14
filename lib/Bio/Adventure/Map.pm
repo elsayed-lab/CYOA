@@ -93,7 +93,7 @@ sub Bowtie {
     my $bt_args = $options->{bt_args}->{$bt_type};
     $bt_args = ' --best -v 0 -M 1 ' if (!defined($bt_args));
     my $bt_input = $options->{input};
-
+    my $stranded = $options->{stranded};
     my $paired = 0;
     my $test_file = "";
     if ($bt_input =~ /\:|\;|\,|\s+/) {
@@ -106,6 +106,7 @@ sub Bowtie {
     } else {
         $test_file = File::Spec->rel2abs($bt_input);
         $bt_input = qq" <(less ${test_file}) ";
+        $stranded = 'no';
     }
 
     my $jname = qq"bt${bt_type}_${species}";
@@ -211,7 +212,7 @@ bowtie \\
                 jqueue => 'workstation',
                 libtype => $libtype,
                 mapper => 'bowtie1',
-                stranded => $options->{stranded},
+                stranded => $stranded,
                 suffix => $bt_type,);
             $bt_job->{rRNA_count} = $htmulti;
         } else {
@@ -223,7 +224,7 @@ bowtie \\
                 jqueue => 'workstation',
                 libtype => $libtype,
                 mapper => 'bowtie1',
-                stranded => $options->{stranded},
+                stranded => $stranded,
                 suffix => $bt_type,);
             $bt_job->{htseq} = $htmulti;
         }
@@ -318,6 +319,7 @@ sub Bowtie2 {
     if ($args{bt_dir}) {
         $bt_dir = $args{bt_dir};
     }
+    my $stranded = $options->{stranded};
     my $bt_input = $options->{input};
     my $test_file = '';
     if ($bt_input =~ /\:|\;|\,|\s+/) {
@@ -329,6 +331,7 @@ sub Bowtie2 {
     } else {
         $test_file = File::Spec->rel2abs($bt_input);
         $bt_input = qq" <(less ${test_file}) ";
+        $stranded = 'no';
     }
 
     ## Check that the indexes exist
@@ -418,7 +421,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 5,
                 libtype => $libtype,
-                mapper => 'bowtie2',);
+                mapper => 'bowtie2',
+                stranded => $stranded,);
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 input => $sam_job->{output},
@@ -426,7 +430,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
                 jname => $suffix_name,
                 jprefix => $options->{jprefix} + 6,
                 libtype => $libtype,
-                mapper => 'bowtie2',);
+                mapper => 'bowtie2',
+                stranded => $stranded,);
             $bt2_job->{htseq} = $htmulti;
         }
     }
@@ -560,6 +565,7 @@ sub BWA {
     }
 
     my $bwa_input = $options->{input};
+    my $stranded = $options->{stranded};
     my $test_file = '';
     my $forward_reads = '';
     my $reverse_reads = undef;
@@ -581,6 +587,7 @@ sub BWA {
         }
         $bwa_input = qq" ${forward_reads} ${reverse_reads} ";
     } else {
+        $stranded = 'no';
         $test_file = File::Spec->rel2abs($bwa_input);
         if ($test_file =~ /\.bz2|\.xz/) {
             $bwa_input = qq" <(less ${bwa_input}) ";
@@ -787,7 +794,8 @@ fi
                 jdepends => $sam_job->{job_id},
                 jname => $htseq_name,
                 jprefix => $options->{jprefix},
-                mapper => 'bwa',);
+                mapper => 'bwa',
+                stranded => $stranded,);
             $bwa_job->{$htseq_name} = $htmulti;
         }
         $sam_count++;
@@ -874,6 +882,7 @@ sub Hisat2 {
     my $hisat_input = $options->{input};
     my $test_file = '';
     my $paired = 0;
+    my $stranded = $options->{stranded};
     my @pair_listing;
     if ($hisat_input =~ /\:|\;|\,|\s+/) {
         @pair_listing = split(/\:|\;|\,|\s+/, $hisat_input);
@@ -893,6 +902,7 @@ sub Hisat2 {
         }
         $test_file = $pair_listing[0];
     } else {
+        $stranded = 'no';
         $test_file = File::Spec->rel2abs($hisat_input);
         $hisat_input = qq" -U ${test_file} ";
         if ($test_file =~ /\.[x|g|b]z$/) {
@@ -1050,7 +1060,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 libtype => $options->{libtype},
                 mapper => 'hisat2',
                 paired => $paired,
-                stranded => $options->{stranded});
+                stranded => $stranded,);
         } else {
             $htmulti = $class->Bio::Adventure::Count::HT_Multi(
                 input => $htseq_input,
@@ -1060,7 +1070,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
                 libtype => $options->{libtype},
                 mapper => 'hisat2',
                 paired => $paired,
-                stranded => $options->{stranded},);
+                stranded => $stranded,);
         }
         $hisat_job->{htseq} = $htmulti;
     }  ## End checking if we should do htseq

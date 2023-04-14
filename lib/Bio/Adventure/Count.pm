@@ -223,11 +223,11 @@ sub HT_Multi {
     my $gff_type = $options->{gff_type};
     my $gff_tag = $options->{gff_tag};
     my @jobs = ();
-    my $script_suffix = qq"";
+    my $script_suffix = '';
     if ($args{suffix}) {
         $script_suffix = $args{suffix};
     }
-    my $jprefix = "";
+    my $jprefix = '';
     $jprefix = $args{jprefix} if ($args{jprefix});
     my @gff_types = ('antisense', 'exon', 'fiveputr', 'interCDS',
                      'linc', 'mi', 'misc', 'nmd', 'operons', 'pseudo',
@@ -242,7 +242,7 @@ sub HT_Multi {
         my $gff = qq"$options->{libpath}/genome/${species}_${gff_type}.gff";
         my $gtf = $gff;
         $gtf =~ s/\.gff/\.gtf/g;
-        my $htseq_jobname = qq"hts_${gff_type}_${output_name}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
+        my $htseq_jobname = qq"hts_${output_name}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
         if (-r "$gff") {
             print "Found $gff, performing htseq with it.\n";
             my $ht = $class->Bio::Adventure::Count::HTSeq(
@@ -522,14 +522,14 @@ sub HTSeq {
         $gff_tag_arg = qq" --idattr ${gff_tag}";
     }
 
-    $output .= qq"_${gff_type}_s${stranded}_${gff_type}_${gff_tag}.count";
+    $output .= qq"_s${stranded}_${gff_type}_${gff_tag}.count";
     if (!-r "${gff}" and !-r "${gtf}") {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
     }
     my $error = basename($output, ('.count'));
     $error = qq"${output_dir}/${error}.stderr";
 
-    my $htseq_jobname = qq"hts_${top_dir}_${gff_type}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
+    my $htseq_jobname = qq"hts_${top_dir}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
     my $htseq_invocation = qq!htseq-count \\
   -q -f bam \\
   -s ${stranded} -a ${aqual} \\
