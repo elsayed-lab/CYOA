@@ -27,7 +27,7 @@ has chosen_qos => (is => 'rw', default => '');
 ## List of clusters available to this user
 has cluster => (is => 'rw', default => '');
 ## List of qos names visible to this user
-has qos => (is => 'rw', default => '');
+has qos_names => (is => 'rw', default => '');
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
 ## Any attributes here which are also in Adventure.pm get set to the values
@@ -51,7 +51,7 @@ sub BUILD {
         ## print "In BUILD Looking at qos data.\n";
         ## print Dumper $qos_data;
         my @qos_names = sort keys %{$qos_data};
-        $class->{qos} = \@qos_names;
+        $class->{qos_names} = \@qos_names;
         $class->{qos_data} = $qos_data;
     }
 
@@ -65,9 +65,9 @@ sub BUILD {
 
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
+	my $qos_names = $class->{qos_names};
+	my $qos = $class->{qos_data};
         my $assoc = $class->Get_Associations();
-        my $qos = $class->{qos_data};
-
         my $cluster = undef;
         my @accounts = ();
         my @clusters = keys %{$assoc};
@@ -117,63 +117,139 @@ sub Choose_QOS {
 
     my $chosen_account = '';
     my $chosen_qos = '';
+    my $found_qos = 0;
+    my @qos = @{$class->{qos_names}};
   TOP: for my $cluster (keys %{$associations}) {
     ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
-        my @qos = @{$associations->{$cluster}->{$account}->{qos}};
-        my $found_qos = 0;
-      QOS: for my $q (@qos) {
-          my $info = $qos_info->{$q};
-          ## As currently written, this info->{used_mem} is incorrect because it _should_ be
-          ## getting that information from %current_usage, once we add those up and compare
-          ## to the maximum, then we should be able to match up to a correct qos
-          ## Ideally, I would like to have some knowledge about which qos/nodes are idle
-          ## and choose those, but I think I don't sufficiently understand the cluster to do that yet...
-          my $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
-          my $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
-          my $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
-          my $stringent_hours = $info->{max_hours} + $info->{used_hours};
-          ## If we pass this initial test, then the job should start immediately.
-          if ($wanted_spec->{mem} <= $stringent_mem &&
-              $wanted_spec->{cpu} <= $stringent_cpu &&
-              $wanted_spec->{gpu} <= $stringent_gpu &&
-              $wanted_spec->{walltime_hours} <= $stringent_hours) {
-              print "Found qos in first pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime} vs. $stringent_mem $stringent_cpu $stringent_hours\n";
-              $found_qos++;
-              $qos_info->{$q}->{used_mem} = $qos_info->{$q}->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{$q}->{used_cpu} = $qos_info->{$q}->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{$q}->{used_gpu} = $qos_info->{$q}->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{$q}->{used_hours} = $qos_info->{$q}->{used_hours} + $wanted_spec->{walltime_hours};
-              $chosen_account = $account;
-              $chosen_qos = $q;
-              last TOP;
-          } ## End found a suitable qos
-      } ## End iterating over every qos
+	print "TESTME: On cluster: $cluster account: $account we have qos: @qos\n";
+	my $potential_qos = {};
+       QOS: for my $q (@qos) {
+	   my $info = $qos_info->{$q};
+	   ## As currently written, this info->{used_mem} is incorrect because it _should_ be
+	   ## getting that information from %current_usage, once we add those up and compare
+	   ## to the maximum, then we should be able to match up to a correct qos
+	   ## Ideally, I would like to have some knowledge about which qos/nodes are idle
+	   ## and choose those, but I think I don't sufficiently understand the cluster to do that yet...
 
-        ## If we get here, then there is no place to immediately queue the job
-        ## because there are already jobs queued, so just pick a qos which is big enough.
-        my $found_qos2 = 0;
-      QOS2: for my $q (@qos) {
-          print "TESTME one of these is undefined sometimes: mem: $wanted_spec->{mem} vs $qos_info->{$q}->{max_job_mem}
+	   ## We need to make separate calls on each of these criteria because some clusters do not
+	   ## provide a maximum cpus/mem/gpus on a per-qos basis.
+
+	   my $stringent_mem = 0;
+	   my $stringent_cpu = 0;
+	   my $stringent_gpu = 0;
+	   my $stringent_hours = 0;
+	   if ($info->{max_job_mem}) {
+	       $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
+	       if ($wanted_spec->{mem} > $stringent_mem) {
+		   print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
+		   next QOS;
+	       }
+	   }
+	   if ($info->{max_job_cpu}) {
+	       $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
+	       if ($wanted_spec->{cpu} > $stringent_cpu) {
+		   print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+		   next QOS;
+	       }
+	   }
+	   if ($info->{max_job_gpu}) {
+	       $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
+	       if ($wanted_spec->{gpu} > $stringent_gpu) {
+		   print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+		   next QOS;
+	       }
+	   }
+	  if ($info->{max_hours}) {
+	      $stringent_hours = $info->{max_hours} + $info->{used_hours};
+	      if ($wanted_spec->{walltime_hours} > $stringent_hours) {
+		  print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
+		  next QOS;
+	      }
+	  }
+	  my $potential_metrics = {
+	      delta_cpu => $info->{max_job_cpu} - $info->{used_cpu},
+	      delta_gpu => $info->{max_job_gpu} - $info->{used_gpu},
+	      delta_mem => $info->{max_job_mem} - $info->{used_mem},
+	      delta_hours => $info->{max_hours} - $info->{used_hours},
+	  };
+	  $potential_qos->{$q} = $potential_metrics;
+      } ## End iterating over stringent qos.
+	my $num_potential = scalar(keys(%{$potential_qos}));
+	$found_qos = $num_potential;
+	if ($num_potential) {
+	    $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
+	}
+	
+	print "TESTME: QOS $chosen_qos has the closest memory requirements.\n";
+	$qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+	$qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+	$qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+	$qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+	$chosen_account = $account;
+	last TOP;
+    } ## End iterating over accounts
+
+      unless ($found_qos) {
+	ACCOUNT2: for my $account (keys %{$associations->{$cluster}}) {
+	    print "TESTME2: On cluster: $cluster account: $account we have qos: @qos\n";
+	    my $potential_qos = {};
+	    ## If we get here, then there is no place to immediately queue the job
+	    ## because there are already jobs queued, so just pick a qos which is big enough.
+	    my $found_qos2 = 0;
+	  QOS2: for my $q (@qos) {
+	      print "mem: $wanted_spec->{mem} vs $qos_info->{$q}->{max_job_mem}
 cpu: $wanted_spec->{cpu} vs $qos_info->{$q}->{max_job_cpu}
 gpu: $wanted_spec->{gpu} vs $qos_info->{$q}->{max_job_gpu}
-time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_wall}\n";
-          if ($wanted_spec->{mem} <= $qos_info->{$q}->{max_job_mem} &&
-              $wanted_spec->{cpu} <= $qos_info->{$q}->{max_job_cpu} &&
-              $wanted_spec->{gpu} <= $qos_info->{$q}->{max_job_gpu} &&
-              $wanted_spec->{walltime_hours} <= $qos_info->{$q}->{max_wall}) {
-              print "Found qos in second pass: $q wanted: $wanted_spec->{mem} $wanted_spec->{cpu} $wanted_spec->{walltime}\n";
-              $found_qos2++;
-              $qos_info->{used_mem} = $qos_info->{$q}->{used_mem} + $wanted_spec->{mem};
-              $qos_info->{used_cpu} = $qos_info->{$q}->{used_cpu} + $wanted_spec->{cpu};
-              $qos_info->{used_gpu} = $qos_info->{$q}->{used_gpu} + $wanted_spec->{gpu};
-              $qos_info->{used_hours} = $qos_info->{$q}->{used_hours} + $wanted_spec->{walltime_hours};
-              $chosen_account = $account;
-              $chosen_qos = $q;
-              last TOP;
-          } ## End found a suitable qos
-      } ## End iterating over every qos
-    }
-  }
+time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
+	      my $info = $qos_info->{$q};
+	      if ($info->{max_job_mem}) {
+		  if ($wanted_spec->{mem} > $info->{max_job_mem}) {
+		      print "This job wants $wanted_spec->{mem} which is more than $info->{max_job_mem}, not using qos ${q}\n";
+		      next QOS2;
+		  }
+	      }
+	      if ($info->{max_job_cpu}) {
+		  if ($wanted_spec->{cpu} > $info->{max_job_cpu}) {
+		      print "This job wants $wanted_spec->{cpu} which is more than $info->{max_job_cpu}, not using qos ${q}\n";
+		      next QOS2;
+		  }
+	      }
+	      if ($info->{max_job_gpu}) {
+		  if ($wanted_spec->{gpu} > $info->{max_job_gpu}) {
+		      print "This job wants $wanted_spec->{gpu} which is more than $info->{max_job_gpu}, not using qos ${q}\n";
+		      next QOS2;
+		  }
+	      }
+	      if ($info->{max_hours}) {
+		  if ($wanted_spec->{walltime_hours} > $info->{max_hours}) {
+		      print "This job wants $wanted_spec->{walltime_hours} which is more than $info->{max_hours}, not using qos ${q}\n";
+		      next QOS2;
+		  }
+	      }
+	      my $potential_metrics = {
+		  delta_cpu => $info->{max_job_cpu} - $info->{used_cpu},
+		  delta_gpu => $info->{max_job_gpu} - $info->{used_gpu},
+		  delta_mem => $info->{max_job_mem} - $info->{used_mem},
+		  delta_hours => $info->{max_hours} - $info->{used_hours},
+	      };
+	    $potential_qos->{$q} = $potential_metrics;
+	  } ## End iterating over the non-stringent qos.
+	    my $num_potential = scalar(keys(%{$potential_qos}));
+	    if ($num_potential) {
+		$chosen_qos = Choose_Among_Potential_QOS($potential_qos);
+	    }
+	    
+	    print "Found qos in second pass: $chosen_qos\n";
+	    $found_qos2++;
+	    $qos_info->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+	    $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+	    $qos_info->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+	    $qos_info->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+	    $chosen_account = $account;
+	  last TOP;
+	} ## End iterating over a second attempt of accounts.
+      } ## End a second pass if we didn't find anything the first time.
+  } ## End iterating over every association
     print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {
         qos_info => $qos_info,
@@ -227,13 +303,16 @@ sub Get_Associations {
     my $associations = {};
     my $assoc = FileHandle->new("sacctmgr -p show associations | grep $ENV{USER} |");
     while (my $line = <$assoc>) {
+	## Interesting, on the cbcb cluster, every user has only 1 associated QOS (default).
+	## This breaks my assumption that show associations would have every qos with every user.
         my ($cluster, $account, $user, $partition, $share, $priority, $group_jobs, $group_tres,
             $group_wall, $group_tresmin, $max_jobs, $max_tres, $max_tres_per_node, $max_submit,
             $max_wall, $max_tres_min, $undef, $qos_lst, $def_qos, $group_tres_run_min) = split(/\|/, $line);
-        my @possible_qos = split(/\,/, $qos_lst);
+	my @avail_qos = split(/,/, $qos_lst);
         my $inner_hash = {
             share => $share,
-            qos => \@possible_qos,
+            qos => \@avail_qos,  ## Note, I am not currently using the available qos from show associations
+	    ## due to the comment above.
             partition => $partition,
             default_qos => $def_qos };
         $associations->{$cluster}->{$account} = $inner_hash;
@@ -283,12 +362,14 @@ sub Get_QOS {
   QOS: while (my $line = <$qos>) {
       $count++;
       next QOS if ($count == 1);
-
+      ## Note that the cbcb cluster uses MaxJobsPU to limit the number of concurrent jobs allowed to run per QOS
+      ## and that it appears to not set a maximum number of cpus
       my ($name, $priority, $gracetime, $preempt, $preempt_exempt, $preempt_mode, $flags,
           $usage_thresh, $usage_factor, $group_tres, $group_tres_min, $group_tres_run_min,
           $group_jobs, $group_submit, $group_wall, $max_resources_per_job, $max_tres_per_node,
           $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu, $max_tres_pa,
           $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
+      print "TESTME: name: $name pr: $priority gr: $gracetime pr $preempt wa $max_wall\n";
       my $max_job_cpu = 0;
       my $max_job_gpu = 0;
       my $max_job_mem = 0;
@@ -298,7 +379,7 @@ sub Get_QOS {
       my $max_jobs = -1;
       my $max_hours = 0;
 
-      if ($max_resources_per_job ne '') {
+      if ($max_resources_per_job) {
           $max_job_cpu = $max_resources_per_job;
           if ($max_job_cpu =~ /cpu=/) {
               $max_job_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
@@ -319,7 +400,7 @@ sub Get_QOS {
           }
       }
 
-      if ($max_resources_per_user ne '') {
+      if ($max_resources_per_user) {
           $max_user_cpu = $max_resources_per_user;
           if ($max_user_cpu =~ /cpu=/) {
               $max_user_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
@@ -341,9 +422,20 @@ sub Get_QOS {
           }
       }
 
-      if ($max_wall ne '') {
-          my ($days, $hms) = split(/\-/, $max_wall);
-          my ($hours, $min, $sec) = split(/:/, $hms);
+      if ($max_wall) {
+	  my $days = 0;
+	  my $hms = '';
+	  if ($max_wall =~ /\-/) {
+	      ($days, $hms) = split(/\-/, $max_wall);
+	  } else {
+	      $hms = $max_wall;
+	  }
+	  my $hours = 0;
+	  my $min = 0;
+	  my $sec = 0;
+	  if ($hms) {
+	      ($hours, $min, $sec) = split(/:/, $hms);
+	  }
           $days = 0 if (!defined($days));
           $hours = 1 if (!defined($hours));
           $max_hours = ($days * 24) + $hours;
@@ -359,10 +451,20 @@ sub Get_QOS {
           max_jobs => $max_jobs,
           max_hours => $max_hours,
       };
+      ## This is perhaps a little silly/redundant, given that I am immediately
+      ## filling in this information from the default queue.
       $avail_qos->{$name}->{used_cpu} = 0 if (!defined($avail_qos->{$name}->{used_cpu}));
       $avail_qos->{$name}->{used_gpu} = 0 if (!defined($avail_qos->{$name}->{used_gpu}));
       $avail_qos->{$name}->{used_mem} = 0 if (!defined($avail_qos->{$name}->{used_mem}));
       $avail_qos->{$name}->{used_hours} = 0 if (!defined($avail_qos->{$name}->{used_hours}));
+      $avail_qos->{$name}->{max_job_cpu} = 0 if (!defined($avail_qos->{$name}->{max_job_cpu}));
+      $avail_qos->{$name}->{max_job_gpu} = 0 if (!defined($avail_qos->{$name}->{max_job_gpu}));
+      $avail_qos->{$name}->{max_job_mem} = 0 if (!defined($avail_qos->{$name}->{max_job_mem}));
+      $avail_qos->{$name}->{max_user_cpu} = 0 if (!defined($avail_qos->{$name}->{max_user_cpu}));
+      $avail_qos->{$name}->{max_user_gpu} = 0 if (!defined($avail_qos->{$name}->{max_user_gpu}));
+      $avail_qos->{$name}->{max_user_mem} = 0 if (!defined($avail_qos->{$name}->{max_user_mem}));
+      $avail_qos->{$name}->{max_jobs} = 0 if (!defined($avail_qos->{$name}->{max_jobs}));
+      $avail_qos->{$name}->{max_hours} = 0 if (!defined($avail_qos->{$name}->{max_hours}));
 
   }
     $qos->close();
@@ -391,6 +493,8 @@ sub Get_QOS {
             $avail_qos->{$n}->{max_hours} = $avail_qos->{default}->{max_hours};
         }
     }
+    use Data::Dumper;
+    print Dumper $avail_qos;
     return($avail_qos);
 }
 
@@ -892,6 +996,44 @@ echo "Ending test job."
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});
     ## print Dumper $job;
+}
+
+sub Choose_Among_Potential_QOS {
+    my $choices = shift;
+    my $favorites = {
+	hours => '',
+	delta_hours => 1e9,
+	mem => '',
+	delta_mem => 1e9,
+	cpu => '',
+	delta_cpu => 1e9,
+	gpu => '',
+	delta_gpu => 1e9,
+    };
+    for my $qos (keys %{$choices}) {
+	my $info = $choices->{$qos};
+	if ($info->{delta_hours} < $favorites->{delta_hours}) {
+	    $favorites->{hours} = $qos;
+	    $favorites->{delta_hours} = $info->{delta_hours};
+	}
+	if ($info->{delta_mem} < $favorites->{delta_mem}) {
+	    $favorites->{mem} = $qos;
+	    $favorites->{delta_mem} = $info->{delta_mem};
+	}
+	if ($info->{delta_cpu} < $favorites->{delta_cpu}) {
+	    $favorites->{cpu} = $qos;
+	    $favorites->{delta_cpu} = $info->{delta_cpu};
+	}
+	if ($info->{delta_gpu} < $favorites->{delta_gpu}) {
+	    $favorites->{gpu} = $qos;
+	    $favorites->{delta_gpu} = $info->{delta_gpu};
+	}
+    }
+    ## I think what I want to do at some point is take the ratio of deltamem/totalmem and
+    ## deltahours/totalhours and choose the one where that is smallest.
+    ## but for now I will just choose the one with the tightest memory.
+    my $choice = $favorites->{mem};
+    return($choice);
 }
 
 =head1 AUTHOR - atb
