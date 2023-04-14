@@ -121,7 +121,7 @@ sub Choose_QOS {
     my @qos = @{$class->{qos_names}};
   TOP: for my $cluster (keys %{$associations}) {
     ACCOUNT: for my $account (keys %{$associations->{$cluster}}) {
-	print "TESTME: On cluster: $cluster account: $account we have qos: @qos\n";
+	## print "TESTME: On cluster: $cluster account: $account we have qos: @qos\n";
 	my $potential_qos = {};
        QOS: for my $q (@qos) {
 	   my $info = $qos_info->{$q};
@@ -141,28 +141,28 @@ sub Choose_QOS {
 	   if ($info->{max_job_mem}) {
 	       $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
 	       if ($wanted_spec->{mem} > $stringent_mem) {
-		   print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
+		   ## print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
 		   next QOS;
 	       }
 	   }
 	   if ($info->{max_job_cpu}) {
 	       $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
 	       if ($wanted_spec->{cpu} > $stringent_cpu) {
-		   print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+		   ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
 		   next QOS;
 	       }
 	   }
 	   if ($info->{max_job_gpu}) {
 	       $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
 	       if ($wanted_spec->{gpu} > $stringent_gpu) {
-		   print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+		   ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
 		   next QOS;
 	       }
 	   }
 	  if ($info->{max_hours}) {
 	      $stringent_hours = $info->{max_hours} + $info->{used_hours};
 	      if ($wanted_spec->{walltime_hours} > $stringent_hours) {
-		  print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
+		  ## print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
 		  next QOS;
 	      }
 	  }
@@ -180,7 +180,7 @@ sub Choose_QOS {
 	    $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
 	}
 	
-	print "TESTME: QOS $chosen_qos has the closest memory requirements.\n";
+	## print "TESTME: QOS $chosen_qos has the closest memory requirements.\n";
 	$qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
 	$qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
 	$qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
@@ -191,7 +191,7 @@ sub Choose_QOS {
 
       unless ($found_qos) {
 	ACCOUNT2: for my $account (keys %{$associations->{$cluster}}) {
-	    print "TESTME2: On cluster: $cluster account: $account we have qos: @qos\n";
+	    ## print "TESTME2: On cluster: $cluster account: $account we have qos: @qos\n";
 	    my $potential_qos = {};
 	    ## If we get here, then there is no place to immediately queue the job
 	    ## because there are already jobs queued, so just pick a qos which is big enough.
@@ -369,7 +369,7 @@ sub Get_QOS {
           $group_jobs, $group_submit, $group_wall, $max_resources_per_job, $max_tres_per_node,
           $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu, $max_tres_pa,
           $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
-      print "TESTME: name: $name pr: $priority gr: $gracetime pr $preempt wa $max_wall\n";
+      ## print "TESTME: name: $name pr: $priority gr: $gracetime pr $preempt wa $max_wall\n";
       my $max_job_cpu = 0;
       my $max_job_gpu = 0;
       my $max_job_mem = 0;
@@ -493,8 +493,8 @@ sub Get_QOS {
             $avail_qos->{$n}->{max_hours} = $avail_qos->{default}->{max_hours};
         }
     }
-    use Data::Dumper;
-    print Dumper $avail_qos;
+    #use Data::Dumper;
+    #print Dumper $avail_qos;
     return($avail_qos);
 }
 
@@ -738,8 +738,8 @@ sub Submit {
     ## slurm queueing and organization, so keep this in mind until I do...
     my $chosen_qos = $class->Choose_QOS(wanted_spec => $wanted,
                                         current_usage => $usage);
-    use Data::Dumper;
-    print Dumper $chosen_qos;
+    #use Data::Dumper;
+    #print Dumper $chosen_qos;
     $class->{chosen_qos} = $chosen_qos->{choice};
 
     my $depends_string = '';
@@ -952,6 +952,7 @@ touch ${finished_file}
         $job_id = $line;
         $job_id =~ s/^.*Submitted batch job (\d+)/$1/g;
     }
+
     if (!defined($job_id)) {
         warn("The job id did not get defined, submission likely failed.");
         return(undef);

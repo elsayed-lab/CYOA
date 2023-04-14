@@ -430,6 +430,9 @@ mv ${r2op} ${r2o}
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
     $loaded = $class->Module_Loader(modules => $options->{modules});
+    print "-------------------
+TESTME: About to submit first trim job.
+-----------------\n";
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
@@ -449,8 +452,10 @@ mv ${r2op} ${r2o}
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
+    print "TESTME: Submitted first trimomatic job.\n";
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
+    print "TESTME: About to submit second trimomatic job.\n";
     my $new_prefix = qq"$options->{jprefix}_1";
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,

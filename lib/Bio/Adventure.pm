@@ -36,6 +36,8 @@ use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
 
+use Signal::StackTrace qw"TTIN";
+
 use Bio::Adventure::Slurm;
 use Bio::Adventure::Local;
 
@@ -218,6 +220,7 @@ has min_value => (is => 'rw', default => 0.5);  ## Also variant searching.
 has minimum => (is => 'rw', default => undef); ## catchall minimum threshold
 has minlength => (is => 'rw', default => 8); ## Minimum length when trimming
 has mirbase_data => (is => 'rw', default => undef); ## miRbase annotation dataset.
+has modulecmd => (is => 'rw', default => '');
 has modules => (is => 'rw', default => undef); ## Environment modules to load
 has option_file => (is => 'rw', default => undef);
 has orientation => (is => 'rw', default => 'start'); ## Default orientation when normalizing riboseq reads
@@ -434,6 +437,18 @@ sub BUILD {
     my $path_agrees = Check_Libpath(libdir => $class->{libdir}, libpath => $class->{libpath});
     $class->{libpath} = $path_agrees->{libpath};
     $class->{libdir} = $path_agrees->{libdir};
+
+    ## Check that the module command is available as a bash function.
+    ## I was initially going to do this in BUILD(), but I think that might mess up jobs
+    ## which set the jprefix parameter.
+    my $modulecmd_handle = IO::Handle->new;
+    my $modulecmd_pid = open($modulecmd_handle, qq"bash -i -c 'type module' |");
+    my $modulecmd_text = '';
+    while (my $line = <$modulecmd_handle>) {
+	$modulecmd_text .= $line;
+    }
+    $modulecmd_handle->close();
+    $class->{modulecmd} = $modulecmd_text;
     return($args);
 }
 
@@ -1706,10 +1721,7 @@ sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args);
-    ## Check that the module command is available as a bash function.
-    ## I was initially going to do this in BUILD(), but I think that might mess up jobs
-    ## which set the jprefix parameter.
-    my $modulecmd_check = qx'bash -i "type module" 2>/dev/null';
+    my $modulecmd_check = $class->{modulecmd};
     if ($options->{language} eq 'bash' && !$modulecmd_check) {
         $options->{prescript} .= 'module() { eval $(/usr/bin/modulecmd bash $*); }; export -f module';
         ## $options->{prescript} = qq"source $ENV{HOME}/.bashrc";
@@ -1784,8 +1796,14 @@ sub Submit {
     for my $k (keys %{$options}) {
         $runner->{$k} = $options->{$k};
     }
+    print "-----------------------
+Sending a submit to the runner.
+-------------------\n";
     my $result = $runner->Submit($class, %args);
     $class = $class->Reset_Vars();
+    print "------------------
+Finished receiving job from runner.
+-------------------\n";
     return($result);
 }
 
