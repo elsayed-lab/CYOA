@@ -212,7 +212,7 @@ echo "move finished with: $?"
 ## an initial estimation of the overall sequencing quality.!;
     my $fqc = $class->Submit(
         comment => $comment,
-        jcpus => 8,
+        jcpu => 8,
         jname => $jname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
@@ -228,6 +228,9 @@ echo "move finished with: $?"
 
     my $stats = $class->Bio::Adventure::Metadata::Fastqc_Stats(
         input => $fqc->{txtfile},
+        jcpu => 1,
+        jmem => 1,
+        jwalltime => '00:03:00',
         jdepends => $fqc->{job_id},);
 
     $loaded = $class->Module_Loader(modules => $options->{modules},

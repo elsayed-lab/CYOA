@@ -558,22 +558,24 @@ sub Process_RNAseq {
     my @jobs = ();
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting trimmer.\n";
+    print "\n${prefix}: Starting trimmer.\n\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         input => $options->{input},
         jprefix => $prefix,
         jname => 'trimomatic',);
+    sleep(5);
     push(@jobs, $trim);
     my $last_job = $trim->{job_id};
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting fastqc.\n";
+    print "\n${prefix}: Starting fastqc.\n\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{input},
         jdepends => $last_job,
         jnice => 100,
         jprefix => $prefix,);
+    sleep(5);
     push(@jobs, $fastqc);
     $last_job = $fastqc->{job_id};
     sleep($options->{jsleep});
@@ -587,9 +589,11 @@ sub Process_RNAseq {
     my $first_species = shift @species_list;
     my $first_type = shift @type_list;
     my $first_id = shift @id_list;
-
+    my $species_length = scalar(@species_list);
+    print "TESTME: Shifted species list, how long is it now? $species_length\n";
+    sleep(3);
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing initial mapping against ${first_species} stranded: $options->{stranded}.\n";
+    print "\n${prefix}: Performing initial mapping against ${first_species} stranded: $options->{stranded}.\n\n";
     my $first_map = $class->Bio::Adventure::Map::Hisat2(
         jdepends => $last_job,
         input => $trim->{output},
@@ -598,13 +602,14 @@ sub Process_RNAseq {
         gff_tag => $first_id,
         jprefix => $prefix,
         stranded => $options->{stranded});
+    sleep(5);
     $last_job = $first_map->{job_id};
     push(@jobs, $first_map);
     sleep($options->{jsleep});
     my $last_sam_job = $first_map->{samtools}->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing freebayes search against ${first_species}.\n";
+    print "\n${prefix}: Performing freebayes search against ${first_species}.\n\n";
     my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
         jdepends => $last_sam_job,
         input => $first_map->{samtools}->{paired_output},
@@ -613,10 +618,13 @@ sub Process_RNAseq {
         gff_tag => $first_id,
         intron => $options->{intron},
         jprefix => $prefix,);
+    sleep(5);
     push(@jobs, $first_snp);
     sleep($options->{jsleep});
 
-    if (scalar(@species_list) > 0) {
+    if ($species_length >= 1) {
+        print "Starting to loop over additional species\n";
+        sleep(15);
         my $c = 0;
         for my $sp (@species_list) {
             my $nth_species = $sp;

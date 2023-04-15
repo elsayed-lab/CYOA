@@ -56,7 +56,7 @@ sub Submit {
         $job->{$k} = $args{$k};
     }
     my @wanted_vars = ('basedir', 'depends_string', 'input',
-                       'jcpus', 'jmem', 'jname', 'jqueue', 'jwalltime', 'output');
+                       'jcpu', 'jmem', 'jname', 'jqueue', 'jwalltime', 'output');
     foreach my $w (@wanted_vars) {
         $job->{$w} = $options->{$w} if (!defined($job->{$w}));
     }

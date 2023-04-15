@@ -80,7 +80,7 @@ sub Aragorn {
 !;
     my $aragorn = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jname => qq"aragorn_${job_name}",
         jprefix => $options->{jprefix},
@@ -166,7 +166,7 @@ cyoa_invoke_glimmer.pl --input $options->{input} \\
     ## FIXME: There are a bunch of potentially useful glimmer outputs which should be put here.
     my $glimmer = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jname => qq"glimmer_${job_name}",
         jprefix => $options->{jprefix},
@@ -244,7 +244,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
 !;
     my $glimmer = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"glimmer_${job_name}",
@@ -347,7 +347,7 @@ cd \${start}
 !;
     my $phagepromoter = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"phagepromoter",
@@ -415,7 +415,7 @@ xz -9e -f ${output_file}
 !;
     my $phanotate = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"phanotate_${job_name}",
@@ -538,7 +538,7 @@ sleep 3
 !;
     my $prodigal = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"prodigal_${job_name}",
@@ -606,7 +606,7 @@ cd \${start}
 ?;
 
     my $rhoterm = $class->Submit(
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'rhotermpredict',
@@ -663,7 +663,7 @@ prodigal -i $options->{input} \\
   1>${stdout}
 !;
     my $prodigal = $class->Submit(
-        jcpus => 1,
+        jcpu => 1,
         comment => $comment,
         jdepends => $options->{jdepends},
         jname => qq"prodigal_training_${job_name}",
@@ -749,7 +749,7 @@ echo "Finished second run with $? at $(date)" >> ${output_dir}/trnascan_return.t
 !;
     my $trnascan = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jname => qq"trnascan_${job_name}",
         jprefix => $options->{jprefix},

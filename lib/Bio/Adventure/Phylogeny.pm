@@ -26,7 +26,7 @@ sub Run_Gubbins {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jcpus => 8,
+        jcpu => 8,
         modules => ['gubbins'],
         required => ['input', 'outgroup', 'starting_tree'],);
     my $bname = basename($options->{input});
@@ -34,7 +34,7 @@ sub Run_Gubbins {
     $gub_dir = $options->{gub_dir} if ($options->{gub_dir});
     my $jstring = qq!mkdir -p ${gub_dir} && run_gubbins.py \\
   $options->{input} \\
-  --threads $options->{jcpus} \\
+  --threads $options->{jcpu} \\
 !;
     if ($options->{outgroup}) {
         $jstring .= qq! --outgoup $options->{outgroup} \\!;
@@ -52,7 +52,7 @@ sub Run_Gubbins {
         jprefix => '30',
         jmem => 50,
         modules => $options->{modules},
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jstring => $jstring,
         jname => 'gub',);
     return($gubbins);

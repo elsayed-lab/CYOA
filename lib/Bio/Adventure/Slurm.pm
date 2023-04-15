@@ -16,18 +16,19 @@ use File::Which qw"which";
 use IO::Handle;
 use POSIX qw"floor";
 
-## List of accounts for this user
+## List of accounts, partitions, qos for this user
 has accounts => (is => 'rw', default => undef);
+has partitions => (is => 'rw', default => undef);
+has qos_names => (is => 'rw', default => '');
 ## hash of the associations for this person
 has association_data => (is => 'rw', default => undef);
+
+## The name of the chosen account, cluster, partition and qos for this job.
 has chosen_account => (is => 'rw', default => '');
 has chosen_cluster => (is => 'rw', default => '');
 has chosen_partition => (is => 'rw', default => '');
 has chosen_qos => (is => 'rw', default => '');
-## List of clusters available to this user
-has cluster => (is => 'rw', default => '');
-## List of qos names visible to this user
-has qos_names => (is => 'rw', default => '');
+
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
 ## Any attributes here which are also in Adventure.pm get set to the values
@@ -36,8 +37,7 @@ has qos_data => (is => 'rw', default => undef);
 ##has jname => (is => 'rw', default => 'unknown');
 ##has language => (is => 'rw', default => 'bash');
 ## Location of the sbatch executable.
-has partitions => (is => 'rw', default => undef);
-has partition => (is => 'rw', default => '');
+
 ##has sbatch => (is => 'rw', default => 'sbatch');
 has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 ## Current usage stats
@@ -114,6 +114,7 @@ sub Choose_QOS {
     my $associations = $class->{association_data};
     my $qos_info = $class->{qos_data};
     $wanted_spec->{walltime_hours} = Convert_to_Hours($wanted_spec->{walltime});
+    my $chosen_cluster = '';
     my $chosen_account = '';
     my $chosen_qos = '';
     my $found_qos = 0;
@@ -131,6 +132,8 @@ sub Choose_QOS {
         }
        QOS: for my $q (@qos) {
            my $info = $qos_info->{$q};
+           #use Data::Dumper;
+           #print Dumper $qos_info;
            ## As currently written, this info->{used_mem} is incorrect because it _should_ be
            ## getting that information from %current_usage, once we add those up and compare
            ## to the maximum, then we should be able to match up to a correct qos
@@ -146,15 +149,16 @@ sub Choose_QOS {
            my $stringent_hours = 0;
            if ($info->{max_job_mem}) {
                $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
+               # print "Checking $q stringent $stringent_mem vs wanted $wanted_spec->{mem} memory.\n";
                if ($wanted_spec->{mem} > $stringent_mem) {
-                   ## print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
+                   # print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
                    next QOS;
                }
            }
            if ($info->{max_job_cpu}) {
                $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
                if ($wanted_spec->{cpu} > $stringent_cpu) {
-                   ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+                   # print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
                    next QOS;
                }
            }
@@ -167,11 +171,12 @@ sub Choose_QOS {
            }
           if ($info->{max_hours}) {
               $stringent_hours = $info->{max_hours} + $info->{used_hours};
+              # print "Checking $q stringent $stringent_hours vs wanted $wanted_spec->{walltime_hours} hours.\n";
               if ($wanted_spec->{walltime_hours} > $stringent_hours) {
-                  ## print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
+                  print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
                   next QOS;
               }
-          }
+           }
           my $potential_metrics = {
               delta_cpu => $info->{max_job_cpu} - $info->{used_cpu},
               delta_gpu => $info->{max_job_gpu} - $info->{used_gpu},
@@ -192,6 +197,7 @@ sub Choose_QOS {
         $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
         $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
         $chosen_account = $account;
+        $chosen_cluster = $cluster;
         last TOP;
     } ## End iterating over accounts
 
@@ -210,25 +216,25 @@ time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
               my $info = $qos_info->{$q};
               if ($info->{max_job_mem}) {
                   if ($wanted_spec->{mem} > $info->{max_job_mem}) {
-                      print "This job wants $wanted_spec->{mem} which is more than $info->{max_job_mem}, not using qos ${q}\n";
+                      # print "This job wants $wanted_spec->{mem} which is more than $info->{max_job_mem}, not using qos ${q}\n";
                       next QOS2;
                   }
               }
               if ($info->{max_job_cpu}) {
                   if ($wanted_spec->{cpu} > $info->{max_job_cpu}) {
-                      print "This job wants $wanted_spec->{cpu} which is more than $info->{max_job_cpu}, not using qos ${q}\n";
+                      # print "This job wants $wanted_spec->{cpu} which is more than $info->{max_job_cpu}, not using qos ${q}\n";
                       next QOS2;
                   }
               }
               if ($info->{max_job_gpu}) {
                   if ($wanted_spec->{gpu} > $info->{max_job_gpu}) {
-                      print "This job wants $wanted_spec->{gpu} which is more than $info->{max_job_gpu}, not using qos ${q}\n";
+                      # print "This job wants $wanted_spec->{gpu} which is more than $info->{max_job_gpu}, not using qos ${q}\n";
                       next QOS2;
                   }
               }
               if ($info->{max_hours}) {
                   if ($wanted_spec->{walltime_hours} > $info->{max_hours}) {
-                      print "This job wants $wanted_spec->{walltime_hours} which is more than $info->{max_hours}, not using qos ${q}\n";
+                      # print "This job wants $wanted_spec->{walltime_hours} which is more than $info->{max_hours}, not using qos ${q}\n";
                       next QOS2;
                   }
               }
@@ -243,6 +249,8 @@ time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
             my $num_potential = scalar(keys(%{$potential_qos}));
             if ($num_potential) {
                 $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
+                $chosen_account = $account;
+                $chosen_cluster = $cluster;
             }
 
             print "Found qos in second pass: $chosen_qos\n";
@@ -251,15 +259,25 @@ time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
             $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
             $qos_info->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
             $qos_info->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-            $chosen_account = $account;
           last TOP;
         } ## End iterating over a second attempt of accounts.
       } ## End a second pass if we didn't find anything the first time.
   } ## End iterating over every association
+
+    if ($chosen_qos eq '') {
+        print "Something went wrong, no qos was chosen.
+The job wanted $wanted_spec->{mem} mem, $wanted_spec->{cpu} cpu, and $wanted_spec->{walltime_hours} hours.
+Setting it to scavenger.\n";
+        $chosen_qos = 'scavenger';
+        $chosen_account = 'scavenger';
+  }
+
     print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {
         qos_info => $qos_info,
-        choice => $chosen_qos,
+        chosen_qos => $chosen_qos,
+        chosen_account => $chosen_account,
+        chosen_cluster => $chosen_cluster,
     };
     ## print Dumper $ret;
     return($ret);
@@ -539,7 +557,7 @@ sub Get_Spec {
     } else {
         print "Neither walltime nor jwalltime is defined, defaulting to 40 minutes.\n";
     }
-    print "About to convert to hours: $walltime_string\n";
+    # print "About to convert to hours: $walltime_string\n";
     my $walltime_hours = Convert_to_Hours($walltime_string);
     $wanted->{walltime_hours} = $walltime_hours;
     $wanted->{walltime} = Convert_to_Walltime($walltime_hours);
@@ -566,7 +584,6 @@ sub Get_Spec {
     } elsif (defined($options->{jgpu})) {
         $wanted->{gpu} = $options->{jgpu};
     } else {
-        print "Neither gpu nor jgpu is defined, defaulting to 0.\n";
         $wanted->{gpu} = 0;
     }
 
@@ -746,7 +763,9 @@ sub Submit {
                                         current_usage => $usage);
     #use Data::Dumper;
     #print Dumper $chosen_qos;
-    $class->{chosen_qos} = $chosen_qos->{choice};
+    $class->{chosen_qos} = $chosen_qos->{chosen_qos};
+    $class->{chosen_account} = $chosen_qos->{chosen_account};
+    $class->{chosen_cluster} = $chosen_qos->{chosen_cluster};
 
     my $depends_string = '';
     if ($options->{jdepends}) {
@@ -767,46 +786,50 @@ sub Submit {
         $job->{$k} = $args{$k};
     }
     my @wanted_vars = ('basedir', 'depends_string', 'input',
-                       'jcpus', 'jmem', 'jname', 'jqueue', 'jwalltime', 'output');
+                       'jcpu', 'jmem', 'jname', 'jqueue', 'jwalltime', 'output');
     foreach my $w (@wanted_vars) {
         $job->{$w} = $options->{$w} if (!defined($job->{$w}));
     }
     ## Now fill in the job's qos etc from the slurm instance
-    $options->{account} = $class->{chosen_account} if ($class->{chosen_account});
-    $options->{cluster} = $class->{chosen_cluster} if ($class->{chosen_cluster});
-    $options->{partition} = $class->{chosen_partition} if ($class->{chosen_partition});
-    $options->{qos} = $class->{chosen_qos};
-    if (!defined($options->{qos})) {
+    my $qos_string = '';
+    if ($class->{chosen_qos}) {
+        $qos_string = $class->{chosen_qos};
+    } else {
         print "QOS is not defined, setting it to the empty string\n";
-        $options->{qos} = '';
     }
-    if (!defined($options->{account})) {
+    my $account_string = '';
+    if ($class->{chosen_account}) {
+        $account_string = $class->{chosen_account};
+    } else {
         print "account is not defined, setting it to the empty string\n";
-        $options->{account} = '';
     }
-    if (!defined($options->{cluster})) {
+    my $cluster_string = '';
+    if ($class->{chosen_cluster}) {
+        $cluster_string = $class->{chosen_cluster};
+    } else {
         print "cluster is not defined, setting it to the empty string.\n";
-        $options->{cluster} = '';
     }
-    if (!defined($options->{partition})) {
-        print "partition is not defined, setting it to the empty string\n";
-        $options->{partition} = '';
+    my $partition_string = '';
+    if ($class->{chosen_partition}) {
+        $partition_string = $class->{chosen_partition};
+    } else {
+        ## Partition is often empty, I don't quite know why yet.
+        ## print "partition is not defined, setting it to the empty string\n";
+        $partition_string = '';
     }
     ##  Need to catch the special case of scavenger
-    if ($options->{qos} eq 'scavenger') {
-        $options->{account} = 'scavenger';
-        $options->{partition} = 'scavenger';
+    if ($qos_string eq 'scavenger') {
+        $account_string = 'scavenger';
+        $partition_string = 'scavenger';
     }
-    if ($options->{account} eq 'scavenger') {
-        $options->{qos} = 'scavenger';
-        $options->{partition} = 'scavenger';
+    if ($account_string eq 'scavenger') {
+        $qos_string = 'scavenger';
+        $partition_string = 'scavenger';
     }
-    if ($options->{partition} eq 'scavenger') {
-        $options->{qos} = 'scavenger';
-        $options->{account} = 'scavenger';
+    if ($partition_string eq 'scavenger') {
+        $qos_string = 'scavenger';
+        $account_string = 'scavenger';
     }
-    print "Filled qos info: account: $options->{account} cluster: $options->{cluster} partition $options->{partition} qos: $options->{qos}\n";
-
     if ($options->{restart} && -e $finished_file) {
         print "The restart option is on, and this job appears to have finished.\n";
         return($job);
@@ -891,9 +914,9 @@ ${perl_file} \\
 #SBATCH --job-name=${jname} ${nice_string}
 #SBATCH --output=${sbatch_log}.sbatch
 ?;
-    $script_start .= qq?#SBATCH --account=$options->{account}\n? if ($options->{account});
-    $script_start .= qq?#SBATCH --partition=$options->{partition}\n? if ($options->{partition});
-    $script_start .= qq?#SBATCH --qos=$options->{qos}\n? if ($options->{qos});
+    $script_start .= qq?#SBATCH --account=${account_string}\n? if ($account_string);
+    $script_start .= qq?#SBATCH --partition=${partition_string}\n? if ($partition_string);
+    $script_start .= qq?#SBATCH --qos=${qos_string}\n? if ($qos_string);
     ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
     $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
     $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
@@ -951,8 +974,6 @@ touch ${finished_file}
     chmod(0755, $script_file);
     my $job_id = undef;
     my $handle = IO::Handle->new;
-    print "TESTME About to run sbatch:
-$sbatch_cmd_line\n";
     my $sbatch_pid = open($handle, qq"${sbatch_cmd_line} |");
     while (my $line = <$handle>) {
         chomp($line);
@@ -969,9 +990,11 @@ $sbatch_cmd_line\n";
     my @jobid_list = split(/\./, $job_id);
     my $short_jobid = shift(@jobid_list);
 
-    print "Starting a new job: ${short_jobid} $options->{jname}";
+    print "Starting a new job: ${short_jobid} $options->{jname} with
+cluster: ${cluster_string} account: ${account_string} qos: ${qos_string}
+";
     if ($options->{jdepends}) {
-        print ", depending on $options->{jdepends}.";
+        print "This job depends on $options->{jdepends}.\n\n";
     }
     print "\n";
     $job->{log} = $sbatch_log;

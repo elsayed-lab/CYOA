@@ -37,7 +37,7 @@ sub Casfinder {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jcpus => 4,
+        jcpu => 4,
         jprefix => '22',
         jmem => 8,
         jwalltime => 8,
@@ -80,7 +80,7 @@ cd \${start}
 !;
     my $casfinder = $class->Submit(
         comment => $comment,
-        jcpus => 2,
+        jcpu => 2,
         jdepends => $options->{jdepends},
         jname => "casfinder_${job_name}",
         jprefix => $options->{jprefix},
@@ -113,7 +113,7 @@ cd \${start}
  input(required): Fasta file containing amino acid sequences.
  jprefix(21): Prefix of the job name/output directory.
  jmem(8): Expected memory consumption.
- jcpus(4): Limit the number of cpus per job with this.
+ jcpu(4): Limit the number of cpus per job with this.
  modules('interproscan'): Environment module to load.
 
 =item C<Invocation>
@@ -125,7 +125,7 @@ sub Interproscan {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jcpus => 4,
+        jcpu => 4,
         jprefix => '21',
         jmem => 24,
         jwalltime => 36,
@@ -294,7 +294,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
 
     my $prokka = $class->Submit(
         comment => $comment,
-        jcpus => 4,
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => "prokka_${job_name}",
@@ -327,7 +327,7 @@ sub Transposonpsi {
         args => \%args,
         required => ['input'],
         input_faa => '',
-        jcpus => 4,
+        jcpu => 4,
         jmem => 8,
         jprefix => '21',
         modules => ['transposonpsi'],);
@@ -368,7 +368,7 @@ cd \${start}
     my $output = qq"${output_dir}/interproscan.tsv";
     my $interproscan = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jmem => 16,
         jname => "interproscan_${job_name}",
@@ -887,7 +887,7 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
 !;
     my $transdecoder = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jmem => 4,
         jname => "transdecoder_${job_name}",
         jprefix => '47',
@@ -921,7 +921,7 @@ sub Trinotate {
     my $options = $class->Get_Vars(
         args => \%args,
         config => 'conf.txt',
-        jcpus => 4,
+        jcpu => 4,
         jprefix => '20',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp', 'hmmer',
                     'tmhmm', 'rnammer', 'trinotate', ],
@@ -989,7 +989,7 @@ cd \${start}
 !;
     my $trinotate = $class->Submit(
         comment => $comment,
-        jcpus => 6,
+        jcpu => 6,
         jdepends => $options->{jdepends},
         jname => qq"trinotate_${input_file}_${job_name}",
         jprefix => $options->{jprefix},
@@ -1032,7 +1032,7 @@ sub Rosalind_Plus {
         args => \%args,
         required => ['input'],
         jprefix => '44',
-        jcpus => 2,);
+        jcpu => 2,);
 
     my $input_seq = $options->{input};
     my $job_name = 'rosalindplus';
@@ -1042,7 +1042,7 @@ sub Rosalind_Plus {
         $class,
         gcode => '11',
         input => $options->{input},
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jname => $job_name,
         jprefix => $options->{jprefix},
@@ -1072,7 +1072,7 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         comment => $comment_string,
         gff => $options->{gff},
         input => $options->{input},
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => 8,
         jname => $options->{jname},

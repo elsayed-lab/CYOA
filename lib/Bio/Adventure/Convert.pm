@@ -688,6 +688,7 @@ sub Samtools {
         args => \%args,
         required => ['input', 'species'],
         jmem => 30,
+        jcpu => 4,
         jname => 'sam',
         jprefix => '',
         paired => 1,
@@ -822,13 +823,16 @@ xz -9e -f ${unmapped}
 
     my $comment = qq!## Converting the text sam to a compressed, sorted, indexed bamfile.
 ## Also printing alignment statistics to ${output}.stats
+!;
+    if ($options->{jdepends}) {
+        $comment .= qq!
 ## This job depended on: $options->{jdepends}!;
+    }
     my $jobname = qq"$options->{jname}_$options->{species}";
     my $samtools = $class->Submit(
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        jstring => $jstring,
         modules => $options->{modules},
         output => $output,
         paired => $options->{paired},
@@ -837,10 +841,12 @@ xz -9e -f ${unmapped}
         stdout => $stdout,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
+        jcpu => $options->{jcpu},
         jmem => $options->{jmem},
         jname => $jobname,
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
+        jstring => $jstring,
         jwalltime => '18:00:00',);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload',);

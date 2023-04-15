@@ -302,7 +302,7 @@ sub Pairwise_Similarity_Matrix {
     my $options = $class->Get_Vars(
         args => \%args,
         cutoff => 500,
-        jcpus => 8,
+        jcpu => 8,
         modules => ['blast'],
         required => ['input',],);
     my $input = $options->{input};
@@ -347,7 +347,7 @@ sub Pairwise_Similarity_Matrix {
         -db_name => $prefix,
         -num_alignments => $options->{cutoff},
         -num_descriptions => $options->{cutoff},
-        -num_threads => $options->{jcpus},
+        -num_threads => $options->{jcpu},
         -program => 'blastp',
         );
 

@@ -87,7 +87,7 @@ sub Make_Fasta_Job {
         $output = qq"$options->{basedir}/outputs/split/${array_id_string}.stdout";
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
+$options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
  outputs/split/${array_id_string}/in.fasta \\
  $options->{library} \\
  1>${output} \\
@@ -97,7 +97,7 @@ $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type
         $output = qq"$options->{workdir}/$options->{fasta_tool}.stdout";
         $jstring = qq!
 cd $options->{basedir}
-  $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpus} \\
+  $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
   $options->{input} \\
   $options->{library} \\
   1>${output} \\

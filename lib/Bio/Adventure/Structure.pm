@@ -32,7 +32,7 @@ sub RNAFold_Windows {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jcpus => 1,
+        jcpu => 1,
         jprefix => 80,
         jname => 'vienna',
         length => 201,

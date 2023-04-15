@@ -561,7 +561,7 @@ orthomcl-pipeline.pl -i input -o output \\
 !;
     my $job = $class->Submit(
         comment => $comment,
-        jcpus => 24,
+        jcpu => 12,
         jdepends => $options->{jdepends},
         jname => 'orthomcl',
         jprefix => $options->{jprefix},

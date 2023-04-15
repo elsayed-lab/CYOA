@@ -96,7 +96,7 @@ cd \${start}
 !;
     my $abyss = $class->Submit(
         comment => $comment,
-        jcpus => 6,
+        jcpu => 6,
         jdepends => $options->{jdepends},
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
@@ -207,7 +207,7 @@ samtools index ${output_dir}/coverage.bam \\
 !;
     my $coverage = $class->Submit(
         comment => $comment,
-        jcpus => 6,
+        jcpu => 6,
         jdepends => $options->{jdepends},
         jname => qq"coverage_${job_name}",
         jprefix => $options->{jprefix},
@@ -284,7 +284,7 @@ cp $options->{input_tsv} ${output_dir}
     }
 
     my $collect = $class->Submit(
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jname => $options->{jname},
         jstring => $jstring,
@@ -343,7 +343,7 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
   output_log => '${output_log}',);
 !;
     my $depth_filtered = $class->Submit(
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         comment => $comment,
         jmem => $options->{jmem},
@@ -384,7 +384,7 @@ sub Unicycler_Filter_Worker {
     my $options = $class->Get_Vars(
         args => \%args,
         coverage => 0.2,
-        jcpus => 1,
+        jcpu => 1,
         output_log => '',
         output => '',
         required => ['input',],);
@@ -531,7 +531,7 @@ fi
 !;
     my $shovill_job = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jname => qq"shovill_${job_name}",
         jprefix => $options->{jprefix},
@@ -601,7 +601,7 @@ sub Trinity {
 !;
     my $trinity = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jname => qq"$options->{jprefix}trin_${job_name}",
         jprefix => $options->{jprefix},
@@ -614,7 +614,7 @@ sub Trinity {
         postscript => $options->{postscript},);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $trinity->{job_id},
         jname => qq"$options->{jprefix}_1trin_rsem",
         input => $options->{input},);
@@ -834,7 +834,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(
         comment => $comment,
-        cpus => $options->{jcpus},
+        cpus => $options->{jcpu},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"unicycler_${job_name}",
@@ -921,7 +921,7 @@ sub Velvet {
     }
     my $velvet = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jname => qq"velveth_${job_name}",
         jprefix => $options->{jprefix},

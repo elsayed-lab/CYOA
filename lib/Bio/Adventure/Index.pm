@@ -314,7 +314,7 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
 !;
     my $kraken = $class->Submit(
         comment => $comment,
-        jcpus => 6,
+        jcpu => 6,
         jdepends => $options->{jdepends},
         jname => qq"kraken_${job_name}",
         jprefix => '99',

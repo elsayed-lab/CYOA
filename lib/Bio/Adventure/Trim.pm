@@ -241,7 +241,7 @@ echo \"Finished correction of $input_list[$c].\" >> ${stdout}
     my $racer = $class->Submit(
         comment => $comment,
         input => $input,
-        jcpus => 4,
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => "racer_${job_name}",
@@ -275,9 +275,10 @@ sub Trimomatic {
     my $options = $class->Get_Vars(
         args => \%args,
         compress => 1,
+        jcpu => 4,
         jmem => 24,
         jprefix => '01',
-        jwalltime => '48:00:00',
+        jwalltime => '36:00:00',
         length => 50,
         modules => ['trimomatic'],
         quality => '20',
@@ -301,6 +302,7 @@ sub Trimomatic_Pairwise {
     my $options = $class->Get_Vars(
         args => \%args,
         compress => 1,
+        jcpu => 4,
         jmem => 24,
         jprefix => '01',
         jwalltime => '48:00:00',
@@ -437,7 +439,7 @@ TESTME: About to submit first trim job.
         args => \%args,
         comment => $comment,
         input => $input,
-        jcpus => 3,
+        jcpu => $options->{jcpu},
         jmem => $options->{jmem},
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
@@ -452,14 +454,13 @@ TESTME: About to submit first trim job.
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    print "TESTME: Submitted first trimomatic job.\n";
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
-    print "TESTME: About to submit second trimomatic job.\n";
     my $new_prefix = qq"$options->{jprefix}_1";
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         jdepends => $trim->{job_id},
+        jcpu => 1,
         jprefix => $new_prefix,
         jname => "trst_${job_name}",
         jwalltime => '00:03:00',
@@ -482,6 +483,7 @@ sub Trimomatic_Single {
         required => ['input',],
         compress => 1,
         jmem => 24,
+        jcpu => 4,
         jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
@@ -536,6 +538,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,
+        jcpu => $options->{jcpu},
         jmem => $options->{jmem},
         jname => qq"trim_${job_name}",
         jprefix => $options->{jprefix},
@@ -553,6 +556,7 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         input => $stderr,
+        jcpu => 1,
         jdepends => $trim->{job_id},
         jname => qq"trst_${job_name}",
         jprefix => '06',

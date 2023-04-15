@@ -57,7 +57,7 @@ my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
         input => $options->{input},
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"guess_strand_${job_name}",
@@ -79,7 +79,7 @@ sub Guess_Strand_Worker {
         args => \%args,
         required => ['input', 'species', 'gff_type', 'gff_tag',],
         coverage => 0.2,
-        jcpus => 1,
+        jcpu => 1,
         output_log => '',
         output => '',);
     my $log = FileHandle->new(">$options->{output}.log");
@@ -554,18 +554,19 @@ xz -f -9e ${output} \\
         gff_type => $options->{gff_type},
         gff_tag => $options->{gff_tag},
         input => $htseq_input,
-        jdepends => $options->{jdepends},
-        jmem => 6,
-        jname => $htseq_jobname,
-        jprefix => $options->{jprefix},
-        jqueue => 'throughput',
-        jstring => $jstring,
         modules => $options->{modules},
         output => $output,
         stderr => $error,
         stdout => $output,
         postscript => $args{postscript},
-        prescript => $args{prescript},);
+        prescript => $args{prescript},
+        jdepends => $options->{jdepends},
+        jcpu => 1,
+        jmem => 6,
+        jname => $htseq_jobname,
+        jprefix => $options->{jprefix},
+        jqueue => 'throughput',
+        jstring => $jstring,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($htseq);
@@ -657,13 +658,7 @@ jellyfish dump ${count_file} > ${count_fasta} \\
 !;
 
     my $jelly = $class->Submit(
-        cpus => $options->{cpus},
         comment => $comment,
-        jdepends => $options->{jdepends},
-        jname => qq"jelly_${job_name}_$options->{length}",
-        jprefix => $options->{jprefix},
-        jstring => $jstring,
-        jmem => 12,
         modules => $options->{modules},
         count_file => $count_file,
         info_file => $info_file,
@@ -673,7 +668,13 @@ jellyfish dump ${count_file} > ${count_fasta} \\
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},);
+        postscript => $options->{postscript},
+        jdepends => $options->{jdepends},
+        jname => qq"jelly_${job_name}_$options->{length}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 12,
+        jcpu => 4,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
 
@@ -694,22 +695,25 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     my $matrix_job = $class->Submit(
         comment => $comment,
         input => $count_fasta,
+        output => $matrix_file,
+        stdout => $stdout,
         jdepends => $jelly->{job_id},
         jname => qq"jelly_matrix_$options->{length}",
         jprefix => $new_prefix,
         jstring => $jstring,
-        output => $matrix_file,
-        stdout => $stdout,
+        jcpu => 1,
         language => 'perl',);
     $jelly->{matrix_job} = $matrix_job;
 
     my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => '## Compress the jellyfish output files.',
+        input => $compress_files,
         jdepends => $matrix_job->{job_id},
         jname => qq"xzjelly_$options->{length}",
         jprefix => $options->{jprefix} + 1,
-        input => $compress_files,);
+        jcpu => 1,
+        jmem => 4,);
     $jelly->{compression} = $comp;
     $jelly->{output} = qq"${matrix_file}.xz";
     $jelly->{count_file} = qq"${count_file}.xz";
@@ -846,19 +850,19 @@ rm -f ${output_dir}/*.fastq.gz
     }
     my $kraken = $class->Submit(
         comment => $comment,
-        jcpus => 6,
-        jdepends => $options->{jdepends},
-        jmem => 96,
-        jname => "kraken_${job_name}",
-        jprefix => $options->{jprefix},
-        jqueue => 'large',
-        jstring => $jstring,
         modules => $options->{modules},
         output => qq"${output_dir}/kraken_report.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,
-        stderr => $stderr);
+        stderr => $stderr,
+        jcpu => 6,
+        jdepends => $options->{jdepends},
+        jmem => 96,
+        jname => "kraken_${job_name}",
+        jprefix => $options->{jprefix},
+        jqueue => 'large',
+        jstring => $jstring,);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($kraken);
@@ -877,6 +881,7 @@ sub Mash {
         jprefix => 21,
         length => 9,
         sketch => 9,
+        jcpu => 4,
         modules => ['mash'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('mash');
@@ -913,14 +918,14 @@ for outer in ${sketch_dir}/*; do
 
     my $mash = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        stderr => $stderr,
+        stdout => $stdout,
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        stderr => $stderr,
-        stdout => $stdout,
         modules => $options->{modules},);
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -1047,7 +1052,7 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 
     my $mpileup = $class->Submit(
         comment => $comment,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => 'mpileup',
@@ -1458,16 +1463,16 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
     my $slsearch = $class->Submit(
         comment => $comment,
         input => $options->{input},
-        jcpus => 1,
+        language => 'perl',
+        stderr => $stderr,
+        stdout => $stdout,
+        output => $output_dir,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'slsearch',
         jprefix => $options->{jprefix},
-        jstring => $jstring,
-        language => 'perl',
-        stderr => $stderr,
-        stdout => $stdout,
-        output => $output_dir,);
+        jstring => $jstring,);
     $class->{language} = 'bash';
     $class->{shell} = '/usr/bin/env bash';
     return($slsearch);

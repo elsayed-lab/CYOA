@@ -371,7 +371,7 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
  score(1000): Cutoff score -- this is the stringent portion.
  topn(5): Keep this number of hits passing the score/evalue cutoffs.
  jprefix('18'): Job/directory prefix.
- jcpus(6): Use this number of cpus.
+ jcpu(6): Use this number of cpus.
  modules('blast', 'blastdb'): Environment modules to load.
 
 =cut
@@ -381,7 +381,7 @@ sub Classify_Phage_Worker {
         args => \%args,
         blast_tool => 'tblastx',
         evalue => 0.01,
-        jcpus => 4,
+        jcpu => 4,
         jprefix => '18',
         library => 'ictv',
         output_log => 'classify.log',
@@ -417,13 +417,13 @@ sub Classify_Phage_Worker {
         -db_dir => $ENV{BLASTDB},
         -db_name => $options->{library},
         -outfile => $blast_outfile,
-        -num_threads => $options->{jcpus},
+        -num_threads => $options->{jcpu},
         -program => $options->{blast_tool},);
     my $seq_count = 0;
     my $e = '';
 
     my $log_message = qq"Starting blast search of $options->{input}
-against $options->{library} using tool: $options->{blast_tool} with $options->{jcpus} cpus.
+against $options->{library} using tool: $options->{blast_tool} with $options->{jcpu} cpus.
 Writing blast results to $options->{output_blast}.
 Writing filtered results to $options->{output}.
 ";
@@ -436,7 +436,7 @@ Writing filtered results to $options->{output}.
         -query => $options->{input},
         -outfile => $blast_outfile,
         -method_args => [ '-num_alignments' => $options->{topn},
-                          '-num_threads' => $options->{jcpus}, ]);
+                          '-num_threads' => $options->{jcpu}, ]);
 
     my $result_data = {};
     my $search_output = Bio::SearchIO->new(-file => $blast_outfile, -format => 'blast');
@@ -1113,7 +1113,7 @@ sub Get_DTR {
 
  input(required): Input fastq reads.
  library(required): Assembly created from the input reads.
- jcpus(8): Use this number of cpus.
+ jcpu(8): Use this number of cpus.
  jmem(12): and this amount of memory.
  jprefix('14'): Output/jobname prefix.
  modules('phageterm'): load the phageterm environment module.
@@ -1123,7 +1123,7 @@ sub Phageterm {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jcpus => 8,
+        jcpu => 8,
         jmem => 12,
         jprefix => '14',
         modules => ['phageterm'],
@@ -1393,7 +1393,7 @@ PhageTerm.py -f ${read_string} \\
 =item C<Arguments>
 
  input(required): Input assembly.
- jcpus(8): Use this number of cpus.
+ jcpu(8): Use this number of cpus.
  jmem(12): And this amount of memory.
  jprefix('14'): with this prefix for the jobname/directory.
  modules('phastaf'): Load the phastaf environment module.
@@ -1405,7 +1405,7 @@ sub Phastaf {
         args => \%args,
         input_phageterm => '',  ## In case we want to re-analyze the assembly
         interpret => 1,
-        jcpus => 8,
+        jcpu => 8,
         jmem => 12,
         jprefix => '14',
         modules => ['phastaf'],
@@ -1431,7 +1431,7 @@ sub Phastaf {
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
-  --cpus $options->{jcpus} \\
+  --cpus $options->{jcpu} \\
   $options->{input} \\
   2>${stderr} \\
   1>${stdout}
@@ -1441,7 +1441,7 @@ phastaf --force --outdir ${output_dir} \\
         comment => $comment,
         coordinates => $coords,
         bed => $bed,
-        jcpus => $options->{jcpus},
+        jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => qq"phastaf_${job_name}",

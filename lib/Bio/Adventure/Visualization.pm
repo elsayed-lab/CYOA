@@ -111,7 +111,7 @@ cgview -i ${xml_output} \\
 
     my $cgview = $class->Submit(
         comment => $comment,
-        jcpus => 1,
+        jcpu => 1,
         jdepends => $options->{jdepends},
         jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},

@@ -80,7 +80,7 @@ abricate --summary ${output_dir}/*.tsv \\
 
     my $abricate = $class->Submit(
         comment => $comment,
-        jcpus => 4,
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => qq"abricate_${job_name}",
@@ -142,7 +142,7 @@ run_resfinder.py -ifa $options->{input} \\
 !;
     my $resfinder = $class->Submit(
         comment => $comment,
-        jcpus => 4,
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => qq"resfinder_${job_name}",
@@ -191,7 +191,7 @@ rgi main --input_sequence $options->{input} \\
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $rgi = $class->Submit(
         comment => $comment,
-        jcpus => 4,
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 24,
         jname => "rgi_${job_name}",
