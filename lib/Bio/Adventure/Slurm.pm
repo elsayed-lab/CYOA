@@ -127,48 +127,61 @@ sub Choose_QOS {
         ## We need a little logic which says: if the only qos for a person is 'default'
         ## then that person is likely associated with all qoses.
         @qos = @{$associations->{$cluster}->{$account}->{qos}};
+        ## It appears that the default qos is a weird special case in
+        ## a bunch of ways: 1.  It fills in the values for all other queues,
+        ## 2.  at least at umiacs, it may not be used by all of one's associated accounts
+        ## e.g. if I use it on nexus I get a failed job allocation with:
+        ## 'Job's_account_not_permitted_to_use_this_partition_(tron_allows_nexus_not_cbcb)'
+        ## So, for the moment, let us explicitly not use default.
+        ## 3.  It appears that if a user is associated with only 'default', then that means
+        ## the user is actually associated with every qos...
+        ## Thus the check on the length of the qos array here, if it is comprised of only
+        ## ('default'), then we will try and choose from every qos provided by
+        ## sacctmgr show qos.
+        my $skip_default = 1;
         if (scalar(@qos) == 1 && $qos[0] eq 'default') {
             @qos = @all_qos;
         }
-       QOS: for my $q (@qos) {
-           my $info = $qos_info->{$q};
-           #use Data::Dumper;
-           #print Dumper $qos_info;
-           ## As currently written, this info->{used_mem} is incorrect because it _should_ be
-           ## getting that information from %current_usage, once we add those up and compare
-           ## to the maximum, then we should be able to match up to a correct qos
-           ## Ideally, I would like to have some knowledge about which qos/nodes are idle
-           ## and choose those, but I think I don't sufficiently understand the cluster to do that yet...
+      QOS: for my $q (@qos) {
+          next QOS if ($q eq 'default' && $skip_default);
+          my $info = $qos_info->{$q};
+          #use Data::Dumper;
+          #print Dumper $qos_info;
+          ## As currently written, this info->{used_mem} is incorrect because it _should_ be
+          ## getting that information from %current_usage, once we add those up and compare
+          ## to the maximum, then we should be able to match up to a correct qos
+          ## Ideally, I would like to have some knowledge about which qos/nodes are idle
+          ## and choose those, but I think I don't sufficiently understand the cluster to do that yet...
 
-           ## We need to make separate calls on each of these criteria because some clusters do not
-           ## provide a maximum cpus/mem/gpus on a per-qos basis.
+          ## We need to make separate calls on each of these criteria because some clusters do not
+          ## provide a maximum cpus/mem/gpus on a per-qos basis.
 
-           my $stringent_mem = 0;
-           my $stringent_cpu = 0;
-           my $stringent_gpu = 0;
-           my $stringent_hours = 0;
-           if ($info->{max_job_mem}) {
-               $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
-               # print "Checking $q stringent $stringent_mem vs wanted $wanted_spec->{mem} memory.\n";
-               if ($wanted_spec->{mem} > $stringent_mem) {
-                   # print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
-                   next QOS;
-               }
-           }
-           if ($info->{max_job_cpu}) {
-               $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
-               if ($wanted_spec->{cpu} > $stringent_cpu) {
-                   # print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
-                   next QOS;
-               }
-           }
-           if ($info->{max_job_gpu}) {
-               $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
-               if ($wanted_spec->{gpu} > $stringent_gpu) {
-                   ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
-                   next QOS;
-               }
-           }
+          my $stringent_mem = 0;
+          my $stringent_cpu = 0;
+          my $stringent_gpu = 0;
+          my $stringent_hours = 0;
+          if ($info->{max_job_mem}) {
+              $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
+              # print "Checking $q stringent $stringent_mem vs wanted $wanted_spec->{mem} memory.\n";
+              if ($wanted_spec->{mem} > $stringent_mem) {
+                  # print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
+                  next QOS;
+              }
+          }
+          if ($info->{max_job_cpu}) {
+              $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
+              if ($wanted_spec->{cpu} > $stringent_cpu) {
+                  # print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+                  next QOS;
+              }
+          }
+          if ($info->{max_job_gpu}) {
+              $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
+              if ($wanted_spec->{gpu} > $stringent_gpu) {
+                  ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
+                  next QOS;
+              }
+          }
           if ($info->{max_hours}) {
               $stringent_hours = $info->{max_hours} + $info->{used_hours};
               # print "Checking $q stringent $stringent_hours vs wanted $wanted_spec->{walltime_hours} hours.\n";
@@ -176,7 +189,7 @@ sub Choose_QOS {
                   print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
                   next QOS;
               }
-           }
+          }
           my $potential_metrics = {
               delta_cpu => $info->{max_job_cpu} - $info->{used_cpu},
               delta_gpu => $info->{max_job_gpu} - $info->{used_gpu},
@@ -184,7 +197,7 @@ sub Choose_QOS {
               delta_hours => $info->{max_hours} - $info->{used_hours},
           };
           $potential_qos->{$q} = $potential_metrics;
-      } ## End iterating over stringent qos.
+        } ## End iterating over stringent qos.
         my $num_potential = scalar(keys(%{$potential_qos}));
         $found_qos = $num_potential;
         if ($num_potential) {
@@ -209,6 +222,7 @@ sub Choose_QOS {
             ## because there are already jobs queued, so just pick a qos which is big enough.
             my $found_qos2 = 0;
           QOS2: for my $q (@qos) {
+              next QOS2 if ($q eq 'default' && $skip_default);
               print "mem: $wanted_spec->{mem} vs $qos_info->{$q}->{max_job_mem}
 cpu: $wanted_spec->{cpu} vs $qos_info->{$q}->{max_job_cpu}
 gpu: $wanted_spec->{gpu} vs $qos_info->{$q}->{max_job_gpu}
@@ -244,7 +258,7 @@ time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
                   delta_mem => $info->{max_job_mem} - $info->{used_mem},
                   delta_hours => $info->{max_hours} - $info->{used_hours},
               };
-            $potential_qos->{$q} = $potential_metrics;
+              $potential_qos->{$q} = $potential_metrics;
           } ## End iterating over the non-stringent qos.
             my $num_potential = scalar(keys(%{$potential_qos}));
             if ($num_potential) {
@@ -259,9 +273,9 @@ time: $wanted_spec->{walltime_hours} vs $qos_info->{$q}->{max_hours}\n";
             $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
             $qos_info->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
             $qos_info->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-          last TOP;
+            last TOP;
         } ## End iterating over a second attempt of accounts.
-      } ## End a second pass if we didn't find anything the first time.
+    } ## End a second pass if we didn't find anything the first time.
   } ## End iterating over every association
 
     if ($chosen_qos eq '') {
