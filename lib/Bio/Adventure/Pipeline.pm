@@ -590,10 +590,7 @@ sub Process_RNAseq {
     my $first_type = shift @type_list;
     my $first_id = shift @id_list;
     my $species_length = scalar(@species_list);
-    print "TESTME: Shifted species list, how long is it now? $species_length\n";
-    sleep(3);
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing initial mapping against ${first_species} stranded: $options->{stranded}.\n\n";
     my $first_map = $class->Bio::Adventure::Map::Hisat2(
         jdepends => $last_job,
         input => $trim->{output},
