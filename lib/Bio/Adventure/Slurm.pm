@@ -354,14 +354,6 @@ time: $wanted_spec->{wallti   me_hours} vs $qos_info->{$q}->{max_hours}\n";
     } ## End a second pass if we didn't find anything the first time.
   } ## End iterating over every association
 
-    if ($chosen_qos eq '') {
-        print "Something went wrong, no qos was chosen.
-The job wanted $wanted_spec->{mem} mem, $wanted_spec->{cpu} cpu, and $wanted_spec->{walltime_hours} hours.
-Setting it to scavenger.\n";
-        $chosen_qos = 'scavenger';
-        $chosen_account = 'scavenger';
-  }
-
     print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {
         qos_info => $qos_info,
