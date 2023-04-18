@@ -432,9 +432,6 @@ mv ${r2op} ${r2o}
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
     $loaded = $class->Module_Loader(modules => $options->{modules});
-    print "-------------------
-TESTME: About to submit first trim job.
------------------\n";
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
@@ -532,9 +529,17 @@ ${exe} \\
   ${leader_trim} ILLUMINACLIP:${adapter_file}:2:30:10 \\
   SLIDINGWINDOW:4:25 MINLEN:$options->{length} \\
   1>${stdout} 2>${stderr}
+!;
+    my $compress_string = '';
+    if ($options->{compress}) {
+        $output = qq"${output}.xz";
+        $compress_string = qq"
+## Compress the trimmed reads.
 xz -9e -f ${output}
 ln -sf ${output}.xz r1_trimmed.fastq.xz
-!;
+";
+    }
+    $jstring .= $compress_string;
     my $trim = $class->Submit(
         comment => $comment,
         input => $input,

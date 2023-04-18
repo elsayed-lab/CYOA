@@ -547,11 +547,13 @@ sub Process_RNAseq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        host_filter => 0,
+        freebayes => 0,
         gff_type => 'gene',
         gff_tag => 'ID',
-        stranded => 'reverse',
+        host_filter => 0,
         intron => 0,
+        mapper => 'hisat2',
+        stranded => 'reverse',
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 0);
     my $cwd_name = basename(cwd());
@@ -560,6 +562,7 @@ sub Process_RNAseq {
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting trimmer.\n\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+        compress => 0,
         input => $options->{input},
         jprefix => $prefix,
         jname => 'trimomatic',);
@@ -592,12 +595,13 @@ sub Process_RNAseq {
     my $species_length = scalar(@species_list);
     $prefix = sprintf("%02d", ($prefix + 1));
     my $first_map = $class->Bio::Adventure::Map::Hisat2(
-        jdepends => $last_job,
-        input => $trim->{output},
-        species => $first_species,
+        compress => 0,
         gff_type => $first_type,
         gff_tag => $first_id,
+        input => $trim->{output},
+        species => $first_species,
         jprefix => $prefix,
+        jdepends => $last_job,
         stranded => $options->{stranded});
     sleep(5);
     $last_job = $first_map->{job_id};
@@ -605,23 +609,24 @@ sub Process_RNAseq {
     sleep($options->{jsleep});
     my $last_sam_job = $first_map->{samtools}->{job_id};
 
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing freebayes search against ${first_species}.\n\n";
-    my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-        jdepends => $last_sam_job,
-        input => $first_map->{samtools}->{paired_output},
-        species => $first_species,
-        gff_type => $first_type,
-        gff_tag => $first_id,
-        intron => $options->{intron},
-        jprefix => $prefix,);
-    sleep(5);
-    push(@jobs, $first_snp);
-    sleep($options->{jsleep});
+    if ($options->{freebayes}) {
+        $prefix = sprintf("%02d", ($prefix + 1));
+        print "\n${prefix}: Performing freebayes search against ${first_species}.\n\n";
+        my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+            jdepends => $last_sam_job,
+            input => $first_map->{samtools}->{paired_output},
+            species => $first_species,
+            gff_type => $first_type,
+            gff_tag => $first_id,
+            intron => $options->{intron},
+            jprefix => $prefix,);
+        sleep(5);
+        push(@jobs, $first_snp);
+        sleep($options->{jsleep});
+    }
 
     if ($species_length >= 1) {
         print "Starting to loop over additional species\n";
-        sleep(15);
         my $c = 0;
         for my $sp (@species_list) {
             my $nth_species = $sp;
@@ -659,22 +664,40 @@ sub Process_RNAseq {
             $last_sam_job = $nth_map->{samtools}->{job_id};
             sleep($options->{jsleep});
 
-            $prefix = sprintf("%02d", ($prefix + 1));
-            print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
-            my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-                jdepends => $last_sam_job,
-                input => $nth_map->{samtools}->{paired_output},
-                species => $nth_species,
-                gff_type => $nth_type,
-                gff_tag => $nth_id,
-                intron => $options->{intron},
-                jprefix => $prefix,);
-            $last_job = $nth_map->{job_id};
-            push(@jobs, $nth_snp);
+            if ($options->{freebayes}) {
+                $prefix = sprintf("%02d", ($prefix + 1));
+                print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
+                my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+                    jdepends => $last_sam_job,
+                    input => $nth_map->{samtools}->{paired_output},
+                    species => $nth_species,
+                    gff_type => $nth_type,
+                    gff_tag => $nth_id,
+                    intron => $options->{intron},
+                    jprefix => $prefix,);
+                $last_job = $nth_map->{job_id};
+                push(@jobs, $nth_snp);
+                sleep($options->{jsleep});
+            }
             sleep($options->{jsleep});
             $c++;
         } ## End iterating over extra species
     } ## End checking for extra species
+    $prefix = sprintf("%02d", ($prefix + 1));
+    my $compress_input = $class->Bio::Adventure::Compress::Compress(
+        input => $trim->{output},
+        jdepends => $last_job,
+        jname => 'comp_trimmed',
+        jprefix => $prefix,);
+    $last_job = $compress_input->{job_id};
+    $prefix = sprintf("%02d", ($prefix + 1));
+    sleep($options->{jsleep});
+    my $compress_first_map = $class->Bio::Adventure::Compress::Compress(
+        input => qq"$first_map->{unaligned}:$first_map->{aligned}",
+        jdepends => $last_job,
+        jname => 'comp_hisat',
+        jprefix => $prefix,);
+    $last_job = $compress_first_map->{job_id};
     return(\@jobs);
 }
 
@@ -943,7 +966,7 @@ sub Phage_Assemble {
     my $final_locustag = basename(cwd());
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting trimmer.\n";
+    print "\n${prefix}: Starting trimmer with compress == 0.\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         compress => 0,
         input => $options->{input},

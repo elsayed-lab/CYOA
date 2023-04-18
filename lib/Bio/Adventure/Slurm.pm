@@ -129,15 +129,26 @@ sub Get_My_QOS {
       my $part_info = $all_partitions->{$part};
       my $allowed_accounts = $part_info->{allowaccounts};
       my @allowed_qos = split(/,/, $part_info->{allowqos});
+      my @partition_allowed_accounts = split(/,/, $allowed_accounts);
       ## Then over the set of clusters to which I am associated.
     CL: for my $cluster (keys %{$my_assoc}) {
         my $account_info = $my_assoc->{$cluster};
         ## Followed by the set of accounts to which I am associated.
       ACC: for my $account (keys %{$account_info}) {
+          ## Add a check to see if this account is allowed on this partition.
+          ## This is separate from checking the set of QOSes allowed to the account.
+          my $allowed_partition = 0;
+          for my $part_allowed_account (@partition_allowed_accounts) {
+              if ($account eq $part_allowed_account) {
+                  $allowed_partition = 1;
+              }
+          }
+          next ACC unless ($allowed_partition);
           ## We now have two sets of partitions/accounts->allowedqos (@allowed_qos)
           ## and accounts->partitions (@personal_qos), so we can use a
           ## key lookup to get the shared qos between them.
           my @personal_qos = @{$my_assoc->{$cluster}->{$account}->{qos}};
+
           my %shared_qos = map { $_ => 1 } @allowed_qos;
           my @allowed_shared = grep { $shared_qos{$_} } @personal_qos;
           $my_qos->{$part}->{$cluster}->{$account} = \@allowed_shared;
@@ -355,6 +366,7 @@ Setting it to scavenger.\n";
     my $ret = {
         qos_info => $qos_info,
         chosen_qos => $chosen_qos,
+        chosen_partition => $chosen_partition,
         chosen_account => $chosen_account,
         chosen_cluster => $chosen_cluster,
     };
@@ -877,9 +889,11 @@ sub Submit {
     ## slurm queueing and organization, so keep this in mind until I do...
     my $chosen_qos = $class->Choose_QOS(wanted_spec => $wanted,
                                         current_usage => $usage);
-    $class->{chosen_qos} = $chosen_qos->{chosen_qos};
-    $class->{chosen_account} = $chosen_qos->{chosen_account};
+
     $class->{chosen_cluster} = $chosen_qos->{chosen_cluster};
+    $class->{chosen_partition} = $chosen_qos->{chosen_partition};
+    $class->{chosen_account} = $chosen_qos->{chosen_account};
+    $class->{chosen_qos} = $chosen_qos->{chosen_qos};
 
     my $depends_string = '';
     if ($options->{jdepends}) {
@@ -928,7 +942,7 @@ sub Submit {
         $partition_string = $class->{chosen_partition};
     } else {
         ## Partition is often empty, I don't quite know why yet.
-        ## print "partition is not defined, setting it to the empty string\n";
+        print "partition is not defined, setting it to the empty string\n";
         $partition_string = '';
     }
     ##  Need to catch the special case of scavenger
@@ -1058,7 +1072,7 @@ if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
   if [[ \! -z "\${maxmem}" ]]; then
     echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem}." >> ${sbatch_log}
   else
-    echo "  The maximum memory did not get set?  "
+    echo "  The maximum memory did not get set for this job: \${SLURM_JOBID}." >> ${sbatch_log}
     sstat -P -j "\${SLURM_JOBID}" >> ${sbatch_log}
   fi
   echo "" >> ${sbatch_log}
@@ -1105,7 +1119,7 @@ touch ${finished_file}
     my $short_jobid = shift(@jobid_list);
 
     print "Starting a new job: ${short_jobid} $options->{jname} with
-cluster: ${cluster_string} account: ${account_string} qos: ${qos_string}
+cluster: ${cluster_string} partition: ${partition_string} account: ${account_string} qos: ${qos_string}
 ";
     if ($options->{jdepends}) {
         print "This job depends on $options->{jdepends}.\n\n";

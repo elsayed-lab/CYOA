@@ -139,7 +139,7 @@ has chosen_tag => (is => 'rw', default => 'ODDS');
 has clean => (is => 'rw', default => 0); ## Cleanup after yourself?
 has cluster => (is => 'rw', default => undef); ## Are we running on a cluster?
 has comment => (is => 'rw', default => undef); ## Set a comment in running slurm/bash/etc scripts.
-has compress => (is => 'rw', default => 1); ## Impress output files?
+has compress => (is => 'rw', default => 1); ## Compress output files?
 has config => (is => 'rw', default => undef); ## Not sure
 has count => (is => 'rw', default => 1); ## Quantify reads after mapping?
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
@@ -152,6 +152,7 @@ has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
 has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 program to run?
 has filtered => (is => 'rw', default => 'unfiltered');  ## Whether or not Fastqc is running on filtered data.
+has freebayes => (is => 'rw', default => 0);
 has fsa_input => (is => 'rw'); ## fsa genome output file for creating a genbank file
 has gcode => (is => 'rw', default => '11'); ## Choose a genetic code
 has genome => (is => 'rw', default => undef); ## Choose a genome to work on.
