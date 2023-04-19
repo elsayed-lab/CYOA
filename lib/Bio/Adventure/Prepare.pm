@@ -164,9 +164,14 @@ fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
   2>>${stderr} 1>>${stdout}
 ";
         }
+        ## This works for single ended, but not paired.
+        my $output_files = qq"$options->{input}/$options->{input}_pass.fastq.gz";
+        my $output_paired = qq"$options->{input}/$options->{input}_pass_1.fastq.gz:$options->{input}/$options->{input}_pass_2.fastq.gz";
         my $current_fastq_job = $class->Submit(
             comment => $fastq_comment,
             input => $in,
+            output => $output_files,
+            output_paired => $output_paired,
             stdout => $stdout,
             stderr => $stderr,
             jdepends => $options->{jdepends},
@@ -181,13 +186,24 @@ fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
         } else {
             $fastq_job = $current_fastq_job;
         }
-    } ## Foreach my $input
 
+        ## Add a job which figures out if the fastq-dump results are se or paired.
+        my $decision_string = qq?
+use Bio::Adventure::Prepare;
+my \$result = \$h->Bio::Adventure::Prepare::Write_Input_Worker(
+  input => '$fastq_job->{output}',
+  input_paired => '$fastq_job->{output_paired}',
+  output => '<input.txt');
+?;
+        my $input_worker = $class->Submit(
+            input => $fastq_job->{output},
+            input_paired => $fastq_job->{output_paired},
+            output => '<input.txt');
+    } ## Foreach my $input
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
     return($fastq_job);
 }
-
 =head2 C<Read_Samples>
 
  This function currently has no real use-case.  It should be merged with the
@@ -223,6 +239,10 @@ sub Read_Samples {
     $csv->eof or $csv->error_diag();
     $fh->close();
     return($data);
+}
+
+sub Set_Input {
+
 }
 
 =head1 AUTHOR - atb

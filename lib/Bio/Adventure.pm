@@ -267,6 +267,7 @@ has sbatch_path => (is => 'rw', default => My_Which('sbatch'));
 has search_string => (is => 'rw', default => 'tail');
 has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
+has sra => (is => 'rw', default => 0);
 has starting_tree => (is => 'rw', default => undef); ## Starting tree for phylogenetic analyses
 ## Note 202212: Now most of the sequencing kits used by our sequencer are reverse.
 has stranded => (is => 'rw', default => 'reverse'); ## Did this data come from a stranded library kit?

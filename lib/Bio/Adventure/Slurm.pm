@@ -30,6 +30,7 @@ has chosen_account => (is => 'rw', default => '');
 has chosen_cluster => (is => 'rw', default => '');
 has chosen_partition => (is => 'rw', default => '');
 has chosen_qos => (is => 'rw', default => '');
+has usage => (is => 'rw', default => undef);
 
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
@@ -54,9 +55,7 @@ sub BUILD {
         $class->{qos_data} = $qos_data;
     }
 
-    if (!defined($class->{usage})) {
-        $class->{usage} = Get_Usage();
-    }
+    $class->{usage} = Get_Usage();
 
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
