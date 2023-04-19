@@ -100,7 +100,6 @@ sub BUILD {
         }
 
         if (!defined($class->{allowed_qos})) {
-            print Dumper $class->{association_data};
             $class->{allowed_qos} = $class->Get_My_QOS(
                 partitions => $class->{partitions},
                 qos => $class->{qos_data},
@@ -155,9 +154,6 @@ sub Get_My_QOS {
       }
     }
   }
-    print "We should now have the set of qos to which I am permitted access by account/partition
-        partition        cluster        account    qos\n";
-    print Dumper $my_qos;
     return($my_qos);
 }
 
@@ -194,7 +190,6 @@ sub Choose_QOS {
         my %inner_clust = %{$allowed->{$partition}->{$cluster}};
       ACCOUNT: for my $account (keys %inner_clust) {
           my @allowed_qos = @{$inner_clust{$account}};
-          ## print "TESTME: On cluster: $cluster account: $account we have qos: @qos\n";
           my $potential_qos = {};
           ## We need a little logic which says: if the only qos for a person is 'default'
           ## then that person is likely associated with all qoses.
@@ -236,31 +231,25 @@ sub Choose_QOS {
             my $stringent_hours = 0;
             if ($info->{max_job_mem}) {
                 $stringent_mem = $info->{max_job_mem} + $info->{used_mem};
-                # print "Checking $q stringent $stringent_mem vs wanted $wanted_spec->{mem} memory.\n";
                 if ($wanted_spec->{mem} > $stringent_mem) {
-                    # print "Stringent: This job wants $wanted_spec->{mem} which is more than ${stringent_mem}, not using qos ${q}\n";
                     next QOS;
                 }
             }
             if ($info->{max_job_cpu}) {
                 $stringent_cpu = $info->{max_job_cpu} + $info->{used_cpu};
                 if ($wanted_spec->{cpu} > $stringent_cpu) {
-                    # print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
                     next QOS;
                 }
             }
             if ($info->{max_job_gpu}) {
                 $stringent_gpu = $info->{max_job_gpu} + $info->{used_gpu};
                 if ($wanted_spec->{gpu} > $stringent_gpu) {
-                    ## print "Stringent: This job wants $wanted_spec->{cpu} which is more than ${stringent_cpu}, not using qos ${q}\n";
                     next QOS;
                 }
             }
             if ($info->{max_hours}) {
                 $stringent_hours = $info->{max_hours} + $info->{used_hours};
-                # print "Checking $q stringent $stringent_hours vs wanted $wanted_spec->{walltime_hours} hours.\n";
                 if ($wanted_spec->{walltime_hours} > $stringent_hours) {
-                    print "Stringent: This job wants $wanted_spec->{walltime_hours} which is more than ${stringent_hours}, not using qos ${q}\n";
                     next QOS;
                 }
             }
@@ -278,7 +267,6 @@ sub Choose_QOS {
               $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
           }
 
-          ## print "TESTME: QOS $chosen_qos has the closest memory requirements.\n";
           $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
           $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
           $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
@@ -291,39 +279,30 @@ sub Choose_QOS {
 
         unless ($found_qos) {
           ACCOUNT2: for my $account (keys %{$associations->{$cluster}}) {
-              ## print "TESTME2: On cluster: $cluster account: $account we have qos: @qos\n";
               my $potential_qos = {};
               ## If we get here, then there is no place to immediately queue the job
               ## because there are already jobs queued, so just pick a qos which is big enough.
               my $found_qos2 = 0;
             QOS2: for my $q (@qos) {
                 next QOS2 if ($q eq 'default' && $skip_default);
-                print "mem: $wanted_spec->{mem} vs $qos_info->{$q}->{max_job_mem}
-cpu: $wanted_spec->{  cpu} vs $qos_info->{$q}->{max_job_cpu}
-gpu: $wanted_spec->{gp     u} vs $qos_info->{$q}->{max_job_gpu}
-time: $wanted_spec->{wallti   me_hours} vs $qos_info->{$q}->{max_hours}\n";
                 my $info = $qos_info->{$q};
                 if ($info->{max_job_mem}) {
                     if ($wanted_spec->{mem} > $info->{max_job_mem}) {
-                        # print "This job wants $wanted_spec->{mem} which is more than $info->{max_job_mem}, not using qos ${q}\n";
                         next QOS2;
                     }
                 }
                 if ($info->{max_job_cpu}) {
                     if ($wanted_spec->{cpu} > $info->{max_job_cpu}) {
-                        # print "This job wants $wanted_spec->{cpu} which is more than $info->{max_job_cpu}, not using qos ${q}\n";
                         next QOS2;
                     }
                 }
                 if ($info->{max_job_gpu}) {
                     if ($wanted_spec->{gpu} > $info->{max_job_gpu}) {
-                        # print "This job wants $wanted_spec->{gpu} which is more than $info->{max_job_gpu}, not using qos ${q}\n";
                         next QOS2;
                     }
                 }
                 if ($info->{max_hours}) {
                     if ($wanted_spec->{walltime_hours} > $info->{max_hours}) {
-                        # print "This job wants $wanted_spec->{walltime_hours} which is more than $info->{max_hours}, not using qos ${q}\n";
                         next QOS2;
                     }
                 }
@@ -342,7 +321,6 @@ time: $wanted_spec->{wallti   me_hours} vs $qos_info->{$q}->{max_hours}\n";
                   $chosen_cluster = $cluster;
               }
 
-              print "Found qos in second pass: $chosen_qos\n";
               $found_qos2++;
               $qos_info->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
               $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
@@ -515,7 +493,6 @@ sub Get_QOS {
           $group_jobs, $group_submit, $group_wall, $max_resources_per_job, $max_tres_per_node,
           $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu, $max_tres_pa,
           $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
-      ## print "TESTME: name: $name pr: $priority gr: $gracetime pr $preempt wa $max_wall\n";
       my $max_job_cpu = 0;
       my $max_job_gpu = 0;
       my $max_job_mem = 0;
@@ -677,7 +654,6 @@ sub Get_Spec {
     } else {
         print "Neither walltime nor jwalltime is defined, defaulting to 40 minutes.\n";
     }
-    # print "About to convert to hours: $walltime_string\n";
     my $walltime_hours = Convert_to_Hours($walltime_string);
     $wanted->{walltime_hours} = $walltime_hours;
     $wanted->{walltime} = Convert_to_Walltime($walltime_hours);
