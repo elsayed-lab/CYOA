@@ -274,15 +274,16 @@ sub Trimomatic {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input',],
         compress => 1,
-        jcpu => 4,
-        jmem => 24,
-        jprefix => '01',
-        jwalltime => '36:00:00',
+        input_paired => undef,
         length => 50,
         modules => ['trimomatic'],
         quality => '20',
-        required => ['input',],);
+        jcpu => 4,
+        jmem => 24,
+        jprefix => '01',
+        jwalltime => '36:00:00',);
     my $trim;
     if ($options->{input} =~ /:|\,/) {
         $trim = $class->Bio::Adventure::Trim::Trimomatic_Pairwise(%{$options});

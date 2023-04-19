@@ -30,6 +30,7 @@ has chosen_account => (is => 'rw', default => '');
 has chosen_cluster => (is => 'rw', default => '');
 has chosen_partition => (is => 'rw', default => '');
 has chosen_qos => (is => 'rw', default => '');
+has usage => (is => 'rw', default => undef);
 
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
@@ -54,9 +55,7 @@ sub BUILD {
         $class->{qos_data} = $qos_data;
     }
 
-    if (!defined($class->{usage})) {
-        $class->{usage} = Get_Usage();
-    }
+    $class->{usage} = Get_Usage();
 
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
@@ -353,14 +352,6 @@ time: $wanted_spec->{wallti   me_hours} vs $qos_info->{$q}->{max_hours}\n";
       } ## End iterating over a second attempt of accounts.
     } ## End a second pass if we didn't find anything the first time.
   } ## End iterating over every association
-
-    if ($chosen_qos eq '') {
-        print "Something went wrong, no qos was chosen.
-The job wanted $wanted_spec->{mem} mem, $wanted_spec->{cpu} cpu, and $wanted_spec->{walltime_hours} hours.
-Setting it to scavenger.\n";
-        $chosen_qos = 'scavenger';
-        $chosen_account = 'scavenger';
-  }
 
     print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {

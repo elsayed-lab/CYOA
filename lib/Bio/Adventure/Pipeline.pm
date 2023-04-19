@@ -550,6 +550,8 @@ sub Process_RNAseq {
         freebayes => 0,
         gff_type => 'gene',
         gff_tag => 'ID',
+        input_paired => undef,
+        sra => 0,
         host_filter => 0,
         intron => 0,
         mapper => 'hisat2',
@@ -559,11 +561,26 @@ sub Process_RNAseq {
     my $cwd_name = basename(cwd());
     my @jobs = ();
 
+    my $download;
+    if ($options->{sra}) {
+        $prefix = sprintf("%02d", ($prefix + 1));
+        print "\n${prefix}: Starting SRA download.\n\n";
+        $download = $class->Bio::Adventure::Prepare::Fastq_Dump(
+            input => $options->{input},
+            jprefix => $prefix,);
+        push(@jobs, $download);
+        my $last_job = $download->{job_id};
+        sleep($options->{jsleep});
+        $options->{input} = $download->{output};
+        $options->{input_paired} = $download->{output_paired};
+    }
+
     $prefix = sprintf("%02d", ($prefix + 1));
     print "\n${prefix}: Starting trimmer.\n\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         compress => 0,
         input => $options->{input},
+        input_paired => $options->{input_paired},
         jprefix => $prefix,
         jname => 'trimomatic',);
     sleep(5);
