@@ -14,7 +14,7 @@ use File::Basename qw"basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::Which qw"which";
 use IO::Handle;
-use POSIX qw"floor";
+use POSIX qw"floor ceil";
 
 ## List of accounts, partitions, qos for this user
 has accounts => (is => 'rw', default => undef);
@@ -30,8 +30,6 @@ has chosen_account => (is => 'rw', default => '');
 has chosen_cluster => (is => 'rw', default => '');
 has chosen_partition => (is => 'rw', default => '');
 has chosen_qos => (is => 'rw', default => '');
-has usage => (is => 'rw', default => undef);
-
 ## hash of the qos and their attributes.
 has qos_data => (is => 'rw', default => undef);
 ## Any attributes here which are also in Adventure.pm get set to the values
@@ -40,12 +38,35 @@ has qos_data => (is => 'rw', default => undef);
 ##has jname => (is => 'rw', default => 'unknown');
 ##has language => (is => 'rw', default => 'bash');
 ## Location of the sbatch executable.
-
 ##has sbatch => (is => 'rw', default => 'sbatch');
 has slurm_test => (is => 'rw', default => 'testing_slurm_instance_variable_value');
 ## Current usage stats
 has usage => (is => 'rw', default => undef);
 
+=head1 NAME
+
+  Bio::Adventure::Slurm - Heuristics for submitting jobs to a slurm cluster.
+
+=head1 SYNOPSIS
+
+ use Bio::Adventure::Slurm;
+ my $slurm = new Bio::Adventure::Slurm;
+ $job = $slurm->Submit($a_job);
+
+## One is much more likely to invoke these from an extant Bio::Adventure.
+
+=head1 METHODS
+
+=head2 C<BUILD>
+
+ A constructor for the slurm instance.  This function is responsible
+ for extracting the set of clusters, partitions, accounts, and QoSes
+ available to the current user.
+
+ In addition it extracts said user's current usage from the cluster in
+ order to help decide the best match for the currently desired job.
+
+=cut
 sub BUILD {
     my ($class, $args) = @_;
     if (!defined($class->{qos_data})) {
@@ -112,51 +133,12 @@ sub BUILD {
     return($class);
 }
 
-sub Get_My_QOS {
-    my ($class, %args) = @_;
-    ## I want this datastructure to be
-    ## my_qos->{partition}->{cluster}->{account} = list_of_qoses
-    my $my_qos = {};
-    my $all_partitions = $args{partitions};
-    my $my_assoc = $args{assoc};
-    my $all_qos = $args{qos};
-    ## The partition hash is keyed off the partition names, the
-    ## association hash is keyed off slurm accounts.
-    ## Thus, lets iterate over the partitions in the set of all partitions.
-  PART: for my $part (keys %{$all_partitions}) {
-      my $part_info = $all_partitions->{$part};
-      my $allowed_accounts = $part_info->{allowaccounts};
-      my @allowed_qos = split(/,/, $part_info->{allowqos});
-      my @partition_allowed_accounts = split(/,/, $allowed_accounts);
-      ## Then over the set of clusters to which I am associated.
-    CL: for my $cluster (keys %{$my_assoc}) {
-        my $account_info = $my_assoc->{$cluster};
-        ## Followed by the set of accounts to which I am associated.
-      ACC: for my $account (keys %{$account_info}) {
-          ## Add a check to see if this account is allowed on this partition.
-          ## This is separate from checking the set of QOSes allowed to the account.
-          my $allowed_partition = 0;
-          for my $part_allowed_account (@partition_allowed_accounts) {
-              if ($account eq $part_allowed_account) {
-                  $allowed_partition = 1;
-              }
-          }
-          next ACC unless ($allowed_partition);
-          ## We now have two sets of partitions/accounts->allowedqos (@allowed_qos)
-          ## and accounts->partitions (@personal_qos), so we can use a
-          ## key lookup to get the shared qos between them.
-          my @personal_qos = @{$my_assoc->{$cluster}->{$account}->{qos}};
+=head2 C<Check_Sbatch>
 
-          my %shared_qos = map { $_ => 1 } @allowed_qos;
-          my @allowed_shared = grep { $shared_qos{$_} } @personal_qos;
-          $my_qos->{$part}->{$cluster}->{$account} = \@allowed_shared;
-      }
-    }
-  }
-    return($my_qos);
-}
+ Check to see if sbatch is in this user's PATH.  If not, fallback
+ to the shell.
 
-
+=cut
 sub Check_Sbatch {
     my ($class, %args) = @_;
     my $path = which('sbatch');
@@ -166,6 +148,81 @@ sub Check_Sbatch {
     return($path);
 }
 
+=head2 C<Choose_Among_Potential_QOS>
+
+ The simple heuristic of finding the smallest hole into which we can
+ put the wanted job's spec.  This function takes the set of possible
+ QoSes along with the amount of memory remaining in each and finds
+ the one where that difference is the smallest.
+
+ It could do the same for cpu/gpu/time, but currently doesn't.  It
+ could also be fancy and weight things, but no; I am not going to
+ write a scheduler -- I just want to abuse one.
+
+=cut
+sub Choose_Among_Potential_QOS {
+    my $choices = shift;
+    my $favorites = {
+        hours => '',
+        delta_hours => 1e9,
+        mem => '',
+        delta_mem => 1e9,
+        cpu => '',
+        delta_cpu => 1e9,
+        gpu => '',
+        delta_gpu => 1e9,
+    };
+    for my $qos (keys %{$choices}) {
+        my $info = $choices->{$qos};
+        if ($info->{delta_hours} < $favorites->{delta_hours}) {
+            $favorites->{hours} = $qos;
+            $favorites->{delta_hours} = $info->{delta_hours};
+        }
+        if ($info->{delta_mem} < $favorites->{delta_mem}) {
+            $favorites->{mem} = $qos;
+            $favorites->{delta_mem} = $info->{delta_mem};
+        }
+        if ($info->{delta_cpu} < $favorites->{delta_cpu}) {
+            $favorites->{cpu} = $qos;
+            $favorites->{delta_cpu} = $info->{delta_cpu};
+        }
+        if ($info->{delta_gpu} < $favorites->{delta_gpu}) {
+            $favorites->{gpu} = $qos;
+            $favorites->{delta_gpu} = $info->{delta_gpu};
+        }
+    }
+    ## I think what I want to do at some point is take the ratio of deltamem/totalmem and
+    ## deltahours/totalhours and choose the one where that is smallest.
+    ## but for now I will just choose the one with the tightest memory.
+    my $choice = $favorites->{mem};
+    return($choice);
+}
+
+=head2 C<Choose_QOS>
+
+ Given a specification of a wanted amount of time, number of
+ CPUs/GPUs, and memory for an individual job; along with the current
+ usage by this user; the set of associations; and the set of allowed
+ QoSes for this user, figure out which ones are _possible_ for this job.
+
+ There are a few interesting points (CPAQ: cluster/partition/account/qos):
+
+ 1. I convert all time specifications to a number of hours and ignore
+    minutes/seconds.
+ 2. It tries to find a combination which will result in the job
+    starting immediately.  It does so by adding the current spec to
+    the available resources in each cpaq and finding the one closest
+    to this job.
+ 3. Once all of one's immediate submission resources all allocated, it (currently)
+    no longer tries very hard and just chooses an arbitrary cpaq. (I
+    should change this).
+ 4. I am attempting to make it aware of GPUs, but I don't have any use
+    case for that.
+
+ If it is able to find a cpaq, it returns a hash with the resulting
+ names.
+
+=cut
 sub Choose_QOS {
     my ($class, %args) = @_;
     my $wanted_spec = $args{wanted_spec};
@@ -331,17 +388,26 @@ sub Choose_QOS {
     } ## End a second pass if we didn't find anything the first time.
   } ## End iterating over every association
 
-    print "Choose_QOS: Got $chosen_qos\n";
     my $ret = {
         qos_info => $qos_info,
         chosen_qos => $chosen_qos,
         chosen_partition => $chosen_partition,
         chosen_account => $chosen_account,
         chosen_cluster => $chosen_cluster,
-    };
+  };
     return($ret);
 }
 
+
+=head2 C<Convert_to_Hours>
+
+ The inverse of Convert_to_Walltime().
+
+ Given an arbitrary time specification, boil it down to an integer
+ number of hours.  Even a single minute or second gets rounded up to 1
+ hour.
+
+=cut
 sub Convert_to_Hours {
     my $string = shift;
     my $days = 0;
@@ -371,6 +437,14 @@ sub Convert_to_Hours {
     return($final_hours);
 }
 
+=head2 C<Convert_to_Walltime>
+
+ The inverse of Convert_to_Hours().
+
+ Given a number of hours, give back a string which is suitable for use
+ when submitting a slurm job.
+
+=cut
 sub Convert_to_Walltime {
     my $hours = shift;
     my $walltime = qq"${hours}:00:00";
@@ -382,6 +456,34 @@ sub Convert_to_Walltime {
     return($walltime);
 }
 
+
+=head2 C<Get_Associations>
+
+ Run sacctmgr and use it to figure out the cpaq available to this
+ user.
+
+ This boils the result down to a hash of format:
+
+ associations->{cluster}->{account} => a hash comprised of all the
+ information from sacctmgr, including:
+
+ 1.  default account
+ 2.  If this user is an admin
+ 3.  cluster (redundant)
+ 4.  account (redundant)
+ 5.  partition
+ 6.  share, which I don't know what it does.
+ 7.  priority of jobs on this cpaq.
+ 8.  the maximum number of jobs at one time for this combination.
+ 9.  the maximum number of nodes (I am guessing if one uses MPI)
+ 10. maximum cpus allocatable.
+ 11. maximum submissions (I am guessing)
+ 12. maximum total walltime.
+ 13. maximum cpu time (I would have assumed identical to walltime?)
+ 14. a list of the QoSes with this combination of cluster/account.
+ 15. the default qos for this combination.
+
+=cut
 sub Get_Associations {
     my $associations = {};
     my $assoc = FileHandle->new("sacctmgr -p show user $ENV{USER} --associations |");
@@ -412,11 +514,112 @@ sub Get_Associations {
           default_qos => $def_qos,
       };
       $associations->{$cluster}->{$account} = $inner_hash;
-    }
+  }
     $assoc->close();
     return($associations);
 }
 
+=head2 C<Get_My_QOS>
+
+ Gather the intersection of the following:
+
+ 1.  All clusters/partitions/accounts/QoS available.
+ 2.  The associations for this user.
+
+ Any which remain in the intersection set should be usable for jobs.
+
+=cut
+sub Get_My_QOS {
+    my ($class, %args) = @_;
+    ## I want this datastructure to be
+    ## my_qos->{partition}->{cluster}->{account} = list_of_qoses
+    my $my_qos = {};
+    my $all_partitions = $args{partitions};
+    my $my_assoc = $args{assoc};
+    my $all_qos = $args{qos};
+    ## The partition hash is keyed off the partition names, the
+    ## association hash is keyed off slurm accounts.
+    ## Thus, lets iterate over the partitions in the set of all partitions.
+  PART: for my $part (keys %{$all_partitions}) {
+      my $part_info = $all_partitions->{$part};
+      my $allowed_accounts = $part_info->{allowaccounts};
+      my @allowed_qos = split(/,/, $part_info->{allowqos});
+      my @partition_allowed_accounts = split(/,/, $allowed_accounts);
+      ## Then over the set of clusters to which I am associated.
+    CL: for my $cluster (keys %{$my_assoc}) {
+        my $account_info = $my_assoc->{$cluster};
+        ## Followed by the set of accounts to which I am associated.
+      ACC: for my $account (keys %{$account_info}) {
+          ## Add a check to see if this account is allowed on this partition.
+          ## This is separate from checking the set of QOSes allowed to the account.
+          my $allowed_partition = 0;
+          for my $part_allowed_account (@partition_allowed_accounts) {
+              if ($account eq $part_allowed_account) {
+                  $allowed_partition = 1;
+              }
+          }
+          next ACC unless ($allowed_partition);
+          ## We now have two sets of partitions/accounts->allowedqos (@allowed_qos)
+          ## and accounts->partitions (@personal_qos), so we can use a
+          ## key lookup to get the shared qos between them.
+          my @personal_qos = @{$my_assoc->{$cluster}->{$account}->{qos}};
+
+          my %shared_qos = map { $_ => 1 } @allowed_qos;
+          my @allowed_shared = grep { $shared_qos{$_} } @personal_qos;
+          $my_qos->{$part}->{$cluster}->{$account} = \@allowed_shared;
+      }
+    }
+  }
+    return($my_qos);
+}
+
+=head2 C<Get_Partitions>
+
+ Use the scontrol show partitions command to find all the partitions
+ available to this user.
+
+ I would love to know why there is not a parseable version of this
+ command.  This little bit of parsing is pretty nasty.  In the end, it
+ produces a relatively simple hash of partition names pointing to:
+
+ 1.  allowed groups.
+ 2.  allowed accounts.
+ 3.  allowed qoses
+ 4.  nodes in this partition.
+ 5.  default qos when using it.
+ 6.  default amount of time allocated when not specified.
+ 7.  allow jobs from root? (probably not I assume)
+ 8.  is there a user exclusivity agreement?
+ 9.  gracetime: I am guessing for cleaning up jobs?
+ 10. is this partition hidden?
+ 11. The maximum number of nodes (why is this a thing?)
+ 12. maximum time
+ 13. minimum nodes
+ 14. lln?
+ 15. maximum cpus per node
+ 16. the set of nodenames in this partition (this might be fun to play
+     with.)
+ 17. legacy?
+ 18. a queuing factor added to priority jobs (I assume)
+ 19. a priority tier?
+ 20. root only jobs?
+ 21. reqresv ?
+ 22. oversubscribe: e.g. allow one to ask for more resources than are here.
+ 23. overtimelimit: e.g. allow one to ask for more time.
+ 24. preemptmode I am guessing for scavenger jobs?
+ 25. the state of the partition (and nodes?)
+ 26. total number of cpus in this partition.
+ 27. total number of nodes in it.
+ 28. selecttypeparameters?
+ 29. jobdefaults, I assume a pointer to the default spec.
+ 30. default memory allocated on a per-cpu basis
+ 31. maximum memory per node (why is this a thing?)
+ 32. Two sets of keys by TReS and billing.
+
+ I use very little of this information, but I have ideas that it could
+ be fun to use it to give back uptime statistics on the cluster.
+
+=cut
 sub Get_Partitions {
     my ($class, %args) = @_;
     my $partitions = {};
@@ -478,6 +681,37 @@ sub Get_Partitions {
     return($partitions);
 }
 
+=head2 C<Get_QOS>
+
+ Get the set of all QoSes available.
+
+ AFAICT a QOS is a definition of resources which is shared among all
+ CPAs.  If this assumption is wrong, then this function will result in
+ bad choices.
+
+ With that in mind, it runs sacctmgr show qos to extract as much QoS
+ information as it is able.  The result is a hash keyed by QoS name
+ and providing (many of these are repeated from Get_Partition():
+
+ 1.  name of the qos
+ 2.  priority modifieer
+ 3.  gracetime
+ 4-6.  preempt information
+ 7.  flags?
+ 8.  usage threshold?
+ 9.  usage factor?
+ 10-11: TReS information.
+ 12-14: group information.
+ 15. maximum resources available per job.
+ 16-17: more TReS stuff.
+ 18-25. maximum time/cpus/gpus/etc.
+
+ The most interesting thing about this function is that it runs over
+ the default QoS in order to fill in values which would otherwise
+ remain undefined.  This is another assumption on my part which may
+ not be correct (I think it is though).
+
+=cut
 sub Get_QOS {
     my $avail_qos = {};
     my $qos = FileHandle->new("sacctmgr -p show qos |");
@@ -618,6 +852,12 @@ sub Get_QOS {
     return($avail_qos);
 }
 
+=head2 C<Get_Spec>
+
+ Boil a specification provided by CYOA down to a hash of
+ cpus/gpus/time/memory in the format expected by slurm.
+
+=cut
 sub Get_Spec {
     my ($class, %args) = @_;
     my $options = $args{options};
@@ -685,6 +925,18 @@ sub Get_Spec {
     return($wanted);
 }
 
+=head2 C<Get_Usage>
+
+ Use the squeue command in order to tally up the resources used by me.
+
+ This also counts up numbers of jobs failed/running/etc.  It could be
+ extended to do some fun things.  In its current form, it returns a
+ hash much like all the other functions in this file -- with one
+ caveat: the same hash keyed by job ID also has a set of keys by CPAQ
+ containing a count of the number of jobs.  I think this function
+ should be revisited, it can do some fun stuff and doesn't now.
+
+=cut
 sub Get_Usage {
     my $usage = FileHandle->new("squeue --me -o '%all' |");
     my $current = {};  ## Hash of the current usage by user.
@@ -707,9 +959,11 @@ sub Get_Usage {
       ## like it would be easier to parse though.
       ## the group variable looks like it currently contains what I think of as user?
       $min_memory =~ s/G$//g;
-      ## FIXME: If we are getting a M, then we need to divide the memory by
-      ## 1000 if we want to keep counting by gigs.
-      $min_memory =~ s/M$//g;
+      ## I am only going to count by Gigabytes of memory.
+      if ($min_memory =~ /M$/) {
+          $min_memory =~ s/M$//g;
+          $min_memory = ceil($min_memory / 1000.0);
+      }
       my $internal = {
           account => $account,
           array_job_id => $array_job_id,
@@ -808,21 +1062,11 @@ sub Get_Usage {
     return($current);
 }
 
-=head1 NAME
-
-Bio::Adventure::Slurm - Submit jobs to the Slurm cluster.
-
-=head1 SYNOPSIS
-
-use Bio::Adventure;
-my $hpgl = new Bio::Adventure::Slurm;
-
-=head1 METHODS
-
 =head2 C<Submit>
 
-$hpgl->Submit(); invokes sbatch with (hopefully) appropriate
-parameters for various jobs on our Slurm cluster.
+ $hpgl->Submit(); invokes sbatch with (hopefully) appropriate
+ parameters for various jobs on our Slurm cluster.  This should really
+ only get called by the parent adventure.
 
 =cut
 sub Submit {
@@ -889,21 +1133,24 @@ sub Submit {
     my $qos_string = '';
     if ($class->{chosen_qos}) {
         $qos_string = $class->{chosen_qos};
-    } else {
-        print "QOS is not defined, setting it to the empty string\n";
     }
+    ##else {
+    ##    print "QOS is not defined, setting it to the empty string\n";
+    ##}
     my $account_string = '';
     if ($class->{chosen_account}) {
         $account_string = $class->{chosen_account};
-    } else {
-        print "account is not defined, setting it to the empty string\n";
     }
+    ## else {
+    ##    print "account is not defined, setting it to the empty string\n";
+    ##}
     my $cluster_string = '';
     if ($class->{chosen_cluster}) {
         $cluster_string = $class->{chosen_cluster};
-    } else {
-        print "cluster is not defined, setting it to the empty string.\n";
     }
+    ##else {
+    ##    print "cluster is not defined, setting it to the empty string.\n";
+    ##}
     my $partition_string = '';
     if ($class->{chosen_partition}) {
         $partition_string = $class->{chosen_partition};
@@ -1085,9 +1332,20 @@ touch ${finished_file}
     my @jobid_list = split(/\./, $job_id);
     my $short_jobid = shift(@jobid_list);
 
-    print "Starting a new job: ${short_jobid} $options->{jname} with
-cluster: ${cluster_string} partition: ${partition_string} account: ${account_string} qos: ${qos_string}
-";
+    my $new_job_string = qq"Starting a new job: ${short_jobid} $options->{jname}\n";
+    if ($cluster_string) {
+        $new_job_string .= " cluster: ${cluster_string} ";
+    }
+    if ($partition_string) {
+        $new_job_string .= " partition: ${partition_string} ";
+    }
+    if ($account_string) {
+        $new_job_string .= " account: ${account_string} ";
+    }
+    if ($cluster_string || $partition_string || $account_string) {
+        $new_job_string .= "\n";
+    }
+
     if ($options->{jdepends}) {
         print "This job depends on $options->{jdepends}.\n\n";
     }
@@ -1122,44 +1380,6 @@ echo "Ending test job."
         jmem => $options->{jmem},
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});
-}
-
-sub Choose_Among_Potential_QOS {
-    my $choices = shift;
-    my $favorites = {
-        hours => '',
-        delta_hours => 1e9,
-        mem => '',
-        delta_mem => 1e9,
-        cpu => '',
-        delta_cpu => 1e9,
-        gpu => '',
-        delta_gpu => 1e9,
-    };
-    for my $qos (keys %{$choices}) {
-        my $info = $choices->{$qos};
-        if ($info->{delta_hours} < $favorites->{delta_hours}) {
-            $favorites->{hours} = $qos;
-            $favorites->{delta_hours} = $info->{delta_hours};
-        }
-        if ($info->{delta_mem} < $favorites->{delta_mem}) {
-            $favorites->{mem} = $qos;
-            $favorites->{delta_mem} = $info->{delta_mem};
-        }
-        if ($info->{delta_cpu} < $favorites->{delta_cpu}) {
-            $favorites->{cpu} = $qos;
-            $favorites->{delta_cpu} = $info->{delta_cpu};
-        }
-        if ($info->{delta_gpu} < $favorites->{delta_gpu}) {
-            $favorites->{gpu} = $qos;
-            $favorites->{delta_gpu} = $info->{delta_gpu};
-        }
-    }
-    ## I think what I want to do at some point is take the ratio of deltamem/totalmem and
-    ## deltahours/totalhours and choose the one where that is smallest.
-    ## but for now I will just choose the one with the tightest memory.
-    my $choice = $favorites->{mem};
-    return($choice);
 }
 
 =head1 AUTHOR - atb
