@@ -79,7 +79,6 @@ sub Guess_Strand_Worker {
         args => \%args,
         required => ['input', 'species', 'gff_type', 'gff_tag',],
         coverage => 0.2,
-        jcpu => 1,
         output_log => '',
         output => '',);
     my $log = FileHandle->new(">$options->{output}.log");
@@ -289,6 +288,7 @@ sub HT_Multi {
             gff_tag => $ro_opts{gff_tag},
             gff_type => $ro_opts{gff_type},
             input => $htseq_input,
+            jcpu => 1,
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
@@ -303,6 +303,7 @@ sub HT_Multi {
             htseq_gff => $gff,
             gff_type => 'none',
             input => $htseq_input,
+            jcpu => 1,
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
@@ -540,9 +541,7 @@ ${htseq_invocation}
   ${annotation} \\
   2>${error} \\
   1>${output}
-xz -f -9e ${output} \\
-  2>${error}.xz \\
-  1>${output}.xz
+xz -f -9e ${output}
 !;
     $output = qq"${output}.xz";
     my $comment = qq!## Counting the number of hits in ${htseq_input} for each feature found in ${annotation}
@@ -715,6 +714,7 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
         jcpu => 1,
         jmem => 4,);
     $jelly->{compression} = $comp;
+
     $jelly->{output} = qq"${matrix_file}.xz";
     $jelly->{count_file} = qq"${count_file}.xz";
     $jelly->{info_file} = qq"${info_file}.xz";
@@ -920,7 +920,7 @@ for outer in ${sketch_dir}/*; do
         comment => $comment,
         stderr => $stderr,
         stdout => $stdout,
-        jcpu => $options->{jcpu},
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => qq"mash_${job_name}_$options->{length}",
@@ -1052,7 +1052,7 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 
     my $mpileup = $class->Submit(
         comment => $comment,
-        jcpu => $options->{jcpu},
+        jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => 'mpileup',

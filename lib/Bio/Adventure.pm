@@ -32,11 +32,10 @@ use IO::String;
 use Log::Log4perl;
 use PerlIO;
 use Pod::Usage;
+use Signal::StackTrace qw"TTIN";
 use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
-
-use Signal::StackTrace qw"TTIN";
 
 use Bio::Adventure::Slurm;
 use Bio::Adventure::Local;

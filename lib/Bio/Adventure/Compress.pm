@@ -33,9 +33,9 @@ sub Compress {
         args => \%args,
         required => ['input'],
         comment => '## Compressing files.',
+        jmem => 8,
         jname => 'xz',
         jprefix => '',
-        jmem => 8,
         jqueue => 'long',
         jwalltime => '24:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
@@ -67,6 +67,7 @@ fi
         comment => $options->{comment},
         jdepends => $options->{jdepends},
         input => $options->{input},
+        jcpu => 1,
         jmem => $options->{jmem},
         jname => $options->{jname},
         jprefix => $options->{jprefix},
@@ -115,6 +116,7 @@ xz -9e -f ${in_full}
         comment => $options->{comment},
         jdepends => $options->{jdepends},
         input => $options->{input},
+        jcpu => 1,
         jmem => $options->{jmem},
         jname => $options->{jname},
         jprefix => $options->{jprefix},
