@@ -865,8 +865,7 @@ sub Hisat2 {
     if (!$options->{jdepends}) {
         $ready = $class->Check_Input(files => $options->{input},);
     }
-    my $hisat_args = '';
-    $hisat_args = $options->{hisat_args} if ($options->{hisat_args});
+    my $hisat_args = $class->Passthrough_Args(arbitrary => $options->{hisat_args});;
     $hisat_args .= qq" -k $options->{maximum} " if (defined($options->{maximum}));
     my $prefix_name = 'hisat2';
     $prefix_name .= qq"_k$options->{maximum}" if (defined($options->{maximum}));

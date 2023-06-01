@@ -461,6 +461,7 @@ sub Gff2Fasta {
       $features_written++;
   } ## End LOOP
     $gff_handle->close();
+    print "Wrote ${features_written} features to the aa/nt files.\n";
     return($features_written);
 }
 

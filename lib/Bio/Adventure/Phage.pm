@@ -1428,6 +1428,7 @@ sub Phastaf {
     my $coords = qq"${output_dir}/diamond.coords";
     my $input_fna = qq"${output_dir}/contigs.fna";
     my $bed = qq"${coords}.bed";
+    my $phage_bed = qq"${output_dir}/phage.bed";
     my $jstring = qq?
 mkdir -p ${output_dir}
 phastaf --force --outdir ${output_dir} \\
@@ -1460,8 +1461,9 @@ phastaf --force --outdir ${output_dir} \\
 use Bio::Adventure;
 use Bio::Adventure::Phage;
 my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
-  input => '$bed',
+  input => '${bed}',
   input_fna => '$input_fna',
+  input_phage => '${phage_bed}',
   input_phageterm => '$options->{input_phageterm}',
   jdepends => '$phastaf->{job_id}',
   jname => 'interpret_phastaf',
@@ -1471,6 +1473,7 @@ my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
             comment => $interpret_comment,
             input => $bed,
             input_fna => $input_fna,
+            input_phage => $phage_bed,
             input_phageterm => $options->{input_phageterm},
             stderr => $stderr,
             stdout => $stdout,
@@ -1491,6 +1494,7 @@ sub Interpret_Phastaf_Worker {
     my $options = $class->Get_Vars(
         args => \%args,
         input_phageterm => '',
+        input_phage => '',
         required => ['input', 'input_fna'],
         jprefix => '14',);
     my $output_dir = dirname($options->{input});
@@ -1500,9 +1504,54 @@ sub Interpret_Phastaf_Worker {
     my %contig_lengths = ();
     my $contig_hits = {};
 
+    my @prophage_coords = ();
+    if ($options->{input_phage}) {
+        my $phage_bed = FileHandle->new("<$options->{input_phage}");
+        while (my $line = <$phage_bed>) {
+            chomp $line;
+            my ($contig, $start, $end, $number) = split(/\s+/, $line);
+            next unless($number > 10);
+            my $prophage = {
+                contig => $contig,
+                start => $start,
+                end => $end,
+            };
+            push(@prophage_coords, $prophage);
+        }
+        $phage_bed->close();
+    }
     my $num_contigs = 0;
-    my $in_assembly = Bio::SeqIO->new(-file => $options->{input_fna} ,
+    my $locate = cwd();
+    my $in_assembly = Bio::SeqIO->new(-file => qq"<$options->{input_fna}",
                                       -format => 'Fasta');
+    if (scalar(@prophage_coords) > 0) {
+        ## Write out the prophage regions.
+        my $counter = 0;
+        for my $p (@prophage_coords) {
+            $counter++;
+            my $prophage_name = qq"prophage_${counter}";
+            my $prophage_filename = qq"${output_dir}/${prophage_name}.fasta";
+            my $prophage_contig = $p->{contig};
+            my $prophage_start = $p->{start};
+            my $prophage_end = $p->{end};
+            my $wanted = undef;
+          GET_SEQ: while (my $piece = $in_assembly->next_seq()) {
+              last GET_SEQ if (defined($wanted));
+              next GET_SEQ unless($piece->id eq $prophage_contig);
+              $wanted = $piece;
+          }
+            ## Reopen the assembly for future usage
+            $in_assembly = Bio::SeqIO->new(-file => qq"<$options->{input_fna}",
+                                           -format => 'Fasta');
+            my $prophage_subseq = $wanted->subseq($prophage_start, $prophage_end);
+            my $prophage_seq = Bio::Seq->new(-seq => $prophage_subseq,
+                                             -display_id => $prophage_name);
+            my $prophage_out = Bio::SeqIO->new(-file => qq">${prophage_filename}",
+                                               -format => 'Fasta');
+            $prophage_out->write_seq($prophage_seq);
+        }
+    }
+
     while (my $seqobj = $in_assembly->next_seq()) {
         $num_contigs++;
         my $current_id = $seqobj->id();

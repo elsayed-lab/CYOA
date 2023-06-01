@@ -504,6 +504,7 @@ sub HTSeq {
     if (!-r "${gtf}") {
         $annotation = $gff;
     }
+    my $variable_string = '';
     if (!defined($gff_type) or $gff_type eq '' or $gff_type eq 'auto' or
             !defined($gff_tag) or $gff_tag eq '' or $gff_tag eq 'auto') {
         my $gff_type_pair = $class->Bio::Adventure::Count::HT_Types(
@@ -511,7 +512,7 @@ sub HTSeq {
             type => $gff_type,);
         $gff_type = $gff_type_pair->[0];
         $gff_type_arg = qq" --type ${gff_type}";
-        $gff_tag_arg = qq" --idattr ${gff_tag}"
+        $gff_tag_arg = qq" --idattr ${gff_tag}";
     } elsif (ref($gff_type) eq 'ARRAY') {
         $gff_type_arg = qq" --type $gff_type->[0]";
         $gff_tag_arg = qq" --idattr ${gff_tag}";
@@ -519,10 +520,14 @@ sub HTSeq {
         $gff_type_arg = qq'';
         $gff_tag_arg = qq'';
     } else {
-        $gff_type_arg = qq" --type ${gff_type}";
-        $gff_tag_arg = qq" --idattr ${gff_tag}";
+        $gff_type_arg = qq" --type \${gff_type}";
+        $gff_tag_arg = qq" --idattr \${gff_tag}";
     }
-
+    if ($gff_type_arg) {
+        $variable_string = qq!gff_type=${gff_type}
+gff_tag=${gff_tag}
+!;
+    }
     $output .= qq"_s${stranded}_${gff_type}_${gff_tag}.count";
     if (!-r "${gff}" and !-r "${gtf}") {
         die("Unable to read ${gff} nor ${gtf}, please fix this and try again.\n");
@@ -531,7 +536,8 @@ sub HTSeq {
     $error = qq"${output_dir}/${error}.stderr";
 
     my $htseq_jobname = qq"hts_${top_dir}_$options->{mapper}_$options->{species}_s${stranded}_${gff_type}_${gff_tag}";
-    my $htseq_invocation = qq!htseq-count \\
+        my $htseq_invocation = qq!${variable_string}
+htseq-count \\
   -q -f bam \\
   -s ${stranded} -a ${aqual} \\
   ${gff_type_arg} ${gff_tag_arg} \\!;

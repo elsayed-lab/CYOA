@@ -164,6 +164,7 @@ has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole g
 has gff_cds_parent_type => (is => 'rw', default => 'mRNA');
 has gff_cds_type => (is => 'rw', default => 'CDS');
 has help => (is => 'rw', default => undef); ## Ask for help?
+has hisat_args => (is => 'rw', default => ' --sensitive ');
 has host_filter => (is => 'rw', default => 1);  ## When performing an assembly, do a host filter?
 has htseq_args => (is => 'rw', default => ' --order=name --idattr=gene_id --minaqual=10 --type=exon --stranded=yes --mode=union '); ## Most likely htseq options
 has identity => (is => 'rw', default => 70); ## Alignment specific identity cutoff
@@ -311,7 +312,7 @@ if (!defined($ENV{PERL_INLINE_DIRECTORY})) {
     my $made = make_path($filename);
 }
 
-=item C<Help>
+=head2 C<Help>
 
     Help() always gives 0.
     Before it returns, it will hopefully print some useful information
@@ -447,11 +448,54 @@ sub BUILD {
     my $modulecmd_pid = open($modulecmd_handle, qq"bash -i -c 'type module' |");
     my $modulecmd_text = '';
     while (my $line = <$modulecmd_handle>) {
-	$modulecmd_text .= $line;
+        $modulecmd_text .= $line;
     }
     $modulecmd_handle->close();
     $class->{modulecmd} = $modulecmd_text;
     return($args);
+}
+
+=head2 C<Check_Input>
+
+Given a set of inputs, do a little checking to try to ensure that they
+are usable.
+
+This function is not used in many places and may need culling.  Either
+that or it should be improved a little and propagated.
+
+=cut
+sub Check_Input {
+    my ($class, %args) = @_;
+    my $file_list;
+    if (ref($args{files}) eq 'SCALAR' || ref($args{files}) eq '') {
+        if ($args{files} =~ /:/) {
+            my @tmp = split(/:/, $args{files});
+            $file_list = \@tmp;
+        } else {
+            $file_list->[0] = $args{files};
+        }
+    } elsif (ref($args{files}) eq 'ARRAY') {
+        $file_list = $args{files};
+    } else {
+        my $unknown_class = ref($args{files});
+        warn("I do not know type: ${unknown_class}.");
+    }
+    my $found = {};
+    foreach my $file (@{$file_list}) {
+        $found->{$file} = 0;
+        my $first_test = $file;
+        my $second_test = basename($file, $class->{suffixes});
+        my $third_test = basename($second_test, $class->{suffixes});
+        $found->{$file} = $found->{$file} + 1 if (-r $first_test);
+        $found->{$file} = $found->{$file} + 1 if (-r $second_test);
+        $found->{$file} = $found->{$file} + 1 if (-r $third_test);
+    }
+    for my $f (keys %{$found}) {
+        if ($found->{$f} == 0) {
+            die("Unable to find a file corresponding to $f.");
+        }
+    }
+    return($found);
 }
 
 sub Check_Libpath {
@@ -595,49 +639,6 @@ sub Get_Term {
     $Term::UI::VERBOSE = 0;
     $term->ornaments(0);
     return($term);
-}
-
-=head2 C<Check_Input>
-
-Given a set of inputs, do a little checking to try to ensure that they
-are usable.
-
-This function is not used in many places and may need culling.  Either
-that or it should be improved a little and propagated.
-
-=cut
-sub Check_Input {
-    my ($class, %args) = @_;
-    my $file_list;
-    if (ref($args{files}) eq 'SCALAR' || ref($args{files}) eq '') {
-        if ($args{files} =~ /:/) {
-            my @tmp = split(/:/, $args{files});
-            $file_list = \@tmp;
-        } else {
-            $file_list->[0] = $args{files};
-        }
-    } elsif (ref($args{files}) eq 'ARRAY') {
-        $file_list = $args{files};
-    } else {
-        my $unknown_class = ref($args{files});
-        warn("I do not know type: ${unknown_class}.");
-    }
-    my $found = {};
-    foreach my $file (@{$file_list}) {
-        $found->{$file} = 0;
-        my $first_test = $file;
-        my $second_test = basename($file, $class->{suffixes});
-        my $third_test = basename($second_test, $class->{suffixes});
-        $found->{$file} = $found->{$file} + 1 if (-r $first_test);
-        $found->{$file} = $found->{$file} + 1 if (-r $second_test);
-        $found->{$file} = $found->{$file} + 1 if (-r $third_test);
-    }
-    for my $f (keys %{$found}) {
-        if ($found->{$f} == 0) {
-            die("Unable to find a file corresponding to $f.");
-        }
-    }
-    return($found);
 }
 
 =head2 C<Get_Menus>
@@ -1389,7 +1390,7 @@ sub Load_Vars {
     return($num_changed);
 }
 
-=item C<Reset_Vars>
+=head2 C<Reset_Vars>
 
   Make sure that the environment is returned to a useful default state when perturbed.
 
@@ -1540,6 +1541,43 @@ sub Module_Loader {
         }
     }
     return(\@mod_lst);
+}
+
+=head2 C<Passthrough_Args>
+
+Add some flexibility in how arbitrary arguments get passed through to
+various tools invoked by cyoa.  Using this function you may have any
+number of extra args passed through to the final script by separating
+them.  If it sees a single letter, it will prefix a single dash.  If
+there are multiple letters it will double-dash it.  Conversely, if
+the arbitrary string starts with a dash, it will leave it alone.
+
+Thus:
+
+--arbitrary ':--funkytown=bob;L 10,very-sensitive'
+
+Will get the following arguments passed to your downstream tool:
+
+'--funkytown=bob -L 10 --very-sensitive'.
+
+=cut
+sub Passthrough_Args {
+    my ($class, %args) = @_;
+    my $argstring = $args{arbitrary};
+    my $new_string = '';
+    for my $arg (split /\,|:|\;/, $argstring) {
+        if ($arg =~ /^\w{1}$|^\w{1}\W+/) {
+            ## print "Single letter arg passthrough\n";
+            $arg = qq" -${arg} ";
+        } elsif ($arg =~ /^\w{2}/) {
+            ## print "Multi letter arg passthrough\n";
+            $arg = qq" --${arg} ";
+        } elsif ($arg =~ /^\-/) {
+            $arg= qq" ${arg} ";
+        }
+        $new_string .= $arg;
+    }
+    return($new_string);
 }
 
 =head2 C<Read_Genome_Fasta>

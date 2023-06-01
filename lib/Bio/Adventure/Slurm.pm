@@ -1241,7 +1241,10 @@ ${perl_file} \\
 
     my $module_string = '';
     if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-        $module_string = 'module add';
+        $module_string = 'if [[ -z "$(type module)" ]]; then
+  module() { eval $(/usr/bin/modulecmd bash $*); }; export -f module
+fi
+module add';
         for my $m (@{$options->{modules}}) {
             $module_string .= qq" ${m}";
         }
@@ -1347,9 +1350,8 @@ touch ${finished_file}
     }
 
     if ($options->{jdepends}) {
-        print "This job depends on $options->{jdepends}.\n\n";
+        print "This job depends on $options->{jdepends}.\n";
     }
-    print "\n";
     $job->{log} = $sbatch_log;
     $job->{job_id} = $job_id;
     $job->{pid} = $sbatch_pid;

@@ -100,6 +100,76 @@ cd \${start}
     return($casfinder);
 }
 
+
+sub Casoff {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jcpu => 4,
+        jprefix => '22',
+        jmem => 8,
+        mismatches => 2,
+        jwalltime => 8,
+        modules => ['casoff'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('cas-offinder');
+    die('Could not find casfinder in your PATH.') unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+
+    my $casfinder_exe_dir = dirname($check);
+    ## Hey, don't forget abs_path requires a file which already exists.
+    my $input_filename = basename($options->{input});
+    my $output_filename = qq"${input_filename}.tsv";
+    my $input_dir = dirname($options->{input});
+    my $input_dirname = basename($input_dir);
+    my $input_path = abs_path($input_dir);
+    $input_path = qq"${input_path}/${input_filename}";
+    my $output_dir = qq"outputs/$options->{jprefix}casfinder_${input_dirname}";
+    my $comment = qq!## This is a casfinder submission script
+!;
+    my $stdout = qq"${output_dir}/casfinder.stdout";
+    my $stderr = qq"${output_dir}/casfinder.stderr";
+    my $jstring = qq!mkdir -p ${output_dir}
+start=\$(pwd)
+cd ${output_dir}
+casfinder.sh $options->{input} \\
+  2>casfinder.stderr \\
+  1>casfinder.stdout
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "Casfinder succeeded."
+else
+  echo "Casfinder failed."
+  exit \$?
+fi
+cd \${start}
+!;
+    my $casfinder = $class->Submit(
+        comment => $comment,
+        jcpu => 2,
+        jdepends => $options->{jdepends},
+        jname => "casfinder_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jmem => 16,
+        modules => $options->{modules},
+        output => qq"${output_dir}/casfinder.tsv",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        jqueue => 'large',
+        stdout => $stdout,
+        stderr => $stderr,
+        jwalltime => $options->{jwalltime},);
+
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($casfinder);
+}
+
 =head2 C<Interproscan>
 
  Invoke interproscan on a set of sequences.
