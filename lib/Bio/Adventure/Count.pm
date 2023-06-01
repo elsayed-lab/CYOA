@@ -455,6 +455,7 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_args',],
+	jmem => 20,
         jname => '',
         jprefix => '',
         modules => ['htseq'],);

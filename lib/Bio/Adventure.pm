@@ -191,7 +191,7 @@ has jbasename => (is => 'rw', default => basename(cwd())); ## Job basename
 has jcpu => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jgpu => (is => 'rw', default => 0);
 has jdepends => (is => 'rw', default => '');  ## Flag to start a dependency chain
-has jmem => (is => 'rw', default => 12); ## Number of gigs of ram to request
+has jmem => (is => 'rw', default => 20); ## Number of gigs of ram to request
 has jname => (is => 'rw', default => undef); ## Job name on the cluster
 has jnice => (is => 'rw', default => 0); ## Set the niceness of a job, if it starts positive, we can set a lower nice to preempt
 has jpartition => (is => 'rw', default => 'dpart');
