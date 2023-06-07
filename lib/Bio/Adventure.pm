@@ -1766,21 +1766,17 @@ sub Submit {
     if ($options->{language} eq 'bash') {
         my $module_string = '';
         if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-            print "GOT MODULES: $options->{modules}\n";
             $module_string = 'mod=$( { type -t module || true; } )
 if [[ -z "${mod}" ]]; then
-  echo "The module command does not exist, adding it."
   module() {
     eval $(/usr/bin/modulecmd bash $*);
   }
   export -f module
 fi
-echo "Added modules."
 module add';
             for my $m (@{$options->{modules}}) {
                 $module_string .= qq" ${m}";
             }
-            print "TESTME: Now modules: ${module_string}\n";
             $options->{module_string} = $module_string;
         }
     }

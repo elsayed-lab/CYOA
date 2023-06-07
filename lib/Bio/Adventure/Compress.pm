@@ -8,6 +8,8 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use File::Which qw"which";
+
 use File::Basename;
 
 =head1 NAME
