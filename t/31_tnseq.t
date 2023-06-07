@@ -1,18 +1,23 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Copy qw"copy move";
+use File::Copy qw"cp mv copy move";
 use File::Path qw"remove_tree make_path rmtree";
-use File::ShareDir qw"dist_file";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
+my $start_dir = dist_dir('Bio-Adventure');
+my $input = 'consolidated.fastq.xz';
+my $input_file = qq"${start_dir}/${input}";
+my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
 my $new = 'test_output';
 mkdir($new);
 chdir($new);
-my $input = 'consolidated.fastq.xz';
-my $input_file = dist_file('Bio-Adventure', $input);
 if (!-r $input) {
     ok(copy($input_file, $input), 'Copying data.');
 }

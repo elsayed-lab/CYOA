@@ -1239,16 +1239,6 @@ ${perl_file} \\
     my $nice_string = '';
     $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
 
-    my $module_string = '';
-    if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-        $module_string = 'if [[ -z "$(type module)" ]]; then
-  module() { eval $(/usr/bin/modulecmd bash $*); }; export -f module
-fi
-module add';
-        for my $m (@{$options->{modules}}) {
-            $module_string .= qq" ${m}";
-        }
-    }
     my $array_string = '';
     $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
     my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
@@ -1273,6 +1263,7 @@ set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 ?;
+    $script_start .= $options->{module_string} if ($options->{module_string});
 
     my $script_end = qq!
 ## The following lines give status codes and some logging
@@ -1303,7 +1294,6 @@ touch ${finished_file}
     $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
     ## The prescript contains the module() definition when needed.
     ## So put that after it.
-    $total_script_string .= qq"${module_string}\n" if ($module_string);
 
     $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
     $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});

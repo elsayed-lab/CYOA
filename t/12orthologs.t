@@ -1,19 +1,22 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Copy qw"cp";
+use File::Copy qw"cp mv";
 use File::Path qw"remove_tree make_path rmtree";
-use File::ShareDir qw"dist_file";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 
 my $start = getcwd();
 my $new = 'test_output';
 mkdir($new);
 chdir($new);
+my $start_dir = dist_dir('Bio-Adventure');
 
-my $groupa_strep = dist_file('Bio-Adventure', 'genome/mgas_5005.gb.xz');
-my $groupb_strep = dist_file('Bio-Adventure', 'genome/sagalactiae_cjb111.gb.xz');
+my $groupa_strep = qq"${start_dir}/genome/mgas_5005.gb.xz";
+my $groupb_strep = qq"${start_dir}/genome/sagalactiae_cjb111.gb.xz";
 my $cyoa = Bio::Adventure->new(
     cluster => 0,
     basedir => cwd(),

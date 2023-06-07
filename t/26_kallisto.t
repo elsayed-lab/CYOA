@@ -1,11 +1,17 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Copy qw"cp";
+use File::Copy qw"cp mv";
 use File::Path qw"remove_tree make_path rmtree";
-use File::ShareDir qw"dist_file";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
+my $start_dir = dist_dir('Bio-Adventure');
+my $input_file = qq"${start_dir}/test_forward.fastq.gz";
+my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
 my $new = 'test_output';
@@ -13,9 +19,6 @@ mkdir($new);
 chdir($new);
 
 make_path('genome/indexes'); ## Make a directory for the phix indexes.
-my $input_file = dist_file('Bio-Adventure', 'test_forward.fastq.gz');
-my $phix_fasta = dist_file('Bio-Adventure', 'genome/phix.fasta');
-my $phix_gff = dist_file('Bio-Adventure', 'genome/phix.gff');
 if (!-r 'test_forward.fastq.gz') {
     ok(cp($input_file, 'test_forward.fastq.gz'), 'Copying data.');
 }
@@ -55,7 +58,7 @@ ok($kallisto, 'Run Kallisto');
 my $kallisto_file = $kallisto->{output};
 ok(-f $kallisto_file, qq"The kallisto otuput file was created: ${kallisto_file}.");
 
-$expected = qq"target_id\tlength\teff_length\test_counts\ttpm
+my $expected = qq"target_id\tlength\teff_length\test_counts\ttpm
 NC_001422_phiX174p01_1\t1406\t1125.2\t8.50998\t189149
 NC_001422_phiX174p01_2\t136\t96.9989\t0\t0
 NC_001422_phiX174p02_3\t890\t735.894\t0.281695\t9573.51
@@ -72,7 +75,7 @@ NC_001422_phiX174p10_13\t528\t488.999\t0\t0
 NC_001422_phiX174p11_14\t987\t909.775\t1.63894\t45054.3
 ";
 
-$actual = qx"less ${kallisto_file}";
+my $actual = qx"less ${kallisto_file}";
 unless(ok($expected eq $actual, 'Is the resulting count table as expected?')) {
     my($old, $new) = diff($expected, $actual);
     diag("--\n${old}\n--\n${new}\n");

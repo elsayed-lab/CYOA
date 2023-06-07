@@ -160,7 +160,7 @@ has gff => (is => 'rw', default => undef); ## Feature file to read/write
 has gff_tag => (is => 'rw', default => 'gene_id'); ## Likely redundant with htseq_id
 ## Ahh I remember, htseq_type was added to facilitate performing multiple htseq counts on multiple gff files.
 ## Notably the interCDS for bacterial genomes.
-has gff_type => (is => 'rw', default => ''); ## When blank, do it on the whole gff file, otherwise use that suffix.
+has gff_type => (is => 'rw', default => 'gene'); ## When blank, do it on the whole gff file, otherwise use that suffix.
 has gff_cds_parent_type => (is => 'rw', default => 'mRNA');
 has gff_cds_type => (is => 'rw', default => 'CDS');
 has help => (is => 'rw', default => undef); ## Ask for help?
@@ -224,6 +224,7 @@ has minlength => (is => 'rw', default => 8); ## Minimum length when trimming
 has mirbase_data => (is => 'rw', default => undef); ## miRbase annotation dataset.
 has modulecmd => (is => 'rw', default => '');
 has modules => (is => 'rw', default => undef); ## Environment modules to load
+has module_string => (is => 'rw', default => '');
 has option_file => (is => 'rw', default => undef);
 has orientation => (is => 'rw', default => 'start'); ## Default orientation when normalizing riboseq reads
 has outgroup => (is => 'rw', default => undef); ## Outgroup for phylogenetic tools
@@ -1762,9 +1763,26 @@ sub Submit {
     my $options = $class->Get_Vars(
         args => \%args);
     my $modulecmd_check = $class->{modulecmd};
-    if ($options->{language} eq 'bash' && !$modulecmd_check) {
-        $options->{prescript} .= 'module() { eval $(/usr/bin/modulecmd bash $*); }; export -f module';
-        ## $options->{prescript} = qq"source $ENV{HOME}/.bashrc";
+    if ($options->{language} eq 'bash') {
+        my $module_string = '';
+        if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
+            print "GOT MODULES: $options->{modules}\n";
+            $module_string = 'mod=$( { type -t module || true; } )
+if [[ -z "${mod}" ]]; then
+  echo "The module command does not exist, adding it."
+  module() {
+    eval $(/usr/bin/modulecmd bash $*);
+  }
+  export -f module
+fi
+echo "Added modules."
+module add';
+            for my $m (@{$options->{modules}}) {
+                $module_string .= qq" ${m}";
+            }
+            print "TESTME: Now modules: ${module_string}\n";
+            $options->{module_string} = $module_string;
+        }
     }
 
     ## If we are invoking an indirect job, we need a way to serialize the options

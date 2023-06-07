@@ -81,7 +81,7 @@ sub Freebayes_SNP_Search {
         qual => 10,
         max_value => undef,
         min_value => 0.5,
-        modules => ['gatk', 'freebayes', 'libgsl', 'libhts', 'samtools', 'bcftools', 'vcftools'],
+        modules => ['gatk', 'freebayes', 'samtools', 'bcftools', 'vcftools'],
         vcf_cutoff => 5,
         jmem => 36,
         jcpu => 4,

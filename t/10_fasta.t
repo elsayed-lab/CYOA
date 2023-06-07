@@ -1,4 +1,5 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Cwd;
 use File::Copy qw"cp mv";
@@ -6,6 +7,7 @@ use File::Path qw"remove_tree make_path rmtree";
 use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
+my $start_dir = dist_dir('Bio-Adventure');
 
 use Bio::Adventure;
 
@@ -13,7 +15,7 @@ my $start = getcwd();
 my $new = 'test_output';
 mkdir($new);
 chdir($new);
-my $start_dir = dist_dir('Bio-Adventure');
+
 
 my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
 ok(-r $phix_fasta, 'Have input fasta.');
@@ -76,7 +78,7 @@ my $expected = qq"Name
 ";
 
 my $test_cmd = qq"less ${parsed_file} | awk '{print \$2}' | head --lines 10";
-$actual = qx"${test_cmd}";
+my $actual = qx"${test_cmd}";
 
 unless(ok($expected eq $actual, 'Is the resulting table of hits expected?')) {
     my($old, $new) = diff($expected, $actual);

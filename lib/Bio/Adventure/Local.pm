@@ -135,16 +135,7 @@ ${perl_file} \\
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
-    my $module_string = '';
-    if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-        $module_string = 'module add';
-        for my $m (@{$options->{modules}}) {
-            $module_string .= qq" ${m}";
-        }
-    }
-
     my $script_start = qq?#!$options->{shell}
-${module_string}
 cd $options->{basedir}
 set -o errexit
 set -o errtrace
@@ -153,6 +144,7 @@ export LESS='$ENV{LESS}'
 echo "## Started ${script_base} at \$(date) on \$(hostname)." >> ${bash_log}
 
 ?;
+    $script_start .= $options->{module_string} if ($options->{module_string});
     my $script_end = qq!
 ## The following lines give status codes and some logging
 echo "Job status:\$?" >> ${bash_log}

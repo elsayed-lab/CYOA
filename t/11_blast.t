@@ -1,10 +1,12 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Cwd;
-use File::Copy qw"cp";
+use File::Copy qw"cp mv";
 use File::Path qw"remove_tree make_path rmtree";
-use File::ShareDir qw"dist_file";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 use Bio::SeqIO;
 use Bio::Adventure;
 
@@ -13,8 +15,10 @@ my $new = 'test_output';
 mkdir($new);
 chdir($new);
 
-my $phix_fasta = dist_file('Bio-Adventure', 'genome/phix.fasta');
-my $phix_gff = dist_file('Bio-Adventure', 'genome/phix.gff');
+my $start_dir = dist_dir('Bio-Adventure');
+
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
 my $phix_local = 'genome/phix.fasta';
 my $gff_local = 'genome/phix.gff';
 my $cds_local = 'phix_gene_gene_id_nt.fasta';

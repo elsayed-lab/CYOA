@@ -1,11 +1,18 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Copy qw"cp";
+use File::Copy qw"cp mv";
 use File::Path qw"remove_tree make_path rmtree";
-use File::ShareDir qw"dist_file";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
+my $start_dir = dist_dir('Bio-Adventure');
+my $input_r1 = qq"${start_dir}/r1.fastq.xz";
+my $input_r2 = qq"${start_dir}/r2.fastq.xz";
+my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
 my $a = 'test_output';
@@ -16,9 +23,7 @@ mkdir($a);
 chdir($a);
 
 ## Copy the reads for running the tests.
-my $input_r1 = dist_file('Bio-Adventure', 'r1.fastq.xz');
 ok(cp($input_r1, 'r1.fastq.xz'), 'Copying r1.') if (!-r 'r1.fastq.xz');
-my $input_r2 = dist_file('Bio-Adventure', 'r2.fastq.xz');
 ok(cp($input_r2, 'r2.fastq.xz'), 'Copying r2.') if (!-r 'r2.fastq.xz');
 
 ## Invoke the pipeline, keep it within our test directory with basedir.
