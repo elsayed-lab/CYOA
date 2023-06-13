@@ -10,7 +10,7 @@ use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
 my $input_file = qq"${start_dir}/test_forward.fastq.gz";
-my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
 my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
@@ -22,15 +22,11 @@ make_path('genome/indexes'); ## Make a directory for the phix indexes.
 if (!-r 'test_forward.fastq.gz') {
     ok(cp($input_file, 'test_forward.fastq.gz'), 'Copying data.');
 }
-
 if (!-r 'genome/phix.fasta') {
     ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
-    ## my $uncompressed = qx"gunzip genome/phix.fastq.gz && mv genome/phix.fasta.gz genome/phix.fasta";
 }
-
 if (!-r 'genome/phix.gff') {
     ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
-    ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
 my $cyoa = Bio::Adventure->new(
@@ -43,7 +39,6 @@ my $cyoa = Bio::Adventure->new(
     stranded => 'no',
     vcf_cutoff => 1,
     jprefix => '30');
-
 my $index = $cyoa->Bio::Adventure::Index::BT2_Index(input => $phix_fasta,);
 my $variant = $cyoa->Bio::Adventure::SNP::Align_SNP_Search(
     input => qq"test_forward.fastq.gz",);

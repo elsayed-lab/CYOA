@@ -10,7 +10,7 @@ use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
 my $input_file = qq"${start_dir}/test_forward.fastq.gz";
-my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
 my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
@@ -66,7 +66,7 @@ my $aln_bam = $bwa->{samtools_aln}->{output};
 ok(-f $htseq_mem, "htseq output from the mem alignment was created: ${htseq_mem}");
 ok(-f $aln_bam, "samtools converted the sam to a bam file: ${aln_bam}");
 
-$expected = qq"phiX174p01\t5
+my $expected = qq"phiX174p01\t5
 phiX174p02\t0
 phiX174p03\t0
 phiX174p04\t0
@@ -83,7 +83,7 @@ __too_low_aQual\t0
 __not_aligned\t9951
 __alignment_not_unique\t0
 ";
-$actual = qx"less ${htseq_mem}";
+my $actual = qx"less ${htseq_mem}";
 unless(ok($expected eq $actual, "Check bwa count tables mem version.")) {
     my ($old, $new) = diff($expected, $actual);
     diag("expected:\n$old\nactual:\n$new\n");

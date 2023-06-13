@@ -53,7 +53,7 @@ ok(-f $htseq_file, 'The count table was created.');
 
 my $actual = $cyoa->Last_Stat(input => 'outputs/bowtie_stats.csv');
 ok($actual, 'Collect Bowtie1 Statistics');
-my $expected = qq"test_output-v0M1.stderr,v0M1,0,10000,0,9970,0,outputs/22bowtie_phix/test_output-v0M1_gene_sno_gene_gene_id.count.xz";
+my $expected = qq"test_output-v0M1.stderr,v0M1,0,10000,0,9970,0,outputs/22bowtie_phix/test_output-v0M1_sno_gene_gene_id.count.xz";
 unless(ok($expected eq $actual, 'Are the bowtie stats as expected?')) {
     print "IN UNLESS?\n";
     my ($old, $new) = diff($expected, $actual);

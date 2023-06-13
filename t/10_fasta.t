@@ -8,6 +8,8 @@ use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 use Bio::Adventure;
 
@@ -16,11 +18,7 @@ my $new = 'test_output';
 mkdir($new);
 chdir($new);
 
-
-my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
 ok(-r $phix_fasta, 'Have input fasta.');
-print "TESTME: $phix_fasta\n";
-my $phix_gff = qq"${start_dir}/genome/phix.gff";
 ok(-r $phix_gff, 'Have input gff.');
 my $phix_local = 'genome/phix.fasta';
 my $gff_local = 'genome/phix.gff';

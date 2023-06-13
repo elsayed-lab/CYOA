@@ -137,7 +137,7 @@ sub BWA_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jprefix => '',
+        jprefix => '15',
         modules => ['bwa'],);
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fa";
@@ -150,7 +150,7 @@ sub BWA_Index {
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes
-ln -sf ../${species}.fa .
+ln -sf $options->{input} ${species}.fa
 bwa index ${species}.fa \\
   2>${stderr} \\
   1>${stdout}
@@ -169,7 +169,7 @@ cd \$start
     my $bwa_index = $class->Submit(
         comment => $comment,
         jdepends => $options->{jdepends},
-        jname => qq"$options->{jprefix}bwaidx",
+        jname => 'bwaidx',
         jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
@@ -399,7 +399,7 @@ sub Kallisto_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         modules => ['kallisto'],
-        jprefix => '45',
+        jprefix => '15',
         required => ['input'],);
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
     my $species = $cds;
@@ -414,7 +414,7 @@ sub Kallisto_Index {
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
     my $input = File::Spec->rel2abs($options->{input});
-    my $jstring = qq!mkdir -i ${output_dir}
+    my $jstring = qq!mkdir -p ${output_dir}
 kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
   ${input} \\
   2>${stderr} 1>${stdout}
@@ -608,6 +608,7 @@ sub Salmon_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        decoy => 1,
         modules => ['salmon'],);
     my $libtype = $options->{libtype};
     my $genome = File::Spec->rel2abs($options->{input});
@@ -635,7 +636,7 @@ sub Salmon_Index {
     my $index_input = $options->{input};
     my $index_string = qq!
 salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
-    if (-f $species_location or -f $species_file) {
+    if ($options->{decoy}) {
         if (!-f $species_location) {
             cp($species_file, $species_location);
         }
@@ -644,21 +645,19 @@ salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${specie
 less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy_location}.txt
 !;
         $index_input = $decoy_location;
-        $index_string = qq!mkdir -p ${output_dir}
+        $jstring = qq!${decoy_copy_string}
+mkdir -p ${output_dir}
 salmon index \\
   -t ${index_input} \\
   -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index \\
-!;
-        $jstring = qq!${decoy_copy_string}
-${index_string} \\
   --decoys ${decoy_location}.txt \\
   2>${stderr} 1>${stdout}
 !;
     } else {
         warn("This function would prefer to make a decoy aware index set which requires the full genome.");
-        say("Waiting 10 seconds to see if you want to quit and gather that genome,
+        say("Waiting 3 seconds to see if you want to quit and gather that genome,
 otherwise a decoy-less index will be generated.");
-        sleep(10);
+        sleep(3);
         $jstring = qq!${index_string} \\
   2>${stderr} 1>${stdout}
 !;

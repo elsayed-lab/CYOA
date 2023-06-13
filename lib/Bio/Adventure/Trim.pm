@@ -533,7 +533,6 @@ ${exe} \\
 !;
     my $compress_string = '';
     if ($options->{compress}) {
-        $output = qq"${output}.xz";
         $compress_string = qq"
 ## Compress the trimmed reads.
 xz -9e -f ${output}

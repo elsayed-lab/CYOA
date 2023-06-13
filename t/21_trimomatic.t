@@ -1,11 +1,15 @@
 # -*-Perl-*-
+use strict;
 use Test::More qw"no_plan";
 use Bio::Adventure;
 use Cwd;
-use File::Copy qw"cp";
-use File::Path qw"remove_tree";
-use File::ShareDir qw"dist_file";
+use File::Copy qw"cp mv";
+use File::Path qw"remove_tree make_path rmtree";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
+my $start_dir = dist_dir('Bio-Adventure');
+my $input_file = qq"${start_dir}/test_forward.fastq.gz";
 
 my $start = getcwd();
 ##my $new = tempdir(CLEANUP => 0, TEMPLATE => 'test_XXXX');
@@ -14,7 +18,6 @@ mkdir($new);
 chdir($new);
 my $cyoa = Bio::Adventure->new(cluster => 0, basedir => cwd());
 
-my $input_file = dist_file('Bio-Adventure', 'test_forward.fastq.gz');
 my $trimmer = $cyoa->Bio::Adventure::Trim::Trimomatic_Single(input => $input_file);
 ok($trimmer, 'Run Trimomatic');
 

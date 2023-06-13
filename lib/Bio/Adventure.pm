@@ -145,6 +145,7 @@ has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has coverage_tag => (is => 'rw', default => 'DP');
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
+has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
@@ -232,6 +233,7 @@ has output => (is => 'rw', default => undef); ## Generic output argument
 has outdir => (is => 'rw', default => undef);
 has overlap => (is => 'rw', default => 20);
 has paired => (is => 'rw', default => 1); ## Is the input paired?
+has pdata => (is => 'rw', default => 'options.pdata');
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.
 has prescript => (is => 'rw', default => undef); ## String to put before a cluster job.

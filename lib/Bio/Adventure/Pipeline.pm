@@ -983,7 +983,7 @@ sub Phage_Assemble {
     my $final_locustag = basename(cwd());
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting trimmer with compress == 0.\n";
+    print "${prefix}: Starting trimmer.\n";
     my $trim = $class->Bio::Adventure::Trim::Trimomatic(
         compress => 0,
         input => $options->{input},
@@ -994,7 +994,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting fastqc.\n";
+    print "${prefix}: Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
         input => $trim->{output},
         jdepends => $last_job,
@@ -1005,7 +1005,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting read correction.\n";
+    print "${prefix}: Starting read correction.\n";
     my $correct = $class->Bio::Adventure::Trim::Racer(
         compress => 0,
         input => $trim->{output},
@@ -1016,7 +1016,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Classifying sequences with Kraken using the standard database.\n";
+    print "${prefix}: Classifying sequences with Kraken using the standard database.\n";
     my $kraken_std = $class->Bio::Adventure::Count::Kraken(
         input => $correct->{output},
         jdepends => $last_job,
@@ -1029,7 +1029,7 @@ sub Phage_Assemble {
     my $filter = {};
     if ($options->{host_filter}) {
         $prefix = sprintf("%02d", ($prefix + 1));
-        print "\n${prefix}: Using Kraken results to filter likely host sequences.\n";
+        print "${prefix}: Using Kraken results to filter likely host sequences.\n";
         $filter = $class->Bio::Adventure::Phage::Filter_Host_Kraken(
             htseq_stranded => 'no',
             input => $kraken_std->{output},
@@ -1040,12 +1040,12 @@ sub Phage_Assemble {
         $last_job = $filter->{job_id};
         sleep($options->{jsleep});
     } else {
-        print "\n: Not performing host filter.\n";
+        print "Not performing host filter.\n";
         $filter = $correct;
     }
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Classifying sequences with Kraken using the viral database.\n";
+    print "${prefix}: Classifying sequences with Kraken using the viral database.\n";
     my $kraken = $class->Bio::Adventure::Count::Kraken(
         jdepends => $last_job,
         input => $filter->{output},
@@ -1056,7 +1056,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Creating initial assembly with Unicycler.\n";
+    print "${prefix}: Creating initial assembly with Unicycler.\n";
     my $assemble = $class->Bio::Adventure::Assembly::Unicycler(
         input => $filter->{output},
         jdepends => $last_job,
@@ -1066,7 +1066,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Depth filtering initial assembly.\n";
+    print "${prefix}: Depth filtering initial assembly.\n";
     my $depth_filtered = $class->Bio::Adventure::Assembly::Unicycler_Filter_Depth(
         input => $assemble->{output},
         jdepends => $last_job,
@@ -1076,7 +1076,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running virus ICTV classifier.\n";
+    print "${prefix}: Running virus ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
         input => $depth_filtered->{output},
         jdepends => $last_job,
@@ -1086,7 +1086,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Setting the Rosalind strand to the one with the most ORFs.\n";
+    print "${prefix}: Setting the Rosalind strand to the one with the most ORFs.\n";
     my $rosalindplus = $class->Bio::Adventure::Annotation::Rosalind_Plus(
         input => $depth_filtered->{output},
         jdepends => $last_job,
@@ -1096,7 +1096,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Using Phageterm to reorient the assembly to the terminii.\n";
+    print "${prefix}: Using Phageterm to reorient the assembly to the terminii.\n";
     my $phageterm = $class->Bio::Adventure::Phage::Phageterm(
         input => $filter->{output},
         jdepends => $last_job,
@@ -1107,7 +1107,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running phastaf.\n";
+    print "${prefix}: Running phastaf.\n";
     my $phastaf = $class->Bio::Adventure::Phage::Phastaf(
         input => $depth_filtered->{output},
         input_phageterm => $phageterm->{output_dtr},
@@ -1118,7 +1118,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Checking coverage.\n";
+    print "${prefix}: Checking coverage.\n";
     my $coverage = $class->Bio::Adventure::Assembly::Assembly_Coverage(
         input => $filter->{output},
         jdepends => $last_job,
@@ -1129,7 +1129,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing reordering by putative terminase if phageterm failed.\n";
+    print "${prefix}: Performing reordering by putative terminase if phageterm failed.\n";
     my $termreorder = $class->Bio::Adventure::Phage::Terminase_ORF_Reorder(
         fasta_tool => 'fastx36',
         input => $phageterm->{output},
@@ -1143,7 +1143,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Performing initial prokka annotation.\n";
+    print "${prefix}: Performing initial prokka annotation.\n";
     my $prokka = $class->Bio::Adventure::Annotation::Prokka(
         input => $termreorder->{output},
         jdepends => $last_job,
@@ -1154,7 +1154,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running prodigal to get RBSes.\n";
+    print "${prefix}: Running prodigal to get RBSes.\n";
     my $prodigal = $class->Bio::Adventure::Feature_Prediction::Prodigal(
         input => $prokka->{output_assembly},
         jdepends => $last_job,
@@ -1164,7 +1164,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running glimmer for less stringent ORFs.\n";
+    print "${prefix}: Running glimmer for less stringent ORFs.\n";
     my $glimmer = $class->Bio::Adventure::Feature_Prediction::Glimmer_Single(
         input => $prokka->{output_assembly},
         jdepends => $last_job,
@@ -1173,7 +1173,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running phanotate.\n";
+    print "${prefix}: Running phanotate.\n";
     my $phanotate = $class->Bio::Adventure::Feature_Prediction::Phanotate(
         input => $prokka->{output_assembly},
         jdepends => $last_job,
@@ -1182,7 +1182,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Merging the CDS predictions and writing an initial gbk file.\n";
+    print "${prefix}: Merging the CDS predictions and writing an initial gbk file.\n";
     my $cds_merge = $class->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions(
         input => $prokka->{output_genbank},
         input_glimmer => $glimmer->{output},
@@ -1194,7 +1194,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running Jellyfish on the assembly.\n";
+    print "${prefix}: Running Jellyfish on the assembly.\n";
     my $jelly = $class->Bio::Adventure::Count::Jellyfish(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1204,7 +1204,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running aragorn on the assembly to search for tmRNAs.\n";
+    print "${prefix}: Running aragorn on the assembly to search for tmRNAs.\n";
     my $aragorn = $class->Bio::Adventure::Feature_Prediction::Aragorn(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1214,7 +1214,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running relaxed tRNAscan to search for tmRNAs.\n";
+    print "${prefix}: Running relaxed tRNAscan to search for tmRNAs.\n";
     my $trnascan = $class->Bio::Adventure::Feature_Prediction::tRNAScan(
         arbitrary => ' -r ',
         input => $prokka->{output_assembly},
@@ -1226,7 +1226,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Invoking trinotate.\n";
+    print "${prefix}: Invoking trinotate.\n";
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         config => 'phage.txt',
         input => $cds_merge->{output_cds},
@@ -1237,7 +1237,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for resistance genes with abricate.\n";
+    print "${prefix}: Searching for resistance genes with abricate.\n";
     my $abricate = $class->Bio::Adventure::Resistance::Abricate(
         input => $cds_merge->{output_cds},
         jdepends => $last_job,
@@ -1247,7 +1247,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running interproscan.\n";
+    print "${prefix}: Running interproscan.\n";
     my $interpro = $class->Bio::Adventure::Annotation::Interproscan(
         input => $cds_merge->{output_faa},
         jdepends => $last_job,
@@ -1257,7 +1257,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for Restriction Sites.\n";
+    print "${prefix}: Searching for Restriction Sites.\n";
     my $re_search = $class->Bio::Adventure::Phage::Restriction_Catalog(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1267,7 +1267,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running caical against the assumed host.\n";
+    print "${prefix}: Running caical against the assumed host.\n";
     my $caical = $class->Bio::Adventure::Phage::Caical(
         input => $cds_merge->{output_cds},
         jdepends => $last_job,
@@ -1278,7 +1278,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for Phage promoters.\n";
+    print "${prefix}: Searching for Phage promoters.\n";
     my $phagepromoter = $class->Bio::Adventure::Feature_Prediction::Phagepromoter(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1288,7 +1288,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Searching for rho terminators.\n";
+    print "${prefix}: Searching for rho terminators.\n";
     my $rhopredict = $class->Bio::Adventure::Feature_Prediction::Rho_Predict(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1298,7 +1298,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Using bacphlip to classify this phage.\n";
+    print "${prefix}: Using bacphlip to classify this phage.\n";
     my $bacphlip = $class->Bio::Adventure::Phage::Bacphlip(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1308,7 +1308,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running Vienna RNAfold on the assembly.\n";
+    print "${prefix}: Running Vienna RNAfold on the assembly.\n";
     my $vienna = $class->Bio::Adventure::Structure::RNAFold_Windows(
         input => $cds_merge->{output_fsa},
         jdepends => $last_job,
@@ -1319,7 +1319,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Merging annotation files.\n";
+    print "${prefix}: Merging annotation files.\n";
     my $merge = $class->Bio::Adventure::Metadata::Merge_Annotations(
         input_fsa => $cds_merge->{output_fsa},
         input_genbank => $cds_merge->{output_gbk},
@@ -1339,7 +1339,7 @@ sub Phage_Assemble {
 
     ## An extra invocation of merge_annotations which will not modify the final gbk file.
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Merging annotation files a second time.\n";
+    print "${prefix}: Merging annotation files a second time.\n";
     my $merge2 = $class->Bio::Adventure::Metadata::Merge_Annotations(
         evalue => 0,
         input_fsa => $cds_merge->{output_fsa},
@@ -1362,7 +1362,7 @@ sub Phage_Assemble {
     $last_job = $merge2->{job_id};
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Running cgview.\n";
+    print "${prefix}: Running cgview.\n";
     my $cgview = $class->Bio::Adventure::Visualization::CGView(
         input => $merge->{output_gbk},
         jdepends => $last_job,
@@ -1371,7 +1371,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Collecting output files.\n";
+    print "${prefix}: Collecting output files.\n";
     my $collect = $class->Bio::Adventure::Metadata::Collect_Assembly(
         input_fsa => $merge->{output_fsa},
         input_genbank => $merge->{output_gbk},
@@ -1389,12 +1389,14 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Compressing raw filtered files.\n";
+    print "${prefix}: Compressing raw filtered files.\n";
     my $compress_input = $filter->{output};
     ## unalcon_GCF_002813445.1_genome.1.fastq as an example file.
     if (defined($filter->{output_unaligned})) {
         $compress_input .= "qq:$filter->{output_unaligned}";
     }
+    $prefix = sprintf("%02d", ($prefix + 1));
+    print "${prefix}: Compressing filtered fastq files.\n";
     my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
         input => qq"$filter->{output}:$filter->{output_unaligned}",
         jdepends => $last_job,
@@ -1404,7 +1406,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Compressing corrected fastq files.\n";
+    print "${prefix}: Compressing corrected fastq files.\n";
     my $compress_corrected = $class->Bio::Adventure::Compress::Compress(
         input => $correct->{output},
         jdepends => $last_job,
@@ -1414,7 +1416,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Compressing trimmed files.\n";
+    print "${prefix}: Compressing trimmed files.\n";
     my $compress_trimmed = $class->Bio::Adventure::Compress::Compress(
         input => $trim->{output},
         jdepends => $last_job,
@@ -1424,7 +1426,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Cleaning fastq files.\n";
+    print "${prefix}: Cleaning fastq files.\n";
     my $clean_phage = $class->Bio::Adventure::Cleanup::Cleanup_Phage_Assembly(
         jdepends => $last_job,
         jname => 'cleanphage',

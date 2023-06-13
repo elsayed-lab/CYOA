@@ -1116,14 +1116,16 @@ sub Kallisto {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input'],
+        jcpu => 8,
+        jwalltime => '8:00:00',
         jmem => 24,
         jprefix => '46',
+        required => ['input', 'species',],
         modules => ['kallisto'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $check = which('kallisto');
     die('Could not find kallisto in your PATH.') unless($check);
-
+    die('No species provided.') unless($options->{species});
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1407,7 +1409,7 @@ salmon quant -i ${sa_reflib} \\
         input => $sa_input,
         jdepends => $options->{jdepends},
         jname => qq"${jname}",
-        jprefix => '30',
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
         modules => $options->{modules},

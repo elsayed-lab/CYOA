@@ -487,7 +487,7 @@ sub OrthoFinder {
         modules => ['orthofinder'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
 
-    my $jname = qq'orthofinder';
+    my $jname = qq'$options->{jprefix}orthofinder';
     my $outdir = qq"outputs/$options->{jprefix}orthofinder";
     make_path(qq"${outdir}/input");
     if (-d "${outdir}/output") {
@@ -495,8 +495,8 @@ sub OrthoFinder {
         my $move_path = tmpnam();
         my $move_name = basename($move_path);
         my $new_dir = qq"${outdir}/output_${move_name}";
-        print "Moving from ${outdir}/output to ${outdir}/${new_dir}\n";
-        my $moved = qx!mv "${outdir}/output", "${outdir}/${new_dir}"!;
+        print "Moving from ${outdir}/output to ${new_dir}\n";
+        my $moved = qx!mv "${outdir}/output" "${new_dir}"!;
     }
 
     my $month_date = strftime "%h%d", localtime;
@@ -518,8 +518,8 @@ sub OrthoFinder {
 orthofinder -f $options->{input} \\
   -o ${outdir}/output \\
   2>>${stderr} 1>>${stdout}
-mv ${outdir}/outputs/Results_${month_date}/* ${outdir}/outputs
-rmdir ${outdir}/outputs/Results_${month_date}
+mv ${outdir}/output/Results_${month_date}/* ${outdir}/output
+rmdir ${outdir}/output/Results_${month_date}
 !;
     my $ortho = $class->Submit(
         comment => $comment,
@@ -532,14 +532,15 @@ rmdir ${outdir}/outputs/Results_${month_date}
         stdout => $stdout,
         jmem => $options->{jmem},
         modules => $options->{modules},);
-    my $orthofinder_all_output = qq"${outdir}/outputs/Orthogroups/Orthogroups.tsv";
-    my $orthofinder_single_output = qq"${outdir}/outputs/Orthogroups/Orthogroups_SingleCopy_Orthologues.txt";
+    my $orthofinder_all_output = qq"${outdir}/output/Orthogroups/Orthogroups.tsv";
+    my $orthofinder_single_output = qq"${outdir}/output/Orthogroups/Orthogroups_SingleCopyOrthologues.txt";
     my $namer_out = qq"${outdir}/orthogroups_all_named.tsv";
     my $single_out = qq"${outdir}/orthogroups_single_named.tsv";
     my $fasta_dir = dirname($options->{input});
     $comment = qq'## Extracting ortholog names.';
     $stdout = qq"${outdir}/name_orthogroups.stdout";
     $stderr = qq"${outdir}/name_orthogroups.stderr";
+    $jname = qq'$options->{jprefix}orthofinder_namer';
     $jstring = qq!use Bio::Adventure::Align;
 my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
   all_input => '$orthofinder_all_output',
@@ -557,6 +558,7 @@ my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
         stderr => $stderr,
         jstring => $jstring,
         jdepends => $ortho->{job_id},
+        jname => $jname,
         language => 'perl');
 
     return($ortho);
@@ -574,6 +576,7 @@ sub Orthofinder_Names_Worker {
     my $single_groups = $options->{single_input};
     my $outdir = dirname($all_groups);
     my $all_out = qq"${outdir}/all_orthogroups_named.tsv";
+    print "TESTME: $all_out\n";
     my $single_out = qq"${outdir}/single_orthogroups_named.tsv";
     my $fasta_dir = $options->{fasta_dir};
     my @input_files = glob("${fasta_dir}/*.fa*");
@@ -689,7 +692,6 @@ sub Orthofinder_Names_Worker {
     $orth->close();
     $new_orth->close();
 
-    my $single_orth = FileHandle->new("<${single_groups}");
     my $new_single_orth = FileHandle->new(">${single_out}");
 
     print $new_single_orth "Orthogroup\t";
@@ -698,7 +700,9 @@ sub Orthofinder_Names_Worker {
     }
     print $new_single_orth "\n";
 
-    print "About to read $single_groups\n";
+    print "TESTME: About to read $single_groups\n";
+    my $single_orth = FileHandle->new("<${single_groups}");
+
   SINGLES: while (my $group = <$single_orth>) {
       $group =~ s/\r\n/\n/g;
       $group =~ s/\r/\n/g;

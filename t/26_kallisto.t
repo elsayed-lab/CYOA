@@ -10,7 +10,7 @@ use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
 my $input_file = qq"${start_dir}/test_forward.fastq.gz";
-my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
 my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
@@ -45,34 +45,40 @@ my $cyoa = Bio::Adventure->new(
     libdir => cwd(),
     species => 'phix',);
 my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
-    input => $phix_genome, gff => $phix_annot,);
+    input => $phix_genome, gff => $phix_annot,
+    gff_type => 'gene', gff_tag => 'gene_id',);
 ok($gff2fasta, 'Run gff2fasta.');
-
+ok(cp('phix_gene_gene_id_nt.fasta', $phix_transcripts));
 my $index = $cyoa->Bio::Adventure::Index::Kallisto_Index(
     input => $phix_transcripts,);
+## There is a problem here, in all the other tests so far I have not needed
+## to redefine the species as I do here, but for some crazy ass reason
+## it gets lost in this invocation and I do not know why.
 my $kallisto = $cyoa->Bio::Adventure::Map::Kallisto(
-    input => 'test_forward.fastq.gz',);
+    input => 'test_forward.fastq.gz',
+    species => 'phix',
+    jprefix => '26',);
 ok($kallisto, 'Run Kallisto');
 
 ##my $kallisto_file = 'outputs/46kallisto_phix/abundance.tsv';
 my $kallisto_file = $kallisto->{output};
 ok(-f $kallisto_file, qq"The kallisto otuput file was created: ${kallisto_file}.");
 
-my $expected = qq"target_id\tlength\teff_length\test_counts\ttpm
-NC_001422_phiX174p01_1\t1406\t1125.2\t8.50998\t189149
-NC_001422_phiX174p01_2\t136\t96.9989\t0\t0
-NC_001422_phiX174p02_3\t890\t735.894\t0.281695\t9573.51
-NC_001422_phiX174p02_4\t136\t96.9989\t0\t0
-NC_001422_phiX174p03_5\t312\t99.6032\t1.20833\t303402
-NC_001422_phiX174p03_6\t51\t14.352\t0\t0
-NC_001422_phiX174p04_7\t171\t131.999\t0\t0
-NC_001422_phiX174p05_8\t261\t179.863\t1\t139048
-NC_001422_phiX174p06_9\t3618\t3648.51\t29.5203\t202354
-NC_001422_phiX174p07_10\t634\t637.649\t2.84075\t111419
-NC_001422_phiX174p08_11\t276\t236.999\t0\t0
-NC_001422_phiX174p09_12\t117\t77.9989\t0\t0
-NC_001422_phiX174p10_13\t528\t488.999\t0\t0
-NC_001422_phiX174p11_14\t987\t909.775\t1.63894\t45054.3
+my $expected = qq"target_id	length	eff_length	est_counts	tpm
+chr_NC_001422_id_phiX174p01_start_3981_end_5386	1406	1125.2	8.50998	189149
+chr_NC_001422_id_phiX174p01_start_1_end_136	136	96.9989	0	0
+chr_NC_001422_id_phiX174p02_start_4497_end_5386	890	735.894	0.281695	9573.51
+chr_NC_001422_id_phiX174p02_start_1_end_136	136	96.9989	0	0
+chr_NC_001422_id_phiX174p03_start_5075_end_5386	312	99.6032	1.20833	303402
+chr_NC_001422_id_phiX174p03_start_1_end_51	51	14.352	0	0
+chr_NC_001422_id_phiX174p04_start_51_end_221	171	131.999	0	0
+chr_NC_001422_id_phiX174p05_start_133_end_393	261	179.863	1	139048
+chr_NC_001422_id_phiX174p06_start_358_end_3975	3618	3648.51	29.5203	202354
+chr_NC_001422_id_phiX174p07_start_358_end_991	634	637.649	2.84075	111419
+chr_NC_001422_id_phiX174p08_start_568_end_843	276	236.999	0	0
+chr_NC_001422_id_phiX174p09_start_848_end_964	117	77.9989	0	0
+chr_NC_001422_id_phiX174p10_start_2395_end_2922	528	488.999	0	0
+chr_NC_001422_id_phiX174p11_start_2931_end_3917	987	909.775	1.63894	45054.3
 ";
 
 my $actual = qx"less ${kallisto_file}";
