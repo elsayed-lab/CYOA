@@ -6,8 +6,12 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Bio::DB::EUtilities;
 use File::Which qw"which";
+use HTML::TreeBuilder::XPath;
 use Text::CSV;
+use WWW::Mechanize;
+
 
 =head1 NAME
 
@@ -40,6 +44,7 @@ sub Download_NCBI_Accession {
         required => ['input'],
         library => 'nucleotide',
         jprefix => '11',);
+
     my $job_name = $class->Get_Job_Name();
     ## Make an array of the accession(s)
     my @unique = ();
@@ -102,6 +107,45 @@ sub Download_NCBI_Accession {
           }
       } ## Finished checking if we already have this accession
     } ## Finished iterating over every phage ID
+}
+
+sub Download_SRA_PRJNA {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        library => 'sra',
+        jprefix => '00',);
+    my @sra_accessions = ();
+    my $accession = $options->{input};
+    my $eutil = Bio::DB::EUtilities->new(-eutil => 'esearch',
+                                         -email => 'abelew@gmail.com',
+                                         -db => 'sra',
+                                         -term => $accession,);
+    my $count = $eutil->get_count;
+    my @ids = $eutil->get_ids;
+    my $summary = Bio::DB::EUtilities->new(-eutil => 'esummary',
+                                           -email => 'abelew@gmail.com',
+                                           -db => 'sra',
+                                           -id => \@ids);
+    while (my $docsum = $summary->next_DocSum) {
+        print "ID:",$docsum->get_ids,"\n";
+        ITEMS: while (my $item = $docsum->next_Item) {
+        #    ## This prints stuff like 'Runs ExtLinks CreateDate etc' followed by the data associated therein.
+            my $name = $item->get_name;
+            next ITEMS unless($name eq 'Runs');
+            # print "TESTME: NAME: $name\n";
+            my $stuff = $item->get_content;
+            my $accession = $stuff;
+            $accession =~ s/^.*acc="(\w+)".*$/$1/g;
+            print "Got accession: $accession\n";
+            push(@sra_accessions, $accession);
+        }
+    }
+    for my $acc (@sra_accessions) {
+        my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(
+            input => $acc);
+    }
 }
 
 =head2 C<Fastq_Dump>

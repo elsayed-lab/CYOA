@@ -168,6 +168,84 @@ xz -9e -f ${too_long}
     return($cutadapt);
 }
 
+
+sub Fastp {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        arbitrary => undef,
+        do_umi => 1,
+        modules => ['fastp'],
+        jmem => 12,
+        jwalltime => '24:00:00',
+        jprefix => '12',);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $check = which('fastp');
+    die('Could not find fastp in your PATH.') unless($check);
+
+    my $extra_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
+
+    my $fastp_input = $options->{input};
+    my @suffixes = split(/\,/, $options->{suffixes});
+
+    my $comment = qq!## Run fastp on raw data
+!;
+    my $out_dir = qq"outputs/$options->{jprefix}fastp";
+    my $stderr = qq"${out_dir}/fastp.stderr";
+    my $stdout = qq"${out_dir}/fastp.stdout";
+    my $input_flags = '';
+    if ($fastp_input =~ /\:|\;|\,|\s+/) {
+        my @pair_listing = split(/\:|\;|\,|\s+/, $fastp_input);
+        $pair_listing[0] = File::Spec->rel2abs($pair_listing[0]);
+        $pair_listing[1] = File::Spec->rel2abs($pair_listing[1]);
+        my $r1_outdir = dirname($pair_listing[0]);
+        my $r1_base = basename($pair_listing[0], ('.gz', '.bz2', '.xz'));
+        $r1_base = basename($r1_base, ('.fastq'));
+        my $r2_base = basename($pair_listing[1], ('.gz', '.bz2', '.xz'));
+        $r2_base = basename($r2_base, ('.fastq'));
+        my $output_r1 = qq"${r1_outdir}/${r1_base}-fastp.fastq";
+        my $output_r2 = qq"${r1_outdir}/${r2_base}-fastp.fastq";
+        $input_flags = qq" -i <(less $pair_listing[0]) -o ${output_r1} \\
+  -I <(less $pair_listing[1]) -O ${output_r2} ";
+    } else {
+        my $r1_base = basename($fastp_input, ('.gz', '.bz2', '.xz'));
+        my $r1_outdir = dirname($fastp_input);
+        $r1_base = basename($r1_base, ('.fastq'));
+        my $r1_out = qq"${r1_outdir}/${r1_base}-fastp.fastq";
+        $input_flags = qq" -i <(less ${fastp_input}) -o ${r1_out} ";
+    }
+    my $umi_flags = '';
+    if ($options->{do_umi}) {
+        $umi_flags = ' -U ';
+    }
+
+    my $jstring = qq!
+mkdir -p ${out_dir}
+fastp ${umi_flags} ${input_flags} \\
+  2>${stderr} \\
+  1>${stdout}
+!;
+
+    my $fastp = $class->Submit(
+        comment => $comment,
+        input => $fastp_input,
+        jmem => $options->{jmem},
+        jname => qq"fastp_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jwalltime => '8:00:00',
+        modules => $options->{modules},
+        stderr => $stderr,
+        stdout => $stdout,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    return($fastp);
+}
+
+
 =head2 C<Racer>
 
  Use the RACER command from hitec to correct sequencer-based errors.
