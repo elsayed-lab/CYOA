@@ -6,12 +6,14 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Cwd qw"abs_path getcwd cwd";
 use Bio::DB::EUtilities;
+use File::Path qw"make_path rmtree";
 use File::Which qw"which";
 use HTML::TreeBuilder::XPath;
 use Text::CSV;
+use Text::CSV_XS::TSV;
 use WWW::Mechanize;
-
 
 =head1 NAME
 
@@ -114,38 +116,113 @@ sub Download_SRA_PRJNA {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        library => 'sra',
+        jname => 'prjnadownload',
         jprefix => '00',);
-    my @sra_accessions = ();
+    my %sra_info = ();
     my $accession = $options->{input};
-    my $eutil = Bio::DB::EUtilities->new(-eutil => 'esearch',
-                                         -email => 'abelew@gmail.com',
-                                         -db => 'sra',
-                                         -term => $accession,);
-    my $count = $eutil->get_count;
+    my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
+    my $output_log = qq"${output_dir}/prjna_download.stdout";
+    my $output_csv = qq"${output_dir}/$options->{input}_sra.csv";
+    make_path($output_dir);
+    my $log = FileHandle->new(">${output_log}");
+    my $csv_fh = FileHandle->new(">$output_csv");
+    print $log "Beginning download of SRA samples associated with: $options->{input}.\n";
+    my $eutil = Bio::DB::EUtilities->new(
+        -eutil => 'esearch', -email => 'abelew@gmail.com',
+        -db => 'sra', -term => $accession,);
+    my $id_count = $eutil->get_count;
+    print $log "Initial search found ${id_count} accessions.\n";
     my @ids = $eutil->get_ids;
-    my $summary = Bio::DB::EUtilities->new(-eutil => 'esummary',
-                                           -email => 'abelew@gmail.com',
-                                           -db => 'sra',
-                                           -id => \@ids);
-    while (my $docsum = $summary->next_DocSum) {
-        print "ID:",$docsum->get_ids,"\n";
-        ITEMS: while (my $item = $docsum->next_Item) {
-        #    ## This prints stuff like 'Runs ExtLinks CreateDate etc' followed by the data associated therein.
-            my $name = $item->get_name;
-            next ITEMS unless($name eq 'Runs');
-            # print "TESTME: NAME: $name\n";
-            my $stuff = $item->get_content;
-            my $accession = $stuff;
-            $accession =~ s/^.*acc="(\w+)".*$/$1/g;
-            print "Got accession: $accession\n";
-            push(@sra_accessions, $accession);
+    my $summary = Bio::DB::EUtilities->new(
+        -eutil => 'esummary', -email => 'abelew@gmail.com',
+        -db => 'sra', -id => \@ids);
+    my $count = 0;
+  DOCS: while (my $docsum = $summary->next_DocSum) {
+      my $id_info = {
+          uid => $ids[$count],
+      };
+      my $accession;
+    ITEMS: while (my $item = $docsum->next_Item) {
+        ## This prints stuff like 'Runs ExtLinks CreateDate etc' followed by the data associated therein.
+        my $name = $item->get_name;
+        print "TESTME NAME: $name\n";
+          if ($name eq 'Runs') {
+              my $stuff = $item->get_content;
+              $accession = $stuff;
+              $accession =~ s/^.*acc="(\w+?)".*$/$1/g;
+              my $spots = $stuff;
+              $spots =~ s/.*total_spots="(\d+?)".*/$1/g;
+              $id_info->{total_spots} = $spots;
+              my $bases = $stuff;
+              $bases =~ s/.*total_bases="(\d+?)".*/$1/g;
+              $id_info->{total_bases} = $bases;
+          } elsif ($name eq 'ExpXml') {
+              my $stuff = $item->get_content;
+              my $title = $stuff;
+              $title =~ s/.*\<Title\>(.*?)\<\/Title\>.*/$1/g;
+              $id_info->{title} = $title;
+              my $instrument = $stuff;
+              $instrument =~ s/.*Platform instrument_model="(.*?)"\>.*/$1/g;
+              $id_info->{instrument} = $instrument;
+              my $experiment = $stuff;
+              $experiment =~ s/.*Experiment acc="(.*?)".*$/$1/g;
+              $id_info->{experiment_acc} = $experiment;
+              my $study = $stuff;
+              $study =~ s/.*Study acc="(.*?)".*/$1/g;
+              $id_info->{study_acc} = $study;
+              my $name = $stuff;
+              $name =~ s/.* name="(.*?)".*/$1/g;
+              $id_info->{study_name} = $name;
+              my $taxid = $stuff;
+              $taxid =~ s/.*Organism taxid="(\d+?)".*/$1/g;
+              $id_info->{taxid} = $taxid;
+              my $species = $stuff;
+              $species =~ s/.*ScientificName="(.*?)".*/$1/g;
+              $id_info->{species} = $species;
+              my $sample_acc = $stuff;
+              $sample_acc =~ s/.*Sample acc="(.*?)".*/$1/g;
+              $id_info->{sample_acc} = $sample_acc;
+              my $protocol = $stuff;
+              $protocol =~ s/.*\<LIBRARY_CONSTRUCTION_PROTOCOL\>(.*?)\<\/LIBRARY_CON.*/$1/g;
+              $id_info->{protocol} = $protocol;
+          }
+    }
+      $sra_info{$accession} = $id_info;
+      $count++;
+  }
+
+    ## Print the output csv file.
+    my @order = ('accession', 'total_spots', 'total_bases', 'experiment_acc',
+                 'study_acc', 'study_name', 'instrument', 'taxid', 'species',
+                 'sample_acc', 'title', 'protocol');
+    my $acc_count = 0;
+    for my $acc (keys %sra_info) {
+        $acc_count++;
+        my @values = ($acc);
+        my $inner = $sra_info{$acc};
+        for my $k2 (@order) {
+            push(@values, $inner->{$k2});
+        }
+        if ($acc_count == 1) {
+            for my $h (@order) {
+                print $csv_fh qq"${h}\t";
+            }
+            print $csv_fh "\n";
+        }
+        for my $v (@values) {
+            print $csv_fh qq"${v}\t";
+        }
+        print $csv_fh "\n";
+
+        if ($options->{download}) {
+            my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(
+                input => $acc);
+        } else {
+            print "Not downloading accession: ${acc}.\n";
         }
     }
-    for my $acc (@sra_accessions) {
-        my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(
-            input => $acc);
-    }
+    $csv_fh->close();
+    $log->close();
 }
 
 =head2 C<Fastq_Dump>

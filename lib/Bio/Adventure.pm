@@ -148,6 +148,7 @@ has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your 
 has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
+has download => (is => 'rw', default => 1);
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
 has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 program to run?
@@ -842,6 +843,7 @@ sub Get_Menus {
             choices => {
                 '(read_samples): Read samples using a csv file to determine the raw data locations.' => \&Bio::Adventure::Prepare::Read_Samples,
                 '(copyraw): Copy data from the raw data archive to scratch.' => \&Bio::Adventure::Prepare::Copy_Raw,
+                '(sradownload): Extract SRA accession from a bioproject and download.' => \&Bio::Adventure::Prepare::Download_SRA_PRJNA,
                 '(fastqdump): Download data from sra.' => \&Bio::Adventure::Prepare::Fastq_Dump,
                 '(download): Download accessions from ncbi.' => \&Bio::Adventure::Prepare::Download_NCBI_Accessions,
             },
@@ -852,6 +854,7 @@ sub Get_Menus {
             choices => {
                 '(biopieces): Use biopieces to graph some metrics of the data.' => \&Bio::Adventure::QA::Biopieces_Graph,
                 '(cutadapt): Perform adapter trimming with cutadapt.' => \&Bio::Adventure::Trim::Cutadapt,
+                '(fastp): Use fastp to trim fastq/remove UMIs.' => \&Bio::Adventure::Trim::Fastp,
                 '(fastqc): Use fastqc to check the overall quality of the raw data.' => \&Bio::Adventure::QA::Fastqc,
                 '(racer): Perform sequence correction with hitec/RACER.' => \&Bio::Adventure::Trim::Racer,
                 '(trimomatic): Perform adapter trimming with Trimomatic.' => \&Bio::Adventure::Trim::Trimomatic,
@@ -992,6 +995,7 @@ sub Get_TODOs {
         "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
         "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Index::Extend_Kraken_DB'},
         "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extract_Trinotate'},
+        "fastp+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Fastp'},
         "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
         "fastado+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Do_Fasta'},
         "fastasplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
@@ -1065,6 +1069,7 @@ sub Get_TODOs {
         "snpgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
         "sortindexes+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Sort_Indexes'},
         "splitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align::Split_Align'},
+        "sradownload+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Download_SRA_PRJNA'},
         "star+" => \$todo_list->{todo}{'Bio::Adventure::Map::STAR'},
         "tacheck+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::TA_Check'},
         "test+" => \$todo_list->{todo}{'Bio::Adventure::Slurm::Test_Job'},
