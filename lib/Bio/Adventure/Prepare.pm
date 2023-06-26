@@ -131,7 +131,11 @@ sub Download_SRA_PRJNA {
         -eutil => 'esearch', -email => 'abelew@gmail.com',
         -db => 'sra', -term => $accession,);
     my $id_count = $eutil->get_count;
-    print $log "Initial search found ${id_count} accessions.\n";
+    if (!defined($id_count)) {
+        print $log "Did not find any SRA accession for this accession.\n";
+    } else {
+        print $log "Initial search found ${id_count} accessions.\n";
+    }
     my @ids = $eutil->get_ids;
     my $summary = Bio::DB::EUtilities->new(
         -eutil => 'esummary', -email => 'abelew@gmail.com',

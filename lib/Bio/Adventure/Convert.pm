@@ -365,16 +365,17 @@ sub Gb2Gff_Worker {
 
 =item C<Arguments>
 
+ species: Add the .gff and .fasta suffixes to this and look in $libdir.
  gff(required): Gff file to read.
  input(required): Genome fasta file to read.
- htseq_id('gene_id'): ID tag to use when extracting features.
- htseq_type(undef): gff type to extract, left undefined it will count
+ gff_tag('gene_id'): ID tag to use when extracting features.
+ gff_type(undef): gff type to extract, left undefined it will count
   them up and choose the most highly represented.
 
 =item C<Invocation>
 
-> cyoa --task convert --method gff2 --input lmajor.fasta \
-   --gff lmajor.gff --htseq_type CDS --htseq_id ID
+> cyoa --method gff2 --input lmajor.fasta \
+   --gff lmajor.gff --gff_type CDS --gff_tag ID
 
 =cut
 sub Gff2Fasta {
