@@ -237,6 +237,7 @@ has paired => (is => 'rw', default => 1); ## Is the input paired?
 has pdata => (is => 'rw', default => 'options.pdata');
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.
+has preprocess_dir => (is => 'rw', default => 'preprocessing');
 has prescript => (is => 'rw', default => undef); ## String to put before a cluster job.
 has primary_key => (is => 'rw', default => 'locus_tag'); ## Choose a keytype for merging data
 has product_columns => (is => 'rw', default => 'trinity_sprot_Top_BLASTX_hit,inter_Pfam,inter_TIGRFAM'); ## When merging annotations, choose the favorites when upgrading an annotation to 'product'

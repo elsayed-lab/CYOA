@@ -8,21 +8,6 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
-=head1 C<Metadata>
-
- Collect results from other tools and merge them into a skeleton feature set.
-
- This package is intended to collect and collate data from other tools into some
- useful and readable formats.  Practically speaking, this mostly relates to
- the annotation pipelines, which gather data from many sources into a single
- genbank output file.
-
- One other set of functions which I will move here include the various XYZ_Stats()
- functions which gather the stdout/stderr from various tools in order to write a
- csv summary.
-
-=cut
-
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -38,7 +23,26 @@ use File::Which qw"which";
 use File::ShareDir qw":ALL";
 use List::MoreUtils qw"any";
 use Template;
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 use Text::CSV_XS::TSV;
+
+## Question: When running my test suite on assemblies, the creation of genbank outputs fails because
+## the Test::More instance cannot find the File::ShareDir copy of the template.sbt file.
+## If I copy the logic I used for other test files here, will it work when not testing?
+## Let us find out!
+
+=head1 C<Metadata>
+
+ Collect results from other tools and merge them into a skeleton feature set.
+
+ This package is intended to collect and collate data from other tools into some
+ useful and readable formats.  Practically speaking, this mostly relates to
+ the annotation pipelines, which gather data from many sources into a single
+ genbank output file.
+
+ One other set of functions which I will move here include the various XYZ_Stats()
+ functions which gather the stdout/stderr from various tools in order to write a
+ csv summary.
 
 =head2 C<Collect_Assembly>
 
@@ -616,12 +620,13 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my $final_sbt = qq"${output_dir}/${output_name}.sbt";
     print $log_fh "Checking for ICTV classification data from $options->{input_classifier}.\n";
     my $input_sbt = $args{template_sbt};
+    my $start_dir = dist_dir('Bio-Adventure');
     if (!defined($input_sbt)) {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_template.sbt";
     } elsif (!-r $input_sbt) {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_template.sbt";
     } else {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_unmodified.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_unmodified.sbt";
     }
     my $taxonomy_information = {};
     ($merged_data, $taxonomy_information) = Merge_Classifier(

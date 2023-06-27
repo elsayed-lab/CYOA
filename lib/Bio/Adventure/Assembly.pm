@@ -574,6 +574,7 @@ sub Trinity {
         args => \%args,
         required => ['input'],
         contig_length => 600,
+        jcpu => 8,
         jmem => 80,
         jprefix => '60',
         modules => ['trinity'],);
@@ -586,24 +587,24 @@ sub Trinity {
     my $input_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq"--left $in[0] --right $in[1] ";
+        $input_string = qq"--left <(less $in[0]) --right <(less $in[1]) ";
     } else {
-        $input_string = qq"--single $options->{input} ";
+        $input_string = qq"--single <(less $options->{input}) ";
     }
     my $comment = '## This is a trinity submission script.';
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
-    --trimmomatic --max_memory 90G --CPU 6 \\
-    --output ${output_dir} \\
-    ${input_string} \\
-    2>${output_dir}/trinity_${job_name}.stderr \\
-    1>${output_dir}/trinity_${job_name}.stdout
+    my $jstring = qq!mkdir -p ${output_dir}
+Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
+  --trimmomatic --max_memory $options->{jmem}G --CPU $options->{jcpu} \\
+  --output ${output_dir} \\
+  ${input_string} \\
+  2>${output_dir}/trinity_${job_name}.stderr \\
+  1>${output_dir}/trinity_${job_name}.stdout
 !;
     my $trinity = $class->Submit(
         comment => $comment,
         jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
-        jname => qq"$options->{jprefix}trin_${job_name}",
+        jname => qq"trin_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
@@ -616,12 +617,12 @@ sub Trinity {
         %args,
         jcpu => $options->{jcpu},
         jdepends => $trinity->{job_id},
-        jname => qq"$options->{jprefix}_1trin_rsem",
+        jname => qq"1trin_rsem",
         input => $options->{input},);
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         %args,
         jdepends => $trinity->{job_id},
-        jname => qq"$options->{jprefix}_2trinotate",
+        jname => qq"2trinotate",
         input => qq"${output_dir}/Trinity.fasta",);
     $trinity->{rsem_job} = $rsem;
     $trinity->{trinotate_job} = $trinotate;

@@ -149,7 +149,6 @@ sub Download_SRA_PRJNA {
     ITEMS: while (my $item = $docsum->next_Item) {
         ## This prints stuff like 'Runs ExtLinks CreateDate etc' followed by the data associated therein.
         my $name = $item->get_name;
-        print "TESTME NAME: $name\n";
           if ($name eq 'Runs') {
               my $stuff = $item->get_content;
               $accession = $stuff;
@@ -219,8 +218,12 @@ sub Download_SRA_PRJNA {
         print $csv_fh "\n";
 
         if ($options->{download}) {
+            my $start = cwd();
+            my $made = make_path($options->{preprocess_dir});
+            chdir($options->{preprocess_dir});
             my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(
                 input => $acc);
+            chdir($start);
         } else {
             print "Not downloading accession: ${acc}.\n";
         }
