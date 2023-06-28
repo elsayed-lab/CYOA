@@ -282,6 +282,7 @@ has task => (is => 'rw', default => 'tnseq');
 has taxid => (is => 'rw', default => '353153'); ## Default taxonomy ID, unknown for now.
 has test_file => (is => 'rw', default => 'direct-term-repeasts.fasta'); ## There are a few places where testing for the existence of a test file is useful.
 has threshold => (is => 'rw', default => 0.05); ## A second cutoff value (looking at you, glimmer.)
+has trim => (is => 'rw', default => 1); ## Perform trimming (rnaseq pipeline, trinity)
 has type => (is => 'rw', default => undef); ## Possibly superceded by htseq_type
 has varfilter => (is => 'rw', default => 1); ## use a varfilter when performing variant searches.
 has verbose => (is => 'rw', default => 0); ## Print extra information while running?

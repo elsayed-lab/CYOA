@@ -1156,7 +1156,7 @@ sub Submit {
         $partition_string = $class->{chosen_partition};
     } else {
         ## Partition is often empty, I don't quite know why yet.
-        print "partition is not defined, setting it to the empty string\n";
+        ## print "partition is not defined, setting it to the empty string\n";
         $partition_string = '';
     }
     ##  Need to catch the special case of scavenger

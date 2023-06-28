@@ -591,10 +591,16 @@ sub Trinity {
     } else {
         $input_string = qq"--single <(less $options->{input}) ";
     }
+    my $trim_flag = '';
+    if ($options->{trim}) {
+        $trim_flag = '--trimmomatic';
+    }
+    my $arbitrary_args = '';
+    my $arbitrary_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
     my $comment = '## This is a trinity submission script.';
     my $jstring = qq!mkdir -p ${output_dir}
-Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
-  --trimmomatic --max_memory $options->{jmem}G --CPU $options->{jcpu} \\
+Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads ${arbitrary_args} \\
+  ${trim_flag} --max_memory $options->{jmem}G --CPU $options->{jcpu} \\
   --output ${output_dir} \\
   ${input_string} \\
   2>${output_dir}/trinity_${job_name}.stderr \\

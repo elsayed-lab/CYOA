@@ -564,7 +564,7 @@ sub Process_RNAseq {
     my $download;
     if ($options->{sra}) {
         $prefix = sprintf("%02d", ($prefix + 1));
-        print "\n${prefix}: Starting SRA download.\n\n";
+        print "\n${prefix}: Starting SRA download.\n";
         $download = $class->Bio::Adventure::Prepare::Fastq_Dump(
             input => $options->{input},
             jprefix => $prefix,);
@@ -575,23 +575,27 @@ sub Process_RNAseq {
         $options->{input_paired} = $download->{output_paired};
     }
 
-    $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting trimmer.\n\n";
-    my $trim = $class->Bio::Adventure::Trim::Trimomatic(
-        compress => 0,
-        input => $options->{input},
-        input_paired => $options->{input_paired},
-        jprefix => $prefix,
-        jname => 'trimomatic',);
-    sleep(5);
-    push(@jobs, $trim);
-    my $last_job = $trim->{job_id};
-    sleep($options->{jsleep});
+    my $map_input = $options->{input};
+    if ($options->{trim}) {
+        $prefix = sprintf("%02d", ($prefix + 1));
+        print "\n${prefix}: Starting trimmer.\n";
+        my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+            compress => 0,
+            input => $options->{input},
+            input_paired => $options->{input_paired},
+            jprefix => $prefix,
+            jname => 'trimomatic',);
+        $map_input = $trim->{output};
+        sleep(5);
+        push(@jobs, $trim);
+        my $last_job = $trim->{job_id};
+        sleep($options->{jsleep});
+    }
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\n${prefix}: Starting fastqc.\n\n";
+    print "\n${prefix}: Starting fastqc.\n";
     my $fastqc = $class->Bio::Adventure::QA::Fastqc(
-        input => $trim->{input},
+        input => $options->{input},
         jdepends => $last_job,
         jnice => 100,
         jprefix => $prefix,);
@@ -610,50 +614,68 @@ sub Process_RNAseq {
     my $first_type = shift @type_list;
     my $first_id = shift @id_list;
     my $species_length = scalar(@species_list);
+    my $first_map;
+    my $last_sam_job;
+    my $nth_map;
+    my $nth_species;
     $prefix = sprintf("%02d", ($prefix + 1));
-    my $first_map = $class->Bio::Adventure::Map::Hisat2(
-        compress => 0,
-        gff_type => $first_type,
-        gff_tag => $first_id,
-        input => $trim->{output},
-        species => $first_species,
-        jprefix => $prefix,
-        jdepends => $last_job,
-        stranded => $options->{stranded});
-    sleep(5);
-    $last_job = $first_map->{job_id};
-    push(@jobs, $first_map);
-    sleep($options->{jsleep});
-    my $last_sam_job = $first_map->{samtools}->{job_id};
-
-    if ($options->{freebayes}) {
-        $prefix = sprintf("%02d", ($prefix + 1));
-        print "\n${prefix}: Performing freebayes search against ${first_species}.\n\n";
-        my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-            jdepends => $last_sam_job,
-            input => $first_map->{samtools}->{paired_output},
-            species => $first_species,
+    if ($options->{mapper} eq 'hisat2') {
+        print "\n${prefix}: Starting hisat2.\n";
+        $first_map = $class->Bio::Adventure::Map::Hisat2(
+            compress => 0,
             gff_type => $first_type,
             gff_tag => $first_id,
-            intron => $options->{intron},
-            jprefix => $prefix,);
+            input => $map_input,
+            species => $first_species,
+            jprefix => $prefix,
+            jdepends => $last_job,
+            stranded => $options->{stranded});
         sleep(5);
-        push(@jobs, $first_snp);
+        $last_job = $first_map->{job_id};
+        push(@jobs, $first_map);
         sleep($options->{jsleep});
+        $last_sam_job = $first_map->{samtools}->{job_id};
+
+        if ($options->{freebayes}) {
+            $prefix = sprintf("%02d", ($prefix + 1));
+            print "\n${prefix}: Performing freebayes search against ${first_species}.\n";
+            my $first_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+                jdepends => $last_sam_job,
+                input => $first_map->{samtools}->{paired_output},
+                species => $first_species,
+                gff_type => $first_type,
+                gff_tag => $first_id,
+                intron => $options->{intron},
+                jprefix => $prefix,);
+            sleep(5);
+            push(@jobs, $first_snp);
+            sleep($options->{jsleep});
+        }
+    } elsif ($options->{mapper} eq 'salmon') {
+        print "\n${prefix}: Starting salmon.\n";
+        $first_map = $class->Bio::Adventure::Map::Salmon(
+            input => $map_input,
+            species => $first_species,
+            jprefix => $prefix,
+            jdepends => $trim->{job_id},);
+        $last_job = $first_map->{job_id};
+        push(@jobs, $first_map);
+        sleep($options->{jsleep});
+    } else {
+        die("I do not know this mapper yet.");
     }
 
     if ($species_length >= 1) {
         print "Starting to loop over additional species\n";
         my $c = 0;
         for my $sp (@species_list) {
-            my $nth_species = $sp;
+            $nth_species = $sp;
             my $nth_type = $type_list[$c];
             $nth_type = $first_type unless (defined($nth_type));
             my $nth_id = $id_list[$c];
             $nth_id = $first_id unless (defined($nth_id));
 
             ## Handle if we want to host-filter the data
-            my $nth_map;
             $prefix = sprintf("%02d", ($prefix + 1));
             if ($options->{host_filter}) {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} with filtering.\n";
@@ -668,53 +690,66 @@ sub Process_RNAseq {
                 $last_sam_job = $nth_map->{samtools}->{job_id};
             } else {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} without filtering.\n";
-                $nth_map = $class->Bio::Adventure::Map::Hisat2(
-                    jdepends => $last_sam_job,
-                    input => $trim->{output},
-                    species => $nth_species,
-                    stranded => $options->{stranded},
-                    gff_type => $nth_type,
-                    gff_tag => $nth_id,
-                    jprefix => $prefix,);
+                if ($options->{mapper} eq 'hisat2') {
+                    $nth_map = $class->Bio::Adventure::Map::Hisat2(
+                        jdepends => $last_sam_job,
+                        input => $map_input,
+                        species => $nth_species,
+                        stranded => $options->{stranded},
+                        gff_type => $nth_type,
+                        gff_tag => $nth_id,
+                        jprefix => $prefix,);
+                    push(@jobs, $nth_map);
+                    $last_sam_job = $nth_map->{samtools}->{job_id};
+                    sleep($options->{jsleep});
+                    if ($options->{freebayes}) {
+                        $prefix = sprintf("%02d", ($prefix + 1));
+                        print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
+                        my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
+                            jdepends => $last_sam_job,
+                            input => $nth_map->{samtools}->{paired_output},
+                            species => $nth_species,
+                            gff_type => $nth_type,
+                            gff_tag => $nth_id,
+                            intron => $options->{intron},
+                            jprefix => $prefix,);
+                        $last_job = $nth_map->{job_id};
+                        push(@jobs, $nth_snp);
+                        sleep($options->{jsleep});
+                    }
+                    sleep($options->{jsleep});
+                } elsif ($options->{mapper} eq 'salmon') {
+                    print "\n${prefix}: Starting salmon in for loop.\n";
+                    $nth_map = $class->Bio::Adventure::Map::Salmon(
+                        jdepends => $trim->{job_id},
+                        input => $map_input,
+                        species => $nth_species,
+                        jprefix => $prefix,);
+                    push(@jobs, $nth_map);
+                } else {
+                    die("I do not know this mapper yet.");
+                }
             }
-            push(@jobs, $nth_map);
-            $last_sam_job = $nth_map->{samtools}->{job_id};
-            sleep($options->{jsleep});
-
-            if ($options->{freebayes}) {
-                $prefix = sprintf("%02d", ($prefix + 1));
-                print "\n${prefix}: Performing freebayes search against ${nth_species}.\n";
-                my $nth_snp = $class->Bio::Adventure::SNP::Freebayes_SNP_Search(
-                    jdepends => $last_sam_job,
-                    input => $nth_map->{samtools}->{paired_output},
-                    species => $nth_species,
-                    gff_type => $nth_type,
-                    gff_tag => $nth_id,
-                    intron => $options->{intron},
-                    jprefix => $prefix,);
-                $last_job = $nth_map->{job_id};
-                push(@jobs, $nth_snp);
-                sleep($options->{jsleep});
-            }
-            sleep($options->{jsleep});
             $c++;
         } ## End iterating over extra species
     } ## End checking for extra species
     $prefix = sprintf("%02d", ($prefix + 1));
     my $compress_input = $class->Bio::Adventure::Compress::Compress(
-        input => $trim->{output},
+        input => $map_input,
         jdepends => $last_job,
         jname => 'comp_trimmed',
         jprefix => $prefix,);
     $last_job = $compress_input->{job_id};
     $prefix = sprintf("%02d", ($prefix + 1));
     sleep($options->{jsleep});
-    my $compress_first_map = $class->Bio::Adventure::Compress::Compress(
-        input => qq"$first_map->{unaligned}:$first_map->{aligned}",
-        jdepends => $last_job,
-        jname => 'comp_hisat',
-        jprefix => $prefix,);
-    $last_job = $compress_first_map->{job_id};
+    if ($options->{mapper} eq 'hisat2') {
+        my $compress_first_map = $class->Bio::Adventure::Compress::Compress(
+            input => qq"$first_map->{unaligned}:$first_map->{aligned}",
+            jdepends => $last_job,
+            jname => 'comp_hisat',
+            jprefix => $prefix,);
+        $last_job = $compress_first_map->{job_id};
+    }
     return(\@jobs);
 }
 
