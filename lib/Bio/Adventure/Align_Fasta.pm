@@ -36,6 +36,8 @@ use POSIX qw"ceil";
  This handles the creation of the files and directories required when
  splitting up a sequence into a bunch of pieces for a split-fasta search.
 
+=over
+
 =item C<Arguments>
 
  split(0): Split up the fasta jobs into multiple pieces?
@@ -124,6 +126,8 @@ cd $options->{basedir}
     return($fasta_jobs);
 }
 
+=back
+
 =head2 C<Parse_Fasta>
 
  Parse a fasta36 tool result file and print a summary table.
@@ -131,6 +135,8 @@ cd $options->{basedir}
  Given the output from one of the fasta36 programs: ggsearch36,
  fasta36, etc.  This parses it and prints a simplified table of the
  results.
+
+=over
 
 =item C<Arguments>
 
@@ -215,6 +221,8 @@ sub Parse_Fasta {
     return($results);
 }
 
+=back
+
 =head2 C<Parse_Fasta_Global>
 
  A separate parser for global:global searches.
@@ -230,6 +238,8 @@ sub Parse_Fasta {
  In addition, this will print summaries of hits in a few different
  files depending on how many hits were observed for each query
  sequence: singletons, doubles, triples, few (3-10), and many (10+).
+
+=over
 
 =item C<Arguments>
 
@@ -544,12 +554,16 @@ sub Parse_Fasta_Mismatches {
     return($indices);
 }
 
+=back
+
 =head2 C<Split_Align_Fasta>
 
  Split apart a set of query sequences into $args{align_jobs} pieces and align them all separately.
 
  This is the main callable function when one wants to perform a bunch
  of fasta36 searches in parallel.
+
+=over
 
 =item C<Arguments>
 
@@ -675,6 +689,8 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
     $parse_job->{concat} = $concat_job;
     return($parse_job);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

@@ -37,6 +37,8 @@ use POSIX qw"ceil";
 
  This is one of the older functions in CYOA and could really use some love.
 
+=over
+
 =item C<Arguments>
 
  blast_format(5): This needs to be one of the parseable formats, which seems
@@ -114,12 +116,16 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
     return($blast_jobs);
 }
 
+=back
+
 =head2 C<Merge_Parse_Blast>
 
  Merge multiple blast outputs and parse them into a table.
 
  This invokes Concatenate_Searches() and Parse_Search() in order to get the final
  parsed table from a series of blast searches.
+
+=over
 
 =item C<Arguments>
 
@@ -151,6 +157,8 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
     return($parse);
 }
 
+=back
+
 =head2 C<Parse_Blast>
 
  Do the actual parsing of a blast result and print an easy-to-read table.
@@ -158,6 +166,8 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
  Parse_Blast is responsible for parsing blast output, it makes some attempt to be
  flexible vis a vis different formatting.  It prints a table of each gene and
  some relevant statistics about the hits that were found.
+
+=over
 
 =item C<Arguments>
 
@@ -267,6 +277,8 @@ sub Parse_Blast {
     return($result_count);
 }
 
+=back
+
 =head2 C<Run_Blast_Parse>
 
  Create a blast database and run blast on it.
@@ -283,6 +295,8 @@ sub Parse_Blast {
  In addition, this should have the blast parameters as an input
  variable.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input sequences to search.
@@ -291,7 +305,6 @@ sub Parse_Blast {
  evalue(0.01): Set an evalue cutoff.
  output('blast_output.txt'): Output file to write.
  modules('blast'): Which environment module to load.
-
 
 =cut
 sub Run_Parse_Blast {
@@ -413,6 +426,8 @@ sub Run_Parse_Blast {
     return($number_hits);
 }
 
+=back
+
 =head2 C<Split_Align_Blast>
 
  Split up a pile of sequences and search them in parallel.
@@ -420,6 +435,8 @@ sub Run_Parse_Blast {
  Split apart a set of query sequences into $args{align_jobs} pieces and align
  them all separately.  This is the primary function to call when one
  wants to run a whole lot of blast.
+
+=over
 
 =item C<Arguments>
 
@@ -577,6 +594,8 @@ orthomcl-pipeline.pl -i input -o output \\
                                     action => 'unload');
     return($job);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

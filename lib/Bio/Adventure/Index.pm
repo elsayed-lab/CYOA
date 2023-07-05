@@ -389,7 +389,7 @@ hisat2-build $options->{input} \\
     return($indexer);
 }
 
-=head2 C<Kallisto_Index
+=head2 C<Kallisto_Index>
 
  Use kallisto and an annotated_CDS fasta sequence library to create an index.
 
@@ -547,7 +547,9 @@ sub Make_Codon_Table {
     $table->close();
 }
 
-=item C<RSEM_Index
+=over
+
+=item C<RSEM_Index>
 
  Use RSEM and an annotated_CDS fasta sequence library to create a transcript index.
 
@@ -586,6 +588,8 @@ rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
         postscript => $options->{postscript},);
     return($jobid);
 }
+
+=back
 
 =head2 C<Salmon_Index>
 

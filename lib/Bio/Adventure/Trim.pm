@@ -1,6 +1,4 @@
 package Bio::Adventure::Trim;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -589,7 +587,7 @@ sub Trimomatic_Single {
 
     my $input = $options->{input};
     my $basename = $input;
-    $basename = basename($basename, ('.gz'));
+    $basename = basename($basename, ('.gz', '.xz', '.bz2'));
     $basename = basename($basename, ('.fastq'));
     my $job_name = $class->Get_Job_Name();
     my $output = qq"${basename}-trimmed.fastq";

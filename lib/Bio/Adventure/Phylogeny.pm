@@ -1,6 +1,4 @@
 package Bio::Adventure::Phylogeny;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -14,6 +12,8 @@ use File::Basename;
 
  Invoke gubbins to search for optimal trees given an outgroup, starting tree, and MSA.
  10.1093/nar/gku1196
+
+=over
 
 =item C<Arguments>
 
@@ -57,6 +57,8 @@ sub Run_Gubbins {
         jname => 'gub',);
     return($gubbins);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

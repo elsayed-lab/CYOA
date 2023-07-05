@@ -1,6 +1,4 @@
 package Bio::Adventure::Structure;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -67,7 +65,7 @@ use Bio::Adventure::Structure;
     return($folder);
 }
 
-=head2 C<RNAFold_Windows_Worker
+=head2 C<RNAFold_Windows_Worker>
 
  Does the actual work of rolling across a sequence and running rnafold.
 

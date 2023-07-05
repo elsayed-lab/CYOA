@@ -1,6 +1,4 @@
 package Bio::Adventure::Phage;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -121,6 +119,8 @@ cd \${start}
 
  The caical perl script comes with a fair number of arguments, this
  just blindly uses the defaults.
+
+=over
 
 =item C<Arguments>
 
@@ -260,6 +260,8 @@ sub Caical_CDS {
   }
 }
 
+=back
+
 =head2 C<Classify_Phage>
 
  Use the ICTV data to attempt to classify a viral assembly.
@@ -269,6 +271,8 @@ sub Caical_CDS {
  provided by the ICTV.  This should hopefully provide a reasonably
  complete set of taxonomic classifications for viral assemblies.  This
  function pretty much just calls Blast_Classify().
+
+=over
 
 =item C<Arguments>
 
@@ -343,6 +347,8 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
     return($cjob);
 }
 
+=back
+
 =head2 C<Classify_Phage_Worker>
 
  Does the actual work of attempting to classify a viral sequence
@@ -357,6 +363,8 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
  It then invokes blast, parses the output, and pulls out the hits
  which pass the various cutoffs.  Upon completion, it collects the
  results, sorts them, and writes them out as a tab separated file.
+
+=over
 
 =item C<Arguments>
 
@@ -535,6 +543,8 @@ Writing filtered results to $options->{output}.
     return($result_data);
 }
 
+=back
+
 =head2 C<Download_NCBI_Assembly_UID>
 
  Perform a web crawl to download a reference genome from NCBI.
@@ -545,6 +555,8 @@ Writing filtered results to $options->{output}.
  genomes and only ever got it working about 1 time in 4.  So, I
  decided to say 'screw it' and write a simple web crawler to do it
  instead.
+
+=over
 
 =item C<Arguments>
 
@@ -570,6 +582,8 @@ sub Download_NCBI_Assembly_UID {
     my $accession = basename($url);
     return($accession);
 }
+
+=back
 
 =head2 C<Download_NCBI_Assembly_Accession>
 
@@ -619,6 +633,8 @@ sub Download_NCBI_Assembly_Accession {
  it.  Finally, it runs hisat2 using the reads and this downloaded
  genome as a reference.  Then the unaligned reads are hopefully only
  from the phage and not the host bacterium.
+
+=over
 
 =item C<Arguments>
 
@@ -689,11 +705,15 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
     return($host);
 }
 
+=back
+
 =head2 C<Filter_Kraken_Worker>
 
  Do the work for Filter_Kraken().
 
  This does the actual work for the previous function.
+
+=over
 
 =item C<Arguments>
 
@@ -966,6 +986,8 @@ sub Filter_Kraken_Worker {
     return(%species_observed);
 }
 
+=back
+
 =head2 C<Get_DTR>
 
  Extract the direct-terminal-repeats from a phageterm run.
@@ -982,6 +1004,8 @@ sub Filter_Kraken_Worker {
  type of DTR.  As a result, this function includes a regex-based
  search of the output assembly to find the n copies of the DTR and set
  the DTR features accordingly.
+
+=over
 
 =item C<Arguments>
 
@@ -1094,6 +1118,8 @@ sub Get_DTR {
     return(\@dtr_features);
 }
 
+=back
+
 =head2 C<Phageterm>
 
  Attempt to run phageterm and detect direct terminal repeats.
@@ -1108,6 +1134,8 @@ sub Get_DTR {
  multi-contig assemblies into separate files and runs on them.  In
  addition, it works around the nasty file type detection in phageterm
  by simply decompressing the input files.
+
+=over
 
 =item C<Arguments>
 
@@ -1185,6 +1213,8 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         jstring => $jstring,);
     return($phageterm_run);
 }
+
+=back
 
 =head2 C<Phageterm_Worker>
 
@@ -1389,6 +1419,8 @@ PhageTerm.py -f ${read_string} \\
  forward way to hunt for phage-derived sequences in an input assembly.
  It basically just runs tblastx on the input assembly and returns some
  files which describe the locations of high-quality hits.
+
+=over
 
 =item C<Arguments>
 
@@ -1670,6 +1702,8 @@ sub Interpret_Phastaf_Worker {
     $out->close();
 }
 
+=back
+
 =head2 C<Restriction_Catalog>
 
  Make a catalog of restriction enzyme hits from an input sequence.
@@ -1680,6 +1714,8 @@ sub Interpret_Phastaf_Worker {
  endonuclease -- which makes no damn sense to me.  I guess they are on
  plasmids or something?  In any event, I figured it would still be
  nice to have an idea of the restriction sites.
+
+=over
 
 =item C<Arguments>
 
@@ -1732,6 +1768,8 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
         output => $re_output,);
     return($re_job);
 }
+
+=back
 
 =head2 C<Restriction_Catalog_Worker>
 
@@ -1805,6 +1843,8 @@ sub Restriction_Catalog_Worker {
  worth noting that I took the terminase library directly out of MAS.
 
  We should potentially consider switching this from prodigal to phanotate.
+
+=over
 
 =item C<Arguments>
 
@@ -1903,6 +1943,8 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
     $tjob->{prodigal_job} = $term_prodigal;
     return($tjob);
 }
+
+=back
 
 =head2 C<Terminase_ORF_Reorder_Worker>
 

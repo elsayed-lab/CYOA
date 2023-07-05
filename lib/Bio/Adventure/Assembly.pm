@@ -1,6 +1,4 @@
 package Bio::Adventure::Assembly;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -38,6 +36,8 @@ no warnings 'experimental::try';
  how many input files provided.  Ideally, it should at least do a
  little work to try to optimize k.  Abyss is the first program I have
  ever seen which uses make as an interpreter.
+
+=over
 
 =item C<Arguments>
 
@@ -112,6 +112,8 @@ cd \${start}
     return($abyss);
 }
 
+=back
+
 =head2 C<Assembly_Coverage>
 
  Use hisat2 and bbmap's pileup script to calculate coverate on a per-contig basis.
@@ -125,6 +127,8 @@ cd \${start}
  which are notably lower than the actual viral sequences.  E.g. this
  should provide in effect a metric of the amount of bacterial
  contamination which snuck past previous filters.
+
+=over
 
 =item C<Arguments>
 
@@ -228,6 +232,8 @@ samtools index ${output_dir}/coverage.bam \\
     return($coverage);
 }
 
+=back
+
 =head2 C<Collect_Assembly>
 
  Collect the final files created by an assembly.
@@ -236,6 +242,8 @@ samtools index ${output_dir}/coverage.bam \\
  files/directories.  Choosing the appropriate final outputs can be a
  bit daunting.  This function defines a few likely candidates and
  copies them to a single working directory.
+
+=over
 
 =item C<Arguments>
 
@@ -294,6 +302,8 @@ cp $options->{input_tsv} ${output_dir}
     return($collect);
 }
 
+=back
+
 =head2 C<Unicycler_Filter_Depth>
 
  Parse unicycler contig headers, extract relative coverage, and filter.
@@ -305,6 +315,8 @@ cp $options->{input_tsv} ${output_dir}
  only 1 contig, just return it with depth set to 1.  This should be
  trivially improved to handle other assembly methods by using the
  coverage calculation script above.
+
+=over
 
 =item C<Arguments>
 
@@ -359,6 +371,8 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
     return($depth_filtered);
 }
 
+=back
+
 =head2 C<Unicycler_Filter_Worker>
 
  This does the work for Unicycler_Filter_Depth().
@@ -370,6 +384,8 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
  only 1 contig, just return it with depth set to 1.  This should be
  trivially improved to handle other assembly methods by using the
  coverage calculation script above.
+
+=over
 
 =item C<Arguments>
 
@@ -468,6 +484,8 @@ Writing filtered contigs to $options->{output}
     return($final_coverage_data);
 }
 
+=back
+
 =head2 C<Shovill>
 
  Perform a shovill/spades assembly. https://github.com/tseemann/shovill
@@ -476,6 +494,8 @@ Writing filtered contigs to $options->{output}
  assemblers. Shovill is one of them, and very feature-full.  Shovill
  has a lot of interesting options, this only includes a few at the
  moment.
+
+=over
 
 =item C<Arguments>
 
@@ -547,6 +567,7 @@ fi
     return($shovill_job);
 }
 
+=back
 
 =head2 C<Trinity>
 
@@ -554,6 +575,8 @@ fi
 
  This function invokes trinity along with its default set of
  post-processing tools.
+
+=over
 
 =item C<Arguments>
 
@@ -573,6 +596,7 @@ sub Trinity {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        clean => 1,
         contig_length => 600,
         jcpu => 8,
         jmem => 80,
@@ -595,7 +619,6 @@ sub Trinity {
     if ($options->{trim}) {
         $trim_flag = '--trimmomatic';
     }
-    my $arbitrary_args = '';
     my $arbitrary_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
     my $comment = '## This is a trinity submission script.';
     my $jstring = qq!mkdir -p ${output_dir}
@@ -606,6 +629,13 @@ Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_r
   2>${output_dir}/trinity_${job_name}.stderr \\
   1>${output_dir}/trinity_${job_name}.stdout
 !;
+    if ($options->{clean}) {
+        $jstring .= qq"
+rm -rf chrysalis insilico_read_normalization read_partitions \\
+      __salmon_filt.chkpts salmon_outdir Trinity.tmp.fasta.salmon.idx \\
+      scaffolding_entries.sam *.cmds *.ok *.fa *.finished *.timing
+";
+    }
     my $trinity = $class->Submit(
         comment => $comment,
         jcpu => $options->{jcpu},
@@ -637,12 +667,16 @@ Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_r
     return($trinity);
 }
 
+=back
+
 =head2 C<Trinity_Post>
 
  Perform some of the post-processing tools provided by trinity.
 
  Trinity comes with some scripts to grade the quality of the
  transcripts it generated.  This invokes a few of them.
+
+=over
 
 =item C<Arguments>
 
@@ -668,7 +702,7 @@ sub Trinity_Post {
         modules => ['rsem'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
-    my $trinity_out_dir = qq"outputs/trinity_${job_name}";
+    my $trinity_out_dir = dirname($options->{input});
 
     my $rsem_input = qq"${trinity_out_dir}/Trinity.fasta";
     my $trinity_path = which('Trinity');
@@ -686,8 +720,8 @@ sub Trinity_Post {
 start=\$(pwd)
 cd ${trinity_out_dir}
 ${trinity_exe_dir}/util/TrinityStats.pl Trinity.fasta \\
-  2>${trinity_out_dir}/trinpost_stats.stderr \\
-  1>${trinity_out_dir}/trinpost_stats.stdout &
+  2>trinpost_stats.stderr \\
+  1>trinpost_stats.stdout &
 
 ${trinity_exe_dir}/util/align_and_estimate_abundance.pl \\
   --output_dir align_estimate.out \\
@@ -733,6 +767,8 @@ cd \${start}
 }
 
 
+=back
+
 =head2 C<Unicycler>
 
  Use unicycler to assemble bacterial/viral reads. doi:10.1371/journal.pcbi.1005595
@@ -740,6 +776,8 @@ cd \${start}
  Yet another Spades-based assembler, this one has some nice pre and
  post-processing tools written into it, which means that I do not need
  to figure out the arguments for pilon and stuff!
+
+=over
 
 =item C<Arguments>
 
@@ -861,6 +899,8 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
     return($unicycler);
 }
 
+=back
+
 =head2 C<Velvet>
 
  Perform a velvet assembly and pass it to ragoo.
@@ -868,6 +908,8 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
  ragoo: doi:10.1186/s13059-019-1829-6
 
  Yet another kmer-based assembler.
+
+=over
 
 =item C<Arguments>
 
@@ -944,10 +986,11 @@ sub Velvet {
     return($velvet);
 }
 
+=back
 
 =head1 AUTHOR - atb
 
-Email  <abelew@gmail.com>
+  Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 

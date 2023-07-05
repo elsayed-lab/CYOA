@@ -548,8 +548,6 @@ sub Process_RNAseq {
         args => \%args,
         required => ['input', 'species'],
         freebayes => 0,
-        gff_type => 'gene',
-        gff_tag => 'ID',
         input_paired => undef,
         sra => 0,
         host_filter => 0,
@@ -559,8 +557,10 @@ sub Process_RNAseq {
         mapper => 'hisat2',);
     my $prefix = sprintf("%02d", 0);
     my $cwd_name = basename(cwd());
-    my @jobs = ();
+    my $ret = {};
+    my $jobid;
 
+    my $last_job;
     my $download;
     if ($options->{sra}) {
         $prefix = sprintf("%02d", ($prefix + 1));
@@ -568,28 +568,30 @@ sub Process_RNAseq {
         $download = $class->Bio::Adventure::Prepare::Fastq_Dump(
             input => $options->{input},
             jprefix => $prefix,);
-        push(@jobs, $download);
-        my $last_job = $download->{job_id};
+        $jobid = qq"${prefix}fastqdump";
+        $ret->{$jobid} = $download;
+        $last_job = $download->{job_id};
         sleep($options->{jsleep});
         $options->{input} = $download->{output};
         $options->{input_paired} = $download->{output_paired};
     }
 
     my $map_input = $options->{input};
+    my $trim;
     if ($options->{trim}) {
         $prefix = sprintf("%02d", ($prefix + 1));
         print "\n${prefix}: Starting trimmer.\n";
-        my $trim = $class->Bio::Adventure::Trim::Trimomatic(
+        $trim = $class->Bio::Adventure::Trim::Trimomatic(
             compress => 0,
             input => $options->{input},
             input_paired => $options->{input_paired},
             jprefix => $prefix,
             jname => 'trimomatic',);
+        $jobid = qq"${prefix}trim";
+        $ret->{$jobid} = $trim;
         $map_input = $trim->{output};
-        sleep(5);
-        push(@jobs, $trim);
-        my $last_job = $trim->{job_id};
         sleep($options->{jsleep});
+        my $last_job = $trim->{job_id};
     }
 
     $prefix = sprintf("%02d", ($prefix + 1));
@@ -599,8 +601,8 @@ sub Process_RNAseq {
         jdepends => $last_job,
         jnice => 100,
         jprefix => $prefix,);
-    sleep(5);
-    push(@jobs, $fastqc);
+    $jobid = qq"${prefix}fastqc";
+    $ret->{$jobid} = $fastqc;
     $last_job = $fastqc->{job_id};
     sleep($options->{jsleep});
 
@@ -630,9 +632,9 @@ sub Process_RNAseq {
             jprefix => $prefix,
             jdepends => $last_job,
             stranded => $options->{stranded});
-        sleep(5);
         $last_job = $first_map->{job_id};
-        push(@jobs, $first_map);
+        $jobid = qq"${prefix}hisat";
+        $ret->{$jobid} = $first_map;
         sleep($options->{jsleep});
         $last_sam_job = $first_map->{samtools}->{job_id};
 
@@ -647,8 +649,8 @@ sub Process_RNAseq {
                 gff_tag => $first_id,
                 intron => $options->{intron},
                 jprefix => $prefix,);
-            sleep(5);
-            push(@jobs, $first_snp);
+            $jobid = qq"${prefix}freebayes";
+            $ret->{$jobid} = $first_snp;
             sleep($options->{jsleep});
         }
     } elsif ($options->{mapper} eq 'salmon') {
@@ -659,7 +661,8 @@ sub Process_RNAseq {
             jprefix => $prefix,
             jdepends => $trim->{job_id},);
         $last_job = $first_map->{job_id};
-        push(@jobs, $first_map);
+        $jobid = qq"${prefix}salmon";
+        $ret->{$jobid} = $first_map;
         sleep($options->{jsleep});
     } else {
         die("I do not know this mapper yet.");
@@ -687,6 +690,9 @@ sub Process_RNAseq {
                     gff_type => $nth_type,
                     gff_tag => $nth_id,
                     jprefix => $prefix,);
+                sleep($options->{jsleep});
+                $jobid = qq"${prefix}hostfilt";
+                $ret->{$jobid} = $nth_map;
                 $last_sam_job = $nth_map->{samtools}->{job_id};
             } else {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} without filtering.\n";
@@ -699,7 +705,8 @@ sub Process_RNAseq {
                         gff_type => $nth_type,
                         gff_tag => $nth_id,
                         jprefix => $prefix,);
-                    push(@jobs, $nth_map);
+                    $jobid = qq"${prefix}hisat";
+                    $ret->{$jobid} = $nth_map;
                     $last_sam_job = $nth_map->{samtools}->{job_id};
                     sleep($options->{jsleep});
                     if ($options->{freebayes}) {
@@ -714,7 +721,8 @@ sub Process_RNAseq {
                             intron => $options->{intron},
                             jprefix => $prefix,);
                         $last_job = $nth_map->{job_id};
-                        push(@jobs, $nth_snp);
+                        $jobid = qq"${prefix}freebayes";
+                        $ret->{$jobid} = $nth_snp;
                         sleep($options->{jsleep});
                     }
                     sleep($options->{jsleep});
@@ -725,7 +733,9 @@ sub Process_RNAseq {
                         input => $map_input,
                         species => $nth_species,
                         jprefix => $prefix,);
-                    push(@jobs, $nth_map);
+                    sleep($options->{jsleep});
+                    $jobid = qq"${prefix}salmon";
+                    $ret->{$jobid} = $nth_map;
                 } else {
                     die("I do not know this mapper yet.");
                 }
@@ -741,6 +751,8 @@ sub Process_RNAseq {
         jprefix => $prefix,);
     $last_job = $compress_input->{job_id};
     $prefix = sprintf("%02d", ($prefix + 1));
+    $jobid = qq"${prefix}comptrim";
+    $ret->{$jobid} = $compress_input;
     sleep($options->{jsleep});
     if ($options->{mapper} eq 'hisat2') {
         my $compress_first_map = $class->Bio::Adventure::Compress::Compress(
@@ -748,9 +760,11 @@ sub Process_RNAseq {
             jdepends => $last_job,
             jname => 'comp_hisat',
             jprefix => $prefix,);
+        $jobid = qq"${prefix}compin";
+        $ret->{$jobid} = $compress_input;
         $last_job = $compress_first_map->{job_id};
     }
-    return(\@jobs);
+    return($ret);
 }
 
 sub RNAseq {

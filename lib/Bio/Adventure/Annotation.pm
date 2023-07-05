@@ -1,6 +1,4 @@
 package Bio::Adventure::Annotation;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -178,6 +176,8 @@ cd \${start}
  tools.  It provides a single interface for searching against a
  comprehensive array of databases.
 
+=over
+
 =item C<Arguments>
 
  input(required): Fasta file containing amino acid sequences.
@@ -211,9 +211,12 @@ sub Interproscan {
 
     my $interproscan_exe_dir = dirname($check);
     ## Hey, don't forget abs_path requires a file which already exists.
-    my $input_filename = basename($options->{input});
+    my $abs_input = abs_path($options->{input});
+    my $input_dir = dirname($abs_input);
+    my $input_filename = basename($abs_input);
+    my $input_uncomp = basename($options->{input}, ('.gz', '.xz', '.bz2'));
     my $output_filename = qq"${input_filename}.tsv";
-    my $input_dir = dirname($options->{input});
+
     my $input_dirname = basename($input_dir);
     my $input_path = abs_path($input_dir);
     $input_path = qq"${input_path}/${input_filename}";
@@ -224,11 +227,11 @@ sub Interproscan {
     my $stdout = qq"${output_dir}/interproscan.stdout";
     my $stderr = qq"${output_dir}/interproscan.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
+perl -pe 's/\\*//g' <(less ${abs_input}) > ${output_dir}/${input_uncomp}
 start=\$(pwd)
 cd ${output_dir}
-perl -pe 's/\\*//g' ${input_path} > ${input_filename}
 interproscan.sh --enable-tsv-residue-annot \\
-  --iprlookup --pathways -i ${input_filename} \\
+  --iprlookup --pathways -i ${input_uncomp} \\
   2>interproscan.stderr \\
   1>interproscan.stdout
 test=\$?
@@ -260,6 +263,8 @@ cd \${start}
     return($interproscan);
 }
 
+=back
+
 =head2 C<Prokka>
 
  Perform automated assembly annotation, intended for bacteria.
@@ -269,6 +274,8 @@ cd \${start}
  suite of tools written by Torsten Seeman, and probably my
  favorite. It takes an assembly, runs prodigal, some tRNA searches,
  some BLAST searches, and generates fasta/gbk/etc files from the results.
+
+=over
 
 =item C<Arguments>
 
@@ -612,6 +619,8 @@ sub Interpro_Long2Wide_Worker {
     return($db_counter);
 }
 
+=back
+
 =head2 C<Extract_Annotations>
 
  Pull apart the encoded trinotate annotations into a more readable format.
@@ -620,6 +629,8 @@ sub Interpro_Long2Wide_Worker {
  multiple hits into one cell of a tsv output file with a combination
  of backticks(`) and caret(^).  This function reads that and splits
  them up into separate cells.  It is called by Extract_Trinotate().
+
+=over
 
 =item C<Arguments>
 
@@ -672,12 +683,16 @@ ${seq}
     return($ids);
 }
 
+=back
+
 =head2 C<Extract_Trinotate>
 
  Parse the trinotate encoded blast results into a simpler table.
 
  The trinotate output format is a bit... unwieldy.  This seeks to
  parse out the useful information from it.
+
+=over
 
 =item C<Arguments>
 
@@ -724,6 +739,8 @@ sub Extract_Trinotate {
     $input->close();
     return($count);
 }
+
+=back
 
 =head2 C<Read_Write_Annotation>
 
@@ -918,6 +935,8 @@ sub Read_Write_Annotation {
 
  Submit a trinity denovo sequence assembly to transdecoder.
 
+=over
+
 =item C<Arguments>
 
  input(required): Output from trinity for post processing.
@@ -970,12 +989,16 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
     return($transdecoder);
 }
 
+=back
+
 =head2 C<Trinotate>
 
  Submit a trinity denovo sequence assembly to trinotate.
 
  In the time since writing this, I added a cheesy hack to allow it to
  run on genomic assemblies as well.
+
+=over
 
 =item C<Arguments>
 
@@ -992,7 +1015,7 @@ sub Trinotate {
         args => \%args,
         config => 'conf.txt',
         jcpu => 4,
-        jprefix => '20',
+        jprefix => '62',
         modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp', 'hmmer',
                     'tmhmm', 'rnammer', 'trinotate', ],
         required => ['input'],
@@ -1078,6 +1101,8 @@ cd \${start}
     return($trinotate);
 }
 
+=back
+
 =head2 C<Rosalind_Plus>
 
  Attempt to ensure that the plus strand has the most putative ORFs.
@@ -1089,6 +1114,8 @@ cd \${start}
 
  Just a little note from a friend: "This is my formal proposal to start
  calling the 'Watson' and 'Crick' strands 'Rosalind' and 'Franklin'."
+
+=over
 
 =item C<Arguments>
 
@@ -1154,6 +1181,8 @@ my \$result = \$h->Bio::Adventure::Annotation::Rosalind_Plus_Worker(
         output_dir => $output_dir,);
     return($rewrite);
 }
+
+=back
 
 =head2 C<Rosalind_Plus_Worker>
 

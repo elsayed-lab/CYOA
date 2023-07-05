@@ -202,6 +202,7 @@ has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs de
 has jqueues => (is => 'rw', default => 'throughput,workstation,long,large'); ## Other possible queues
 has jsleep => (is => 'rw', default => '0.5'); ## Set a sleep between jobs
 has jstring => (is => 'rw', default => undef); ## String of the job
+has jtemplate => (is => 'rw', default => undef);
 has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
 has language => (is => 'rw', default => 'bash'); ## What kind of script is this?
@@ -1772,6 +1773,7 @@ sub Submit {
     my $options = $class->Get_Vars(
         args => \%args);
     my $modulecmd_check = $class->{modulecmd};
+    make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     if ($options->{language} eq 'bash') {
         my $module_string = '';
         if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {

@@ -363,6 +363,8 @@ sub Gb2Gff_Worker {
  It writes one file of amino acid sequence and one of nucleotides.
  Upon completion, it returns the number of entries written.
 
+=over
+
 =item C<Arguments>
 
  species: Add the .gff and .fasta suffixes to this and look in $libdir.
@@ -465,6 +467,8 @@ sub Gff2Fasta {
     print "Wrote ${features_written} features to the aa/nt files.\n";
     return($features_written);
 }
+
+=back
 
 =head2 C<Gff2Gtf>
 
@@ -620,6 +624,8 @@ sub Read_GFF {
  directory and which start with $basename, include something like
  -trimmed-v0M1.sam.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input sam file.
@@ -666,6 +672,8 @@ sub Sam2Bam {
     return($sam);
 }
 
+=back
+
 =head2 C<Samtools>
 
  Does the actual work of converting a sam to a bam file.
@@ -678,6 +686,8 @@ sub Sam2Bam {
  not for any real reason but because when I first wrote it, it
  seemed like the sorting was taking too long if I did not already
  have the alignments in a bam file.
+
+=over
 
 =item C<Arguments>
 
@@ -694,7 +704,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        mistmatch => 1,
+        mismatch => 1,
         modules => ['samtools', 'bamtools'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $input = $options->{input};
@@ -731,7 +741,8 @@ samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   1>>${stdout}";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
-        $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
+        $samtools_first = qq"samtools view -u \\
+  -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output}";
         $samtools_second = qq"samtools sort -l 9 ${output} \\
   ${sorted_name} \\
@@ -854,6 +865,8 @@ xz -9e -f ${unmapped}
                                     action => 'unload',);
     return($samtools);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

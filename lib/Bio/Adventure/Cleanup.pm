@@ -1,6 +1,4 @@
 package Bio::Adventure::Cleanup;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -81,13 +79,12 @@ stuff=\$(find . -type d -name '*_dir*')
 if [[ \! -z "\${stuff}" ]]; then
   rm -rf "\${stuff}"
 fi
-## Recompress random fastq files
-stuff=\$(find . -name '*.fastq')
+## Recompress random fastq files, but not symlinks
+stuff=\$(find . -type f -size +0 -name '*.fastq')
 if [[ \! -z "\${stuff}" ]]; then
   xz -9e -f "\${stuff}"
 fi
 !;
-
     my $comment = '## Cleanup some of the mess.';
     my $clean = $class->Submit(
         comment => $comment,

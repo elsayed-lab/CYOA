@@ -1,6 +1,4 @@
 package Bio::Adventure::Slurm;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -12,9 +10,14 @@ use Cwd;
 use Data::Dumper;
 use File::Basename qw"basename dirname";
 use File::Path qw"make_path remove_tree";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use File::Which qw"which";
 use IO::Handle;
 use POSIX qw"floor ceil";
+use Template;
+my $template_base = dist_dir('Bio-Adventure');
+my $template_dir = qq"${template_base}/templates";
+print "TESTME: $template_dir\n";
 
 ## List of accounts, partitions, qos for this user
 has accounts => (is => 'rw', default => undef);
@@ -1117,7 +1120,8 @@ sub Submit {
         $options->{jprefix} = '';
     }
     my $jname = qq"$options->{jprefix}$options->{jname}";
-    my $finished_file = qq"outputs/logs/${jname}.finished";
+    my $finished_file = qq"$options->{logdir}/${jname}.finished";
+
     my $job = {};
     foreach my $k (keys %args) {
         next if ($k eq 'jstring');
@@ -1180,7 +1184,6 @@ sub Submit {
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
-    make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
 
@@ -1236,36 +1239,45 @@ ${perl_file} \\
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
-    my $nice_string = '';
-    $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
-
-    my $array_string = '';
-    $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
-    my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
-    my $mem_string = qq"$wanted->{mem}G";
-    my $script_start = qq?#!$options->{shell}
+    if ($options->{jtemplate}) {
+        print "In slurm, processing with dir: $template_dir\n";
+        print "Template is outputting to: $script_file\n";
+        my $tt = Template->new({
+            INCLUDE_PATH => $template_dir,
+            OUTPUT => $script_file,
+            TRIM => 1,
+            INTERPOLATE => 1,});
+        $tt->process($options->{jtemplate}, $options) || die $tt->error();
+    } else {
+        my $nice_string = '';
+        $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
+        my $array_string = '';
+        $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
+        my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
+        my $mem_string = qq"$wanted->{mem}G";
+        my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --job-name=${jname} ${nice_string}
 #SBATCH --output=${sbatch_log}.sbatch
 ?;
-    $script_start .= qq?#SBATCH --account=${account_string}\n? if ($account_string);
-    $script_start .= qq?#SBATCH --partition=${partition_string}\n? if ($partition_string);
-    $script_start .= qq?#SBATCH --qos=${qos_string}\n? if ($qos_string);
-    ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
-    $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
-    $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
-    $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
-    $script_start .= qq"${array_string}\n" if ($array_string);
-    $script_start .= qq?set -o errexit
+        $script_start .= qq?#SBATCH --account=${account_string}\n? if ($account_string);
+        $script_start .= qq?#SBATCH --partition=${partition_string}\n? if ($partition_string);
+        $script_start .= qq?#SBATCH --qos=${qos_string}\n? if ($qos_string);
+        ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
+        $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
+        $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
+        $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
+        $script_start .= qq"${array_string}\n" if ($array_string);
+        $script_start .= qq?set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 ?;
-    $script_start .= $options->{module_string} if ($options->{module_string});
+        $script_start .= $options->{module_string} if ($options->{module_string});
 
-    my $script_end = qq!
+        my $script_end = qq!
 ## The following lines give status codes and some logging
 echo "Job status: \$? " >> ${sbatch_log}
 minutes_used=\$(( SECONDS / 60 ))
@@ -1288,25 +1300,26 @@ fi
 touch ${finished_file}
 !;
 
-    my $total_script_string = '';
-    $total_script_string .= qq"${script_start}\n";
-    $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
-    $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
-    ## The prescript contains the module() definition when needed.
-    ## So put that after it.
+        my $total_script_string = '';
+        $total_script_string .= qq"${script_start}\n";
+        $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
+        $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
+        ## The prescript contains the module() definition when needed.
+        ## So put that after it.
 
-    $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
-    $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
-    $total_script_string .= "${script_end}\n";
+        $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
+        $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
+        $total_script_string .= "${script_end}\n";
 
-    my $script = FileHandle->new(">$script_file");
-    if (!defined($script)) {
-        die("Could not write the script: $script_file
+        my $script = FileHandle->new(">$script_file");
+        if (!defined($script)) {
+            die("Could not write the script: $script_file
   $!");
+        }
+        print $script $total_script_string;
+        $script->close();
+        chmod(0755, $script_file);
     }
-    print $script $total_script_string;
-    $script->close();
-    chmod(0755, $script_file);
     my $job_id = undef;
     my $handle = IO::Handle->new;
     my $sbatch_pid = open($handle, qq"${sbatch_cmd_line} |");
@@ -1368,7 +1381,7 @@ echo "Ending test job."
 ?;
     my $job = $cyoa->Submit(
         input => 'test',
-        jstring => $jstring,
+        jtemplate => 'test.sh',
         jmem => $options->{jmem},
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});

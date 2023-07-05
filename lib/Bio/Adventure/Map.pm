@@ -255,6 +255,8 @@ bowtie \\
  htseq-count, compress the various output fastq files, and collect a
  few alignment statistics.
 
+=over
+
 =item C<Arguments>
 
  input(required): colon-separated pair of (compressed)fastq files.
@@ -440,6 +442,8 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
     return($bt2_job);
 }
 
+=back
+
 =head2 C<Bowtie_RRNA>
 
  Search for rRNA using bowtie.
@@ -517,6 +521,8 @@ sub BT_Multi {
  Perform a bwa alignment using both the sam(s|p)e and aln algorithms.  It then
  converts the output (when appropriate) to sorted/indexed bam and passes them to
  htseq.
+
+=over
 
 =item C<Arguments>
 
@@ -803,12 +809,16 @@ fi
     return($bwa_job);
 }
 
+=back
+
 =head2 C<Hisat2>
 
  Invoke hisat2!
  10.1038/s41587-019-0201-4
 
  Hisat2 is currently my favorite aligner.
+
+=over
 
 =item C<Arguments>
 
@@ -1096,12 +1106,16 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     return($hisat_job);
 }
 
+=back
+
 =head2 C<Kallisto>
 
  Perform a kallisto transcript quantification.
  10.1038/nbt.3519
 
  Kallisto and salmon are my two favorite 'voting' based aligners.
+
+=over
 
 =item C<Arguments>
 
@@ -1230,6 +1244,8 @@ kallisto quant ${ka_args} \\
     $kallisto->{index} = $index_job;
     return($kallisto);
 }
+
+=back
 
 =head2 C<RSEM>
 
@@ -1720,8 +1736,6 @@ fi
     $tophat->{stats} = $stats;
     return($tophat);
 }
-
-=back
 
 =head1 AUTHOR - atb
 

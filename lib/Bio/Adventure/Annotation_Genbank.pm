@@ -1,6 +1,4 @@
 package Bio::Adventure::Annotation_Genbank;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -45,6 +43,8 @@ use Bio::Tools::GuessSeqFormat;
  preferred annotation source and also set the first/second source.
  I am pretty sure this logic is redundant.
 
+=over
+
 =item C<Arguments>
 
  first: First annotation source.
@@ -55,6 +55,7 @@ use Bio::Tools::GuessSeqFormat;
  notes: A hash of note annotations
  keep_both(0): Keep the union of the sources.
 
+=back
 =cut
 sub Combine_CDS_Features {
     my %args = @_;
@@ -379,6 +380,8 @@ sub Filter_Edge_Features {
  This requires input genbank file from prokka, the gff features from
  prodigal, and the prediction file from glimmer3.
 
+=over
+
 =item C<Arguments>
 
  input(required): Prokka output annotations (e.g. untrained prodigal).
@@ -484,6 +487,8 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
     return($merge_orfs);
 }
 
+=back
+
 =head2 C<Merge_CDS_Predictions_Worker>
 
  This does the actual work spawned by Merge_CDS_Predictions().
@@ -511,6 +516,8 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
  9.  Actually run tbl2asn in order to generate genbank flat files.
 
  Currently it does not return anything useful, which is dumb.
+
+=over
 
 =item C<Arguments>
 
@@ -641,6 +648,8 @@ sub Merge_CDS_Predictions_Worker {
 
     ## This should return something useful -- maybe parse the error file from tbl2asn?
 }
+
+=back
 
 =head2 C<Predict_to_Features>
 

@@ -1,6 +1,4 @@
 package Bio::Adventure::Feature_Prediction;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -38,6 +36,8 @@ use Text::CSV_XS::TSV;
  genes have introns.  In addition, mtRNA genes are in the introns of
  other genes; and in that context have regulatory effects.  So its like
  an island on a lake with an island in a pond.
+
+=over
 
 =item C<Arguments>
 
@@ -98,6 +98,8 @@ sub Aragorn {
     return($aragorn);
 }
 
+=back
+
 =head2 C<Glimmer>
 
  Use glimmer in two passes to search for ORFs in a sequence database.
@@ -107,6 +109,8 @@ sub Aragorn {
  rewrote it as a short perl script which has some error handling and
  captures each step in a separate function in the hopes that the
  outputs will be clearer and easier to follow.
+
+=over
 
 =item C<Arguments>
 
@@ -184,7 +188,9 @@ cyoa_invoke_glimmer.pl --input $options->{input} \\
     return($glimmer);
 }
 
-=head2 C<Glimmer_Single
+=back
+
+=head2 C<Glimmer_Single>
 
  Invoke glimmer in a single pass.
 
@@ -192,6 +198,8 @@ cyoa_invoke_glimmer.pl --input $options->{input} \\
  training run. I am somewhat against running glimmer like this, it
  does not take much time to use glimmer's training functions; but some
  assembly methods explicitly run it in a single-pass fashion.
+
+=over
 
 =item C<Arguments>
 
@@ -266,6 +274,8 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
     return($glimmer);
 }
 
+=back
+
 =head2 C<Phagepromoter>
 
  Use the phagepromoter tool to search for potential promoters.
@@ -275,6 +285,8 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
  how pooly documented it is.  I have a pretty strong desire to rewrite
  it and make it able to train on other genera and/or make it generic;
  as well as document and clean it up.
+
+=over
 
 =item C<Arguments>
 
@@ -366,6 +378,8 @@ cd \${start}
     return($phagepromoter);
 }
 
+=back
+
 =head2 C<Phanotate>
 
  Search for phage CDS in an assembly.
@@ -378,6 +392,8 @@ cd \${start}
 
  This function invokes phanotate on a viral assembly to search for
  ORFs.
+
+=over
 
 =item C<Arguments>
 
@@ -433,6 +449,8 @@ xz -9e -f ${output_file}
     return($phanotate);
 }
 
+=back
+
 =head2 C<Prodigal>
 
  Search for CDS using prodigal.
@@ -441,6 +459,8 @@ xz -9e -f ${output_file}
  Invoke prodigal on an assembly to search for ORFs.  This will by
  default look for an existing training file provided by
  Train_Prodigal()'.
+
+=over
 
 =item C<Arguments>
 
@@ -561,6 +581,8 @@ sleep 3
     return($prodigal);
 }
 
+=back
+
 =head2 C<Rho_Terminase_Predict>
 
  Use the rho terminase prediction tool to hunt for rho.
@@ -568,6 +590,8 @@ sleep 3
 
  Polymerase termination is neat!  Look for rho termination factors
  with this tool.
+
+=over
 
 =item C<Arguments>
 
@@ -620,6 +644,8 @@ cd \${start}
     return($rhoterm);
 }
 
+=back
+
 =head2 C<Train_Prodigal>
 
  Train prodigal to improve its predictions!
@@ -628,6 +654,8 @@ cd \${start}
  are too small for prodigal to train itself sufficiently; so this
  function was written to provide an opportunity for one to collate a
  larger sequence database for training.
+
+=over
 
 =item C<Arguments>
 
@@ -680,6 +708,8 @@ prodigal -i $options->{input} \\
     return($prodigal);
 }
 
+=back
+
 =head2 C<tRNAScan>
 
  Search for tRNA sequence-like elements with infernal.
@@ -689,6 +719,8 @@ prodigal -i $options->{input} \\
  poking at the two methods, it may prove worth while to employ them
  both.  By default, this invocation is less stringent than the
  previous aragorn invocation.
+
+=over
 
 =item C<Arguments>
 
@@ -768,6 +800,8 @@ echo "Finished second run with $? at $(date)" >> ${output_dir}/trnascan_return.t
 }
 
 1;
+
+=back
 
 =head1 AUTHOR - atb
 

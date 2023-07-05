@@ -1,6 +1,4 @@
 package Bio::Adventure::Metadata;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -50,6 +48,8 @@ use Text::CSV_XS::TSV;
 
  This makes a set of assumptions about the outputs from other tools
  and copies them to a single output directory.
+
+=over
 
 =item C<Arguments>
 
@@ -115,6 +115,8 @@ sub Collect_Assembly {
         output => $output_dir,);
     return($collect);
 }
+
+=back
 
 =head2 C<Generate_Samplesheet>
 
@@ -1858,8 +1860,6 @@ echo "\$stat_string" >> ${stat_output}
         output => $stat_output,);
     return($stats);
 }
-
-=back
 
 =head1 AUTHOR - atb
 

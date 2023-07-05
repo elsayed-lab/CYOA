@@ -1,6 +1,4 @@
 package Bio::Adventure::Count;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -181,6 +179,8 @@ sub Guess_Strand_Worker {
 
  Invoke htseq multiple times with options for counting different transcript types.
 
+=over
+
 =item C<Arguments>
 
  species(required): Defines the gff/fasta files to query in {libpath}.
@@ -320,12 +320,16 @@ sub HT_Multi {
     return(\@jobs);
 }
 
+=back
+
 =head2 C<HT_Types>
 
  Guess about most appropriate flags for htseq-count.
 
  This function reads the first 100k lines of a gff file and use that
  to guess at the most likely type of feature when invoking htseq.
+
+=over
 
 =item C<Arguments>
 
@@ -420,6 +424,8 @@ sub HT_Types {
     return($ret);
 }
 
+=back
+
 =head2 C<HTSeq>
 
  Run htseq-count on a sorted, indexed bam file.
@@ -428,6 +434,8 @@ sub HT_Types {
  Invoke htseq-count.  This should be able to automagically pick up
  other types of countable features and send the htseq-count results to
  a separate count file.
+
+=over
 
 =item C<Arguments>
 
@@ -455,7 +463,7 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_args',],
-	jmem => 20,
+        jmem => 20,
         jname => '',
         jprefix => '',
         modules => ['htseq'],);
@@ -578,6 +586,8 @@ xz -f -9e ${output}
     return($htseq);
 }
 
+=back
+
 =head2 C<Jellyfish>
 
  Run jellyfish with multiple values of K on a fast(a|q) file(s).
@@ -587,6 +597,8 @@ xz -f -9e ${output}
  This should also send the wacky fasta format fo counted sequences to a
  tsv of kmers and numbers, which should be a rather more tractable
  format with which to play.
+
+=over
 
 =item C<Arguments>
 
@@ -730,12 +742,16 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     return($jelly);
 }
 
+=back
+
 =head2 C<Jellyfish_Matrix>
 
  Convert the jellyfish fasta format to a matrix-compatible tsv.
 
  This function is responsible for actually converting the fasta output
  from jellyfish into tsv.  It is pretty quick and dirty.
+
+=over
 
 =item C<Arguments>
 
@@ -783,12 +799,16 @@ sub Jellyfish_Matrix {
     return($nmer_count);
 }
 
+=back
+
 =head2 C<Kraken>
 
  Use kraken2 to taxonomically classify reads.
 
  Kraken2 is a kmer-based read classifier.  It is quite fast once its
  databases are built.
+
+=over
 
 =item C<Arguments>
 
@@ -875,6 +895,8 @@ rm -f ${output_dir}/*.fastq.gz
     return($kraken);
 }
 
+=back
+
 =head2 C<Mash>
 
  Calculate distances using mash
@@ -946,6 +968,8 @@ for outer in ${sketch_dir}/*; do
  This function has not been used in a very long time and likely will
  require some work if I wish to use it again.
 
+=over
+
 =item C<Arguments>
 
  mirbase_data(required): File containing miRNAs from the mirbase.
@@ -992,12 +1016,16 @@ sub Mi_Map {
     return($job);
 } ## End of Mi_Map
 
+=back
+
 =head2 C<Read_Mi>
 
  Read an miRNA database.
 
  This takes the fasta file from the mirbase and extracts the IDs and
  sequences.
+
+=over
 
 =item C<Arguments>
 
@@ -1017,6 +1045,8 @@ sub Read_Mi {
     }
     return(\%sequences);
 }
+
+=back
 
 =head2 C<Mpileup>
 
@@ -1077,6 +1107,8 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 
  Read an miRNA database and get the connections between the various IDs, mature
  sequences, and immature sequences.
+
+=over
 
 =item C<Arguments>
 
@@ -1154,9 +1186,13 @@ sub Read_Mappings_Mi {
     return($newdb);
 }
 
+=back
+
 =head2 C<Read_Bam_Mi>
 
  Read a bam file and cross reference it against an miRNA database.
+
+=over
 
 =item C<Arguments>
 
@@ -1225,9 +1261,13 @@ sub Read_Bam_Mi {
     return($mappings);
 }
 
+=back
+
 =head2 C<Final_Print_Mi>
 
  Print out the final counts of miRNA mappings.
+
+=over
 
 =item C<Arguments>
 
@@ -1250,6 +1290,8 @@ sub Final_Print_Mi {
     return($hits);
 } ## End of Final_Print
 
+=back
+
 =head2 C<Count_Alignments>
 
  Compare alignments across species.
@@ -1259,6 +1301,8 @@ sub Final_Print_Mi {
  parasite along with multi-hits across both.  This was first used to
  distinguish between T. cruzi and human hits, ergo the 'Tc' as the
  default parasite pattern.
+
+=over
 
 =item C<Arguments>
 
@@ -1420,6 +1464,8 @@ Multi-both: $result->{both_multi}\n";
     return($result);
 }
 
+=back
+
 =head2 C<SLSearch>
 
  Search a pile of reads for the trypanosome spliced leader.
@@ -1437,6 +1483,8 @@ Multi-both: $result->{both_multi}\n";
  With that in mind, this counts up the number of times a string of
  interest appears in the input files in the forward and RC directions,
  and prints that in an easy-to-read format.
+
+=over
 
 =item C<Arguments>
 
@@ -1484,6 +1532,8 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
     $class->{shell} = '/usr/bin/env bash';
     return($slsearch);
 }
+
+=back
 
 =head2 C<SLSearch_Worker>
 

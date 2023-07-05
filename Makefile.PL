@@ -8,11 +8,11 @@ install_share 'share';
 auto_install(
     force => 1,);
 WriteMakefile(
+    LICENSE => 'perl',
     NAME => 'Bio-Adventure',
     AUTHOR => 'Ashton Trey Belew <abelew@gmail.com>',
     VERSION_FROM => 'lib/Bio/Adventure.pm',
-    ABSTRACT_FROM => 'lib/Bio/Adventure.pm',
-    LICENSE => 'perl',
+    ABSTRACT => 'cyoa: Utilities to help preprocessing high-throughput data.',
     PREREQ_PM => {
         'autodie' => '0',
             'AppConfig' => '0',
@@ -68,11 +68,23 @@ WriteMakefile(
     TEST_REQUIRES => {
         'Test::More' => '0.47'
     },
-    TEST_VERBOSE => 1,
     EXE_FILES => [
-        'script/cyoa.pl'
+        'script/cyoa.pl',
+        'script/cyoa_invoke_glimmer.pl'
     ],
-    );
+    META_MERGE => {
+        'meta-spec' => { version => 2 },
+        resources => {
+            repository => {
+                type => 'git',
+                url => 'https://github.com/abelew/CYOA.git',
+            },
+            bugtracker => {
+                web => 'https://github.com/abelew/CYOA/issues',
+            },
+            homepage => 'https://github.com/abelew/CYOA.git',
+        },
+    },);
 
 package MY;
 use File::ShareDir::Install qw"postamble";

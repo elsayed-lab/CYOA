@@ -1,6 +1,4 @@
 package Bio::Adventure::Local;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -13,8 +11,13 @@ no warnings 'experimental::try';
 use Cwd;
 use File::Basename qw "basename dirname";
 use File::Path qw"make_path remove_tree";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use File::Which qw"which";
 use IO::Handle;
+use Template;
+my $template_base = dist_dir('Bio-Adventure');
+my $template_dir = qq"${template_base}/templates";
+print "TESTME: Local: $template_dir\n";
 
 =head1 NAME
 
@@ -135,7 +138,17 @@ ${perl_file} \\
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
-    my $script_start = qq?#!$options->{shell}
+    if ($options->{jtemplate}) {
+        print "In local, processing with dir: $template_dir\n";
+        print "Template is outputting to: $script_file\n";
+        my $tt = Template->new({
+            INCLUDE_PATH => $template_dir,
+            OUTPUT => $script_file,
+            TRIM => 1,
+            INTERPOLATE => 1,});
+        $tt->process($options->{jtemplate}, $options) || die $tt->error();
+    } else {
+        my $script_start = qq?#!$options->{shell}
 cd $options->{basedir}
 set -o errexit
 set -o errtrace
@@ -144,27 +157,28 @@ export LESS='$ENV{LESS}'
 echo "## Started ${script_base} at \$(date) on \$(hostname)." >> ${bash_log}
 
 ?;
-    $script_start .= $options->{module_string} if ($options->{module_string});
-    my $script_end = qq!
+        $script_start .= $options->{module_string} if ($options->{module_string});
+        my $script_end = qq!
 ## The following lines give status codes and some logging
 echo "Job status:\$?" >> ${bash_log}
 echo " \$(hostname) Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${bash_log}
 touch ${finished_file}
 !;
 
-    my $total_script_string = '';
-    $total_script_string .= qq"${script_start}\n";
-    $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
-    $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
-    $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
-    $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
-    $total_script_string .= qq"${script_end}\n";
-    my $script = FileHandle->new(">${script_file}");
-    if (!defined($script)) {
-        die("Could not write the script: ${script_file}, check its permissions.")
+        my $total_script_string = '';
+        $total_script_string .= qq"${script_start}\n";
+        $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
+        $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
+        $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
+        $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
+        $total_script_string .= qq"${script_end}\n";
+        my $script = FileHandle->new(">${script_file}");
+        if (!defined($script)) {
+            die("Could not write the script: ${script_file}, check its permissions.")
+        }
+        print $script $total_script_string;
+        $script->close();
     }
-    print $script $total_script_string;
-    $script->close();
     chmod(0755, $script_file);
     my $job_text = '';
 
