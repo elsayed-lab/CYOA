@@ -6,6 +6,7 @@ use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
 
+use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Path qw"make_path";
 use File::ShareDir qw":ALL";
@@ -21,6 +22,81 @@ use File::Which qw"which";
  This file is responsible for invoking the various sequence trimmers.
 
 =head1 METHODS
+
+=head2 C<Cogent>
+
+ Invoke takara's cogent tool to remove UMIs from a sequencing run.
+
+=cut
+sub Cogent {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        jcpu => 4,
+        jprefix => '01',
+        jmem => 24,
+        jwalltime => 36,
+        type => 'Stranded_UMI',
+        modules => ['cogent'],
+        required => ['input', 'species', 'input_umi'],);
+    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $check = which('cogent');
+    die('Could not find cogent in your PATH.') unless($check);
+
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+    my @input_filenames = split(/\:|\;|\,|\s+/, $options->{input});
+    my $output_dir = qq"outputs/$options->{jprefix}cogent";
+    my $comment = qq!## This is a cogent demultiplexing/trimming job.
+!;
+    my $stdout = qq"${output_dir}/cogent.stdout";
+    my $stderr = qq"${output_dir}/cogent.stderr";
+    my $jstring = qq!mkdir -p ${output_dir}
+cogent demux \\
+  -i $input_filenames[0] \\
+  -p $input_filenames[1] \\
+  -b $options->{input_umi} \\
+  -t $options->{type} \\
+  -o ${output_dir}/demux \\
+  -n $options->{jcpu} \\
+  2>${stderr} 1>${stdout}
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "cogent demux succeeded."
+else
+  echo "cogent demux failed."
+  exit \$?
+fi
+cogent analyze \\
+  -i ${output_dir}/demux \\
+  -g $options->{species} \\
+  -o ${output_dir}/analyze \\
+  -t $options->{type} \\
+  --threads $options->{jcpu} \\
+  2>>${stderr} 1>>${stdout}
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "cogent analyze succeeded."
+else
+  echo "cogent analyze failed."
+  exit \$?
+fi
+!;
+    my $cogent = $class->Submit(
+        comment => $comment,
+        jcpu => $options->{jcpu},
+        jdepends => $options->{jdepends},
+        jname => "cogent_${job_name}",
+        jqueue => 'large',
+        jstring => $jstring,
+        modules => $options->{modules},
+        stdout => $stdout,
+        stderr => $stderr,);
+    $loaded = $class->Module_Loader(modules => $options->{modules},
+                                    action => 'unload');
+    return($cogent);
+}
 
 =head2 C<Cutadapt>
 

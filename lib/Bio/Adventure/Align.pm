@@ -576,14 +576,12 @@ sub Orthofinder_Names_Worker {
     my $single_groups = $options->{single_input};
     my $outdir = dirname($all_groups);
     my $all_out = qq"${outdir}/all_orthogroups_named.tsv";
-    print "TESTME: $all_out\n";
     my $single_out = qq"${outdir}/single_orthogroups_named.tsv";
     my $fasta_dir = $options->{fasta_dir};
     my @input_files = glob("${fasta_dir}/*.fa*");
     for my $in (@input_files) {
         my $species_name = basename($in, ('.faa'));
         ## my $protein_desc->{$species_name} = {};
-        print "TESTME: reading $in\n";
         my $seqio_in = Bio::SeqIO->new(-format => 'fasta', -file => $in);
         my $id_count = 0;
       SEQ: while (my $seq = $seqio_in->next_seq) {
@@ -603,7 +601,6 @@ sub Orthofinder_Names_Worker {
               $desc =~ s/ \[.*//g;
           }
           ##while ($id_count < 10) {
-          ##    print "TESTME species: $species_name  ID: $id  Description: $desc\n";
           ##    $id_count++;
           ##}
 
@@ -636,7 +633,6 @@ sub Orthofinder_Names_Worker {
       my $group = shift @groups;
       if ($line_count == 1) {
           @group_order = @groups;
-          print "TESTME: group order: @group_order\n";
           next LOOP;
       }
 
@@ -700,7 +696,6 @@ sub Orthofinder_Names_Worker {
     }
     print $new_single_orth "\n";
 
-    print "TESTME: About to read $single_groups\n";
     my $single_orth = FileHandle->new("<${single_groups}");
 
   SINGLES: while (my $group = <$single_orth>) {

@@ -17,7 +17,6 @@ use POSIX qw"floor ceil";
 use Template;
 my $template_base = dist_dir('Bio-Adventure');
 my $template_dir = qq"${template_base}/templates";
-print "TESTME: $template_dir\n";
 
 ## List of accounts, partitions, qos for this user
 has accounts => (is => 'rw', default => undef);

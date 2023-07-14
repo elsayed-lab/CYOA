@@ -185,6 +185,7 @@ has input_phanotate => (is => 'rw', default => 'outputs/16phanotate/phanotate.ts
 has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
 has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
 has input_trinotate => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07rosalind_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
+has input_umi => (is => 'rw', default => 'umi.txt');
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
@@ -856,6 +857,7 @@ sub Get_Menus {
             message => 'There is a time when the operation of the machine becomes so odious that you cannot take part.',
             choices => {
                 '(biopieces): Use biopieces to graph some metrics of the data.' => \&Bio::Adventure::QA::Biopieces_Graph,
+                '(cogent): Use cogent to remove UMIs and trim data.' => \&Bio::Adventure::Trim::Cogent,
                 '(cutadapt): Perform adapter trimming with cutadapt.' => \&Bio::Adventure::Trim::Cutadapt,
                 '(fastp): Use fastp to trim fastq/remove UMIs.' => \&Bio::Adventure::Trim::Fastp,
                 '(fastqc): Use fastqc to check the overall quality of the raw data.' => \&Bio::Adventure::QA::Fastqc,
@@ -988,6 +990,7 @@ sub Get_TODOs {
         "casfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Casfinder'},
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
+        "cogent+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cogent'},
         "collectassembly+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Collect_Assembly'},
         "consolidate+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Consolidate_TAs'},
         "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
@@ -1030,6 +1033,7 @@ sub Get_TODOs {
         "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Index::RSEM_Index'},
         "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Index::Salmon_Index'},
         "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
+        "interprolong+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interpro_Long2Wide'},
         "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
         "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
         "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Count::Kraken'},

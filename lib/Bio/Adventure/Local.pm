@@ -17,7 +17,6 @@ use IO::Handle;
 use Template;
 my $template_base = dist_dir('Bio-Adventure');
 my $template_dir = qq"${template_base}/templates";
-print "TESTME: Local: $template_dir\n";
 
 =head1 NAME
 

@@ -247,16 +247,36 @@ fi
 ln -sf "${output_filename}" interproscan.tsv
 cd \${start}
 !;
+    my $output = qq"${output_dir}/interproscan.tsv";
     my $interproscan = $class->Submit(
         comment => $comment,
+        jcpu => $options->{jcpu},
+        jdepends => $options->{jdepends},
         jname => "interproscan_${job_name}",
         jqueue => 'large',
         jstring => $jstring,
-        output => qq"${output_dir}/interproscan.tsv",
+        modules => $options->{modules},
+        output => $output,
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
         stdout => $stdout,
         stderr => $stderr,);
+    my $l2w_output_dir = dirname($options->{output});
+    my $l2w_output_base = basename($options->{output}, ('.tsv'));
+    my $l2w_output = qq"${l2w_output_dir}/${l2w_output_base}_wide.tsv";
+    my $l2w_stderr = qq"${l2w_output_dir}/${l2w_output_base}_wide.stderr";
+    my $l2w_stdout = qq"${l2w_output_dir}/${l2w_output_base}_wide.stdout";
+    print "Submitting L2W with input $output and output $l2w_output\n";
+    my $long_to_wide = $class->Bio::Adventure::Annotation::Interpro_Long2Wide(
+        input => $output,
+        jdepends => $interproscan->{job_id},
+        jname => 'long2wide',
+        output => $l2w_output,
+        stdout => $l2w_stdout,
+        stdout => $l2w_stderr,
+        jprefix => $options->{jprefix} + 1,);
+    $interproscan->{long2wide} = $long_to_wide;
+
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -416,80 +436,26 @@ sub Transposonpsi {
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
 
-    my $interproscan_exe_dir = dirname($check);
-    ## Hey, don't forget abs_path requires a file which already exists.
-    my $input_filename = basename($options->{input});
-    my $output_filename = qq"${input_filename}.tsv";
-    my $input_dir = dirname($options->{input});
-    my $input_dirname = basename($input_dir);
-    my $input_path = abs_path($input_dir);
-    $input_path = qq"${input_path}/${input_filename}";
-    my $output_dir = qq"outputs/$options->{jprefix}interproscan_${input_dirname}";
-    my $comment = qq!## This is a interproscan submission script
-!;
-    my $stdout = qq"${output_dir}/interproscan.stdout";
-    my $stderr = qq"${output_dir}/interproscan.stderr";
-    my $jstring = qq!mkdir -p ${output_dir}
-start=\$(pwd)
-cd ${output_dir}
-perl -pe 's/\\*//g' ${input_path} > ${input_filename}
-interproscan.sh -i ${input_filename} \\
-  2>interproscan.stderr \\
-  1>interproscan.stdout
-if [[ -f interproscan.tsv ]]; then
-  rm interproscan.tsv
-fi
-ln -sf "${output_filename}" interproscan.tsv
-cd \${start}
-!;
-    my $output = qq"${output_dir}/interproscan.tsv";
-    my $interproscan = $class->Submit(
-        comment => $comment,
-        jcpu => $options->{jcpu},
-        jdepends => $options->{jdepends},
-        jmem => 16,
-        jname => "interproscan_${job_name}",
-        jprefix => $options->{jprefix},
-        jqueue => 'large',
-        jstring => $jstring,
-        modules => $options->{modules},
-        output => $output,
-        output_gff => qq"${output_dir}/${input_filename}.gff3",
-        output_tsv => qq"${output_dir}/interproscan.tsv",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        stdout => $stdout,
-        stderr => $stderr,
-        jwalltime => '144:00:00',);
-    my $l2w_output_dir = dirname($options->{output});
-    my $l2w_output_base = basename($options->{output}, ('.tsv'));
-    my $l2w_output = qq"${l2w_output_dir}/${l2w_output_base}_wide.tsv";
-    my $l2w_stderr = qq"${l2w_output_dir}/${l2w_output_base}_wide.stderr";
-    my $l2w_stdout = qq"${l2w_output_dir}/${l2w_output_base}_wide.stdout";
-    print "Submitting L2W with input $output and output $l2w_output\n";
-    my $long_to_wide = $class->Bio::Adventure::Annotation::Interpro_Long2Wide(
-        input => $output,
-        jdepends => $interproscan->{job_id},
-        jname => 'long2wide',
-        output => $l2w_output,
-        stdout => $l2w_stdout,
-        stdout => $l2w_stderr,
-        jprefix => $options->{jprefix} + 1,);
-    $interproscan->{long2wide} = $long_to_wide;
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-    return($interproscan);
+    my $transposonpsi;
+    return($transposonpsi);
 }
 
 sub Interpro_Long2Wide {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'output'],
+        required => ['input',],
         jmem => 8,
-        jprefix => '19',
-        stdout => '',
-        stderr => '',);
+        jprefix => '19',);
+    my $output;
+    if (!defined($options->{output})) {
+        $output = $options->{input};
+    }
+    my $output_dir = dirname($output);
+    my $output_name = basename($output, ('.tsv', '.fa'));
+    $output = qq"${output_dir}/${output_name}_l2w.tsv";
+    my $stdout = qq"${output_dir}/long2wide.stdout";
+    my $stderr = qq"${output_dir}/long2wide.stderr";
     my $comment = '## Convert the wonky interproscan output to a simpler tsv';
     my $jstring = qq?
 use Bio::Adventure::Annotation;
@@ -497,9 +463,9 @@ my \$result = \$h->Bio::Adventure::Annotation::Interpro_Long2Wide_Worker(
   input => '$options->{input}',
   jprefix => '$options->{jprefix}',
   jname => '$options->{jname}',
-  output => '$options->{output}',
-  stdout => '$options->{stdout}',
-  stderr => '$options->{stderr}',);
+  output => '${output}',
+  stdout => '${stdout}',
+  stderr => '${stderr}',);
 ?;
     my $job = $class->Submit(
         comment => $comment,
@@ -510,9 +476,9 @@ my \$result = \$h->Bio::Adventure::Annotation::Interpro_Long2Wide_Worker(
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        output => $options->{output},
-        stdout => $options->{stdout},
-        stderr => $options->{stderr});
+        output => $output,
+        stdout => $stdout,
+        stderr => $stderr,);
     return($job);
 }
 
@@ -569,7 +535,9 @@ sub Interpro_Long2Wide_Worker {
         }
     }
     $inter_fh->close();
-    my @output_columns = ('id', keys(%{$db_counter}));
+    my @db_keys = keys %{$db_counter};
+    my @output_columns = ('id');
+    push(@output_columns, @db_keys);
     my $out = FileHandle->new(">$options->{output}");
     my $header_string = '';
     HEADER: for my $h (@output_columns) {
