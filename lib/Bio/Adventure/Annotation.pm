@@ -261,11 +261,10 @@ cd \${start}
         output_tsv => qq"${output_dir}/interproscan.tsv",
         stdout => $stdout,
         stderr => $stderr,);
-    my $l2w_output_dir = dirname($options->{output});
-    my $l2w_output_base = basename($options->{output}, ('.tsv'));
-    my $l2w_output = qq"${l2w_output_dir}/${l2w_output_base}_wide.tsv";
-    my $l2w_stderr = qq"${l2w_output_dir}/${l2w_output_base}_wide.stderr";
-    my $l2w_stdout = qq"${l2w_output_dir}/${l2w_output_base}_wide.stdout";
+    my $l2w_output_base = basename($output, ('.tsv'));
+    my $l2w_output = qq"${output_dir}/${l2w_output_base}_wide.tsv";
+    my $l2w_stderr = qq"${output_dir}/${l2w_output_base}_wide.stderr";
+    my $l2w_stdout = qq"${output_dir}/${l2w_output_base}_wide.stdout";
     print "Submitting L2W with input $output and output $l2w_output\n";
     my $long_to_wide = $class->Bio::Adventure::Annotation::Interpro_Long2Wide(
         input => $output,
@@ -276,7 +275,6 @@ cd \${start}
         stdout => $l2w_stderr,
         jprefix => $options->{jprefix} + 1,);
     $interproscan->{long2wide} = $long_to_wide;
-
 
     $loaded = $class->Module_Loader(modules => $options->{modules},
                                     action => 'unload');
@@ -448,7 +446,9 @@ sub Interpro_Long2Wide {
         jmem => 8,
         jprefix => '19',);
     my $output;
-    if (!defined($options->{output})) {
+    if (defined($options->{output})) {
+        $output = $options->{output};
+    } else {
         $output = $options->{input};
     }
     my $output_dir = dirname($output);
