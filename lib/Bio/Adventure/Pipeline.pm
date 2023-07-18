@@ -1071,7 +1071,7 @@ sub Phage_Assemble {
         jdepends => $last_job,
         jprefix => $prefix,
         jname => 'krakenstd',
-        library => 'standard',);
+        library => 'bacteria',);
     $last_job = $kraken_std->{job_id};
     sleep($options->{jsleep});
 
