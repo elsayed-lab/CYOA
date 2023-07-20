@@ -1065,7 +1065,7 @@ sub Phage_Assemble {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "${prefix}: Classifying sequences with Kraken using the standard database.\n";
+    print "${prefix}: Classifying sequences with Kraken using the bacterial database.\n";
     my $kraken_std = $class->Bio::Adventure::Count::Kraken(
         input => $correct->{output},
         jdepends => $last_job,

@@ -137,7 +137,7 @@ cd \${start}
  library(required): Filename of the assembly.
  jmem(12): Memory allocated on the cluster.
  jprefix(14): job name/output directory prefix.
- modules('hisat', 'bbmap'): Environment modules loaded to run this.
+ modules('hisat2', 'bbmap'): Environment modules loaded to run this.
 
 =item C<Invocation>
 
@@ -152,7 +152,7 @@ sub Assembly_Coverage {
         ## input is the corrected/filtered reads, library is the assembly
         jmem => 18,
         jprefix => 14,
-        modules => ['hisat', 'samtools', 'bbmap'],);
+        modules => ['hisat2', 'samtools', 'bbmap'],);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());

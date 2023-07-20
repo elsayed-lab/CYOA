@@ -654,6 +654,12 @@ sub Filter_Host_Kraken {
         jmem => 8,
         jprefix => '06',
         htseq_stranded => 'no',);
+    ## FIXME FIXME FIXME
+    ## This needs to be changed to use the EUtilities as per Prepare::Download_NCBI_Accession().
+    ## The assembly ncbi link is no longer a plain html document but instead redirects to the
+    ## javascript-heavy datasets tree.  As a result, the use of WWW::Mechanize is unlikely to
+    ## continue working for a large number of assemblies.  Happily, I now have some examples
+    ## of EUtilities searches/downloads which should make this reasonably easy to fix.
     my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
     my $stderr = qq"${output_dir}/filter_host.stderr";

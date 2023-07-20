@@ -149,6 +149,7 @@ has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
 has download => (is => 'rw', default => 1);
+has email => (is => 'rw', default => 'abelew@umd.edu');
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
 has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 program to run?

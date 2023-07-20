@@ -64,7 +64,7 @@ sub Download_NCBI_Accession {
     @unique = uniq(@unique);
 
     my $eutil = Bio::DB::EUtilities->new(-eutil => 'esummary',
-                                         -email => 'abelew@gmail.com',
+                                         -email => $options->{email},
                                          -db => $options->{library},
                                          -id => \@unique,);
     while (my $docsum = $eutil->next_DocSum) {
@@ -89,7 +89,7 @@ sub Download_NCBI_Accession {
           my $download = Bio::DB::EUtilities->new(-eutil => 'efetch',
                                                   -db => $options->{library},
                                                   -rettype => 'gb',
-                                                  -email => 'abelew@umd.edu',
+                                                  -email => $options->{email},
                                                   -id => $accession,);
           my $output_file = qq"${acc_version}.gb";
           $download->get_Response(-file => $output_file);
@@ -128,7 +128,7 @@ sub Download_SRA_PRJNA {
     my $csv_fh = FileHandle->new(">$output_csv");
     print $log "Beginning download of SRA samples associated with: $options->{input}.\n";
     my $eutil = Bio::DB::EUtilities->new(
-        -eutil => 'esearch', -email => 'abelew@gmail.com',
+        -eutil => 'esearch', -email => $options->{email},
         -db => 'sra', -term => $accession,);
     my $id_count = $eutil->get_count;
     if (!defined($id_count)) {
@@ -138,7 +138,7 @@ sub Download_SRA_PRJNA {
     }
     my @ids = $eutil->get_ids;
     my $summary = Bio::DB::EUtilities->new(
-        -eutil => 'esummary', -email => 'abelew@gmail.com',
+        -eutil => 'esummary', -email => $options->{email},
         -db => 'sra', -id => \@ids);
     my $count = 0;
   DOCS: while (my $docsum = $summary->next_DocSum) {
