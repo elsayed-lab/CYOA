@@ -2010,6 +2010,9 @@ sub Terminase_ORF_Reorder_Worker {
         program => $options->{fasta_tool},);
     my $seq_count = 0;
     my $e = '';
+    if (!-r $library_file) {
+        die("The library file: ${library_file} is missing.");
+    }
     my $search = Bio::Tools::Run::Alignment::StandAloneFasta->new(@params);
     $search->library($library_file);
     my @fasta_output;
@@ -2074,7 +2077,7 @@ sub Terminase_ORF_Reorder_Worker {
             query_name => $query_name,
         };
         print $hit_fh "${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
-        print "HITLOOP: ${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
+        ## print "HITLOOP: ${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
         push(@hit_data, $hit_datum);
         $result_data->{$query_name}->{hit_data} = \@hit_data;
         $hit_count++;

@@ -734,6 +734,10 @@ sub Query_Edge_Feature {
     ## Sometimes a feature is picked up which is a little before the origin and continues after the origin.
     ## e.g. the strand may be +1, the start is ~ 100nt before 0 and the end is ~ 100nt after 0.
     my $straddles = 0;
+    if ($start eq '<1') {
+        ## Pick up the special case when phanotate detects an ORF which wraps around the origin.
+        $start = 1;
+    }
     $straddles = 1 if ($start > $end);
     if ($straddles) {
         print "This feature straddles the origin east and is problematic for genbank.\n";
@@ -783,6 +787,10 @@ sub Read_Phanotate_to_SeqFeatures {
       $count++;
       my $orf_number = sprintf("%04d", $count);
       my ($start, $end, $frame, $contig, $score) = split(/\t/, $line);
+      if ($start eq '<1') {
+          ## Catch the phanotate special case again.
+          $start = 1;
+      }
       my $fixed_id = Remove_Contig_Cruft($contig);
       my $orf_id = qq"${fixed_id}_${orf_number}";
       my $strand = '+';

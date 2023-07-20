@@ -254,6 +254,7 @@ cd \${start}
         jdepends => $options->{jdepends},
         jname => "interproscan_${job_name}",
         jqueue => 'large',
+        jprefix => $options->{jprefix},
         jstring => $jstring,
         modules => $options->{modules},
         output => $output,
@@ -984,7 +985,7 @@ sub Trinotate {
         config => 'conf.txt',
         jcpu => 4,
         jprefix => '62',
-        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp', 'hmmer',
+        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1', 'hmmer',
                     'tmhmm', 'rnammer', 'trinotate', ],
         required => ['input'],
         trinotate => 'autoTrinotate.pl',);
