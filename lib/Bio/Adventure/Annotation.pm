@@ -195,7 +195,7 @@ sub Interproscan {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        jcpu => 4,
+        jcpu => 6,
         jprefix => '21',
         jmem => 24,
         jwalltime => 36,
@@ -230,7 +230,7 @@ sub Interproscan {
 perl -pe 's/\\*//g' <(less ${abs_input}) > ${output_dir}/${input_uncomp}
 start=\$(pwd)
 cd ${output_dir}
-interproscan.sh --enable-tsv-residue-annot \\
+interproscan.sh --cpu $options->{jcpu} --enable-tsv-residue-annot \\
   --iprlookup --pathways -i ${input_uncomp} \\
   2>interproscan.stderr \\
   1>interproscan.stdout

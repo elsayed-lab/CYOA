@@ -1738,6 +1738,7 @@ sub Restriction_Catalog {
         required => ['input'],
         library => 'host_species.txt',
         jmem => 8,
+        modules => undef,
         jprefix => '29',);
     my $output_dir = qq"outputs/$options->{jprefix}re_catalog";
     my $re_output = qq"${output_dir}/re_catalog.tsv";

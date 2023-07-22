@@ -828,6 +828,7 @@ sub Kraken {
         args => \%args,
         required => ['input'],
         library => 'viral',
+        jmem => 32,
         jprefix => '11',
         clean => 1,
         modules => ['kraken'],);
