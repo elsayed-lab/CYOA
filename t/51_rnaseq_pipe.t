@@ -9,22 +9,29 @@ use File::ShareDir qw"dist_file module_dir dist_dir";
 use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
-my $input_r1 = qq"${start_dir}/test_forward.fastq.xz";
-my $phix_fasta = qq"${start_dir}/genome/phix.fastq";
-my $phix_gff = qq"${start_dir}/genome/phix.gff";
 
 my $start = getcwd();
-my $a = 'test_output';
-my $actual = '';
-my $expected = '';
-my $test_file = '';
-mkdir($a);
-chdir($a);
+my $new = 'test_output';
+mkdir($new);
+chdir($new);
 
-## Copy the reads for running the tests.
-ok(cp($input_r1, 'r1.fastq.xz'), 'Copying r1.') if (!-r 'r1.fastq.xz');
+make_path('genome/indexes'); ## Make a directory for the phix indexes.
+my $input_file = qq"${start_dir}/test_forward.fastq.gz";
+my $phix_fasta = qq"${start_dir}/genome/phix.fasta";
+my $phix_gff = qq"${start_dir}/genome/phix.gff";
+if (!-r 'test_forward.fastq.gz') {
+    ok(cp($input_file, 'test_forward.fastq.gz'), 'Copying data.');
+}
 
+if (!-r 'genome/phix.fasta') {
+    ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
+}
 
+if (!-r 'genome/phix.gff') {
+    ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
+}
+
+my ($actual, $expected) = '';
 ## Invoke the pipeline, keep it within our test directory with basedir.
 my $cyoa = Bio::Adventure->new(
     cluster => 0,
@@ -34,12 +41,10 @@ my $cyoa = Bio::Adventure->new(
     libdir => cwd(),
     species => 'phix',);
 my $rnaseq = $cyoa->Bio::Adventure::Pipeline::Process_RNAseq(
-    input => 'r1.fastq.xz');
-use Data::Dumper;
-print Dumper $rnaseq;
+    input => 'test_forward.fastq.gz',);
 
 ## Check the trimomatic output.
-$test_file = $rnaseq->{'01trim'}->{stderr};
+my $test_file = $rnaseq->{'01trim'}->{stderr};
 my $comparison = ok(-f $test_file, qq"Checking trimomatic output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $expected = qq"Using PrefixPair: 'TACACTCTTTCCCTACACGACGCTCTTCCGATCT' and 'GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT'
@@ -92,27 +97,27 @@ ok(-f $stats_file, 'The rnaseq stats were recorded.');
 $actual = $cyoa->Last_Stat(input => $stats_file);
 ok($actual, 'Collect Rnaseq Statistics');
 
-$expected = qq"rnaseq2_phix_genome_test_output.stderr,10000,49,9951,0";
+$expected = qq"hisat2_phix_genome_test_output.stderr,9316,35,9281,0";
 unless(ok($expected eq $actual, 'Are the rnaseq stats as expected?')) {
     my ($old, $new) = diff($expected, $actual);
     diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
 $expected = qq"phiX174p01\t5
-phiX174p02\t0
+phiX174p02\t3
 phiX174p03\t0
 phiX174p04\t0
 phiX174p05\t0
-phiX174p06\t13
+phiX174p06\t10
 phiX174p07\t0
 phiX174p08\t0
 phiX174p09\t0
 phiX174p10\t0
 phiX174p11\t0
 __no_feature\t0
-__ambiguous\t31
+__ambiguous\t22
 __too_low_aQual\t0
-__not_aligned\t9951
+__not_aligned\t9281
 __alignment_not_unique\t0
 ";
 

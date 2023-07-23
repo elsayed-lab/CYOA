@@ -25,12 +25,10 @@ if (!-r 'test_forward.fastq.gz') {
 
 if (!-r 'genome/phix.fasta') {
     ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
-    ## my $uncompressed = qx"gunzip genome/phix.fastq.gz && mv genome/phix.fasta.gz genome/phix.fasta";
 }
 
 if (!-r 'genome/phix.gff') {
     ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
-    ## my $uncompressed = qx"gunzip genome/phix.gff.gz && mv genome/phix.gff.gz genome/phix.gff";
 }
 
 my $cyoa = Bio::Adventure->new(
@@ -42,7 +40,7 @@ my $cyoa = Bio::Adventure->new(
     species => 'phix',
     stranded => 'no',);
 my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
-    input => qq"test_forward.fastq.gz",);
+    input => qq'test_forward.fastq.gz',);
 ok($hisat, 'Run Hisat2');
 my $sam_file = $hisat->{samtools}->{output};
 my $htseq_file = $hisat->{htseq}->[0]->{output};

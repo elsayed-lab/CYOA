@@ -622,7 +622,7 @@ sub Process_RNAseq {
     my $nth_species;
     $prefix = sprintf("%02d", ($prefix + 1));
     if ($options->{mapper} eq 'hisat2') {
-        print "\n${prefix}: Starting hisat2.\n";
+        print "\n${prefix}: Starting hisat2 with $map_input.\n";
         $first_map = $class->Bio::Adventure::Map::Hisat2(
             compress => 0,
             gff_type => $first_type,
