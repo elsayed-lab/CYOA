@@ -1005,7 +1005,7 @@ sub Trinotate {
     my $input_file = $input_paths->[0]->{filename};
     my $input_dir = $input_paths->[0]->{dirname};
     my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa', '.ffn'));
-    $output_name = qq"${output_name}.tsv";
+    $output_name = qq"${output_name}_trinotate.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate";
     my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
     my $stderr = qq"${output_dir}/trinotate_${job_name}.stderr";
@@ -1044,7 +1044,8 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   --CPU 6 \\
   2>trinotate_${job_name}.stderr \\
   1>trinotate_${job_name}.stdout
-mv Trinotate.tsv ${output_name}
+## The file created by trinotate is a tsv, not xls.
+mv Trinotate.xls ${output_name}
 rm -f *.ok *.out *.outfmt6 *.cmds *.log
 rm -rf TMHMM_* ${input_file}.ffn.trans*
 cd \${start}

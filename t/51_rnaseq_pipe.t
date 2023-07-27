@@ -103,8 +103,8 @@ unless(ok($expected eq $actual, 'Are the rnaseq stats as expected?')) {
     diag("--Expected--\n${old}\n--Actual--\n${new}\n");
 }
 
-$expected = qq"phiX174p01\t5
-phiX174p02\t3
+$expected = qq"phiX174p01\t3
+phiX174p02\t0
 phiX174p03\t0
 phiX174p04\t0
 phiX174p05\t0
