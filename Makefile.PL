@@ -65,9 +65,6 @@ WriteMakefile(
             'Text::CSV' => '0',
             'Text::CSV_XS::TSV' => '0',
     },
-    TEST_REQUIRES => {
-        'Test::More' => '0.47'
-    },
     EXE_FILES => [
         'script/cyoa.pl',
         'script/cyoa_invoke_glimmer.pl'

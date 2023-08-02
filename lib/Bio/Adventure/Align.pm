@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Cwd;
@@ -483,10 +483,9 @@ sub OrthoFinder {
         args => \%args,
         required => ['input'],
         jmem => 24,
-        jprefix => '50',
-        modules => ['orthofinder'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-
+        jprefix => '50',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $jname = qq'$options->{jprefix}orthofinder';
     my $outdir = qq"outputs/$options->{jprefix}orthofinder";
     make_path(qq"${outdir}/input");
@@ -525,13 +524,14 @@ rmdir ${outdir}/output/Results_${month_date}
         comment => $comment,
         input => $options->{input},
         jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
         jname => ${jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $modules{modules},
         stderr => $stderr,
-        stdout => $stdout,
-        jmem => $options->{jmem},
-        modules => $options->{modules},);
+        stdout => $stdout,);
+
     my $orthofinder_all_output = qq"${outdir}/output/Orthogroups/Orthogroups.tsv";
     my $orthofinder_single_output = qq"${outdir}/output/Orthogroups/Orthogroups_SingleCopyOrthologues.txt";
     my $namer_out = qq"${outdir}/orthogroups_all_named.tsv";
@@ -550,17 +550,18 @@ my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
   stderr => '$stderr',);
 !;
     my $namer = $class->Submit(
-        comment => $comment,
         all_input => $orthofinder_all_output,
-        single_input => $orthofinder_single_output,
+        comment => $comment,
         fasta_dir => $fasta_dir,
-        stdout => $stdout,
-        stderr => $stderr,
         jstring => $jstring,
         jdepends => $ortho->{job_id},
         jname => $jname,
-        language => 'perl');
-
+        language => 'perl',
+        modules => $modules{modules},
+        single_input => $orthofinder_single_output,
+        stdout => $stdout,
+        stderr => $stderr,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($ortho);
 }
 
@@ -712,9 +713,6 @@ sub Orthofinder_Names_Worker {
   }
     $single_orth->close();
     $new_single_orth->close();
-
-
-
 }
 
 =head1 AUTHOR - atb

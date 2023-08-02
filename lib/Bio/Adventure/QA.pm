@@ -6,7 +6,7 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use File::Basename;
 use File::Which qw"which";
 
@@ -37,8 +37,9 @@ sub Biopieces_Graph {
         args => \%args,
         required => ['input'],
         jmem => 8,
-        jprefix => '02',
-        modules => ['biopieces'],);
+        jprefix => '02',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $input = $options->{input};
     my $jname = $class->Get_Job_Name();
     $jname = qq"biop_${jname}";
@@ -75,7 +76,7 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
                 jprefix => $options->{jprefix},
                 jqueue => 'long',
                 jstring => $jstring,
-                modules => $options->{modules},
+                modules => $modules{modules},
                 stderr => $stderr,
                 stdout => $stdout,
                 prescript => $args{prescript},
@@ -104,12 +105,13 @@ less ${input} | read_fastq -i - -e base_33 |\\
             jname => 'biop',
             jprefix => $options->{jprefix},
             jstring => $jstring,
-            modules => $options->{modules},
+            modules => $modules{modules},
             stderr => $stderr,
             stdout => $stdout,
             prescript => $options->{prescript},
             postscript => $options->{postscript},);
     }
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($bp);
 }
 
@@ -125,10 +127,9 @@ sub Fastqc {
         args => \%args,
         filtered => 'unfiltered',
         jprefix => '01',
-        modules => ['fastqc'],
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $dirname = $input_paths->[0]->{dirname};
@@ -158,10 +159,10 @@ sub Fastqc {
     } elsif ($options->{input} =~ /\.xz$|\.bz2$/) {
         $modified_input = basename($options->{input}, ('.gz', '.bz2', '.xz')) unless ($modified_input);
         $subshell = 1;
-        $input_file_string = qq" <(less $options->{input}) ";
+        $input_file_string = qq"<(less $options->{input}) ";
     } else {
         $modified_input = basename($options->{input}, ('.gz')) unless ($modified_input);
-        $input_file_string = qq" $options->{input} ";
+        $input_file_string = qq"$options->{input} ";
     }
     $modified_input = basename($modified_input, ('.fastq'));
     $modified_input = qq"${modified_input}_fastqc";
@@ -177,11 +178,13 @@ sub Fastqc {
     my $stdout = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stdout";
     my $stderr = qq"${outdir}/${jname}-$options->{filtered}_fastqc.stderr";
     my $jstring = qq!mkdir -p ${outdir}
+which perl 2>${stderr} 1>&2
+which fastqc 2>>${stderr} 1>&2
 fastqc --extract \\
   -o ${outdir} \\
   ${input_file_string} \\
-  2>${stderr} \\
-  1>${stdout}
+  2>>${stderr} \\
+  1>>${stdout}
 if [ "\$?" -ne "0" ]; then
   echo "fastqc failed, this is not considered fatal for a pipeline."
   exit 0
@@ -215,7 +218,7 @@ echo "move finished with: $?"
         jprefix => $options->{jprefix},
         jqueue => 'throughput',
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",
@@ -230,9 +233,7 @@ echo "move finished with: $?"
         jmem => 1,
         jwalltime => '00:03:00',
         jdepends => $fqc->{job_id},);
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($fqc);
 }
 

@@ -5,6 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
 
@@ -34,9 +35,10 @@ sub RNAFold_Windows {
         jprefix => 80,
         jname => 'vienna',
         length => 201,
-        modules => ['vienna'],
         required => ['input'],
         step => 3,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
     my $output_dir = qq"outputs/$options->{jprefix}rnafold";
     my $output = qq"${output_dir}/${output_name}.tsv.xz";
@@ -56,12 +58,11 @@ use Bio::Adventure::Structure;
         jname => 'vienna',
         jprefix => $options->{jprefix},
         length => $options->{length},
+        modules => $modules{modules},
         step => $options->{step},
         jstring => $jstring,
         comment => $comment,
         language => 'perl',);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
     return($folder);
 }
 
@@ -81,8 +82,6 @@ sub RNAFold_Windows_Worker {
         required => ['input', 'output'],
         modules => ['vienna']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('RNAfold');
-    die("Could not find RNAfold in your PATH.") unless($check);
     my $input_paths = $class->Get_Paths($options->{output});
     ## Put the data here!  First key is location, second is structure/mfe.
     my $output = $options->{output};

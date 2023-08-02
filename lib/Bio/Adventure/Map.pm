@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use File::Basename;
 use File::Copy qw"cp";
 use File::Spec;
@@ -69,11 +69,9 @@ sub Bowtie {
         count => 1,
         libtype => 'genome',
         jmem => 12,
-        jprefix => '10',
-        modules => ['bowtie1'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bowtie-build');
-    die('Could not find bowtie in your PATH.') unless($check);
+        jprefix => '10',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $start_species = $options->{species};
     my $species = $start_species;
     if ($species =~ /\:/) {
@@ -168,13 +166,13 @@ bowtie \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         output => $sam_filename,
-        modules => $options->{modules},
+        modules => $modules{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
-        jqueue => 'workstation',
         stderr => $stderr,
         stdout => $stdout,
         unaligned => $unaligned_filename,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     if (defined($index_job)) {
         $bt_job->{index} = $index_job;
     }
@@ -284,11 +282,9 @@ sub Bowtie2 {
         required => ['species', 'input',],
         count => 1,
         jmem => 28,
-        jprefix => '20',
-        modules => ['bowtie2']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bowtie2-build');
-    die('Could not find bowtie2 in your PATH.') unless($check);
+        jprefix => '20',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -383,13 +379,14 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stderr => $stderr,
         stdout => $stdout,
         unaligned => $unaligned_filename,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $compression_files = qq"${bt_dir}/$options->{jbasename}_unaligned_$options->{species}.fastq:${bt_dir}/$options->{jbasename}_aligned_$options->{species}.fastq";
     my $comp = $class->Bio::Adventure::Compress::Recompress(
         comment => '## Compressing the sequences which failed to align against ${bt_reflib} using options ${bt2_args}.',
@@ -437,8 +434,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
             $bt2_job->{htseq} = $htmulti;
         }
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-        action => 'unload',);
     return($bt2_job);
 }
 
@@ -549,13 +544,11 @@ sub BWA {
         jmem => 40,
         jprefix => 30,
         jwalltime => '72:00:00',
-        modules => ['bwa'],
         required => ['input', 'species'],
         samtools_mapped => 1,
         samtools_unmapped => 1);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bwa');
-    die('Could not find bwa in your PATH.') unless($check);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -771,13 +764,13 @@ fi
         jprefix => $options->{jprefix},
         jstring => $job_string,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $sam_outs,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         stdout => $stdout,
-        stderr => $stderr,
-        jqueue => 'workstation',);
+        stderr => $stderr,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
 
     my @samtools_jobs = ();
     my $sam_count = 0;
@@ -847,16 +840,13 @@ sub Hisat2 {
         jwalltime => '36:00:00',
         libtype => 'genome',
         maximum => undef,
-        modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],
         output_dir => undef,
         output_unaligned => undef,
         unaligned_discordant => undef,
         required => ['species', 'input',],
         samtools => 1,);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('hisat2-build');
-    die('Could not find hisat2 in your PATH.') unless($check);
-
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /:/) {
         my $start_species = $options->{species};
         my @species_lst = split(/:/, $options->{species});
@@ -1010,7 +1000,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         paired => $paired,
         output => $sam_filename,
         prescript => $options->{prescript},
@@ -1022,8 +1012,7 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         unaligned => $unaligned_filenames,
         unaligned_dis => $unaligned_discordant_filename,
         unaligned_comp => $unaligned_xz,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $xz_jname = qq"xz_$options->{species}_${suffix_name}";
     my $new_jprefix = qq"$options->{jprefix}_1";
     if ($options->{compress}) {
@@ -1134,11 +1123,9 @@ sub Kallisto {
         jwalltime => '8:00:00',
         jmem => 24,
         jprefix => '46',
-        required => ['input', 'species',],
-        modules => ['kallisto'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kallisto');
-    die('Could not find kallisto in your PATH.') unless($check);
+        required => ['input', 'species',],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     die('No species provided.') unless($options->{species});
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1235,12 +1222,14 @@ kallisto quant ${ka_args} \\
         jprefix => '30',
         jstring => $jstring,
         jmem => $options->{jmem},
+        modules => $modules{modules},
         output => qq"${outdir}/abundance.tsv",
         count => qq"${outdir}/${input_name}_abundance.count",
         stderr => $stderr,
         stdout => $stdout,
         prescript => $args{prescript},
         postscript => $args{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     $kallisto->{index} = $index_job;
     return($kallisto);
 }
@@ -1257,14 +1246,12 @@ kallisto quant ${ka_args} \\
 =cut
 sub RSEM {
     my ($class, %args) = @_;
-    my $check = which('rsem-prepare-reference');
-    die('Could not find RSEM in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        jmem => 24,
-        modules => ['rsem'],);
-
+        jmem => 24,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1329,12 +1316,13 @@ sub RSEM {
         jstring => $jstring,
         jprefix => '28',
         mem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_file,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     $rsem->{index_job} = $index_job;
     return($rsem);
 }
@@ -1353,12 +1341,9 @@ sub Salmon {
         args => \%args,
         required => ['species', 'input'],
         jmem => 24,
-        jprefix => '45',
-        modules => ['salmon'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('salmon');
-    die('Could not find salmon in your PATH.') unless($check);
-
+        jprefix => '45',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $depends = $options->{jdepends};
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1428,12 +1413,13 @@ salmon quant -i ${sa_reflib} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${outdir}/quant.sf",
         stderr => $stderr,
         stdout => $stdout,
         prescript => $args{prescript},
         postscript => $args{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     $salmon->{index_job} = $index_job;
     my $stats = $class->Bio::Adventure::Metadata::Salmon_Stats(
         input => qq"${outdir}/lib_format_counts.json",
@@ -1452,13 +1438,12 @@ salmon quant -i ${sa_reflib} \\
 =cut
 sub STAR {
     my ($class, %args) = @_;
-    my $check = which('STAR');
-    die('Could not find STAR in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        jmem => 48,
-        modules => ['star'],);
+        jmem => 48,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1545,12 +1530,12 @@ STAR \\
         jprefix => '33',
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         prescript => $args{prescript},
         postscript => $args{postscript},
         stderr => $stderr,
-        stdout => $stdout,
-        jqueue => 'large',);
+        stdout => $stdout,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     $star_job->{index_job} = $index_job;
     return($star_job);
 }
@@ -1570,8 +1555,9 @@ sub Tophat {
     die('Could not find tophat in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'gff_type'],
-        modules => ['tophat'],);
+        required => ['species', 'input', 'gff_type'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1691,14 +1677,14 @@ fi
         jprefix => '31',
         jstring => $jstring,
         jmem => $tophat_mem,
-        modules => $options->{mdules},
+        modules => $modules{mdules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => $tophat_queue,
         jwalltime => $tophat_walltime,);
-
+    my $unloaded = $class->Module_Reset(env => $loaded);
     ## Set the input for htseq
     my $accepted = qq"${tophat_dir}/accepted_hits.bam";
     $accepted = $options->{accepted_hits} if ($options->{accepted_hits});

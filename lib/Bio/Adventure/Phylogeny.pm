@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use File::Basename;
 
 =head2 C<Run_Gubbins>
@@ -22,17 +22,19 @@ use File::Basename;
  starting_tree(required) Name of start tree.
 
 =cut
-sub Run_Gubbins {
+sub Gubbins {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         jcpu => 8,
-        modules => ['gubbins'],
         required => ['input', 'outgroup', 'starting_tree'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $bname = basename($options->{input});
     my $gub_dir = qq"outputs/gubbins_${bname}";
     $gub_dir = $options->{gub_dir} if ($options->{gub_dir});
-    my $jstring = qq!mkdir -p ${gub_dir} && run_gubbins.py \\
+    my $jstring = qq!mkdir -p ${gub_dir}
+run_gubbins.py \\
   $options->{input} \\
   --threads $options->{jcpu} \\
 !;
@@ -51,10 +53,11 @@ sub Run_Gubbins {
         jqueue => 'large',
         jprefix => '30',
         jmem => 50,
-        modules => $options->{modules},
+        modules => $modules{modules},
         jcpu => $options->{jcpu},
         jstring => $jstring,
         jname => 'gub',);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($gubbins);
 }
 
@@ -69,6 +72,5 @@ Email  <abelew@gmail.com>
 L<gubbins>
 
 =cut
-
 
 1;

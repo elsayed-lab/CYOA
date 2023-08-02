@@ -245,11 +245,9 @@ sub Fastq_Dump {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['sra',],
         output => undef);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('fastq-dump');
-    die('Could not find fastq-dump in your PATH.') unless($check);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $fastq_comment = qq"## This script should download an sra accession to local fastq.gz files.
 ";
     my $job_basename = $class->Get_Job_Name();
@@ -298,16 +296,17 @@ fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
         my $current_fastq_job = $class->Submit(
             comment => $fastq_comment,
             input => $in,
-            output => $output_files,
-            output_paired => $output_paired,
-            stdout => $stdout,
-            stderr => $stderr,
             jdepends => $options->{jdepends},
             jname => qq"fqd_${in}",
             jstring => $jstring,
             jprefix => "01",
             jmem => 12,
-            jwalltime => '6:00:00',);
+            jwalltime => '6:00:00',
+            output => $output_files,
+            output_paired => $output_paired,
+            modules => $modules{modules},
+            stdout => $stdout,
+            stderr => $stderr,);
 
         if (defined($fastq_job)) {
             $fastq_job->{$count} = $current_fastq_job;
@@ -326,12 +325,13 @@ my \$result = \$h->Bio::Adventure::Prepare::Write_Input_Worker(
         my $input_worker = $class->Submit(
             input => $fastq_job->{output},
             input_paired => $fastq_job->{output_paired},
+            modules => $modules{modules},
             output => '<input.txt');
     } ## Foreach my $input
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($fastq_job);
 }
+
 =head2 C<Read_Samples>
 
  This function currently has no real use-case.  It should be merged with the

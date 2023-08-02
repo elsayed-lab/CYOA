@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Path qw"make_path";
@@ -32,17 +32,15 @@ sub Cogent {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        modules => ['cogent'],
+        required => ['input', 'species', 'input_umi'],
         jcpu => 4,
         jprefix => '01',
         jmem => 24,
         jwalltime => 36,
-        type => 'Stranded_UMI',
-        modules => ['cogent'],
-        required => ['input', 'species', 'input_umi'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('cogent');
-    die('Could not find cogent in your PATH.') unless($check);
-
+        type => 'Stranded_UMI',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -90,11 +88,10 @@ fi
         jname => "cogent_${job_name}",
         jqueue => 'large',
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         stdout => $stdout,
         stderr => $stderr,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cogent);
 }
 
@@ -117,7 +114,6 @@ sub Cutadapt {
         maxerr => 0.1,
         maxremoved => 3,
         minlength => 8,
-        modules => ['cutadapt'],
         left => undef,
         right => undef,
         either => undef,
@@ -125,11 +121,10 @@ sub Cutadapt {
         jmem => 12,
         jwalltime => '48:00:00',
         jprefix => '12',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
-    my $check = which('cutadapt');
-    die('Could not find cutadapt in your PATH.') unless($check);
     my $minlength = $options->{minlength};
     my $maxlength = $options->{maxlength};
     my $arbitrary = '';
@@ -224,7 +219,7 @@ xz -9e -f ${too_long}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '8:00:00',
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
@@ -236,9 +231,11 @@ xz -9e -f ${too_long}
             input => $compressed_out,
             jdepends => $cutadapt->{job_id},
             jname => qq"tacheck_${job_name}",
-            jprefix => $options->{jprefix} + 1,);
+            jprefix => $options->{jprefix} + 1,
+            modules => $modules{modules});
         $cutadapt->{tacheck} = $ta_check;
     }
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cutadapt);
 }
 
@@ -250,15 +247,13 @@ sub Fastp {
         required => ['input'],
         arbitrary => undef,
         do_umi => 1,
-        modules => ['fastp'],
         jmem => 12,
         jwalltime => '24:00:00',
         jprefix => '12',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
-    my $check = which('fastp');
-    die('Could not find fastp in your PATH.') unless($check);
 
     my $extra_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
 
@@ -311,14 +306,14 @@ fastp ${umi_flags} ${input_flags} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '8:00:00',
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($fastp);
 }
-
 
 =head2 C<Racer>
 
@@ -335,9 +330,9 @@ sub Racer {
         jmem => 24,
         jprefix => '10',
         jwalltime => '40:00:00',
-        modules => ['hitec'],
         required => ['input', ],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
@@ -401,14 +396,13 @@ echo \"Finished correction of $input_list[$c].\" >> ${stdout}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '12:00:00',
-        modules => $options->{modules},
+        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => $output,
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($racer);
 }
 
@@ -430,7 +424,6 @@ sub Trimomatic {
         compress => 1,
         input_paired => undef,
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         jcpu => 4,
         jmem => 24,
@@ -460,10 +453,10 @@ sub Trimomatic_Pairwise {
         jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules}, verbose => 1);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
@@ -584,7 +577,6 @@ mv ${r2op} ${r2o}
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
-    $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
@@ -597,15 +589,14 @@ mv ${r2op} ${r2o}
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         length => $options->{length},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output,
         output_unpaired => $output_unpaired,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $new_prefix = qq"$options->{jprefix}_1";
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
@@ -637,10 +628,10 @@ sub Trimomatic_Single {
         jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $exe = undef;
     my $found_exe = 0;
     my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
@@ -702,14 +693,13 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         length => $options->{length},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         input => $stderr,

@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Cwd qw(abs_path getcwd);
 use File::Basename;
 use File::Spec;
@@ -35,12 +35,9 @@ sub Abricate {
         required => ['input'],
         jprefix => '18',
         coverage => 80,
-        identity => 80,
-        modules => ['any2fasta', 'abricate', 'blast'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('abricate');
-    die('Could not find abricate in your PATH.') unless($check);
-
+        identity => 80,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $coverage = 70;
     $coverage = $options->{coverage} if (defined($options->{coverage}));
     my $identity = 70;
@@ -84,7 +81,7 @@ abricate --summary ${output_dir}/*.tsv \\
         jname => qq"abricate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/abricate_combined.tsv",
         output_argannot => qq"${output_dir}/abricate_argannot.tsv",
         output_card => qq"${output_dir}/abricate_card.tsv",
@@ -98,6 +95,7 @@ abricate --summary ${output_dir}/*.tsv \\
         output_vfdb => qq"${output_dir}/abricate_vfdb.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($abricate);
 }
 
@@ -117,12 +115,9 @@ sub Resfinder {
         args => \%args,
         required => ['input'],
         jprefix => '18',
-        arbitrary => ' -l 0.6 -t 0.8 --acquired ',
-        modules => ['resfinder'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('run_resfinder.py');
-    die("Could not find resfinder in your PATH.") unless($check);
-
+        arbitrary => ' -l 0.6 -t 0.8 --acquired ',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $resfinder_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -146,12 +141,11 @@ run_resfinder.py -ifa $options->{input} \\
         jname => qq"resfinder_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/resfinder.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($resfinder);
 }
 
@@ -173,8 +167,9 @@ sub Rgi {
         args => \%args,
         required => ['input'],
         arbitrary => '',
-        jprefix => '15',
-        modules => ['kma', 'jellyfish', 'bowtie', 'bwa', 'diamond', 'rgi'],);
+        jprefix => '15',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $rgi_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -186,7 +181,6 @@ rgi main --input_sequence $options->{input} \\
   --output_file ${output_dir}/rgi_result.txt --input_type protein \\
   --include_loose --clean
 !;
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $rgi = $class->Submit(
         comment => $comment,
         jcpu => 4,
@@ -195,12 +189,11 @@ rgi main --input_sequence $options->{input} \\
         jname => "rgi_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/rgi_result.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($rgi);
 }
 

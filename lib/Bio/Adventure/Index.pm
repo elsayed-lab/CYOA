@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use File::Basename;
 use File::Copy qw"cp";
 use File::Path qw"make_path";
@@ -38,8 +38,9 @@ sub BT1_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        modules => ['bowtie1'],);
+        required => ['input'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
     $species = basename($species, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
@@ -63,11 +64,13 @@ bowtie-build $options->{input} \\
         jdepends => $options->{jdepends},
         jstring => $jstring,
         jprefix => '10',
+        modules => $modules{modules},
         output => $output_dir,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+        my $unloaded = $class->Module_Reset(env => $loaded);
     return($bt1_index);
 }
 
@@ -92,8 +95,9 @@ sub BT2_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jprefix => '',
-        modules => ['bowtie2'],);
+        jprefix => '',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libpath});
     my $species = basename($options->{input}, ('.gz', '.bz2', '.xz'));
@@ -118,12 +122,13 @@ bowtie2-build $options->{input} \\
         jname => qq"bt2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_dir,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($indexer);
 }
 
@@ -137,8 +142,9 @@ sub BWA_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jprefix => '15',
-        modules => ['bwa'],);
+        jprefix => '15',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fa";
     if (!-f $copied_location) {
@@ -172,7 +178,7 @@ cd \$start
         jname => 'bwaidx',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_dir,
         output_sa => $index_sa,
         output_pac => $index_pac,
@@ -184,6 +190,7 @@ cd \$start
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($bwa_index);
 }
 
@@ -199,9 +206,9 @@ sub Check_Blastdb {
         args => \%args,
         blast_tool => 'blastn',
         type => 'prot',
-        required => ['input'],
-        modules => ['blast'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        required => ['input'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $libname = basename($options->{input}, ('.fasta', '.fa', '.faa', '.fsa', '.fna'));
     if (defined($options->{library})) {
         $libname = $options->{library};
@@ -273,6 +280,7 @@ sub Check_Blastdb {
         my $formatdb_ret = qx"${formatdb_command}";
     }
     my $final_directory = qq"${relative_directory}/${libname}";
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($final_directory);
 }
 
@@ -283,13 +291,12 @@ sub Check_Blastdb {
 =cut
 sub Extend_Kraken_DB {
     my ($class, %args) = @_;
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        library => 'viral',
-        modules => ['kraken'],);
+        library => 'viral',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qw"outputs/extend_kraken";
@@ -320,13 +327,14 @@ kraken2-build --build --db \${KRAKEN_DB_PATH}/$options->{library} \\
         jprefix => '99',
         jstring => $jstring,
         jmem => 96,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/kraken2-build.out",
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'large',);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($kraken);
 }
 
@@ -342,8 +350,9 @@ sub Hisat2_Index {
         args => \%args,
         output_dir => undef,
         required => ['input'],
-        modules => ['hisat2'],
         jprefix => '21',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $libtype = $options->{libtype};
     my $libdir = File::Spec->rel2abs($options->{libpath});
     my $species = basename($options->{input}, ('.fasta', '.fa', '.fsa'));
@@ -381,11 +390,13 @@ hisat2-build $options->{input} \\
         jname => qq"ht2idx_${species}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $modules{modules},
         output => $stdout,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($indexer);
 }
 
@@ -398,9 +409,10 @@ sub Kallisto_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['kallisto'],
         jprefix => '15',
         required => ['input'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
     my $species = $cds;
     $species =~ s/_cds//g;
@@ -427,12 +439,13 @@ kallisto index -i $options->{libdir}/${libtype}/indexes/${species}.idx \\
         jstring => $jstring,
         jname => 'kalidx',
         jprefix => $options->{jprefix},
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         output => $output_dir,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($ka_index);
 }
 
@@ -558,9 +571,9 @@ sub RSEM_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        modules => ['rsem', 'bowtie2']);
-
+        required => ['input'],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $species = basename($options->{input}, ('.fasta', '.fa'));
     $species =~ s/_cds//g;
     my $copied_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
@@ -581,11 +594,12 @@ rsem-prepare-reference --bowtie2 $options->{input} ${species} \\
         jstring => $jstring,
         jname => 'rsemidx',
         jprefix => $options->{jprefix},
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($jobid);
 }
 
@@ -612,11 +626,11 @@ sub Salmon_Index {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        decoy => 1,
-        modules => ['salmon'],);
+        decoy => 1,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $libtype = $options->{libtype};
     my $genome = File::Spec->rel2abs($options->{input});
-
     my $cds = basename($options->{input}, ('.fasta', '.fa'));
     my $cds_dir = dirname($options->{input});
     my $species = $cds;
@@ -639,7 +653,8 @@ sub Salmon_Index {
 
     my $index_input = $options->{input};
     my $index_string = qq!
-salmon index -t ${index_input} -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
+salmon index -t ${index_input} \\
+  -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index!;
     if ($options->{decoy}) {
         if (!-f $species_location) {
             cp($species_file, $species_location);
@@ -651,9 +666,7 @@ less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy
         $index_input = $decoy_location;
         $jstring = qq!${decoy_copy_string}
 mkdir -p ${output_dir}
-salmon index \\
-  -t ${index_input} \\
-  -i $options->{libdir}/${libtype}/indexes/${species}_salmon_index \\
+${index_string} \\
   --decoys ${decoy_location}.txt \\
   2>${stderr} 1>${stdout}
 !;
@@ -667,6 +680,9 @@ otherwise a decoy-less index will be generated.");
 !;
     }
 
+    print "TESTME: About to submit with:
+$jstring\n";
+
     my $comment = qq!## Generating salmon indexes for species: ${species}
 ## in $options->{libdir}/${libtype}/indexes!;
     my $jobid = $class->Submit(
@@ -676,12 +692,13 @@ otherwise a decoy-less index will be generated.");
         jname => qq"salidx_${species}",
         jmem => 24,
         jprefix => '15',
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_dir,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($jobid);
 }
 
@@ -694,8 +711,9 @@ sub STAR_Index {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input',],
-        modules => ['star'],);
+        required => ['input',],);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $comment = '## STAR Index creation.';
     my $libtype = 'genome';
     $libtype = $options->{libtype} if ($options->{libtype});
@@ -726,12 +744,12 @@ STAR \\
         jname => 'staridx',
         jprefix => $options->{jprefix},
         jmem => 180,
-        modules => $options->{modules},
+        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stderr => $stderr,
-        stdout => $stdout,
-        jqueue => 'xlarge',);
+        stdout => $stdout,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($jobid);
 }
 

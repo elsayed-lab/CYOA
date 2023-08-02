@@ -7,7 +7,7 @@ use warnings qw"all";
 no warnings 'experimental::try';
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Spec;
@@ -58,12 +58,9 @@ sub Abyss {
         args => \%args,
         required => ['input'],
         k => 41,
-        jmem => 12,
-        modules => ['abyss'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('abyss-pe');
-    die('Could not find abyss in your PATH.') unless($check);
-
+        jmem => 12,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my %abyss_jobs = ();
     my $outname = basename(cwd());
@@ -103,12 +100,11 @@ cd \${start}
         jqueue => 'workstation',
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($abyss);
 }
 
@@ -151,9 +147,9 @@ sub Assembly_Coverage {
         required => ['input', 'library'],
         ## input is the corrected/filtered reads, library is the assembly
         jmem => 18,
-        jprefix => 14,
-        modules => ['hisat2', 'samtools', 'bbmap'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => 14,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}assembly_coverage_${outname}";
@@ -217,9 +213,8 @@ samtools index ${output_dir}/coverage.bam \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'workstation',
         jwalltime => '4:00:00',
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/coverage.txt",
         output_bam => qq"${output_dir}/coverage.bam",
         output_tsv => qq"${output_dir}/coverage.tsv",
@@ -227,8 +222,7 @@ samtools index ${output_dir}/coverage.bam \\
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($coverage);
 }
 
@@ -277,6 +271,8 @@ sub Collect_Assembly {
         jmem => 2,
         jprefix => 81,
         jname => 'collect',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
     my @output_files = split(/:/, $options->{output});
     my $jstring = qq!
@@ -298,7 +294,9 @@ cp $options->{input_tsv} ${output_dir}
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
+        modules => $modules{modules},
         output => $output_dir,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($collect);
 }
 
@@ -339,6 +337,8 @@ sub Unicycler_Filter_Depth {
         jmem => 4,
         jprefix => '13',
         output => 'final_assembly.fasta',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
@@ -364,10 +364,12 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
         jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
+        modules => $modules{modules},
         output => $output,
         output_log => $output_log,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($depth_filtered);
 }
 
@@ -519,11 +521,9 @@ sub Shovill {
         depth => 40,
         jmem => 12,
         jprefix => '13',
-        arbitrary => '',
-        modules => ['shovill',]);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('shovill');
-    die('Could not find shovill in your PATH.') unless($check);
+        arbitrary => '',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}shovill";
@@ -558,12 +558,11 @@ fi
         jstring => $jstring,
         jmem => $options->{jmem},
         jqueue => 'workstation',
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/final_assembly.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($shovill_job);
 }
 
@@ -600,12 +599,9 @@ sub Trinity {
         contig_length => 600,
         jcpu => 8,
         jmem => 80,
-        jprefix => '60',
-        modules => ['trinity'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('Trinity');
-    die('Could not find trinity in your PATH.') unless($check);
-
+        jprefix => '60',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trinity_${job_name}";
     my $input_string = '';
@@ -645,10 +641,11 @@ rm -rf chrysalis insilico_read_normalization read_partitions \\
         jstring => $jstring,
         jmem => $options->{jmem},
         jqueue => 'large',
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/Trinity.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
         jcpu => $options->{jcpu},
@@ -662,8 +659,6 @@ rm -rf chrysalis insilico_read_normalization read_partitions \\
         input => qq"${output_dir}/Trinity.fasta",);
     $trinity->{rsem_job} = $rsem;
     $trinity->{trinotate_job} = $trinotate;
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trinity);
 }
 
@@ -698,12 +693,11 @@ sub Trinity_Post {
         required => ['input'],
         jmem => 24,
         jname => 'trin_rsem',
-        jprefix => '61',
-        modules => ['rsem'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '61',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $trinity_out_dir = dirname($options->{input});
-
     my $rsem_input = qq"${trinity_out_dir}/Trinity.fasta";
     my $trinity_path = which('Trinity');
     my $trinity_exe_dir = dirname($trinity_path);
@@ -757,15 +751,13 @@ cd \${start}
         jprefix => $options->{jprefix},
         jqueue => 'large',
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${trinity_out_dir}/RSEM.isoform.results",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($trinpost);
 }
-
 
 =back
 
@@ -810,12 +802,9 @@ sub Unicycler {
         min_length => 1000,
         mode => 'bold',
         jmem => 24,
-        jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'flash', 'shovill', 'bwa', 'pilon'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('unicycler');
-    die('Could not find unicycler in your PATH.') unless($check);
-
+        jprefix => '13',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
@@ -886,7 +875,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/${outname}_final_assembly.fasta",
@@ -894,8 +883,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         output_log => qq"${output_dir}/unicycler.log",
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($unicycler);
 }
 
@@ -931,11 +919,9 @@ sub Velvet {
         required => ['input'],
         species => '',
         kmer => 31,
-        jmem => 24,
-        modules => ['velvet'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('velveth');
-    die('Could not find velvet in your PATH.') unless($check);
+        jmem => 24,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/velvet_${job_name}";
     my $input_string = "";
@@ -976,13 +962,12 @@ sub Velvet {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($velvet);
 }
 

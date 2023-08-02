@@ -10,6 +10,12 @@ use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
 
+open(WTF, ">wtf.txt");
+for my $k (keys %ENV) {
+    print WTF "$k: $ENV{$k}\n";
+}
+close(WTF);
+
 my $start = getcwd();
 my $new = 'test_output';
 mkdir($new);

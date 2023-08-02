@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -58,11 +58,9 @@ sub Aragorn {
         arbitrary => ' -rp -fasta -w -m -t ',
         species => undef,
         jmem => 4,
-        jprefix => 21,
-        modules => ['aragorn'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('aragorn');
-    die('Could not find aragorn in your PATH.') unless($check);
+        jprefix => 21,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $aragorn_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}aragorn";
@@ -86,15 +84,13 @@ sub Aragorn {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',
         stderr => $stderr,
         stdout => $stdout);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($aragorn);
 }
 
@@ -126,11 +122,9 @@ sub Glimmer {
         args => \%args,
         required => ['input'],
         jmem => 8,
-        jprefix => '16',
-        modules => ['glimmer'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('glimmer3');
-    die('Could not find glimmer in your PATH.') unless($check);
+        jprefix => '16',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
     my $stdout = qq"${output_dir}/cyoa_glimmer.stdout";
@@ -176,15 +170,14 @@ cyoa_invoke_glimmer.pl --input $options->{input} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/${job_name}_glimmer.out",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stderr => $stderr,
         stdout => $stdout,
         jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($glimmer);
 }
 
@@ -223,14 +216,11 @@ sub Glimmer_Single {
         minlength => 45,
         threshold => 30,
         jmem => 8,
-        jprefix => '16',
-        modules => ['glimmer'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('glimmer3');
-    die('Could not find glimmer in your PATH.') unless($check);
+        jprefix => '16',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}glimmer";
-
     my $comment = '## This is a script to run glimmer.';
     my $final_output = qq"${output_dir}/glimmer3.txt";
     my $final_error = qq"${output_dir}/glimmer3.err";
@@ -258,7 +248,7 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
         jname => qq"glimmer_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_dir}/glimmer3.predict",
         output_detail => qq"${output_dir}/glimmer3.detail",
         output_icm => qq"${output_dir}/single_run.icm",
@@ -267,10 +257,8 @@ glimmer3 -o$options->{overlap} -g$options->{minlength} -t$options->{threshold} \
         stderr => $final_error,
         stdout => $final_output,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($glimmer);
 }
 
@@ -317,8 +305,9 @@ sub Phagepromoter {
         phage_type => 'virulent',
         model => 'SVM2400',
         jmem => 6,
-        jprefix => '30',
-        modules => ['phagepromoter'],);
+        jprefix => '30',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     ## Here are the lines which define what is passed to it on ARGV : defaults
     ## gen_format = sys.argv[1] : genbank or fasta
     ## genome_file = sys.argv[2] : input file
@@ -328,9 +317,6 @@ sub Phagepromoter {
     ## host = sys.argv[6] : Pseudomonas
     ## phage_type = sys.argv[7] : virulent
     ## model = sys.argv[8] : SVM2400
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('phagepromoter.py');
-    die('Could not find phagepromoter in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phagepromoter";
     my $stdout = qq"${output_dir}/phagepromoter.stdout";
@@ -365,7 +351,7 @@ cd \${start}
         jname => qq"phagepromoter",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_file}.xz",
         output_fasta => $output_fasta,
         stderr => $stderr,
@@ -373,8 +359,7 @@ cd \${start}
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($phagepromoter);
 }
 
@@ -409,11 +394,9 @@ sub Phanotate {
         args => \%args,
         required => ['input'],
         jmem => 6,
-        jprefix => '17',
-        modules => ['trnascan', 'phanotate'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('phanotate.py');
-    die('Could not find phanotate in your PATH.') unless($check);
+        jprefix => '17',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}phanotate";
     my $stderr = qq"${output_dir}/phanotate.stderr";
@@ -437,15 +420,13 @@ xz -9e -f ${output_file}
         jname => qq"phanotate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => qq"${output_file}.xz",
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($phanotate);
 }
 
@@ -486,11 +467,9 @@ sub Prodigal {
         prodigal_outname => undef,
         edge => 0,
         jmem => 8,
-        jprefix => '17',
-        modules => ['prodigal'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('prodigal');
-    die('Could not find prodigal in your PATH.') unless($check);
+        jprefix => '17',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $edge_string = ' -c ';
     $edge_string = '' if ($options->{edge});
 
@@ -565,7 +544,7 @@ sleep 3
         jprefix => $options->{jprefix},
         jqueue => 'workstation',
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $gbk_file,
@@ -576,8 +555,7 @@ sleep 3
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         training_input => $library_file,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($prodigal);
 }
 
@@ -607,9 +585,9 @@ sub Rho_Predict {
         args => \%args,
         jmem => 12,
         jprefix => '51',
-        modules => ['rhotermpredict'],
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->[0]->{fullpath};
     my $input_file = $input_paths->[0]->{filename};
@@ -636,11 +614,12 @@ cd \${start}
         jname => 'rhotermpredict',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $output_file,
         output_info => $info_file,);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($rhoterm);
 }
 
@@ -674,8 +653,9 @@ sub Train_Prodigal {
         args => \%args,
         required => ['input', 'species'],
         gcode => '11',
-        jmem => 8,
-        modules => ['prodigal'],);
+        jmem => 8,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $kingdom_string = '';
     my $output_dir = qq"$options->{libpath}/hmm";
@@ -698,13 +678,13 @@ prodigal -i $options->{input} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
+        postscript => $options->{postscript},);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($prodigal);
 }
 
@@ -744,11 +724,9 @@ sub tRNAScan {
         suffix => 'general',
         tool => 'trnascan',
         jmem => 6,
-        jprefix => '28',
-        modules => ['infernal', 'trnascan'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('trnascan');
-    die('Could not find trnascan in your PATH.') unless($check);
+        jprefix => '28',);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $trnascan_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trnascan";
@@ -787,15 +765,13 @@ echo "Finished second run with $? at $(date)" >> ${output_dir}/trnascan_return.t
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'workstation',
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($trnascan);
 }
 

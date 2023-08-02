@@ -37,6 +37,7 @@ use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
 
+use Bio::Adventure::Config;
 use Bio::Adventure::Slurm;
 use Bio::Adventure::Local;
 
@@ -313,6 +314,7 @@ $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $ENV{LESS} = '--buffers 0 -B';
+$ENV{PERL_USE_UNSAFE_INC} = 0;
 my $lessopen = Get_Lesspipe();
 ## Added to test Bio:DB::SeqFeature::Store
 if (!defined($ENV{PERL_INLINE_DIRECTORY})) {
@@ -359,7 +361,8 @@ sub BUILD {
 
     ## The modulecmd comand is kind of a hard-prerequisite for this to work.
     my $check = which('modulecmd');
-    die('Could not find environment modules in your PATH.') unless($check);
+    die("Could not find environment modules in your PATH:
+$ENV{PATH}.") unless($check);
 
     my @ignored;
     if (defined($class->{slots_ignored})) {
@@ -1299,23 +1302,26 @@ sub Get_Vars {
     ## The set of arguments passed to the function includes:
     ## $this_function_vars{args} which contains args to the parent.
     ## Now let us iterate over this_function_vars
+    my %defined_in_this_funcall = ();
     for my $varname (keys %getvars_default_vars) {
         ## required and args are provided in the function call, so skip them.
         next if ($varname eq 'required' || $varname eq 'args');
         $returned_vars{$varname} = $getvars_default_vars{$varname};
+        $defined_in_this_funcall{$varname} = 1;
     }
     ## Pick up options passed in the parent function call, e.g.
     ## my $bob = $class->Function(bob => 'jane');
-    for my $varname (keys %function_override_vars) {
+    PARENT_ARG: for my $varname (keys %function_override_vars) {
         ## required and args are provided in the function call, so skip them.
-        next if ($varname eq 'required' || $varname eq 'args');
+        next PARENT_ARG if ($varname eq 'required' || $varname eq 'args');
+        ## Do not redefine variables which were defined in the current functioncall.
+        if ($defined_in_this_funcall{$varname}) {
+
+        }
+        #next PARENT_ARG if ($defined_in_this_funcall{$varname});
         $returned_vars{$varname} = $function_override_vars{$varname};
         ## Try to ensure that the shell reverts to the default 'bash'
         ## I think the following 4 lines are no longer needed.
-        ##if (!defined($function_override_vars{language})) {
-        ##    $returned_vars{language} = 'bash';
-        ##    $returned_vars{shell} = '/usr/bin/env bash';
-        ##}
     }
     ## Final loop to pick up options from the commandline or a TERM prompt.
     ## These supercede everything else.
@@ -1419,13 +1425,13 @@ sub Reset_Vars {
         jdepends => '',
         jmem => 12,
         jname => 'undefined',
-        jqueue => 'workstation',
         jprefix => '01',
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
         prescript => '',
         postscript => '',
+        modules => [],
         shell => '/usr/bin/env bash',);
     for my $k (keys %original_values) {
         $class->{$k} = $original_values{$k};
@@ -1501,10 +1507,14 @@ sub Module_Loader {
     if ($args{action}) {
         $action = $args{action};
     }
-    my @mod_lst;
-    my $mod_class = ref($args{modules});
-    my @test_lst;
 
+    ## Start with the current ENV and an empty set of things to load and test.
+    my %old_env = %ENV;
+    my @mod_lst = ();
+    my $mod_class = ref($args{modules});
+    my @test_lst = ();
+
+    my $test_class = ref($args{exe});
     if ($mod_class eq 'SCALAR') {
         push(@mod_lst, $args{modules});
     } elsif ($mod_class eq 'ARRAY') {
@@ -1521,16 +1531,31 @@ sub Module_Loader {
         print "I do not know this class: $mod_class, $args{modules}\n";
     }
 
+    if ($test_class eq 'SCALAR') {
+        push(@test_lst, $args{exe});
+    } elsif ($test_class eq 'ARRAY') {
+        for my $e (@{$args{exe}}) {
+            push(@test_lst, $e);
+        }
+    } elsif (!$test_class) {
+        push(@test_lst, $args{exe});
+    } else {
+        print "I do not know this class: $test_class, $args{exe}\n";
+    }
+
     my $count = 0;
     my $mod;
     if ($action eq 'unload') {
         @mod_lst = reverse(@mod_lst);
     }
     my @messages = ();
-    foreach $mod (@mod_lst) {
+    my @loads = ();
+    LOADER: for $mod (@mod_lst) {
+        ## Skip one's self.
         my ($stdout, $stderr, @result) = capture {
             try {
                 my $test;
+                push(@loads, $mod);
                 if ($action eq 'load') {
                     $test = Env::Modulecmd::load($mod);
                 } else {
@@ -1545,18 +1570,24 @@ sub Module_Loader {
         $count++;
     } ## End iterating over every mod in the list
 
-    if (defined($args{executables})) {
-        @test_lst = @{$args{executables}};
-    }
-
     ## If we got a set of test programs, check that they are in the PATH:
     if (scalar(@test_lst) > 0) {
-        for my $exe (@test_lst) {
-            my $check = which($exe);
-            die(qq"Could not find ${exe} in the PATH.") unless ($check);
-        }
+      EXELOOP: for my $exe (@test_lst) {
+          next EXELOOP unless($exe);
+          my $check = which($exe);
+          die(qq"Could not find ${exe} in the PATH.") unless ($check);
+      }
     }
-    return(\@mod_lst);
+    $class->{modules} = \@mod_lst;
+    return(%old_env);
+}
+
+sub Module_Reset {
+    my ($class, %args) = @_;
+    my %old_env = %args{env};
+    for my $k (keys %old_env) {
+        $ENV{$k} = $old_env{$k};
+    }
 }
 
 =head2 C<Passthrough_Args>
@@ -1779,22 +1810,22 @@ sub Submit {
         args => \%args);
     my $modulecmd_check = $class->{modulecmd};
     make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
-    if ($options->{language} eq 'bash') {
-        my $module_string = '';
-        if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-            $module_string = 'mod=$( { type -t module || true; } )
+    my $module_string = '';
+    if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
+        $module_string = 'mod=$( { type -t module || true; } )
 if [[ -z "${mod}" ]]; then
   module() {
     eval $(/usr/bin/modulecmd bash $*);
   }
   export -f module
 fi
+module purge
 module add';
-            for my $m (@{$options->{modules}}) {
-                $module_string .= qq" ${m}";
-            }
-            $options->{module_string} = $module_string;
+        for my $m (@{$options->{modules}}) {
+            $module_string .= qq" ${m}";
         }
+        $module_string .= ' 2>/dev/null 1>&2';
+        $options->{module_string} = $module_string;
     }
 
     ## If we are invoking an indirect job, we need a way to serialize the options

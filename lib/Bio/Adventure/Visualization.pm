@@ -5,6 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
 
@@ -37,7 +38,6 @@ sub CGView {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => ['cgview'],
         jprefix => '16',
         linear => 1,
         reading_frame => 1,
@@ -45,7 +45,8 @@ sub CGView {
         feature_labels => 1,
         orfs => 1,
         imagemap => 0,);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $check = which('cgview');
     die("Could not find cgview in your PATH.") unless($check);
 
@@ -114,13 +115,12 @@ cgview -i ${xml_output} \\
         jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
+        modules => %modules{modules},
         output => $output_file,
         output_xml => $xml_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cgview);
 }
 

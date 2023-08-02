@@ -6,7 +6,7 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::FeatureIO;
 use Bio::Tools::GFF;
 use Bio::Root::Exception;
@@ -44,6 +44,8 @@ sub Gb2Gff {
         args => \%args,
         required => ['input'],
         jprefix => '78');
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $base = basename($options->{input}, ('.xz', '.gz', '.bz2'));
     $base = basename($base, ('.gb', '.gba', '.gbk', '.genbank'));
     my $dir = dirname($options->{input});
@@ -91,6 +93,7 @@ my \$result = \$h->Bio::Adventure::Convert::Gb2Gff_Worker(
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        modules => $modules{modules},
         output => $output_fasta,
         output_fasta => $output_fasta,
         output_all_gff => $output_all_gff,
@@ -104,6 +107,7 @@ my \$result = \$h->Bio::Adventure::Convert::Gb2Gff_Worker(
         stdout => $stdout,
         stderr => $stderr,
         language => 'perl',);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($convert);
 }
 
@@ -642,8 +646,7 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input'],
-        modules => ['samtools', 'bamtools'],);
+        required => ['species', 'input'],);
     my @input_list = ();
     my $paths = $class->Get_Paths($options->{input});
     if ($options->{input}) {
@@ -668,7 +671,6 @@ sub Sam2Bam {
     my $sam = $class->Bio::Adventure::Convert::Samtools(%args,
         jdepends => $options->{jdepends},
         sam => \@input_list);
-    $loaded = $class->Module_Unload(modules => $options->{modules});
     return($sam);
 }
 
@@ -704,9 +706,9 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        mismatch => 1,
-        modules => ['samtools', 'bamtools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        mismatch => 1,);
+    my %modules = Get_Modules();
+    my $loaded = $class->Module_Loader(%modules);
     my $input = $options->{input};
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
@@ -846,7 +848,7 @@ xz -9e -f ${unmapped}
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        modules => $options->{modules},
+        modules => $modules{modules},
         output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
@@ -861,8 +863,7 @@ xz -9e -f ${unmapped}
         jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '18:00:00',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($samtools);
 }
 
