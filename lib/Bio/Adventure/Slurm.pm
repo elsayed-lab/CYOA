@@ -79,7 +79,6 @@ sub BUILD {
     }
 
     $class->{usage} = Get_Usage();
-
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
         my $qos_names = $class->{qos_names};
@@ -1181,6 +1180,8 @@ sub Submit {
     }
 
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
+    print "Slurm::Submit: Writing to script:
+${script_file}\n" if ($options->{debug});
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");

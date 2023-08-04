@@ -426,8 +426,14 @@ my $expected_second = qq"#id:
 ## 1\t117\t+\tgnl|Prokka|test_output_1\t-1.248555528686707940866691777\t
 ## 183\t302\t+\tgnl|Prokka|test_output_1\t-0.2175130562377134455954126775\t
 ## 477\t617\t+\tgnl|Prokka|test_output_1\t-0.07018008835792925643848556090\t
-$comparison = ok(($expected_first eq $actual) or
-                 ($expected_second eq $actual), 'Checking phanotate output:');
+my $something_good = 0;
+if ($expected_first eq $actual) {
+    $something_good++;
+}
+if ($expected_second eq $actual) {
+    $something_good++;
+}
+$comparison = ok($something_good, 'Checking phanotate output:');
 if ($comparison) {
     print "Passed.\n";
 } else {

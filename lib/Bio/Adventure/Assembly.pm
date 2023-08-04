@@ -7,7 +7,6 @@ use warnings qw"all";
 no warnings 'experimental::try';
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Spec;
@@ -59,8 +58,6 @@ sub Abyss {
         required => ['input'],
         k => 41,
         jmem => 12,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my %abyss_jobs = ();
     my $outname = basename(cwd());
@@ -97,14 +94,11 @@ cd \${start}
         jdepends => $options->{jdepends},
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $modules{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($abyss);
 }
 
@@ -148,8 +142,6 @@ sub Assembly_Coverage {
         ## input is the corrected/filtered reads, library is the assembly
         jmem => 18,
         jprefix => 14,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}assembly_coverage_${outname}";
@@ -214,7 +206,6 @@ samtools index ${output_dir}/coverage.bam \\
         jstring => $jstring,
         jmem => $options->{jmem},
         jwalltime => '4:00:00',
-        modules => $modules{modules},
         output => qq"${output_dir}/coverage.txt",
         output_bam => qq"${output_dir}/coverage.bam",
         output_tsv => qq"${output_dir}/coverage.tsv",
@@ -222,7 +213,6 @@ samtools index ${output_dir}/coverage.bam \\
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($coverage);
 }
 
@@ -271,8 +261,6 @@ sub Collect_Assembly {
         jmem => 2,
         jprefix => 81,
         jname => 'collect',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $output_dir = qq"outputs/$options->{jprefix}$options->{jname}";
     my @output_files = split(/:/, $options->{output});
     my $jstring = qq!
@@ -294,9 +282,7 @@ cp $options->{input_tsv} ${output_dir}
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        modules => $modules{modules},
         output => $output_dir,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($collect);
 }
 
@@ -337,8 +323,6 @@ sub Unicycler_Filter_Depth {
         jmem => 4,
         jprefix => '13',
         output => 'final_assembly.fasta',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}filter_depth";
@@ -361,15 +345,12 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"filter_depth_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $output,
         output_log => $output_log,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($depth_filtered);
 }
 
@@ -522,8 +503,6 @@ sub Shovill {
         jmem => 12,
         jprefix => '13',
         arbitrary => '',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}shovill";
@@ -557,12 +536,9 @@ fi
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'workstation',
-        modules => $modules{modules},
         output => qq"${output_dir}/final_assembly.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($shovill_job);
 }
 
@@ -600,8 +576,6 @@ sub Trinity {
         jcpu => 8,
         jmem => 80,
         jprefix => '60',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trinity_${job_name}";
     my $input_string = '';
@@ -640,12 +614,9 @@ rm -rf chrysalis insilico_read_normalization read_partitions \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'large',
-        modules => $modules{modules},
         output => qq"${output_dir}/Trinity.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     my $rsem = $class->Bio::Adventure::Assembly::Trinity_Post(
         %args,
         jcpu => $options->{jcpu},
@@ -694,8 +665,6 @@ sub Trinity_Post {
         jmem => 24,
         jname => 'trin_rsem',
         jprefix => '61',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $trinity_out_dir = dirname($options->{input});
     my $rsem_input = qq"${trinity_out_dir}/Trinity.fasta";
@@ -749,13 +718,10 @@ cd \${start}
         jmem => $options->{jmem},
         jname => qq"$options->{jprefix}trinpost_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'large',
         jstring => $jstring,
-        modules => $modules{modules},
         output => qq"${trinity_out_dir}/RSEM.isoform.results",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($trinpost);
 }
 
@@ -803,8 +769,6 @@ sub Unicycler {
         mode => 'bold',
         jmem => 24,
         jprefix => '13',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
@@ -873,9 +837,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         jmem => $options->{jmem},
         jname => qq"unicycler_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
-        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/${outname}_final_assembly.fasta",
@@ -883,7 +845,6 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         output_log => qq"${output_dir}/unicycler.log",
         stdout => $stdout,
         stderr => $stderr);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($unicycler);
 }
 
@@ -920,8 +881,6 @@ sub Velvet {
         species => '',
         kmer => 31,
         jmem => 24,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/velvet_${job_name}";
     my $input_string = "";
@@ -962,12 +921,9 @@ sub Velvet {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $modules{modules},
         output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
-    my $unloaded = $class->Module_Reset(env => $loaded);
+        postscript => $options->{postscript},);
     return($velvet);
 }
 

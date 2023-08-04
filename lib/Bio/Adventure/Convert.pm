@@ -6,7 +6,6 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use Bio::FeatureIO;
 use Bio::Tools::GFF;
 use Bio::Root::Exception;
@@ -44,8 +43,6 @@ sub Gb2Gff {
         args => \%args,
         required => ['input'],
         jprefix => '78');
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $base = basename($options->{input}, ('.xz', '.gz', '.bz2'));
     $base = basename($base, ('.gb', '.gba', '.gbk', '.genbank'));
     my $dir = dirname($options->{input});
@@ -93,7 +90,6 @@ my \$result = \$h->Bio::Adventure::Convert::Gb2Gff_Worker(
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => $output_fasta,
         output_fasta => $output_fasta,
         output_all_gff => $output_all_gff,
@@ -107,7 +103,6 @@ my \$result = \$h->Bio::Adventure::Convert::Gb2Gff_Worker(
         stdout => $stdout,
         stderr => $stderr,
         language => 'perl',);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($convert);
 }
 
@@ -707,8 +702,6 @@ sub Samtools {
         jprefix => '',
         paired => 1,
         mismatch => 1,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input = $options->{input};
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
@@ -848,7 +841,6 @@ xz -9e -f ${unmapped}
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        modules => $modules{modules},
         output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
@@ -860,10 +852,8 @@ xz -9e -f ${unmapped}
         jmem => $options->{jmem},
         jname => $jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '18:00:00',);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($samtools);
 }
 

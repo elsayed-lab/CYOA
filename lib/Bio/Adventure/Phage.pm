@@ -5,9 +5,9 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
-use Bio::Adventure::Config;
 use Bio::DB::EUtilities;
 use Bio::Restriction::Analysis;
 use Bio::Restriction::Enzyme;
@@ -51,8 +51,6 @@ sub Bacphlip {
         jmem => 12,
         jname => 'bacphlip',
         jprefix => '80',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my @suffixes = split(/,/, $options->{suffixes});
     my $out_base = basename($options->{input}, @suffixes);
     my $in_base = basename($options->{input});
@@ -91,14 +89,12 @@ cd \${start}
         jname => $options->{jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => $output,
         output_hmm => $output_hmm,
         output_frames => $output_frames,
         output_tsv => $output_tsv,
         stderr => $stderr,
         stdout => $stdout,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($job);
 }
 
@@ -136,8 +132,6 @@ sub Caical {
         required => ['input', 'species'],
         jmem => 4,
         jprefix => '80',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $test = ref($options->{suffixes});
     my @suffixes = split(/,/, $options->{suffixes});
     my $species = $options->{species};
@@ -174,7 +168,6 @@ my \$result = \$h->Bio::Adventure::Phage::Caical_Worker(
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => $output_cai,
         random_sequences => $random_sequences,
         species => $species,
@@ -182,7 +175,6 @@ my \$result = \$h->Bio::Adventure::Phage::Caical_Worker(
         stderr => $stderr,
         language => 'perl',
         output_dir => $output_dir);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cai);
 }
 
@@ -286,8 +278,6 @@ sub Classify_Phage {
         topn => 5,
         jmem => 12,
         jprefix => '18',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $paths = $class->Get_Paths($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}classify_$paths->[0]->{dirname}";
     if (-d $output_dir) {
@@ -326,7 +316,6 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $output_tsv,
@@ -334,7 +323,6 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         output_dir => $output_dir,
         output_log => $output_log,
         topn => $options->{topn},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cjob);
 }
 
@@ -390,9 +378,13 @@ sub Classify_Phage_Worker {
         score => 1000,
         topn => 5,
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my $blast_db = $ENV{BLASTDB};
+    my $unloaded = $class->Module_Reset(env => $loaded);
+
     ## Read the xref file, located in the blast database directory as ${library}.csv
-    my $xref_file = qq"$ENV{BLASTDB}/$options->{library}.csv";
+    my $xref_file = qq"${blast_db}/$options->{library}.csv";
     ## Use Text::CSV to create an array of hashes with keynames:
     ## 'taxon', 'virusnames', 'virusgenbankaccession', 'virusrefseqaccession'
     my $xref_aoh = csv(in => $xref_file, headers => 'auto');
@@ -409,7 +401,7 @@ sub Classify_Phage_Worker {
     my @params = (
         -e => $options->{evalue},
         -create => 0,
-        -db_dir => $ENV{BLASTDB},
+        -db_dir => $blast_db,
         -db_name => $options->{library},
         -outfile => $blast_outfile,
         -num_threads => $options->{jcpu},
@@ -639,8 +631,6 @@ sub Filter_Host_Kraken {
         jmem => 8,
         jprefix => '06',
         htseq_stranded => 'no',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     ## FIXME FIXME FIXME
     ## This needs to be changed to use the EUtilities as per Prepare::Download_NCBI_Accession().
     ## The assembly ncbi link is no longer a plain html document but instead redirects to the
@@ -689,14 +679,12 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
         jstring => $jstring,
         job_log => $log,
         language => 'perl',
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $output_files,
         output_unaligned => $unal_files,
         output_dir => $output_dir,
         stranded => $options->{stranded},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($host);
 }
 
@@ -1150,8 +1138,6 @@ sub Phageterm {
         jmem => 12,
         jprefix => '14',
         required => ['input', 'library'],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -1197,14 +1183,12 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $output_file,
         output_type => $dtr_type_file,
         output_dtr => $dtr_sequence_file,
         stderr => $stderr,
         stdout => $stdout,
         test_file => $dtr_test_file,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($phageterm_run);
 }
 
@@ -1431,8 +1415,6 @@ sub Phastaf {
         jmem => 12,
         jprefix => '14',
         required => ['input'],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->[0]->{fullpath};
@@ -1467,7 +1449,6 @@ phastaf --force --outdir ${output_dir} \\
         jname => qq"phastaf_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => $output_file,
         stderr => $stderr,
         stdout => $stdout,
@@ -1500,11 +1481,9 @@ my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
             jprefix => $options->{jprefix},
             jstring => $interpret_jstring,
             language => 'perl',
-            modules => $modules{modules},
             stderr => $stderr,
             stdout => $stdout,);
     }
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($phastaf);
 }
 
@@ -1720,8 +1699,6 @@ sub Restriction_Catalog {
         library => 'host_species.txt',
         jmem => 8,
         jprefix => '29',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $output_dir = qq"outputs/$options->{jprefix}re_catalog";
     my $re_output = qq"${output_dir}/re_catalog.tsv";
     my $stdout = qq"${output_dir}/re_catalog.stdout";
@@ -1751,7 +1728,6 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $re_output,);
@@ -1863,8 +1839,6 @@ sub Terminase_ORF_Reorder {
         required => ['input'],
         species => 'phages',
         test_file => 'direct-term-repeats.fasta',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
     my $stderr = qq"${output_dir}/termreorder.stderr";
@@ -1922,7 +1896,6 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        modules => $modules{modules},
         output => $final_output,
         output_dir => $output_dir,
         output_tsv => $output_tsv,
@@ -1931,7 +1904,6 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
         stdout => $stdout,
         test_file => $options->{test_file},);
     $tjob->{prodigal_job} = $term_prodigal;
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($tjob);
 }
 
@@ -1957,6 +1929,10 @@ sub Terminase_ORF_Reorder_Worker {
         library => 'terminase',
         output_file => 'final_assembly.fasta',
         test_file => '',);
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my $blast_db = $ENV{BLASTDB};
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $output_dir = dirname($options->{output});
     my $log = FileHandle->new(">${output_dir}/reorder.log");
     ## First check for the test file, if it exists, then this should
@@ -1973,7 +1949,7 @@ sub Terminase_ORF_Reorder_Worker {
     }
 
     ## Now perform the search for potential terminases.
-    my $library_file = qq"$ENV{BLASTDB}/$options->{library}.fasta";
+    my $library_file = qq"${blast_db}/$options->{library}.fasta";
     my $fasta_output = Bio::SearchIO->new(-format => 'fasta', );
     my $number_hits = 0;
     print $log "Starting fasta search of $options->{input}
@@ -2269,8 +2245,6 @@ sub Xref_Crispr {
         test_file => 'crispr_sequences.csv',
         jmem => 8,
         jprefix => '15',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}xref_crispr";
     my $final_output = qq"${output_dir}/crispr_hits.tsv";
@@ -2301,12 +2275,10 @@ my \$result = Bio::Adventure::Phage::Xref_Crispr_Worker(\$h,
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $final_output,
         output_dir => $output_dir,
         stdout => $final_output,
         test_file => $options->{test_file},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($xref);
 }
 

@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use Bio::DB::Sam;
 use Bio::Seq;
 use Bio::SeqIO;
@@ -216,8 +215,6 @@ sub Essentiality_TAs {
         jmem => 8,
         jprefix => '40',
         output => '',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/essentiality_$options->{species}";
@@ -241,15 +238,12 @@ Bio::Adventure::TNSeq::Essentiality_TAs_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"count_ta_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $output,
         output_log => $output_log,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($ta_counter);
 }
 
@@ -331,8 +325,6 @@ sub TA_Check {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $jstring = qq"
 use Bio::Adventure;
@@ -348,15 +340,12 @@ my \$ret = \$h->Bio::Adventure::TNSeq::TA_Check_Worker(
         jdepends => $options->{jdepends},
         jmem => 8,
         jname => qq"tacheck_${job_name}",
-        jqueue => "throughput",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => "10:00:00",
         language => 'perl',
-        modules => $modules{modules},
         output => qq"${input_base}_ta.fastq.xz",
         output_nota => qq"${input_base}_nota.fastq.xz",);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($sort_job);
 }
 
@@ -423,8 +412,6 @@ sub Sort_Indexes {
         args => \%args,
         required => ['input', 'index_file'],
         outdir => 'output',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     ## If options are required, feed them back into %args here?
     my $jstring = qq!
 use Bio::Adventure;
@@ -446,13 +433,10 @@ my \$ret = \$h->Bio::Adventure::TNSeq::Do_Sort_Indexes(
         jname => 'sort_indexes',
         jprefix => '01',
         jstring => $jstring,
-        jqueue => 'workstation',
         jwalltime => '60:00:00',
         language => 'perl',
-        modules => $modules{modules},
         outdir => $options->{outdir},
         output => qq"$options->{outdir}/tnseq_sorting_out.txt",);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($sort_job);
 }
 
@@ -818,8 +802,6 @@ sub Run_Essentiality {
         args => \%args,
         required => ['input', 'species'],
         runs => 1000,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input = $options->{input};
     print "Remember, this function assumes the gene_tas file as input.\n";
     my $output = basename($input, ('.txt'));
@@ -860,7 +842,6 @@ process_segments.py -f ${output_dir}/${output_file} \\
         jprefix => $options->{jprefix},
         jname => qq"$options->{jprefix}tn_hmm",
         jstring => $jstring,
-        modules => $modules{modules},
         output => $output_file,);
 
     foreach my $param (@param_list) {
@@ -889,13 +870,11 @@ gumbelMH.py -f ${input} -m ${param} -s $options->{runs} \\
             jname => qq"mh_ess${param}_$options->{species}",
             jprefix => $options->{jprefix},
             jstring => $jstring,
-            modules => $modules{modules},
             output => $output_file,
             prescript => $options->{prescript},
             postscript => $options->{postscript},);
     }
     ## This should return something interesting, but it doesn't
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($tn_hmm);
 }
 
@@ -1151,8 +1130,6 @@ sub Transit_TPP {
         jmem => 20,
         jwalltime => 8,
         jprefix => '61',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $ready = $class->Check_Input(files => $options->{input},);
@@ -1232,11 +1209,9 @@ ${tpp_post}
         input => $tpp_input,
         jname => $tpp_name,
         jstring => $jstring,
-        modules => $modules{modules},
         output => $sam_filename,
         stdout => $stdout,
         stderr => $stderr,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     $options->{jprefix} = $options->{jprefix} + 1;
     my $sam_job = $class->Bio::Adventure::Convert::Samtools(
         input => $sam_filename,

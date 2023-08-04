@@ -38,8 +38,6 @@ sub Angsd_Filter {
         args => \%args,
         required => ['input'],
         pval => 0.01,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input_paths = $class->Get_Paths($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}angsd_$input_paths->{dirname}";
     my $stdout = qq"${output_dir}/angsd.stdout";
@@ -56,10 +54,8 @@ angsd -b $options->{input} \\
         jname => qq"angsdfilter_$input_paths->{filename}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($angsd_filter);
 }
 

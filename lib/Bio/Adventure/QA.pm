@@ -6,7 +6,6 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use File::Basename;
 use File::Which qw"which";
 
@@ -38,8 +37,6 @@ sub Biopieces_Graph {
         required => ['input'],
         jmem => 8,
         jprefix => '02',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $input = $options->{input};
     my $jname = $class->Get_Job_Name();
     $jname = qq"biop_${jname}";
@@ -74,9 +71,7 @@ less ${in} | read_fastq -i - -e base_$options->{phred} |\\
                 jmem => $options->{jmem},
                 jname => qq"${jname}_${in}",
                 jprefix => $options->{jprefix},
-                jqueue => 'long',
                 jstring => $jstring,
-                modules => $modules{modules},
                 stderr => $stderr,
                 stdout => $stdout,
                 prescript => $args{prescript},
@@ -105,13 +100,11 @@ less ${input} | read_fastq -i - -e base_33 |\\
             jname => 'biop',
             jprefix => $options->{jprefix},
             jstring => $jstring,
-            modules => $modules{modules},
             stderr => $stderr,
             stdout => $stdout,
             prescript => $options->{prescript},
             postscript => $options->{postscript},);
     }
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($bp);
 }
 
@@ -128,8 +121,6 @@ sub Fastqc {
         filtered => 'unfiltered',
         jprefix => '01',
         required => ['input',],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $dirname = $input_paths->[0]->{dirname};
@@ -216,9 +207,7 @@ echo "move finished with: $?"
         jcpu => 8,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
-        modules => $modules{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"$options->{jprefix}fastqc.html",
@@ -233,7 +222,6 @@ echo "move finished with: $?"
         jmem => 1,
         jwalltime => '00:03:00',
         jdepends => $fqc->{job_id},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($fqc);
 }
 

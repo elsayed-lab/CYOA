@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use Bio::SearchIO::fasta;
 use Bio::Seq;
 use Cwd;
@@ -484,8 +483,6 @@ sub OrthoFinder {
         required => ['input'],
         jmem => 24,
         jprefix => '50',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $jname = qq'$options->{jprefix}orthofinder';
     my $outdir = qq"outputs/$options->{jprefix}orthofinder";
     make_path(qq"${outdir}/input");
@@ -528,7 +525,6 @@ rmdir ${outdir}/output/Results_${month_date}
         jname => ${jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,);
 
@@ -557,11 +553,9 @@ my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
         jdepends => $ortho->{job_id},
         jname => $jname,
         language => 'perl',
-        modules => $modules{modules},
         single_input => $orthofinder_single_output,
         stdout => $stdout,
         stderr => $stderr,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($ortho);
 }
 

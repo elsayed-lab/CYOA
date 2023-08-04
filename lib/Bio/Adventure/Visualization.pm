@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
 
@@ -45,11 +44,6 @@ sub CGView {
         feature_labels => 1,
         orfs => 1,
         imagemap => 0,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
-    my $check = which('cgview');
-    die("Could not find cgview in your PATH.") unless($check);
-
     my $job_name = $class->Get_Job_Name();
     ## Reminder, this gives me: filename, directory, dirname, fullpath
     my $job_paths = $class->Get_Paths($options->{input});
@@ -115,12 +109,10 @@ cgview -i ${xml_output} \\
         jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => %modules{modules},
         output => $output_file,
         output_xml => $xml_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($cgview);
 }
 

@@ -60,8 +60,6 @@ sub Make_Blast_Job {
         blast_format => 5,
         jdepends => '',
         jmem => 24,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
     my $array_end = 1000 + $options->{align_jobs};
@@ -112,9 +110,7 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jdepends => $dep,
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $modules{modules},
         array_string => $array_string,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($blast_jobs);
 }
 
@@ -141,8 +137,6 @@ sub Merge_Parse_Blast {
         args => \%args,
         required => ['output'],
         jmem => 8,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $concat = $class->Bio::Adventure::Align::Concatenate_Searches();
     my $input = $options->{output};
     my $jstring = qq!
@@ -157,9 +151,7 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
         jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',
-        modules => $modules{modules},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
+        language => 'perl',);
     return($parse);
 }
 
@@ -321,7 +313,7 @@ sub Run_Parse_Blast {
         blast_tool => 'blastp',
         evalue => 0.01,
         output => 'blast_output.txt',);
-    my %modules = Get_Modules();
+    my %modules = Get_Modules(caller => 1);
     my $loaded = $class->Module_Loader(%modules);
     my $query = $options->{input};
     my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
@@ -471,8 +463,6 @@ sub Split_Align_Blast {
         best_only => 0,
         interactive => 0,
         jmem => 8,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     print STDERR qq"A quick reminder because I (atb) get confused easily:
 tblastn is a protein fasta query against a nucleotide blast database.
 tblastx is a nucleotide fasta query (which is translated on the fly) against a nucleotide blast db.
@@ -546,9 +536,7 @@ my \$result = Bio::Adventure::Align::Parse_Search(
         jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',
-        modules => $modules{modules});
-    my $unloaded = $class->Module_Reset(env => $loaded);
+        language => 'perl',);
     return($concat_job);
 }
 
@@ -559,8 +547,6 @@ sub OrthoMCL_Pipeline {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = 'orthomcl';
     ## Note that I am cheating and using a pre-defined pipeline for orthomcl
     ## https://github.com/apetkau/orthomcl-pipeline
@@ -581,13 +567,10 @@ orthomcl-pipeline.pl -i input -o output \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 16,
-        modules => $modules{modules},
         output => 'output',
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         walltime => '144:00:00',);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($job);
 }
 

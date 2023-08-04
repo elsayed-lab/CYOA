@@ -36,7 +36,6 @@ sub Compress {
         jmem => 8,
         jname => 'xz',
         jprefix => '',
-        jqueue => 'long',
         jwalltime => '24:00:00',
         modules => undef,);
     my $input_paths = $class->Get_Paths($options->{input});
@@ -89,7 +88,6 @@ sub Recompress {
         jname => 'xz',
         jmem => 8,
         jprefix => '99',
-        jqueue => 'long',
         jwalltime => '12:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
 

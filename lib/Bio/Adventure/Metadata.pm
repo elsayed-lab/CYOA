@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -135,8 +134,6 @@ sub Generate_Samplesheet {
         args => \%args,
         required => ['input'],
         jmem => 12,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -153,13 +150,11 @@ meta_written <- gather_preprocessing_metadata("$options->{input}")
         jcpu => 1,
         jstring => $jstring,
         language => 'R',
-        modules => $modules{modules},
         output => $output_file,
         stderr => $stderr,
         stdout => $stdout,
         jmem => $options->{jmem},
         shell => '/usr/bin/env Rscript',);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($sample_sheet);
 }
 
@@ -332,8 +327,6 @@ sub Kraken_Best_Hit {
         library => 'viral',
         jmem => 64,
         jprefix => '11',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -365,13 +358,11 @@ sub Kraken_Best_Hit {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/kraken_report.txt",);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($kraken);
 }
 
@@ -407,8 +398,6 @@ sub Merge_Annotations {
         suffix => '',
         jmem => 12,
         jprefix => '15',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
     if ($options->{suffix}) {
         $output_name .= qq"_$options->{suffix}";
@@ -462,7 +451,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         keep_genes => $options->{keep_genes},
         language => 'perl',
         library => $options->{library},
-        modules => $modules{modules},
         locus_tag => 1,
         stdout => qq"${output_dir}/collect_annotations.stdout",
         output_dir => $output_dir,
@@ -474,7 +462,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         output_log => $output_log,
         primary_key => $options->{primary_key},
         suffix => $options->{suffix},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($merge_job);
 }
 

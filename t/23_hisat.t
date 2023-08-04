@@ -10,12 +10,6 @@ use String::Diff qw"diff";
 use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 my $start_dir = dist_dir('Bio-Adventure');
 
-open(WTF, ">wtf.txt");
-for my $k (keys %ENV) {
-    print WTF "$k: $ENV{$k}\n";
-}
-close(WTF);
-
 my $start = getcwd();
 my $new = 'test_output';
 mkdir($new);
@@ -28,11 +22,9 @@ my $phix_gff = qq"${start_dir}/genome/phix.gff";
 if (!-r 'test_forward.fastq.gz') {
     ok(cp($input_file, 'test_forward.fastq.gz'), 'Copying data.');
 }
-
 if (!-r 'genome/phix.fasta') {
     ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
 }
-
 if (!-r 'genome/phix.gff') {
     ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
 }
@@ -46,7 +38,7 @@ my $cyoa = Bio::Adventure->new(
     species => 'phix',
     stranded => 'no',);
 my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
-    input => qq'test_forward.fastq.gz',);
+    input => 'test_forward.fastq.gz',);
 ok($hisat, 'Run Hisat2');
 my $sam_file = $hisat->{samtools}->{output};
 my $htseq_file = $hisat->{htseq}->[0]->{output};

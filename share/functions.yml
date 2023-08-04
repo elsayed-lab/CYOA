@@ -1,0 +1,111 @@
+modules:
+  Abricate:
+    modules: cyoa, any2fasta, abricate, blast, blastdb
+    exe: abricate
+  Abyss:
+    modules: abyss
+    exe: abyss
+  Angsd_Filter:
+    modules: angsd
+  Aragorn:
+    modules: aragorn
+    exe: aragorn
+  Assembly_Coverage:
+    modules: cyoa, hisat2, samtools, bbmap
+  Bacphlip:
+    modules: bacphlip
+    exe: bacphlip
+  Biopieces_Graph:
+    modules: biopieces
+  Bowtie:
+    modules: bowtie1
+  Bowtie2:
+    modules: bowtie2
+  BT1_Index:
+    modules: bowtie1
+  BT2_Index:
+    modules: bowtie2
+  Caical:
+    modules: cyoa, caical
+  Casfinder:
+    modules: casfinder
+    exe: casfinder.sh
+  Casoff:
+    modules: casoff
+    exe: cas-offinder
+  CGView:
+    modules: cyoa, cgview ## This should be reinstalled to remove the cyoa prereq.
+  Check_Blastdb:
+    modules: blast, blastdb
+  Classify_Phage:
+    modules: cyoa, blast, blastdb
+    exe: tblastx
+  Cogent:
+    modules: cogent
+    exe: cogent
+  Collect_Assembly:
+    modules: cyoa
+  Consolidate_TAs:
+    modules: cyoa
+  Cutadapt:
+    modules: cyoa, cutadapt
+    exe: cutadapt
+  Essentiality_TAs:
+    modules: cyoa
+  Extend_Kraken_DB:
+    modules: kraken
+    exe: kraken2
+  Fastqc:
+    modules: fastqc
+  Fastp:
+    modules: fastp
+    exe: fastp
+  Filter_Host_Kraken:
+    modules: cyoa, kraken, hisat2, htseq, samtools
+  Freebayes_SNP_Search:
+    modules: gatk, freebayes, samtools, bcftools, vcftools
+    exe: gatk, freebayes
+  Gb2Gff:
+    modules: cyoa
+  Generate_Samplesheet:
+    modules: R
+  Glimmer:
+    modules: cyoa, glimmer
+    exe: glimmer3
+  Glimmer_Single:
+    modules: cyoa, glimmmer
+  Gubbins:
+    modules: gubbins
+  Guess_Strand:
+    modules: cyoa
+  Hisat2:
+    modules: hisat2
+    exe: hisat2
+  Hisat2_Index:
+    modules: hisat2
+    exe: hisat2
+  HT_Multi:
+    modules: htseq
+  HTSeq:
+    modules: htseq
+    exe: htseq-count
+  Interpro_Long2Wide:
+    modules: cyoa
+  Interpro:
+    modules: cyoa, interproscan
+    exe: interproscan.sh
+  Jellyfish:
+    modules: cyoa, jellyfish
+    exe: jellyfish
+  Kallisto:
+    modules: kallisto
+  Kallisto_Index:
+    modules: kallisto
+  Kraken:
+    modules: kraken
+    exe: kraken2
+  Kraken_Best_Hit:
+    modules: cyoa, kraken
+  Make_Blast_Job:
+    modules: cyoa, blastdb, blast
+    exe: tblastx

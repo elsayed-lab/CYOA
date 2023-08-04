@@ -34,8 +34,6 @@ sub Guess_Strand {
         jmem => 12,
         jprefix => '41',
         output => 'strand_counts.txt',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $output = $options->{output};
     my $stdout = dirname($output) . qq"/stranded_test.stdout";
@@ -62,16 +60,13 @@ my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"guess_strand_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $output,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         species => $options->{species},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($guess);
 }
 
@@ -208,8 +203,7 @@ sub HT_Multi {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input',],);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
+
     my %ro_opts = %{$options};
     my $species = $options->{species};
     my $htseq_input = $options->{input};
@@ -253,8 +247,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $jprefix,
-                jqueue => 'throughput',
-                modules => $modules{modules},
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -270,8 +262,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $options->{jprefix},
-                jqueue => 'throughput',
-                modules => $modules{modules},
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -295,8 +285,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
-            modules => $modules{modules},
             postscript => $options->{postscript},
             prescript => $options->{prescript},
             suffix => $options->{suffix},);
@@ -311,8 +299,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
-            modules => $modules{modules},
             postscript => $args{postscript},
             prescript => $args{prescript},
             suffix => $args{suffix},);
@@ -320,7 +306,6 @@ sub HT_Multi {
     } else {
         print "Did not find ${gff} nor ${gtf}, not running htseq_all.\n";
     }
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return(\@jobs);
 }
 
@@ -470,8 +455,6 @@ sub HTSeq {
         jmem => 20,
         jname => '',
         jprefix => '',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {
         $stranded = 'yes';
@@ -572,7 +555,6 @@ xz -f -9e ${output}
         gff_type => $options->{gff_type},
         gff_tag => $options->{gff_tag},
         input => $htseq_input,
-        modules => $modules{modules},
         output => $output,
         stderr => $error,
         stdout => $output,
@@ -583,9 +565,7 @@ xz -f -9e ${output}
         jmem => 6,
         jname => $htseq_jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($htseq);
 }
 
@@ -618,8 +598,6 @@ sub Jellyfish {
         required => ['input'],
         length => '9,11,13,15',
         jprefix => 18,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my @kmer_array = split(/\,|:/, $options->{length});
     my $count = 0;
     my $ret;
@@ -687,7 +665,6 @@ jellyfish dump ${count_file} > ${count_fasta} \\
         jstring => $jstring,
         jmem => 12,
         jcpu => 4,
-        modules => $modules{modules},
         output => $matrix_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -716,7 +693,6 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
         jstring => $jstring,
         jcpu => 1,
         language => 'perl',
-        modules => $modules{modules},
         output => $matrix_file,
         stdout => $stdout,);
     $jelly->{matrix_job} = $matrix_job;
@@ -737,7 +713,6 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     $jelly->{info_file} = qq"${info_file}.xz";
     $jelly->{histogram_file} = qq"${histogram_file}.xz";
     $jelly->{count_fasta} = qq"${count_fasta}.xz";
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($jelly);
 }
 
@@ -830,8 +805,6 @@ sub Kraken {
         jmem => 32,
         jprefix => '11',
         clean => 1,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -854,7 +827,7 @@ sub Kraken {
 !;
     my $stdout = qq"${output_dir}/kraken.stdout";
     my $stderr = qq"${output_dir}/kraken.stderr";
-    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
+    my $jstring = qq!kraken2 --db \${KRAKEN2_DB_PATH}/$options->{library} \\
   --report ${output_dir}/kraken_report.txt --use-mpa-style \\
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
@@ -881,13 +854,11 @@ rm -f ${output_dir}/*.fastq.gz
         jname => "kraken_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => qq"${output_dir}/kraken_report.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($kraken);
 }
 
@@ -907,8 +878,6 @@ sub Mash {
         length => 9,
         sketch => 9,
         jcpu => 4,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -947,10 +916,8 @@ for outer in ${sketch_dir}/*; do
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         stderr => $stderr,
         stdout => $stdout,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($mash);
 }
 
@@ -1052,8 +1019,6 @@ sub Mpileup {
         args => \%args,
         required => ['input', 'species'],
         jprefix => 61,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -1085,10 +1050,8 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
         jname => 'mpileup',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         stderr => $final_error,
         stdout => $stdout,);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($mpileup);
 }
 
@@ -1491,8 +1454,6 @@ sub SLSearch {
         jmem => 24,
         jprefix => '50',
         search => 'AGTTTCTGTACTTTATTGG',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $output_dir =  qq"outputs/$options->{jprefix}SL_search";
     my $output_made = make_path($output_dir);
     my $comment = '## Search for SL sub-sequences.';
@@ -1516,12 +1477,9 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
         jprefix => $options->{jprefix},
         jstring => $jstring,
         language => 'perl',
-        modules => $modules{modules},
         output => $output_dir,
         stderr => $stderr,
         stdout => $stdout,);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
     return($slsearch);
 }
 

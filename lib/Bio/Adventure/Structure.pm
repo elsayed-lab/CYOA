@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
 
@@ -37,8 +36,6 @@ sub RNAFold_Windows {
         length => 201,
         required => ['input'],
         step => 3,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
     my $output_dir = qq"outputs/$options->{jprefix}rnafold";
     my $output = qq"${output_dir}/${output_name}.tsv.xz";
@@ -58,7 +55,6 @@ use Bio::Adventure::Structure;
         jname => 'vienna',
         jprefix => $options->{jprefix},
         length => $options->{length},
-        modules => $modules{modules},
         step => $options->{step},
         jstring => $jstring,
         comment => $comment,

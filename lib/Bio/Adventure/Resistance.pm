@@ -36,8 +36,6 @@ sub Abricate {
         jprefix => '18',
         coverage => 80,
         identity => 80,);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $coverage = 70;
     $coverage = $options->{coverage} if (defined($options->{coverage}));
     my $identity = 70;
@@ -81,7 +79,6 @@ abricate --summary ${output_dir}/*.tsv \\
         jname => qq"abricate_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => qq"${output_dir}/abricate_combined.tsv",
         output_argannot => qq"${output_dir}/abricate_argannot.tsv",
         output_card => qq"${output_dir}/abricate_card.tsv",
@@ -95,7 +92,6 @@ abricate --summary ${output_dir}/*.tsv \\
         output_vfdb => qq"${output_dir}/abricate_vfdb.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($abricate);
 }
 
@@ -116,8 +112,6 @@ sub Resfinder {
         required => ['input'],
         jprefix => '18',
         arbitrary => ' -l 0.6 -t 0.8 --acquired ',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $resfinder_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -141,11 +135,9 @@ run_resfinder.py -ifa $options->{input} \\
         jname => qq"resfinder_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => qq"${output_dir}/resfinder.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($resfinder);
 }
 
@@ -161,15 +153,11 @@ run_resfinder.py -ifa $options->{input} \\
 =cut
 sub Rgi {
     my ($class, %args) = @_;
-    my $check = which('rgi');
-    die("Could not find rgi in your PATH.") unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         arbitrary => '',
         jprefix => '15',);
-    my %modules = Get_Modules();
-    my $loaded = $class->Module_Loader(%modules);
     my $rgi_args = $options->{arbitrary};
     my $job_name = $class->Get_Job_Name();
     my $assembly_name = basename(dirname($options->{input}));
@@ -189,11 +177,9 @@ rgi main --input_sequence $options->{input} \\
         jname => "rgi_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $modules{modules},
         output => qq"${output_dir}/rgi_result.txt",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    my $unloaded = $class->Module_Reset(env => $loaded);
     return($rgi);
 }
 
