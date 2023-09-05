@@ -1446,8 +1446,9 @@ sub Phage_Assemble {
     }
     $prefix = sprintf("%02d", ($prefix + 1));
     print "${prefix}: Compressing filtered fastq files.\n";
+    my $unaligned_outputs = qq"$filter->{output}:$filter->{output_unaligned}";
     my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
-        input => qq"$filter->{output}:$filter->{output_unaligned}",
+        input => $unaligned_outputs,
         jdepends => $cgview->{job_id},
         jname => 'comp_filtered',
         jprefix => $prefix,);
@@ -1469,7 +1470,7 @@ sub Phage_Assemble {
     my $compress_trimmed = $class->Bio::Adventure::Compress::Compress(
         input => $trim->{output},
         jdepends => $last_job,
-        jname => 'comp_output',
+        jname => 'comp_trimmed',
         jprefix => $prefix,);
     $last_job = $compress_trimmed->{job_id};
     sleep($options->{jsleep});

@@ -827,7 +827,7 @@ else
 fi
 
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
-rm -f r1.fastq.gz r2.fastq.gz r1.fastq r2.fastq
+rm -f ${output_dir}/r1.fastq.gz ${output_dir}/r2.fastq.gz ${output_dir}/r1.fastq ${output_dir}/r2.fastq
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(

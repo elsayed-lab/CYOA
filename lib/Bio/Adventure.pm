@@ -309,7 +309,7 @@ has variable_current_state => (is => 'rw', default => undef); ## Current variabl
 
 our $AUTOLOAD;
 ##our @EXPORT_OK = qw"";
-$VERSION = '20151101';
+$VERSION = '202308';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
@@ -318,7 +318,9 @@ $ENV{PERL_USE_UNSAFE_INC} = 0;
 my $lessopen = Get_Lesspipe();
 ## Added to test Bio:DB::SeqFeature::Store
 if (!defined($ENV{PERL_INLINE_DIRECTORY})) {
-    my $filename = File::Temp::tempnam('/tmp', "inline_$ENV{USER}");
+    my $this_tmpdir = '/tmp';
+    $this_tmpdir = $ENV{TMPDIR} if (defined($ENV{TMPDIR}));
+    my $filename = File::Temp::tempnam($this_tmpdir, "inline_$ENV{USER}");
     $ENV{PERL_INLINE_DIRECTORY} = $filename;
     my $made = make_path($filename);
 }
@@ -1344,9 +1346,14 @@ sub Submit {
     my %modules = Get_Modules(caller => 2);
     my $loaded = $class->Module_Loader(%modules);
     my $modulecmd_check = $class->{modulecmd};
-    make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
+    make_path("$options->{logdir}", {verbose => 0}) unless (-r "$options->{logdir}");
     my $module_string = '';
-    if (defined($modules{modules}) && scalar(@{$modules{modules}} > 0)) {
+    my @module_lst = ();
+    @module_lst = @{$modules{modules}} if (defined($modules{modules}));
+    if ($options->{language} eq 'perl') {
+        push(@module_lst, 'cyoa');
+    }
+    if (scalar(@module_lst) > 0) {
         $module_string = 'mod=$( { type -t module || true; } )
 if [[ -z "${mod}" ]]; then
   module() {
@@ -1356,7 +1363,7 @@ if [[ -z "${mod}" ]]; then
 fi
 module purge
 module add ';
-        for my $m (@{$modules{modules}}) {
+        for my $m (@module_lst) {
             $module_string .= qq" ${m}" if (defined($m));
         }
         $module_string .= ' 2>/dev/null 1>&2';

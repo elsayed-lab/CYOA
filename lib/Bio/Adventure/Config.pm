@@ -1,8 +1,9 @@
 package Bio::Adventure::Config;
 use Exporter;
+use Getopt::Long qw"GetOptionsFromArray";
+
 @EXPORT = qw"Get_Modules Get_Menus Get_TODOs";
 @ISA = qw"Exporter";
-
 
 =head2 C<Get_Menus>
 
@@ -306,6 +307,7 @@ sub Get_Modules {
       }
   }
 
+    ## I think that with recent changes, one need no longer add 'cyoa' as a module.
     my %module_data = (
         'Abricate' => {  ## Adding cyoa because Path::Tiny isn't in the abricate directory yet.
             modules => ['cyoa', 'any2fasta', 'abricate', 'blast', 'blastdb',],
@@ -358,7 +360,8 @@ sub Get_Modules {
         'Interpro_Long2Wide' => { modules => 'cyoa' },
         'Interproscan' => {
             modules => ['cyoa', 'interproscan'], exe => 'interproscan.sh' },
-        'Jellyfish' => { modules => ['cyoa', 'jellyfish'], exe => 'jellyfish' },
+        'Jellyfish' => { modules => ['jellyfish'], exe => 'jellyfish' },
+        'Jellyfish_Matrix' => { modules => ['cyoa'] },
         'Kallisto' => { modules => 'kallisto', exe => 'kallisto' },
         'Kallisto_Index' => { modules => ['kallisto'], exe => ['kallisto'], },
         'Kraken' => { modules => 'kraken', exe => 'kraken2', },
