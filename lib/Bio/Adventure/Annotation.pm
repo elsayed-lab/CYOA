@@ -943,7 +943,8 @@ sub Trinotate {
     my $input_full = $input_paths->[0]->{fullpath};
     my $input_file = $input_paths->[0]->{filename};
     my $input_dir = $input_paths->[0]->{dirname};
-    my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa', '.ffn'));
+    my $input_noext = $input_paths->[0]->{filebase_extension};
+    my $output_name = basename($input_noext);
     $output_name = qq"${output_name}_trinotate.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate";
     my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
@@ -996,9 +997,9 @@ if [[ -f "Trinotate.xls" ]]; then
 else
   mv Trinotate.tsv ${output_name}
 fi
-rm -f *.ok *.out *.outfmt6 *.cmds *.log
+rm -f ./*.ok* ./*.out* ./*.outfmt6* ./*.cmds* ./*.log*
 rm -rf TMHMM_* ${input_file}.ffn.trans*
-cd \${start}
+cd "\${start}"
 !;
     my $trinotate = $class->Submit(
         comment => $comment,

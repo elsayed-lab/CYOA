@@ -827,13 +827,14 @@ sub Kraken {
 !;
     my $stdout = qq"${output_dir}/kraken.stdout";
     my $stderr = qq"${output_dir}/kraken.stderr";
-    my $jstring = qq!kraken2 --db \${KRAKEN2_DB_PATH}/$options->{library} \\
+    my $jstring = qq!kraken2 --db "\${KRAKEN2_DB_PATH}"/$options->{library} \\
   --report ${output_dir}/kraken_report.txt --use-mpa-style \\
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
   2>${stderr} \\
   1>${stdout}
+# shellcheck disable=SC2181
 if [ "\$?" -ne "0" ]; then
   echo "Kraken returned an error."
 fi

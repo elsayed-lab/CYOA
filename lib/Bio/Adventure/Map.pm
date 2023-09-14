@@ -922,7 +922,6 @@ sub Hisat2 {
         $stderr .= ".stderr";
         $stdout .= ".stdout";
     }
-
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');

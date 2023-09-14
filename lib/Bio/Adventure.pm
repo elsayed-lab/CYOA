@@ -1357,7 +1357,8 @@ sub Submit {
         $module_string = 'mod=$( { type -t module || true; } )
 if [[ -z "${mod}" ]]; then
   module() {
-    eval $(/usr/bin/modulecmd bash $*);
+  # shellcheck disable=SC2086
+    eval "$(/usr/bin/modulecmd bash $*)"
   }
   export -f module
 fi

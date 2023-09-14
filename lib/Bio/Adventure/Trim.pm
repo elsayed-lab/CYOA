@@ -342,7 +342,7 @@ sub Racer {
         if ($decompress_input) {
             $jstring .= qq"less $input_list[$c] > ${name}.fastq\n";
         } else {
-            $jstring .= qq"ln -sf \$(pwd)/$input_list[$c] ${name}.fastq\n";
+            $jstring .= qq!ln -sf "\$(pwd)"/$input_list[$c] ${name}.fastq\n!;
         }
         $jstring .= qq"RACER \\
   ${name}.fastq \\

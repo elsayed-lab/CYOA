@@ -176,6 +176,7 @@ fastqc --extract \\
   ${input_file_string} \\
   2>>${stderr} \\
   1>>${stdout}
+# shellcheck disable=SC2181
 if [ "\$?" -ne "0" ]; then
   echo "fastqc failed, this is not considered fatal for a pipeline."
   exit 0
@@ -196,7 +197,6 @@ echo "move finished with: $?"
 mv ${outdir}/\${badname}_fastqc.zip ${outdir}/${modified_input}.zip 2>/dev/null
 echo "move finished with: $?"
 mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_input} 2>/dev/null
-echo "move finished with: $?"
 !;
     }
 

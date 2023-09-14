@@ -483,7 +483,7 @@ sub OrthoFinder {
         required => ['input'],
         jmem => 24,
         jprefix => '50',);
-    my $jname = qq'$options->{jprefix}orthofinder';
+    my $jname = 'orthofinder';
     my $outdir = qq"outputs/$options->{jprefix}orthofinder";
     make_path(qq"${outdir}/input");
     if (-d "${outdir}/output") {

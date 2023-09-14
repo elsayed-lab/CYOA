@@ -60,7 +60,6 @@ if [ -f "${in_full}" ]; then
 else
   echo "The input: ${in_full} does not exist."
 fi
-
 !;
     }
     $output_string =~ s/:$//g;
