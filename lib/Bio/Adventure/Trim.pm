@@ -286,7 +286,7 @@ sub Fastp {
     if ($options->{do_umi}) {
         $umi_flags = ' -U ';
     }
-    my $report_flags = qq"-h ${outdir}/fastp_report.html -j ${outdir}/fastp_report.json";
+    my $report_flags = qq"-h ${out_dir}/fastp_report.html -j ${out_dir}/fastp_report.json";
 
     my $jstring = qq!
 mkdir -p ${out_dir}
