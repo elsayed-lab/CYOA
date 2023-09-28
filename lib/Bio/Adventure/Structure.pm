@@ -34,7 +34,6 @@ sub RNAFold_Windows {
         jprefix => 80,
         jname => 'vienna',
         length => 201,
-        modules => ['vienna'],
         required => ['input'],
         step => 3,);
     my $output_name = basename($options->{input}, ('.gbk', '.fsa', '.fasta',));
@@ -60,8 +59,6 @@ use Bio::Adventure::Structure;
         jstring => $jstring,
         comment => $comment,
         language => 'perl',);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
     return($folder);
 }
 
@@ -81,8 +78,6 @@ sub RNAFold_Windows_Worker {
         required => ['input', 'output'],
         modules => ['vienna']);
     my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('RNAfold');
-    die("Could not find RNAfold in your PATH.") unless($check);
     my $input_paths = $class->Get_Paths($options->{output});
     ## Put the data here!  First key is location, second is structure/mfe.
     my $output = $options->{output};

@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::SearchIO::blast;
 use Bio::SearchIO::fasta;
 use Bio::Seq;
@@ -59,8 +59,7 @@ sub Make_Blast_Job {
         args => \%args,
         blast_format => 5,
         jdepends => '',
-        jmem => 24,
-        modules => ['blastdb', 'blast']);
+        jmem => 24,);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
     my $array_end = 1000 + $options->{align_jobs};
@@ -111,7 +110,6 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jdepends => $dep,
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         array_string => $array_string,);
     return($blast_jobs);
 }
@@ -314,11 +312,9 @@ sub Run_Parse_Blast {
         required => ['input', 'library'],
         blast_tool => 'blastp',
         evalue => 0.01,
-        output => 'blast_output.txt',
-        modules => ['blast'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('blastp');
-    die("Could not find blast in your PATH.") unless($check);
+        output => 'blast_output.txt',);
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
     my $query = $options->{input};
     my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     my $library = $options->{library};
@@ -421,8 +417,7 @@ sub Run_Parse_Blast {
     $doubles->close();
     $few->close();
     $many->close();
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($number_hits);
 }
 
@@ -467,13 +462,7 @@ sub Split_Align_Blast {
         num_dirs => 0,
         best_only => 0,
         interactive => 0,
-        jmem => 8,
-        modules => ['blast', 'blastdb'],);
-    ## This might be wrong (tblastx)
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('blastp');
-    die("Could not find blast in your PATH.") unless($check);
-
+        jmem => 8,);
     print STDERR qq"A quick reminder because I (atb) get confused easily:
 tblastn is a protein fasta query against a nucleotide blast database.
 tblastx is a nucleotide fasta query (which is translated on the fly) against a nucleotide blast db.
@@ -548,8 +537,6 @@ my \$result = Bio::Adventure::Align::Parse_Search(
         jname => 'parse_search',
         jstring => $jstring,
         language => 'perl',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($concat_job);
 }
 
@@ -559,11 +546,7 @@ sub OrthoMCL_Pipeline {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['orthomcl'],
         required => ['input'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('orthomclPairs');
-    die('Could not find orthomcl in your PATH.') unless($check);
     my $job_name = 'orthomcl';
     ## Note that I am cheating and using a pre-defined pipeline for orthomcl
     ## https://github.com/apetkau/orthomcl-pipeline
@@ -584,14 +567,10 @@ orthomcl-pipeline.pl -i input -o output \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 16,
-        modules => $options->{modules},
         output => 'output',
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         walltime => '144:00:00',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($job);
 }
 

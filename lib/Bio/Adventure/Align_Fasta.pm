@@ -61,7 +61,7 @@ sub Make_Fasta_Job {
         cluster => 'slurm',
         jdepends => '',
         jmem => 8,
-        modules => ['fasta'],);
+        modules => ['fasta', 'cyoa'],);
     my $dep = $options->{jdepends};
     my $split = $options->{split};
     my $output_type = $options->{output_type};
@@ -363,9 +363,10 @@ sub Parse_Fasta_Mismatches {
     my $options = $class->Get_Vars(
         args => \%args,
         jprefix => 50,
-        modules => ['fasta'],
+        modules => ['fasta', 'cyoa'],
         required => ['input', 'library'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $loaded = $class->Module_Loader(modules => $options->{modules},
+                                       exe => ['fasta36']);
     my $in_base = basename($options->{input}, ('.fsa', '.faa', '.ffn', '.gbk'));
     my $lib_base = basename($options->{library}, ('.fsa', '.faa', '.ffn', '.gbk'));
     my $output_base = qq"${in_base}_vs_${lib_base}";
@@ -549,8 +550,7 @@ sub Parse_Fasta_Mismatches {
   } ## End of each hit of a result.
     $out->close();
     $numbers->close();
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($indices);
 }
 
@@ -590,7 +590,9 @@ sub Split_Align_Fasta {
         num_dirs => 0,
         best_only => 0,
         jmem => 8,
-        modules => ['fasta']);
+        modules => ['fasta', 'cyoa']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules},
+                                       exe => ['fasta36']);
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
     my $outdir = qq"$options->{basedir}/outputs/fasta_${que}_${lib}";
@@ -669,6 +671,7 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
     my $parse_job = $class->Submit(
         comment => $comment_string,
         input => $parse_input,
+        modules => $options->{modules},
         output => $output_file,
         output_counts => $counts,
         output_singles => $singles,
@@ -687,6 +690,7 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
         language => 'perl',);
     $parse_job->{align} = $alignment;
     $parse_job->{concat} = $concat_job;
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($parse_job);
 }
 

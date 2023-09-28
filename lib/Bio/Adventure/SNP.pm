@@ -39,9 +39,7 @@ sub Align_SNP_Search {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input', 'species'],
-        modules => ['bowtie2', 'samtools'],);
-
+        required => ['input', 'species'],);
     my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
@@ -81,15 +79,11 @@ sub Freebayes_SNP_Search {
         qual => 10,
         max_value => undef,
         min_value => 0.5,
-        modules => ['gatk', 'freebayes', 'samtools', 'bcftools', 'vcftools'],
         vcf_cutoff => 5,
         jmem => 36,
         jcpu => 4,
         jprefix => '50',
         jwalltime => '48:00:00',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('freebayes');
-    die('Could not find freebayes in your PATH.') unless($check);
     my $input_fasta = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $freebayes_dir = qq"outputs/$options->{jprefix}freebayes_$options->{species}";
     my $output_file = qq"${freebayes_dir}/$options->{species}.vcf";
@@ -162,16 +156,16 @@ rm ${output_file}
             gff_cds_parent_type => $options->{gff_cds_parent_type},
             gff_cds_type => $options->{gff_cds_type},
             input => ${output_bcf},
+            jcpu => 1,
+            jdepends => $freebayes->{job_id},
+            jname => qq"freebayes_parsenp_intron_${query_base}",
+            jprefix => $prefix,
             min_value => $options->{min_value},
             max_value => $options->{max_value},
             qual => $options->{qual},
             species => $options->{species},
             vcf_cutoff => $options->{vcf_cutoff},
             vcf_method => 'freebayes',
-            jcpu => 1,
-            jdepends => $freebayes->{job_id},
-            jname => qq"freebayes_parsenp_intron_${query_base}",
-            jprefix => $prefix,
             );
     } else {
         $parse = $class->Bio::Adventure::SNP::SNP_Ratio(
@@ -193,8 +187,6 @@ rm ${output_file}
             );
     }
     $freebayes->{parse} = $parse;
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($freebayes);
 }
 
@@ -212,12 +204,7 @@ sub Mpileup_SNP_Search {
         vcf_cutoff => 5,
         min_value => 0.8,
         qual => 10,
-        jprefix => '50',
-        modules => ['libgsl/2.7.1', 'libhts/1.13',
-                    'samtools/1.13', 'bcftools', 'vcftools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('samtools');
-    die('Could not find samtools in your PATH.') unless($check);
+        jprefix => '50',);
     my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
     my $query = $options->{input};
     my $query_home = dirname(${query});
@@ -288,22 +275,21 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
 ## idea about how many variant positions are in the data.";
     my $pileup = $class->Submit(
         comment => $comment_string,
+        input_pileup => $pileup_input,
         jdepends => $options->{jdepends},
         jcpu => 4,
         jmem => 48,
         jname => qq"mpileup_${query_base}",
         jprefix => qq"$options->{jprefix}",
         job_type => 'snpsearch',
-        jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '10:00:00',
-        input_pileup => $pileup_input,
-        stderr => $gatk_stderr,
-        stdout => $gatk_stdout,
         output_call => $call_output,
         output_filter => $filter_output,
         output_final => $final_output,
-        output_pileup => $pileup_output,);
+        output_pileup => $pileup_output,
+        stderr => $gatk_stderr,
+        stdout => $gatk_stdout,);
     $comment_string = qq!## This little job should make unique IDs for every detected
 ## SNP and a ratio of snp/total for all snp positions with > 20 reads.
 ## Further customization may follow.
@@ -321,9 +307,6 @@ echo "Successfully finished." >> ${vcfutils_dir}/vcfutils_$options->{species}.ou
         jdepends => $pileup->{job_id},
         jprefix => $options->{jprefix} + 1,);
     $pileup->{parse} = $parse;
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($pileup);
 }
 
@@ -343,13 +326,7 @@ sub SNP_Ratio {
         vcf_minpct => 0.8,
         jprefix => '80',
         jname => 'parsenp',
-        modules => ['freebayes', 'libgsl', 'libhts', 'gatk',
-                    'samtools', 'bcftools', 'vcftools'],
         required => ['input', 'species', 'gff_tag', 'gff_type'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules},);
-    my $check = which('bcftools');
-    die('Could not find bcftools in your PATH.') unless($check);
-
     if ($options->{introns}) {
         my $snp_intron = Bio::Adventure::SNP::SNP_Ratio_Intron(%args);
         return($snp_intron);
@@ -400,10 +377,14 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
 ";
     my $parse_job = $class->Submit(
         comment => $comment_string,
+        jdepends => $options->{jdepends},
+        jmem => 48,
+        jname => $options->{jname},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jwalltime => '10:00:00',
         language => 'perl',
         output_dir => $output_dir,
-        stdout => $stdout,
-        stderr => $stderr,
         output => $output_all,
         output_count => $output_count,
         output_genome => $output_genome,
@@ -411,18 +392,8 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Worker(
         output_penetrance => $output_penetrance,
         output_pkm => $output_pkm,
         qual => $options->{qual},
-        jdepends => $options->{jdepends},
-        jmem => 48,
-        jname => $options->{jname},
-        jprefix => $options->{jprefix},
-        jqueue => 'workstation',
-        jstring => $jstring,
-        jwalltime => '10:00:00',
-        );
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        stdout => $stdout,
+        stderr => $stderr,);
     return($parse_job);
 }
 
@@ -440,16 +411,12 @@ sub SNP_Ratio_Worker {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        gff_tag => 'ID',
-        gff_type => 'gene',
-        vcf_cutoff => 5,
-        min_value => 0.8,
-        max_value => undef,
-        vcf_method => 'freebayes',
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        penetrance_tag => 'SAP',
-        qual => 10,
+        gff_tag => 'ID',
+        gff_type => 'gene',
+        min_value => 0.8,
+        max_value => undef,
         output => 'all.txt',
         output_count => 'count.txt',
         output_genome => 'new_genome.fasta',
@@ -457,9 +424,10 @@ sub SNP_Ratio_Worker {
         output_penetrance => 'variants_penetrance.txt',
         output_pkm => 'by_gene_length.txt',
         output_dir => 'outputs/40freebayes',
-        modules => ['freebayes', 'libgsl', 'libhts', 'samtools',
-                    'bcftools', 'vcftools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules},);
+        penetrance_tag => 'SAP',
+        qual => 10,
+        vcf_cutoff => 5,
+        vcf_method => 'freebayes',);
     my $species = $options->{species};
     my $out_dir = dirname($options->{output});
     my $log_file = qq"${out_dir}/snp_ratio.stdout";
@@ -856,8 +824,6 @@ sub SNP_Ratio_Worker {
     qx"xz -9e -f $options->{output_penetrance}";
     print $log "Compressing output pkm file.\n";
     qx"xz -9e -f $options->{output_pkm}";
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     $log->close();
     return($count);
 }
@@ -867,24 +833,19 @@ sub SNP_Ratio_Intron {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jprefix => '80',
-        jname => 'parsenp',
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
-        vcf_cutoff => 5,
-        min_value => 0.5,
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
+        jprefix => '80',
+        jname => 'parsenp',
+        min_value => 0.5,
         qual => 10,
         vcf_cutoff => 5,
-        vcf_minpct => 0.8,
-        modules => ['freebayes', 'libgsl', 'libhts', 'gatk',
-                    'samtools', 'bcftools', 'vcftools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules},);
-    my $check = which('bcftools');
-    die('Could not find bcftools in your PATH.') unless($check);
+        vcf_cutoff => 5,
+        vcf_minpct => 0.8,);
     my $print_input = $options->{input};
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
@@ -933,8 +894,6 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         comment => $comment_string,
         chosen_tag => $options->{chosen_tag},
         coverage_tag => $options->{coverage_tag},
-        vcf_cutoff => $options->{vcf_cutoff},
-        min_value => $options->{min_value},
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
         gff_cds_parent_type => $options->{gff_cds_parent_type},
@@ -943,24 +902,21 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         jmem => 64,
         jname => $options->{jname},
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '10:00:00',
         language => 'perl',
-        qual => $options->{qual},
+        min_value => $options->{min_value},
         output_dir => $output_dir,
-        stderr => $stderr,
-        stdout => $stdout,
+        qual => $options->{qual},
         output => $output_all,
         output_count => $output_count,
         output_genome => $output_genome,
         output_by_gene => $output_by_gene,
         output_penetrance => $output_penetrance,
-        output_pkm => $output_pkm,);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        output_pkm => $output_pkm,
+        stderr => $stderr,
+        stdout => $stdout,
+        vcf_cutoff => $options->{vcf_cutoff},);
     return($parse_job);
 }
 
@@ -977,10 +933,7 @@ sub SNP_Ratio_Intron_Worker {
         gff_cds_parent_type => 'mRNA',
         gff_cds_type => 'CDS',
         max_value => undef,
-        qual => 10,
-        vcf_cutoff => 5,
         min_value => 0.5,
-        vcf_method => 'freebayes',
         output => 'all.txt',
         output_count => 'count.txt',
         output_genome => 'new_genome.fasta',
@@ -988,9 +941,9 @@ sub SNP_Ratio_Intron_Worker {
         output_penetrance => 'counts_penetrance.txt',
         output_pkm => 'by_gene_length.txt',
         output_dir => 'outputs/40freebayes',
-        modules => ['freebayes', 'libgsl', 'libhts', 'samtools',
-                    'bcftools', 'vcftools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules},);
+        qual => 10,
+        vcf_cutoff => 5,
+        vcf_method => 'freebayes',);
     my $species = $options->{species};
     my $output_dir = dirname($options->{output});
     my $log_file = qq"${output_dir}/snp_ratio_intron.stdout";
@@ -1393,8 +1346,6 @@ sub SNP_Ratio_Intron_Worker {
     qx"xz -9e -f $options->{output_penetrance}";
     print $log "Compressing output pkm file.\n";
     qx"xz -9e -f $options->{output_pkm}";
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     $log->close();
     return($count);
 } ## End of the intron aware SNP Ratio worker
@@ -1443,7 +1394,6 @@ sub Snippy {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['snippy', 'gubbins', 'fasttree'],
         required => ['input', 'species'],);
     my $species = $options->{species};
     my $genome = "$options->{libdir}/$options->{libtype}/${species}.fasta";
@@ -1451,7 +1401,6 @@ sub Snippy {
     my $query_home = dirname(${query});
     my $query_base = basename(${query}, (".fastq"));
     $query = qq"${query_home}/${query_base}";
-
     my $prefix_name = qq"snippy";
     my $snippy_name = qq"${prefix_name}_$options->{species}";
     my $suffix_name = $prefix_name;
@@ -1492,12 +1441,11 @@ snippy --force \\
         jprefix => $options->{jprefix},
         job_type => 'snippy',
         jstring => $jstring,
-        jqueue => 'workstation',
         jwalltime => '10:00:00',
         jmem => 48,
+        output => qq"${snippy_dir}",
         stdout => $stdout,
-        stderr => $stderr,
-        output => qq"${snippy_dir}",);
+        stderr => $stderr,);
     return($snippy);
 }
 

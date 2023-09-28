@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -134,12 +133,7 @@ sub Generate_Samplesheet {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jmem => 12,
-        modules => ['R']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('R');
-    die('Could not find R in your PATH.') unless($check);
-
+        jmem => 12,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -332,11 +326,7 @@ sub Kraken_Best_Hit {
         required => ['input'],
         library => 'viral',
         jmem => 64,
-        jprefix => '11',
-        modules => ['kraken'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
+        jprefix => '11',);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -368,15 +358,11 @@ sub Kraken_Best_Hit {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'large',
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        modules => $options->{modules},
         output => qq"${output_dir}/kraken_report.txt",);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($kraken);
 }
 
@@ -411,12 +397,7 @@ sub Merge_Annotations {
         product_signalp => 'trinity_SignalP',
         suffix => '',
         jmem => 12,
-        jprefix => '15',
-        modules => ['ncbi_tools/6.1']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('tbl2asn');
-    die('Could not find tbl2asn in your PATH.') unless($check);
-
+        jprefix => '15',);
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
     if ($options->{suffix}) {
         $output_name .= qq"_$options->{suffix}";
@@ -481,10 +462,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         output_log => $output_log,
         primary_key => $options->{primary_key},
         suffix => $options->{suffix},);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($merge_job);
 }
 
@@ -1440,7 +1417,6 @@ echo "\$stat_string" >> ${stat_output}!;
         jstring => $jstring,
         jmem => 1,
         stdout => $stat_output,
-        jqueue => 'throughput',
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1493,7 +1469,6 @@ echo "\$stat_string" >> ${output}!;
         stdout => $output,
         jname => $jname,
         jmem => 1,
-        jqueue => 'throughput',
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1548,7 +1523,6 @@ echo "\${stat_string}" >> ${stat_output}!;
         jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         stdout => $stat_output,
         jwalltime => '00:01:00',);
@@ -1616,7 +1590,6 @@ echo "\$stat_string" >> ${stat_output}
         jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => $stat_output,
@@ -1671,7 +1644,6 @@ echo "\$stat_string" >> ${output}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '00:01:00',
-        jqueue => 'throughput',
         stdout => $output,
         output => $output,);
     return($stats);
@@ -1718,7 +1690,6 @@ echo "\$stat_string" >> "${output}"!;
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $args{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => '',
@@ -1784,7 +1755,6 @@ echo "\$stat_string" >> "${output}"!;
         jmem => 1,
         jname => $jname,
         jprefix => $args{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',);
     return($stats);
@@ -1853,7 +1823,6 @@ echo "\$stat_string" >> ${stat_output}
         jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => $stat_output,

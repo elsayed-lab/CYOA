@@ -54,7 +54,7 @@ my $gff2fasta = $cyoa->Bio::Adventure::Convert::Gff2Fasta(
 ok($gff2fasta, 'Run gff2fasta.');
 my $phix_transcripts = 'genome/phix_cds_nt.fasta';
 ok(cp('phix_gene_gene_id_nt.fasta', $phix_transcripts));
-
+print "Copied gff2fasta output to $phix_transcripts.\n";
 
 my $index = $cyoa->Bio::Adventure::Index::Salmon_Index(
     input => $phix_transcripts,

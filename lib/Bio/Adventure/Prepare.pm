@@ -213,19 +213,20 @@ sub Download_SRA_PRJNA {
             print $csv_fh "\n";
         }
         for my $v (@values) {
-            print $csv_fh qq"${v}\t";
+            print $csv_fh qq"${v}\t" if (defined($v));
         }
         print $csv_fh "\n";
 
         if ($options->{download}) {
+            print "Beginning download to $options->{preprocess_dir}\n" if ($acc_count == 1);
             my $start = cwd();
-            my $made = make_path($options->{preprocess_dir});
-            chdir($options->{preprocess_dir});
-            my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(
-                input => $acc);
+            my $pre_dir = qq"${start}/$options->{preprocess_dir}";
+            my $made = make_path($pre_dir);
+            chdir($pre_dir);
+            my $downloaded = $class->Bio::Adventure::Prepare::Fastq_Dump(input => $acc);
             chdir($start);
         } else {
-            print "Not downloading accession: ${acc}.\n";
+            print "Not downloading accession: ${acc}.\n" if ($acc_count == 1);
         }
     }
     $csv_fh->close();
@@ -245,11 +246,7 @@ sub Fastq_Dump {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        modules => ['sra',],
         output => undef);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('fastq-dump');
-    die('Could not find fastq-dump in your PATH.') unless($check);
     my $fastq_comment = qq"## This script should download an sra accession to local fastq.gz files.
 ";
     my $job_basename = $class->Get_Job_Name();
@@ -298,16 +295,16 @@ fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
         my $current_fastq_job = $class->Submit(
             comment => $fastq_comment,
             input => $in,
-            output => $output_files,
-            output_paired => $output_paired,
-            stdout => $stdout,
-            stderr => $stderr,
             jdepends => $options->{jdepends},
             jname => qq"fqd_${in}",
             jstring => $jstring,
             jprefix => "01",
             jmem => 12,
-            jwalltime => '6:00:00',);
+            jwalltime => '6:00:00',
+            output => $output_files,
+            output_paired => $output_paired,
+            stdout => $stdout,
+            stderr => $stderr,);
 
         if (defined($fastq_job)) {
             $fastq_job->{$count} = $current_fastq_job;
@@ -315,23 +312,26 @@ fastq-dump --outdir ${in} --gzip --skip-technical --readids \\
             $fastq_job = $current_fastq_job;
         }
 
+        ## That is weird, I thought I implemented this, but no.
         ## Add a job which figures out if the fastq-dump results are se or paired.
-        my $decision_string = qq?
-use Bio::Adventure::Prepare;
-my \$result = \$h->Bio::Adventure::Prepare::Write_Input_Worker(
-  input => '$fastq_job->{output}',
-  input_paired => '$fastq_job->{output_paired}',
-  output => '<input.txt');
-?;
-        my $input_worker = $class->Submit(
-            input => $fastq_job->{output},
-            input_paired => $fastq_job->{output_paired},
-            output => '<input.txt');
+        #my $decision_string = qq?
+#use Bio::Adventure::Prepare;
+#my \$result = \$h->Bio::Adventure::Prepare::Write_Input_Worker(
+#  input => '$fastq_job->{output}',
+#  input_paired => '$fastq_job->{output_paired}',
+#  output => '<input.txt');
+#?;
+#        my $input_worker = $class->Submit(
+#            input => $fastq_job->{output},
+#            input_paired => $fastq_job->{output_paired},
+#            jprefix => $options->{jprefix} + 1,
+#            jstring => $decision_string,
+#            jname => 'se_paired',
+#            output => '<input.txt');
     } ## Foreach my $input
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($fastq_job);
 }
+
 =head2 C<Read_Samples>
 
  This function currently has no real use-case.  It should be merged with the
@@ -367,10 +367,6 @@ sub Read_Samples {
     $csv->eof or $csv->error_diag();
     $fh->close();
     return($data);
-}
-
-sub Set_Input {
-
 }
 
 =head1 AUTHOR - atb

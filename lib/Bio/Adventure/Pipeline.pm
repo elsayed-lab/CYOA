@@ -208,7 +208,7 @@ sub Annotate_Phage {
     sleep($options->{jsleep});
 
     $prefix = sprintf("%02d", ($prefix + 1));
-    print "\nRunning virus ICTV classifier.\n";
+    print "\nRunning ICTV classifier.\n";
     my $ictv = $class->Bio::Adventure::Phage::Classify_Phage(
         jdepends => $last_job,
         input => $options->{input},
@@ -1442,13 +1442,14 @@ sub Phage_Assemble {
     my $compress_input = $filter->{output};
     ## unalcon_GCF_002813445.1_genome.1.fastq as an example file.
     if (defined($filter->{output_unaligned})) {
-        $compress_input .= "qq:$filter->{output_unaligned}";
+        $compress_input .= qq":$filter->{output_unaligned}";
     }
     $prefix = sprintf("%02d", ($prefix + 1));
     print "${prefix}: Compressing filtered fastq files.\n";
+    my $unaligned_outputs = qq"$filter->{output}:$filter->{output_unaligned}";
     my $compress_filtered = $class->Bio::Adventure::Compress::Compress(
-        input => qq"$filter->{output}:$filter->{output_unaligned}",
-        jdepends => $last_job,
+        input => $unaligned_outputs,
+        jdepends => $cgview->{job_id},
         jname => 'comp_filtered',
         jprefix => $prefix,);
     $last_job = $compress_filtered->{job_id};
@@ -1469,7 +1470,7 @@ sub Phage_Assemble {
     my $compress_trimmed = $class->Bio::Adventure::Compress::Compress(
         input => $trim->{output},
         jdepends => $last_job,
-        jname => 'comp_output',
+        jname => 'comp_trimmed',
         jprefix => $prefix,);
     $last_job = $compress_trimmed->{job_id};
     sleep($options->{jsleep});

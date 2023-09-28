@@ -6,7 +6,6 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
 use Bio::FeatureIO;
 use Bio::Tools::GFF;
 use Bio::Root::Exception;
@@ -642,8 +641,7 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input'],
-        modules => ['samtools', 'bamtools'],);
+        required => ['species', 'input'],);
     my @input_list = ();
     my $paths = $class->Get_Paths($options->{input});
     if ($options->{input}) {
@@ -668,7 +666,6 @@ sub Sam2Bam {
     my $sam = $class->Bio::Adventure::Convert::Samtools(%args,
         jdepends => $options->{jdepends},
         sam => \@input_list);
-    $loaded = $class->Module_Unload(modules => $options->{modules});
     return($sam);
 }
 
@@ -704,9 +701,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        mismatch => 1,
-        modules => ['samtools', 'bamtools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        mismatch => 1,);
     my $input = $options->{input};
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
@@ -846,7 +841,6 @@ xz -9e -f ${unmapped}
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        modules => $options->{modules},
         output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
@@ -858,11 +852,8 @@ xz -9e -f ${unmapped}
         jmem => $options->{jmem},
         jname => $jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '18:00:00',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
     return($samtools);
 }
 

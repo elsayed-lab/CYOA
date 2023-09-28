@@ -22,11 +22,9 @@ my $phix_gff = qq"${start_dir}/genome/phix.gff";
 if (!-r 'test_forward.fastq.gz') {
     ok(cp($input_file, 'test_forward.fastq.gz'), 'Copying data.');
 }
-
 if (!-r 'genome/phix.fasta') {
     ok(cp($phix_fasta, 'genome/phix.fasta'), 'Copying phix fasta file.');
 }
-
 if (!-r 'genome/phix.gff') {
     ok(cp($phix_gff, 'genome/phix.gff'), 'Copying phix gff file.');
 }
@@ -40,7 +38,7 @@ my $cyoa = Bio::Adventure->new(
     species => 'phix',
     stranded => 'no',);
 my $hisat = $cyoa->Bio::Adventure::Map::Hisat2(
-    input => qq'test_forward.fastq.gz',);
+    input => 'test_forward.fastq.gz',);
 ok($hisat, 'Run Hisat2');
 my $sam_file = $hisat->{samtools}->{output};
 my $htseq_file = $hisat->{htseq}->[0]->{output};

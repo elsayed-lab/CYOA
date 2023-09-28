@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::DB::Sam;
 use Bio::Tools::GFF;
 use Cwd;
@@ -60,7 +60,6 @@ my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"guess_strand_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
         output => $output,
@@ -203,11 +202,7 @@ sub HT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input',],
-        modules => ['htseq'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('htseq-count');
-    die('Could not find htseq in your PATH.') unless($check);
+        required => ['species', 'input',],);
 
     my %ro_opts = %{$options};
     my $species = $options->{species};
@@ -252,7 +247,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $jprefix,
-                jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -268,7 +262,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $options->{jprefix},
-                jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -292,7 +285,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
             postscript => $options->{postscript},
             prescript => $options->{prescript},
             suffix => $options->{suffix},);
@@ -307,7 +299,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
             postscript => $args{postscript},
             prescript => $args{prescript},
             suffix => $args{suffix},);
@@ -315,8 +306,6 @@ sub HT_Multi {
     } else {
         print "Did not find ${gff} nor ${gtf}, not running htseq_all.\n";
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return(\@jobs);
 }
 
@@ -465,9 +454,7 @@ sub HTSeq {
         required => ['input', 'species', 'htseq_args',],
         jmem => 20,
         jname => '',
-        jprefix => '',
-        modules => ['htseq'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '',);
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {
         $stranded = 'yes';
@@ -568,7 +555,6 @@ xz -f -9e ${output}
         gff_type => $options->{gff_type},
         gff_tag => $options->{gff_tag},
         input => $htseq_input,
-        modules => $options->{modules},
         output => $output,
         stderr => $error,
         stdout => $output,
@@ -579,10 +565,7 @@ xz -f -9e ${output}
         jmem => 6,
         jname => $htseq_jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($htseq);
 }
 
@@ -614,8 +597,7 @@ sub Jellyfish {
         args => \%args,
         required => ['input'],
         length => '9,11,13,15',
-        jprefix => 18,
-        modules => ['jellyfish'],);
+        jprefix => 18,);
     my @kmer_array = split(/\,|:/, $options->{length});
     my $count = 0;
     my $ret;
@@ -633,10 +615,6 @@ sub Jellyfish {
       }
         return($ret);
     }
-
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('jellyfish');
-    die('Could not find jellyfish in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -677,25 +655,21 @@ jellyfish dump ${count_file} > ${count_fasta} \\
 
     my $jelly = $class->Submit(
         comment => $comment,
-        modules => $options->{modules},
-        count_file => $count_file,
-        info_file => $info_file,
-        histogram_file => $histogram_file,
         count_fasta => $count_fasta,
-        output => $matrix_file,
-        stderr => $stderr,
-        stdout => $stdout,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
+        count_file => $count_file,
+        histogram_file => $histogram_file,
+        info_file => $info_file,
         jdepends => $options->{jdepends},
         jname => qq"jelly_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 12,
-        jcpu => 4,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-
+        jcpu => 4,
+        output => $matrix_file,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        stderr => $stderr,
+        stdout => $stdout,);
     $comment = qq"## This should create a matrix with rows as kmers and elements
 ## comprised of the number of occurrences.
 ";
@@ -713,14 +687,14 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     my $matrix_job = $class->Submit(
         comment => $comment,
         input => $count_fasta,
-        output => $matrix_file,
-        stdout => $stdout,
         jdepends => $jelly->{job_id},
         jname => qq"jelly_matrix_$options->{length}",
         jprefix => $new_prefix,
         jstring => $jstring,
         jcpu => 1,
-        language => 'perl',);
+        language => 'perl',
+        output => $matrix_file,
+        stdout => $stdout,);
     $jelly->{matrix_job} = $matrix_job;
 
     my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
@@ -830,11 +804,7 @@ sub Kraken {
         library => 'viral',
         jmem => 32,
         jprefix => '11',
-        clean => 1,
-        modules => ['kraken'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
+        clean => 1,);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -857,13 +827,14 @@ sub Kraken {
 !;
     my $stdout = qq"${output_dir}/kraken.stdout";
     my $stderr = qq"${output_dir}/kraken.stderr";
-    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
+    my $jstring = qq!kraken2 --db "\${KRAKEN2_DB_PATH}"/$options->{library} \\
   --report ${output_dir}/kraken_report.txt --use-mpa-style \\
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
   2>${stderr} \\
   1>${stdout}
+# shellcheck disable=SC2181
 if [ "\$?" -ne "0" ]; then
   echo "Kraken returned an error."
 fi
@@ -878,21 +849,17 @@ rm -f ${output_dir}/*.fastq.gz
     }
     my $kraken = $class->Submit(
         comment => $comment,
-        modules => $options->{modules},
-        output => qq"${output_dir}/kraken_report.txt",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        stdout => $stdout,
-        stderr => $stderr,
         jcpu => 6,
         jdepends => $options->{jdepends},
         jmem => 96,
         jname => "kraken_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'large',
-        jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        jstring => $jstring,
+        output => qq"${output_dir}/kraken_report.txt",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        stdout => $stdout,
+        stderr => $stderr,);
     return($kraken);
 }
 
@@ -911,11 +878,7 @@ sub Mash {
         jprefix => 21,
         length => 9,
         sketch => 9,
-        jcpu => 4,
-        modules => ['mash'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('mash');
-    die('Could not find mash in your PATH.') unless($check);
+        jcpu => 4,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -948,17 +911,14 @@ for outer in ${sketch_dir}/*; do
 
     my $mash = $class->Submit(
         comment => $comment,
-        stderr => $stderr,
-        stdout => $stdout,
         jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        stderr => $stderr,
+        stdout => $stdout,);
     return($mash);
 }
 
@@ -1059,11 +1019,7 @@ sub Mpileup {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jprefix => 61,
-        modules => ['samtools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('samtools');
-    die('Could not find samtools in your PATH.') unless($check);
+        jprefix => 61,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -1087,7 +1043,6 @@ samtools mpileup -uvf ${genome} 2>${output_dir}/samtools_mpileup.stderr \\
     ${output_dir}/sorted.vcf
 bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 !;
-
     my $mpileup = $class->Submit(
         comment => $comment,
         jcpu => 4,
@@ -1097,10 +1052,7 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
         jprefix => $options->{jprefix},
         jstring => $jstring,
         stderr => $final_error,
-        stdout => $stdout,
-        modules => $options->{modules},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        stdout => $stdout,);
     return($mpileup);
 }
 
@@ -1519,18 +1471,16 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
     my $slsearch = $class->Submit(
         comment => $comment,
         input => $options->{input},
-        language => 'perl',
-        stderr => $stderr,
-        stdout => $stdout,
-        output => $output_dir,
         jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'slsearch',
         jprefix => $options->{jprefix},
-        jstring => $jstring,);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
+        jstring => $jstring,
+        language => 'perl',
+        output => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,);
     return($slsearch);
 }
 

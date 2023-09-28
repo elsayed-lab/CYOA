@@ -79,7 +79,6 @@ sub BUILD {
     }
 
     $class->{usage} = Get_Usage();
-
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
         my $qos_names = $class->{qos_names};
@@ -1187,6 +1186,8 @@ sub Submit {
     }
 
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
+    print "Slurm::Submit: Writing to script:
+${script_file}\n" if ($options->{debug});
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
@@ -1282,19 +1283,20 @@ echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOB
 ?;
         $script_start .= $options->{module_string} if ($options->{module_string});
 
+        ## Note, the 'echo "Job status: $? " >> ${sbatch_log}'
+        ## really is not necessary now because I have errexit on.
         my $script_end = qq!
 ## The following lines give status codes and some logging
-echo "Job status: \$? " >> ${sbatch_log}
 minutes_used=\$(( SECONDS / 60 ))
 echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \${minutes_used} minutes." >> ${sbatch_log}
-if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
+if [[ -x "\$(command -v sstat)" && -n "\${SLURM_JOBID}" ]]; then
   echo "  walltime used by \${SLURM_JOBID} was: \${minutes_used:-null} minutes." >> ${sbatch_log}
   maxmem=\$(sstat -n -P --format=MaxVMSize -j "\${SLURM_JOBID}")
   ## I am not sure why, but when I run a script in an interactive session, the maxmem variable
   ## gets set correctly everytime, but when it is run by another node, sometimes it does not.
   ## Lets try and figure that out...
   echo "TESTME: \${maxmem}"
-  if [[ \! -z "\${maxmem}" ]]; then
+  if [[ -n "\${maxmem}" ]]; then
     echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem}." >> ${sbatch_log}
   else
     echo "  The maximum memory did not get set for this job: \${SLURM_JOBID}." >> ${sbatch_log}

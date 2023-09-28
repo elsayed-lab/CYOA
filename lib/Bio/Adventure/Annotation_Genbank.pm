@@ -7,7 +7,6 @@ use Moo;
 extends 'Bio::Adventure';
 use Data::Dumper;
 use Data::Printer;
-
 use Cwd qw"abs_path getcwd cwd";
 use Data::Table;
 use Data::Table::Excel qw"tables2xlsx";
@@ -404,9 +403,7 @@ sub Merge_CDS_Predictions {
         input_prodigal => '',
         primary_key => 'locus_tag',
         jmem => 8,
-        jprefix => '19',
-        modules => ['ncbi_tools/6.1']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '19',);
     ## Even though it is a bit redundant, record all the output filenames now
     ## so that they are easily accessible for the various downstream search tools.
     my $output_dir =  qq"outputs/$options->{jprefix}merge_cds_predictions";
@@ -482,8 +479,6 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
         output_tsv => $output_tsv,
         output_log => $output_log,
         primary_key => $options->{primary_key},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($merge_orfs);
 }
 

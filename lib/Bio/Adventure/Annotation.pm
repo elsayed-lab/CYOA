@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -38,16 +37,11 @@ sub Casfinder {
         jcpu => 4,
         jprefix => '22',
         jmem => 8,
-        jwalltime => 8,
-        modules => ['casfinder'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('casfinder.sh');
-    die('Could not find casfinder in your PATH.') unless($check);
-
+        jwalltime => 8,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
-
+    my $check = which('casfinder');
     my $casfinder_exe_dir = dirname($check);
     ## Hey, don't forget abs_path requires a file which already exists.
     my $input_filename = basename($options->{input});
@@ -84,20 +78,14 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 16,
-        modules => $options->{modules},
         output => qq"${output_dir}/casfinder.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         stdout => $stdout,
         stderr => $stderr,
         jwalltime => $options->{jwalltime},);
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($casfinder);
 }
-
 
 sub Casoff {
     my ($class, %args) = @_;
@@ -108,17 +96,10 @@ sub Casoff {
         jprefix => '22',
         jmem => 8,
         mismatches => 2,
-        jwalltime => 8,
-        modules => ['casoff'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('cas-offinder');
-    die('Could not find casfinder in your PATH.') unless($check);
-
+        jwalltime => 8,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
-
-    my $casfinder_exe_dir = dirname($check);
     ## Hey, don't forget abs_path requires a file which already exists.
     my $input_filename = basename($options->{input});
     my $output_filename = qq"${input_filename}.tsv";
@@ -154,17 +135,12 @@ cd \${start}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 16,
-        modules => $options->{modules},
         output => qq"${output_dir}/casfinder.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         stdout => $stdout,
         stderr => $stderr,
         jwalltime => $options->{jwalltime},);
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($casfinder);
 }
 
@@ -201,15 +177,9 @@ sub Interproscan {
         jwalltime => 36,
         modules => ['interproscan'],
         required => ['input'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('interproscan.sh');
-    die('Could not find interproscan in your PATH.') unless($check);
-
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
-
-    my $interproscan_exe_dir = dirname($check);
     ## Hey, don't forget abs_path requires a file which already exists.
     my $abs_input = abs_path($options->{input});
     my $input_dir = dirname($abs_input);
@@ -253,10 +223,8 @@ cd \${start}
         jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
         jname => "interproscan_${job_name}",
-        jqueue => 'large',
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
         output => $output,
         output_gff => qq"${output_dir}/${input_filename}.gff3",
         output_tsv => qq"${output_dir}/interproscan.tsv",
@@ -276,9 +244,6 @@ cd \${start}
         stdout => $l2w_stderr,
         jprefix => $options->{jprefix} + 1,);
     $interproscan->{long2wide} = $long_to_wide;
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($interproscan);
 }
 
@@ -329,12 +294,7 @@ sub Prokka {
         locus_tag => 'unknownphage',
         species => 'virus',
         jmem => 12,
-        jprefix => '19',
-        modules => ['blast', 'prokka'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('prokka');
-    die('Could not find prokka in your PATH.') unless($check);
-
+        jprefix => '19',);
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $kingdom_string = '';
@@ -395,9 +355,7 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         jmem => $options->{jmem},
         jname => "prokka_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
-        modules => $options->{modules},
         output => $cds_file,
         output_error => $error_file,
         output_peptide => $peptide_file,
@@ -412,8 +370,6 @@ prokka --addgenes --rfam --force ${kingdom_string} \\
         output_tsv => $tsv_file,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($prokka);
 }
 
@@ -425,16 +381,11 @@ sub Transposonpsi {
         input_faa => '',
         jcpu => 4,
         jmem => 8,
-        jprefix => '21',
-        modules => ['transposonpsi'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('transposonPSI.pl');
-    die('Could not find transposonPSI in your PATH.') unless($check);
-
+        jprefix => '21',);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
-
+    ## Never implemented!
     my $transposonpsi;
     return($transposonpsi);
 }
@@ -922,8 +873,7 @@ sub Transdecoder {
     my $transdecoder_exe_dir = dirname($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
-        modules => ['transdecoder'],);
+        required => ['input'],);
     my $transdecoder_input = File::Spec->rel2abs($options->{input});
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/trinity_${job_name}";
@@ -949,9 +899,7 @@ ${transdecoder_exe_dir}/util/cdna_alignment_orf_to_genome_orf.pl \\
         jmem => 4,
         jname => "transdecoder_${job_name}",
         jprefix => '47',
-        jqueue => 'workstation',
         jstring => $jstring,
-        modules => $options->{modules},
         output => qq"${output_dir}/transcripts.fasta.transdecoder.genome.gff3",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -985,31 +933,30 @@ sub Trinotate {
         config => 'conf.txt',
         jcpu => 4,
         jprefix => '62',
-        modules => ['divsufsort', 'transdecoder', 'blast', 'blastdb', 'signalp/4.1', 'hmmer',
-                    'tmhmm', 'rnammer', 'trinotate', ],
         required => ['input'],
-        trinotate => 'autoTrinotate.pl',);
-
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('Trinotate');
-    die("Could not find Trinotate in your PATH:
- $ENV{PATH}.") unless($check);
-
+        trinotate => 'autoTrinotate.pl');
     my $job_name = $class->Get_Job_Name();
     my $cwd_name = basename(cwd());
-    my $trinotate_exe_dir = dirname($check);
     ## Once again, abs_path only works on stuff which already exists.
     ## So create the output directory, and use that.
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->[0]->{fullpath};
     my $input_file = $input_paths->[0]->{filename};
     my $input_dir = $input_paths->[0]->{dirname};
-    my $output_name = basename($input_full, ('.fasta', '.fa', '.fna', '.fsa', '.ffn'));
+    my $input_noext = $input_paths->[0]->{filebase_extension};
+    my $output_name = basename($input_noext);
     $output_name = qq"${output_name}_trinotate.tsv";
     my $output_dir = qq"outputs/$options->{jprefix}trinotate";
     my $stdout = qq"${output_dir}/trinotate_${job_name}.stdout";
     my $stderr = qq"${output_dir}/trinotate_${job_name}.stderr";
     $output_dir .= qq"${input_dir}" if (defined($input_dir));
+    ## Take a moment to load the trinotate module and get the executable path.
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my $trinotate_exe_path = which('Trinotate');
+    my $trinotate_exe_dir = dirname($trinotate_exe_path);
+    ## And unload the module since we don't need it anymore.
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $expected_config = qq"${trinotate_exe_dir}/auto/$options->{config}";
     $expected_config = qq"${trinotate_exe_dir}/auto/conf.txt" unless (-r $expected_config);
     my $comment = qq!## This is a trinotate submission script
@@ -1045,10 +992,14 @@ ${trinotate_exe_dir}/auto/$options->{trinotate} \\
   2>trinotate_${job_name}.stderr \\
   1>trinotate_${job_name}.stdout
 ## The file created by trinotate is a tsv, not xls.
-mv Trinotate.xls ${output_name}
-rm -f *.ok *.out *.outfmt6 *.cmds *.log
+if [[ -f "Trinotate.xls" ]]; then
+  mv Trinotate.xls ${output_name}
+else
+  mv Trinotate.tsv ${output_name}
+fi
+rm -f ./*.ok* ./*.out* ./*.outfmt6* ./*.cmds* ./*.log*
 rm -rf TMHMM_* ${input_file}.ffn.trans*
-cd \${start}
+cd "\${start}"
 !;
     my $trinotate = $class->Submit(
         comment => $comment,
@@ -1056,18 +1007,14 @@ cd \${start}
         jdepends => $options->{jdepends},
         jname => qq"trinotate_${input_file}_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'large',
         jstring => $jstring,
         jmem => 12,
         jwalltime => '144:00:00',
-        modules => $options->{modules},
         output => qq"${output_dir}/${output_name}",
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trinotate);
 }
 
@@ -1100,7 +1047,6 @@ sub Rosalind_Plus {
         required => ['input'],
         jprefix => '44',
         jcpu => 2,);
-
     my $input_seq = $options->{input};
     my $job_name = 'rosalindplus';
     my $output_dir = qq"outputs/$options->{jprefix}${job_name}";
@@ -1113,7 +1059,6 @@ sub Rosalind_Plus {
         jdepends => $options->{jdepends},
         jname => $job_name,
         jprefix => $options->{jprefix},
-        modules => ['prodigal'],
         output_dir => $output_dir,
         species => 'phages',);
     $options->{jdepends} = $rosalind_prodigal->{job_id};

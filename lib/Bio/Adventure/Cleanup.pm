@@ -38,7 +38,9 @@ sub Cleanup {
     $trimmed_paired =~ s/\.fastq/-trimmed_paired\.fastq/g;
     my $trimmed_unpaired = $unzipped;
     $trimmed_unpaired =~ s/\.fastq/-trimmed_unpaired\.fastq/g;
-    my $jstring = qq!rm -rf outputs scripts sequences $input_files $unzipped $trimmed_input $trimmed_paired $trimmed_unpaired!;
+    my $jstring = qq!rm -rf outputs scripts sequences ${input_files} ${unzipped} \\
+  ${trimmed_input} ${trimmed_paired} ${trimmed_unpaired}
+!;
     print "Execute: $jstring\n";
     return(1);
 }
@@ -53,37 +55,69 @@ sub Cleanup_Phage_Assembly {
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
 
-    my $jstring = qq!
-## Rando fastq files
+    my $jstring = qq!## Rando fastq files
 stuff=\$(find . -type f -name '*.fastq')
-if [[ \! -z "\${stuff}" ]]; then
-  rm -f "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    echo "Removing \${file}"
+    rm -f "\${file}"
+  else
+   echo "\${file} does not appear to exist."
+  fi
+done
+
 ## Core dumps
 stuff=\$(find . -type f -name core)
-if [[ \! -z "\${stuff}" ]]; then
-  rm -f "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    echo "Removing \${file}"
+    rm -f "\${file}"
+  else
+    echo "\${file} does not appear to exist."
+  fi
+done
+
 ## Hisat indexes
 stuff=\$(find . -type f -name '*.ht2')
-if [[ \! -z "\${stuff}" ]]; then
-  rm -f "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    rm -f "\${file}"
+  else
+    echo "\${file} does not appear to exist."
+  fi
+done
+
 ## tmp files from the various prediction tools
 stuff=\$(find . -type f -name '*.tmp.*')
-if [[ \! -z "\${stuff}" ]]; then
-  rm -f "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    rm -f "\${file}"
+  else
+    echo "\${file} does not appear to exist."
+  fi
+done
+
 ## Trinotate junk
 stuff=\$(find . -type d -name '*_dir*')
-if [[ \! -z "\${stuff}" ]]; then
-  rm -rf "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    echo "Removing \${file}"
+    rm -rf "\${file}"
+  else
+    echo "\${file} does not appear to exist."
+  fi
+done
+
 ## Recompress random fastq files, but not symlinks
 stuff=\$(find . -type f -size +0 -name '*.fastq')
-if [[ \! -z "\${stuff}" ]]; then
-  xz -9e -f "\${stuff}"
-fi
+for file in \${stuff}; do
+  if [[ \! -f "\${file}" ]]; then
+    echo "Recompressig \${file}"
+    xz -9e -f "\${file}"
+  else
+    echo "\${file} does not appear to exist."
+  fi
+done
 !;
     my $comment = '## Cleanup some of the mess.';
     my $clean = $class->Submit(
