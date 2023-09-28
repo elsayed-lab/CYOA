@@ -231,19 +231,28 @@ xz -9e -f ${too_long}
 }
 
 
+=head2 C<Fastp>
+
+ Invoke fastp on a sequence dataset.
+ 10.1093/bioinformatics/bty560
+
+ Fastp is an excellent trimomatic alternative.
+
+=cut
 sub Fastp {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         arbitrary => undef,
-        do_umi => 1,
         jmem => 12,
         jwalltime => '24:00:00',
         jprefix => '12',);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $extra_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
+    $extra_args .= ' -D ' if ($options->{deduplication});
+    $extra_args .= ' -c ' if ($options->{correction});
 
     my $fastp_input = $options->{input};
     my @suffixes = split(/\,/, $options->{suffixes});
@@ -277,10 +286,12 @@ sub Fastp {
     if ($options->{do_umi}) {
         $umi_flags = ' -U ';
     }
+    my $report_flags = qq"-h ${outdir}/fastp_report.html -j ${outdir}/fastp_report.json";
 
     my $jstring = qq!
 mkdir -p ${out_dir}
 fastp ${umi_flags} ${input_flags} \\
+  ${report_flags} ${extra_args} \\
   2>${stderr} \\
   1>${stdout}
 !;

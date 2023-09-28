@@ -142,13 +142,16 @@ has comment => (is => 'rw', default => undef); ## Set a comment in running slurm
 has compress => (is => 'rw', default => 1); ## Compress output files?
 has config => (is => 'rw', default => undef); ## Not sure
 has count => (is => 'rw', default => 1); ## Quantify reads after mapping?
+has correction => (is => 'rw', default => 1); ## Perform correction when using fastp?
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has coverage_tag => (is => 'rw', default => 'DP');
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
 has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
+has deduplicate => (is => 'rw', default => 1); ## Perform deduplication when using fastp
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
+has do_umi => (is => 'rw', default => 1); ## Extract UMIs when using fastp
 has download => (is => 'rw', default => 1);
 has email => (is => 'rw', default => 'abelew@umd.edu');
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff

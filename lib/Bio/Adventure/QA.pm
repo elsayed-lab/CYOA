@@ -225,6 +225,33 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_input} 2>/de
     return($fqc);
 }
 
+sub MultiQC {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        input => 'preprocessing',
+        jprefix => '12',);
+    my $job_name = $class->Get_Job_Name();
+    my $comment = '## A Multiqc run!';
+    my $stderr = 'multiqc.stderr';
+    my $stdout = 'multiqc.stdout';
+    my $jstring = qq!
+cd $options->{input}
+multiqc --no-ansi . 2>${stderr} 1>${stdout}
+!;
+    my $multiqc = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        jname => qq"multiqc_${job_name}",
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        stderr => $stderr,
+        stdout => $stdout,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},);
+    return($multiqc);
+}
+
 =head1 AUTHOR - atb
 
 Email  <abelew@gmail.com>
