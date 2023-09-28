@@ -740,19 +740,25 @@ sub Get_QOS {
       if ($max_resources_per_job) {
           $max_job_cpu = $max_resources_per_job;
           if ($max_job_cpu =~ /cpu=/) {
-              $max_job_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
+              $max_job_cpu =~ s/.*cpu=(\d+).*$/$1/g;
           } else {
               $max_job_cpu = 0;
           }
           $max_job_gpu = $max_resources_per_job;
           if ($max_job_gpu =~ m/gpu=/) {
-              $max_job_gpu =~ s/.*gpu=(\d+),.*$/$1/g;
+              $max_job_gpu =~ s/.*gpu=(\d+).*$/$1/g;
           } else {
               $max_job_gpu = 0;
           }
           $max_job_mem = $max_resources_per_job;
           if ($max_job_mem =~ /mem=/) {
-              $max_job_mem =~ s/.*mem=(\d+)G.*$/$1/g;
+              my $max_mem_suffix = $max_job_mem;
+              ## Note the suffix of memory may be M/G/T and perhaps P one day?
+              ## But I am only bothering to count in Gb.
+              $max_job_mem =~ s/.*mem=(\d+)\w{1}.*$/$1/g;
+              $max_mem_suffix =~ s/.*mem=(\d+)(\w{1}).*$/$2/g;
+              $max_job_mem = $max_job_mem * 1000 if ($max_mem_suffix eq 'T');
+              $max_job_mem = $max_job_mem / 1000 if ($max_mem_suffix eq 'M');
           } else {
               $max_job_mem = 0;
           }
@@ -761,20 +767,20 @@ sub Get_QOS {
       if ($max_resources_per_user) {
           $max_user_cpu = $max_resources_per_user;
           if ($max_user_cpu =~ /cpu=/) {
-              $max_user_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
+              $max_user_cpu =~ s/.*cpu=(\d+).*$/$1/g;
           } else {
               $max_user_cpu = $max_job_cpu;
           }
 
           $max_user_gpu = $max_resources_per_user;
           if ($max_user_gpu =~ m/gpu=/) {
-              $max_user_gpu =~ s/.*gpu=(\d+),.*$/$1/g;
+              $max_user_gpu =~ s/.*gpu=(\d+).*$/$1/g;
           } else {
               $max_user_gpu = $max_job_cpu;
           }
           $max_user_mem = $max_resources_per_user;
           if ($max_user_mem =~ /mem=/) {
-              $max_user_mem =~ s/.*mem=(\d+)G.*$/$1/g;
+              $max_user_mem =~ s/.*mem=(\d+)\w{1}.*$/$1/g;
           } else {
               $max_user_mem = $max_job_mem;
           }
