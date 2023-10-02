@@ -155,17 +155,17 @@ set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_base} at \$(date) on \$(hostname)." >> ${bash_log}
 function get_sigterm {
-  echo "A SIGTERM was sent to ${jname}." >> ${sbatch_log}
+  echo "A SIGTERM was sent to ${jname}." >> ${bash_log}
   exit 1
 }
 trap get_sigterm SIGTERM
 function get_sigkill {
-  echo "A SIGKILL was sent to ${jname}." >> ${sbatch_log}
+  echo "A SIGKILL was sent to ${jname}." >> ${bash_log}
   exit 1
 }
 trap get_sigkill SIGKILL
 function get_sigerr {
-  echo "A ERR was sent to ${jname}." >> ${sbatch_log}
+  echo "A ERR was sent to ${jname}." >> ${bash_log}
   exit 1
 }
 trap get_sigerr ERR
