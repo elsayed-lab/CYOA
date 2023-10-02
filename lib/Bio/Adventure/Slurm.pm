@@ -1282,14 +1282,17 @@ export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 function get_sigterm {
   echo "A SIGTERM was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive time usage." >> ${sbatch_log}
+  exit 1
 }
 trap get_sigterm SIGTERM
 function get_sigkill {
   echo "A SIGKILL was sent to ${jname}: \${SLURM_JOBID}, usually 30 seconds after scancel." >> ${sbatch_log}
+  exit 1
 }
 trap get_sigkill SIGKILL
 function get_sigerr {
   echo "A ERR was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive memory usage." >> ${sbatch_log}
+  exit 1
 }
 trap get_sigerr ERR
 ?;
