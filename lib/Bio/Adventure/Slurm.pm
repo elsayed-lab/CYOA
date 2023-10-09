@@ -1069,6 +1069,19 @@ sub Get_Usage {
     return($current);
 }
 
+=head2 C<Guess_Time>
+
+  A stub function in which I want to write down some ideas for
+  automatically generating the time parameter of a job.  The time to
+  request from the cluster is a function of:
+  time(job) = job_constant(computer_bogomips) * sigma(filesize_constants*input_filesizes)
+
+=cut
+sub Guess_Time {
+    my %args = @_;
+    print "Not yet implemented.\n";
+}
+
 =head2 C<Submit>
 
  $hpgl->Submit(); invokes sbatch with (hopefully) appropriate

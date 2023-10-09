@@ -835,6 +835,7 @@ sub SNP_Ratio_Intron {
         required => ['input', 'species'],
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
+        filter_type => '',
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_cds_parent_type => 'mRNA',
@@ -850,15 +851,22 @@ sub SNP_Ratio_Intron {
     my $output_dir = dirname($print_input);
     my $print_output = qq"${output_dir}";
     my $samplename = basename(cwd());
-    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}.fasta";
+    my $output_suffix = '';
+    $output_suffix .= qq"_q-$options->{qual}" if ($options->{qual});
+    $output_suffix .= qq"_c-$options->{vcf_cutoff}" if ($options->{vcf_cutoff});
+    $output_suffix .= qq"_m$options->{min_value}" if ($options->{min_value});
+    $output_suffix .= qq"_ctag-$options->{coverage_tag}" if ($options->{coverage_tag});
+    $output_suffix .= qq"_mtag-$options->{chosen_tag}" if ($options->{chosen_tag});
+    my $genome = qq"$options->{libpath}/$options->{libtype}/$options->{species}_${output_suffix}.fasta";
     my $stdout = qq"${print_output}/stdout";
     my $stderr = qq"${print_output}/stderr";
-    my $output_all = qq"${print_output}/all_tags.txt";
-    my $output_count = qq"${print_output}/count.txt";
-    my $output_genome = qq"${print_output}/$options->{species}-${samplename}.fasta";
-    my $output_by_gene = qq"${print_output}/variants_by_gene.txt";
-    my $output_penetrance = qq"${print_output}/variants_penetrance.txt";
-    my $output_pkm = qq"${print_output}/pkm.txt";
+    my $output_all = qq"${print_output}/all_tags_${output_suffix}.txt";
+    my $output_count = qq"${print_output}/count_${output_suffix}.txt";
+    my $output_genome = qq"${print_output}/$options->{species}-${samplename}_${output_suffix}.fasta";
+    my $output_by_gene = qq"${print_output}/variants_by_gene_${output_suffix}.txt";
+    my $output_penetrance = qq"${print_output}/variants_penetrance_${output_suffix}.txt";
+    my $output_pkm = qq"${print_output}/pkm_${output_suffix}.txt";
+    my $output_types = qq"${print_output}/count_types_${output_suffix}.txt";
     my $comment_string = qq!
 ## Parse the SNP data and generate a modified $options->{species} genome.
 ##  This should read the file:
@@ -876,6 +884,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
   chosen_tag => '$options->{chosen_tag}',
   vcf_cutoff => '$options->{vcf_cutoff}',
   min_value => '$options->{min_value}',
+  filter_type => '$options->{filter_type}',
   gff_tag => '$options->{gff_tag}',
   gff_type => '$options->{gff_type}',
   gff_cds_parent_type => '$options->{gff_cds_parent_type}',
@@ -888,12 +897,14 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
   output_by_gene => '${output_by_gene}',
   output_penetrance => '${output_penetrance}',
   output_pkm => '${output_pkm}',
+  output_types => '${output_types}',
 );
 ";
     my $parse_job = $class->Submit(
         comment => $comment_string,
         chosen_tag => $options->{chosen_tag},
         coverage_tag => $options->{coverage_tag},
+        filter_type => $options->{filter_type},
         gff_tag => $options->{gff_tag},
         gff_type => $options->{gff_type},
         gff_cds_parent_type => $options->{gff_cds_parent_type},
@@ -914,6 +925,7 @@ my \$result = \$h->Bio::Adventure::SNP::SNP_Ratio_Intron_Worker(
         output_by_gene => $output_by_gene,
         output_penetrance => $output_penetrance,
         output_pkm => $output_pkm,
+        output_types => $output_types,
         stderr => $stderr,
         stdout => $stdout,
         vcf_cutoff => $options->{vcf_cutoff},);
@@ -927,6 +939,7 @@ sub SNP_Ratio_Intron_Worker {
         required => ['species', 'input'],
         chosen_tag => 'PAIRED',
         coverage_tag => 'DP',
+        filter_type => '',
         gff_tag => 'ID',
         gff_type => 'gene',
         gff_exon_type => 'exon',
@@ -941,6 +954,7 @@ sub SNP_Ratio_Intron_Worker {
         output_penetrance => 'counts_penetrance.txt',
         output_pkm => 'by_gene_length.txt',
         output_dir => 'outputs/40freebayes',
+        output_types => 'outputs/types.txt',
         qual => 10,
         vcf_cutoff => 5,
         vcf_method => 'freebayes',);
@@ -954,6 +968,8 @@ sub SNP_Ratio_Intron_Worker {
     my $in_bcf = FileHandle->new("bcftools view $options->{input} |");
     print $log "The large matrix of data will be written to: $options->{output}\n";
     my $all_out = FileHandle->new(">$options->{output}");
+    my $type_counter = FileHandle->new(">$options->{output_types}");
+    my %type_counts = ();
 
     ## Read the genome so that I may write a copy with all the nucleotides changed.
     my $input_genome = $class->Bio::Adventure::Read_Genome_Fasta(
@@ -1022,7 +1038,6 @@ sub SNP_Ratio_Intron_Worker {
       ## Only accept the simplest non-indel mutations.
       next READER unless ($alt eq 'A' or $alt eq 'a' or $alt eq 'T' or $alt eq 't' or
                           $alt eq 'G' or $alt eq 'g' or $alt eq 'C' or $alt eq 'c');
-
       if ($options->{qual} ne '' && $qual) {
           next READER if ($qual < $options->{qual});
       }
@@ -1035,6 +1050,16 @@ sub SNP_Ratio_Intron_Worker {
       my %individual_tags = (position => $snp_id);
     TAGS: foreach my $element (@info_list) {
         my ($element_type, $element_value) = split(/=/, $element);
+        ## Add a little logic to filter for a specific variant type
+        ## For the moment only accept keeping a specific type
+        if ($element_type eq 'FILTER') {
+            if (defined($type_counts{$element_value})) {
+                $type_counts{$element_value}++;
+            } else {
+                $type_counts{$element_value} = 1;
+            }
+            next READER if ($options->{filter_type} ne '' && $element_value ne $options->{filter_type});
+        }
         ## At this point, add some post-processing for tags which are multi-element.
         if ($options->{vcf_method} eq 'mpileup' && $element_type eq 'DP4') {
             my ($same_forward, $same_reverse, $alt_forward, $alt_reverse) = split(/,/, $element_value);
@@ -1056,7 +1081,7 @@ sub SNP_Ratio_Intron_Worker {
   } ## End reading the bcf file.
     $in_bcf->close();
     ## Now we should have a big array full of little hashes
-    my @used_tags = ('position', );
+    my @used_tags = ('position');
     ## First collect the set of tags of interest.
     my $header_line = "position\t";
     for my $k (@tag_order) {
@@ -1066,11 +1091,12 @@ sub SNP_Ratio_Intron_Worker {
         }
     }
     $header_line =~ s/\t$/\n/;
-    ## Write out the observations, starting with a header line comprised of the position information
-    ## followed by the tags.
+    ## Write out the observations, starting with a header line
+    ## comprised of the position information followed by the tags.
     print $all_out qq"${header_line}\n";
 
-    ## Read the data base of gff annotations, the genome, and begin hunting for variants by gene.
+    ## Read the data base of gff annotations, the genome, and begin
+    ## hunting for variants by gene.
     print "Reading the gff into a DB::SeqFeature Store.\n";
     print $log "Reading the gff into a DB::SeqFeature Store.\n";
     my $db = Bio::DB::SeqFeature::Store->new(
@@ -1129,7 +1155,8 @@ sub SNP_Ratio_Intron_Worker {
           my $this_start = $exon_starts{$ex};
           my $this_end = $exon_ends{$ex};
           if ($found_start == 0) {
-              ## If we have not yet found the start of the CDS, and this exon ends before the start, skip it.
+              ## If we have not yet found the start of the CDS, and
+              ## this exon ends before the start, skip it.
               if ($cds_start > $this_end) {
                   next CDS_LOOP;
               } elsif ($cds_start >= $this_start && $cds_start <= $this_end) {
@@ -1323,11 +1350,18 @@ sub SNP_Ratio_Intron_Worker {
         $good = 0 if (! $vars_by_gene->{$geneid}->{length});
         $good = 0 if (! $vars_by_gene->{$geneid}->{length});
         if ($good) {
-            $gene_ratio = ($vars_by_gene->{$geneid}->{count} / $vars_by_gene->{$geneid}->{length}) * 1000.0;
+            $gene_ratio = ($vars_by_gene->{$geneid}->{count} /
+                           $vars_by_gene->{$geneid}->{length}) * 1000.0;
         }
         print $var_by_genelength "${geneid}\t${gene_ratio}\n";
     }
     $var_by_genelength->close();
+
+    ## Write down how many times each variant type was observed.
+    for my $vartype (sort keys %type_counts) {
+        print $type_counter "${vartype}: $type_counts{$vartype}\n";
+    }
+    $type_counter->close();
 
     my $output_genome = FileHandle->new(">$options->{output_genome}");
     foreach my $ch (sort keys %{$input_genome}) {

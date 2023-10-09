@@ -452,7 +452,7 @@ sub Trimomatic_Pairwise {
     my $exe = undef;
     my $found_exe = 0;
 
-    my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
+    my @exe_list = ('trimomatic', 'TrimmomaticPE', 'trimmomatic');
     for my $test_exe (@exe_list) {
         my @executable_list = split(/\s+/, $test_exe);
         my $executable = $executable_list[0];
@@ -532,7 +532,7 @@ ln -sf ${r2o}.xz r2_trimmed.fastq.xz
     my $stderr = qq"${output_dir}/${basename}-trimomatic.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} \\
+${exe} PE \\
   -threads 1 \\
   -phred33 \\
   ${reader} \\
@@ -545,7 +545,7 @@ ${exe} \\
 excepted=\$( { grep "Exception" "${output_dir}/${basename}-trimomatic.stdout" || test \$? = 1; } )
 ## The following is in case the illumina clipping fails, which it does if this has already been run I think.
 if [[ "\${excepted}" \!= "" ]]; then
-  ${exe} \\
+  ${exe} PE \\
     -threads 1 \\
     -phred33 \\
     ${reader} \\
@@ -620,7 +620,7 @@ sub Trimomatic_Single {
         required => ['input',],);
     my $exe = undef;
     my $found_exe = 0;
-    my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
+    my @exe_list = ('trimomatic', 'TrimmomaticSE', 'trimmomatic');
     for my $test_exe (@exe_list) {
         my @executable_list = split(/\s+/, $test_exe);
         my $executable = $executable_list[0];
@@ -652,7 +652,7 @@ sub Trimomatic_Single {
     my $stderr = qq"${output_dir}/${basename}-trimomatic.stderr";
     my $jstring = qq!mkdir -p ${output_dir}
 ## Note that trimomatic prints all output and errors to STDERR, so send both to output
-${exe} \\
+${exe} SE \\
   -phred33 \\
   <(less ${input}) \\
   ${output} \\
