@@ -451,6 +451,8 @@ sub Trimomatic_Pairwise {
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
     my %exe_list = (trimomatic => 'trimomatic PE',
                     TrimmomaticSE => 'TrimmomaticPE',
                     TrimomaticSE => 'TrimmomaticPE',
@@ -619,6 +621,8 @@ sub Trimomatic_Single {
         required => ['input',],);
     my $exe = undef;
     my $found_exe = 0;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
     my %exe_list = (trimomatic => 'trimomatic SE',
                     TrimmomaticSE => 'TrimmomaticSE',
                     TrimomaticSE => 'TrimmomaticSE',
