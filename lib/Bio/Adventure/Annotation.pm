@@ -441,7 +441,7 @@ sub Interpro_Long2Wide_Worker {
         args => \%args,
         required => ['input', 'output'],);
 
-    print "Reading interpro tsv.\n";
+    print "Reading interpro tsv: $options->{input}\n";
     my $inter_fh = FileHandle->new("<$options->{input}");
     my $results = {};
     my $db_counter = {};

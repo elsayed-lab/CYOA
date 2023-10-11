@@ -451,19 +451,20 @@ sub Trimomatic_Pairwise {
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
-
-    my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
-    for my $test_exe (@exe_list) {
-        my @executable_list = split(/\s+/, $test_exe);
-        my $executable = $executable_list[0];
-        if (which($executable)) {
-            $exe = $test_exe;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my %exe_list = (trimomatic => 'trimomatic PE',
+                    TrimmomaticSE => 'TrimmomaticPE',
+                    TrimomaticSE => 'TrimmomaticPE',
+                    trimmomatic => 'trimmomatic PE');
+    for my $test_exe (keys %exe_list) {
+        if (which($test_exe)) {
+            $exe = $exe_list{$test_exe};
         }
     }
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
-
     my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
@@ -620,12 +621,15 @@ sub Trimomatic_Single {
         required => ['input',],);
     my $exe = undef;
     my $found_exe = 0;
-    my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
-    for my $test_exe (@exe_list) {
-        my @executable_list = split(/\s+/, $test_exe);
-        my $executable = $executable_list[0];
-        if (which($executable)) {
-            $exe = $test_exe;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my %exe_list = (trimomatic => 'trimomatic SE',
+                    TrimmomaticSE => 'TrimmomaticSE',
+                    TrimomaticSE => 'TrimmomaticSE',
+                    trimmomatic => 'trimmomatic SE');
+    for my $test_exe (keys %exe_list) {
+        if (which($test_exe)) {
+            $exe = $exe_list{$test_exe};
         }
     }
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
