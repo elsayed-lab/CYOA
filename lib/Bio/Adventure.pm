@@ -1361,7 +1361,7 @@ sub Submit {
 if [[ -z "${mod}" ]]; then
   module() {
   # shellcheck disable=SC2086
-    { eval "$(/usr/bin/modulecmd bash $*) || true; }"
+    { eval "$(/usr/bin/modulecmd bash $*)" || true; }
   }
   export -f module
 fi
