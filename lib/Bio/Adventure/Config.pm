@@ -374,7 +374,7 @@ sub Get_Modules {
         'Merge_Parse_Blast' => { modules => ['cyoa'], },
         'Mpileup' => { modules => 'samtools' },
         'Mpileup_SNP_Search' => {
-            modules => ['libgsl/2.7.1', 'libhts/1.13', 'samtools/1.13', 'bcftools', 'vcftools'],
+            modules => ['samtools/1.13', 'bcftools', 'vcftools'],
             exe => ['samtools', 'bcftools'], },
         'OrthoFinder' => { modules => ['cyoa', 'orthofinder'], exe => ['orthofinder'] },
         'OrthoMCL_Pipeline' => { modules => ['orthomcl'], exe => ['orthomclPairs'] },
@@ -404,17 +404,17 @@ sub Get_Modules {
         'Snippy' => { modules => ['snippy', 'gubbins', 'fasttree'],
                       exe => ['snippy', 'gubbins'], },
         'SNP_Ratio' => {
-            modules => ['cyoa', 'freebayes', 'libgsl', 'libhts', 'gatk',
+            modules => ['cyoa', 'freebayes', 'gatk',
                         'samtools', 'bcftools', 'vcftools'],
             exe => ['samtools', 'cyoa', 'freebayes'] },
         'SNP_Ratio_Intron' => {
-            modules => ['cyoa', 'freebayes', 'libgsl', 'libhts', 'gatk',
+            modules => ['cyoa', 'freebayes', 'gatk',
                         'samtools', 'bcftools', 'vcftools'], },
         'SNP_Ratio_Worker' => {
-            modules => ['cyoa', 'freebayes', 'libgsl', 'libhts', 'samtools',
+            modules => ['cyoa', 'freebayes', 'samtools',
                         'bcftools', 'vcftools'], },
         'SNP_Ratio_Intron_Worker' => {
-            modules => ['cyoa', 'freebayes', 'libgsl', 'libhts', 'samtools',
+            modules => ['cyoa', 'freebayes', 'samtools',
                         'bcftools', 'vcftools'], },
         'Sort_Indexes' => { modules => 'cyoa' },
         'Split_Align_Blast' => { modules => ['cyoa', 'blast', 'blastdb'], exe => 'blastn' },

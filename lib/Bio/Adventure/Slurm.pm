@@ -318,20 +318,39 @@ sub Choose_QOS {
             };
             $potential_qos->{$q} = $potential_metrics;
           } ## End iterating over stringent qos.
-          my $num_potential = scalar(keys(%{$potential_qos}));
+          my @potential_qos_names = keys(%{$potential_qos});
+          ## print "TESTME: @potential_qos_names\n";
+          my $num_potential = scalar(@potential_qos_names);
           $found_qos = $num_potential;
-          if ($num_potential) {
+          ## I think my logic here was a bit faulty.  I have an if statement checking to see
+          ## if there are multiple QOSes available that are not already full; but I also need
+          ## to ensure that this passes when all are full.
+          if ($num_potential <= 0) {
+              ## We have no open slots, so for now say so?
+              print "There appear to be no potential qos, this job should have to wait in the queue.\n";
+          } elsif ($num_potential == 1) {
+              $chosen_qos = $potential_qos_names[0];
+              $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+              $chosen_account = $account;
+              $chosen_cluster = $cluster;
+              $chosen_partition = $partition;
+              last PART;
+          } elsif ($num_potential > 1) {
               $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
+              $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+              $chosen_account = $account;
+              $chosen_cluster = $cluster;
+              $chosen_partition = $partition;
+              last PART;
+          } else {
+              die("We should not be able to fall through to here.");
           }
-
-          $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
-          $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
-          $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
-          $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-          $chosen_account = $account;
-          $chosen_cluster = $cluster;
-          $chosen_partition = $partition;
-          last PART;
       } ## End iterating over accounts
 
         unless ($found_qos) {
@@ -379,11 +398,18 @@ sub Choose_QOS {
               }
 
               $found_qos2++;
+              if (!defined($qos_info->{$chosen_qos}->{used_mem})) {
+                  print "In 2nd round of searching for a QOS, used_mem in $chosen_qos is still undefined.\n";
+                  $qos_info->{$chosen_qos}->{used_mem} = 0;
+                  $qos_info->{$chosen_qos}->{used_cpu} = 0;
+                  $qos_info->{$chosen_qos}->{used_gpu} = 0;
+                  $qos_info->{$chosen_qos}->{used_hours} = 0;
+              }
               $qos_info->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
               $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
               $qos_info->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
               $qos_info->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-              last TOP;
+              last ACCOUNT2;
           }
       } ## End iterating over a second attempt of accounts.
     } ## End a second pass if we didn't find anything the first time.
@@ -751,6 +777,7 @@ sub Get_QOS {
           }
           $max_job_mem = $max_resources_per_job;
           if ($max_job_mem =~ /mem=/) {
+              ## print "TESTME: In Get_QOS mem=: <${max_job_mem}>\n";
               my $max_mem_suffix = $max_job_mem;
               ## Note the suffix of memory may be M/G/T and perhaps P one day?
               ## But I am only bothering to count in Gb.
@@ -758,9 +785,11 @@ sub Get_QOS {
               $max_mem_suffix =~ s/.*mem=(\d+)(\w{1}).*$/$2/g;
               $max_job_mem = $max_job_mem * 1000 if ($max_mem_suffix eq 'T');
               $max_job_mem = $max_job_mem / 1000 if ($max_mem_suffix eq 'M');
+              ## print "Succeded in parsing max_job_mem: $max_job_mem\n";
           } else {
               $max_job_mem = 0;
           }
+          ## print "Attempted to parse max_job_mem, got: ${max_job_mem}\n";
       }
 
       if ($max_resources_per_user) {
