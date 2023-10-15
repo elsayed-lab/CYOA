@@ -13,8 +13,11 @@ use File::Path qw"make_path remove_tree";
 use File::ShareDir qw"dist_file module_dir dist_dir";
 use File::Which qw"which";
 use IO::Handle;
+use JSON;
+use List::Util qw"uniq";
 use POSIX qw"floor ceil";
 use Template;
+use Text::CSV;
 my $template_base = dist_dir('Bio-Adventure');
 my $template_dir = qq"${template_base}/templates";
 
@@ -132,6 +135,117 @@ sub BUILD {
         $class->{association_data} = $assoc;
     }
     return($class);
+}
+
+=head2 C<Check_Job>
+
+  Given that every job at least _should_ have a defined slurm job id
+  as well as the final stdout/stderr, I should be able to query its
+  status.
+
+=cut
+sub Check_Job {
+    my ($class, %args) = @_;
+    my $id = $args{id};
+    my $write = $args{write};
+    $write = 0 if (!defined($write));
+    my @all_info = ();
+    my @ids;
+    my @names;
+    if (defined($id)) {
+        @ids = split(/\s|\:/, $id);
+    } else {
+        print "No id provided, reading the jobs.txt file.\n";
+        my $job_file = FileHandle->new("<outputs/logs/jobs.txt");
+      JOBLOG: while (my $line = <$job_file>) {
+          chomp $line;
+          next JOBLOG if ($line =~ /^#/);
+          my ($name, $type, $id) = split(/\s+/, $line);
+          push(@names, $name);
+          push(@ids, $id);
+      }
+        $job_file->close();
+    }
+  IDS: for my $id (@ids) {
+      next IDS if (!defined($id));
+      my $job_info = {};
+      ## my $info = FileHandle->new("sacct -l -j ${id} --json |");
+      my $info = FileHandle->new("sacct -l -j ${id} -p |");
+      my $line_count = 0;
+      my @header_array = ();
+      while (my $line = <$info>) {
+          $line_count++;
+          my @line_array = split(/\|/, $line);
+          ## The header
+          if ($line_count == 1) {
+              @header_array = @line_array;
+          } elsif ($line_array[0] =~ m/^\d+$/) {
+              ## Some important elements are in the number-only line
+              my @provided_info = split(/\|/, $line);
+              for my $idx (0 .. $#provided_info) {
+                  my $element = $provided_info[$idx];
+                  my $key = $header_array[$idx];
+                  if (defined($element) && $element ne '') {
+                      $job_info->{$key} = $element;
+                  }
+              }
+          } elsif ($line_array[0] =~ m/\.batch/) {
+              ## Some important elements are in the number-only line. skip them here.
+              my @provided_info = split(/\|/, $line);
+            IDX: for my $idx (0 .. $#provided_info) {
+                my $element = $provided_info[$idx];
+                my $key = $header_array[$idx];
+                next IDX if ($key eq 'JobName');
+                next IDX if ($key eq 'Partition');
+                next IDX if ($key eq 'JobIDRaw');
+                next IDX if ($key eq 'JobID');
+                if ($element =~ m/^\d+\.*\d*[K|M|G]$/) {
+                    my $num;
+                    if ($element =~ /K$/) {
+                        $num = $element;
+                        $num =~ s/K$//g;
+                        $num = $num / 1e6;
+                    } elsif ($element =~ /M$/) {
+                        $num = $element;
+                        $num =~ s/M$//g;
+                        $num = $num / 1e3;
+                    } else {
+                        $num = $element;
+                        $num =~ s/G$//g;
+                    }
+                    $element = $num;
+                }
+                ## A note from the slurm documentation:
+                ## AveCPUFreq: Average weighted CPU frequency of all tasks in job, in kHz.
+                if ($element eq 'AveCPUFreq') {
+                    $element = $element * 1e3;
+
+                if (defined($element) && $element ne '') {
+                    $job_info->{$key} = $element;
+                }
+            }
+          }
+      }
+      push(@all_info, $job_info);
+      $info->close();
+    } ## Finished iterating over every job ID
+    ## Taken with minor modifications from:
+    ## https://www.perlmonks.org/?node_id=11139481
+
+    ## AllocCPUS,AllocTRES,AveCPU,AveCPUFreq,AveDiskRead,AveDiskWrite,AvePages,AveRSS,AveVMSize,ConsumedEnergy,Elapsed,ExitCode,JobID,JobIDRaw,JobName,MaxDiskRead,MaxDiskReadNode,MaxDiskReadTask,MaxDiskWrite,MaxDiskWriteNode,MaxDiskWriteTask,MaxPages,MaxPagesNode,MaxPagesTask,MaxRSS,MaxRSSNode,MaxRSSTask,MaxVMSize,MaxVMSizeNode,MaxVMSizeTask,MinCPU,MinCPUNode,MinCPUTask,NTasks,Partition,ReqCPUFreqGov,ReqCPUFreqMax,ReqCPUFreqMin,ReqMem,ReqTRES,State,TRESUsageInAve,TRESUsageInMax,TRESUsageInMaxNode,TRESUsageInMaxTask,TRESUsageInMin,TRESUsageInMinNode,TRESUsageInMinTask,TRESUsageInTot,TRESUsageOutAve,TRESUsageOutMax,TRESUsageOutMaxNode,TRESUsageOutMaxTask,TRESUsageOutTot
+
+    if ($write) {
+        ## my @columns = sort +uniq(map keys %$_, @all_info);
+        my @columns = ('JobName', 'JobID', 'AllocCPUS', 'AveCPU', 'AveCPUFreq', 'AveDiskRead', 'AveDiskWrite', 'AvePages', 'AveRSS', 'AveVMSize', 'Elapsed', 'ExitCode', 'MaxDiskRead', 'MaxDiskWrite', 'MaxPages', 'MaxRSS', 'MaxVMSize', 'Partition', 'ReqMem', 'State');
+        my $csv = Text::CSV->new({auto_diag => 1, binary => 1, eol => $/});
+        my $out_csv = FileHandle->new(">outputs/logs/jobs.csv");
+      RECORDS: for my $record ({map { $_ => $_ } @columns}, @all_info) {
+          next RECORDS if (!defined($record->{JobName}) or $record->{JobName} eq '');
+          $csv->say($out_csv, [@$record{@columns}]);
+      }
+        $out_csv->close();
+    }
+    return(\@all_info);
 }
 
 =head2 C<Check_Sbatch>
@@ -1111,6 +1225,28 @@ sub Guess_Time {
     print "Not yet implemented.\n";
 }
 
+sub Query_Job {
+    my ($class, $parent, %args) = @_;
+    my $class_jprefix = $class->{jprefix};
+    my $options = $parent->Get_Vars(
+        args => \%args,
+        jname => 'unknown',);
+    my $finished = 0;
+    my $failed = 0;
+    my $job = $options->{job_id};
+    my $datum;
+    while ($finished < 1 && $failed < 1) {
+        sleep(10);
+        my $info = $class->Bio::Adventure::Slurm::Check_Job(id => $job, write => 0);
+        $datum = $info->[0];
+        if ($datum->{State} eq 'COMPLETED') {
+            $finished++;
+            print "The job ${job}:$datum->{JobName} required $datum->{MaxVMSize}G memory, $datum->{MaxDiskWrite}G disk, and $datum->{'Elapsed'} time using $datum->{'AveCPUFreq'}Mhz.\n";
+        }
+    }
+    return($datum);
+}
+
 =head2 C<Submit>
 
  $hpgl->Submit(); invokes sbatch with (hopefully) appropriate
@@ -1343,20 +1479,8 @@ minutes_used=\$(( SECONDS / 60 ))
 echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \${minutes_used} minutes." >> ${sbatch_log}
 if [[ -x "\$(command -v sstat)" && -n "\${SLURM_JOBID}" ]]; then
   echo "  walltime used by \${SLURM_JOBID} was: \${minutes_used:-null} minutes." >> ${sbatch_log}
-  maxmem=\$(sstat -n -P --format=MaxVMSize -j "\${SLURM_JOBID}")
-  ## I am not sure why, but when I run a script in an interactive session, the maxmem variable
-  ## gets set correctly everytime, but when it is run by another node, sometimes it does not.
-  ## Lets try and figure that out...
-  echo "TESTME: \${maxmem}"
-  if [[ -n "\${maxmem}" ]]; then
-    echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem}." >> ${sbatch_log}
-  else
-    echo "  The maximum memory did not get set for this job: \${SLURM_JOBID}." >> ${sbatch_log}
-    sstat -P -j "\${SLURM_JOBID}" >> ${sbatch_log}
-  fi
   echo "" >> ${sbatch_log}
 fi
-touch ${finished_file}
 !;
 
         my $total_script_string = '';
@@ -1423,6 +1547,9 @@ touch ${finished_file}
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
     $parent->{language} = 'bash';
+    my $job_logger = FileHandle->new(">>outputs/logs/jobs.txt");
+    print $job_logger "${jname}\tslurm\t${job_id}\n";
+    $job_logger->close();
     return($job);
 }
 

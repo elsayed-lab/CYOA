@@ -159,11 +159,6 @@ function get_sigterm {
   exit 1
 }
 trap get_sigterm SIGTERM
-function get_sigkill {
-  echo "A SIGKILL was sent to ${jname}." >> ${bash_log}
-  exit 1
-}
-trap get_sigkill SIGKILL
 function get_sigerr {
   echo "A ERR was sent to ${jname}." >> ${bash_log}
   exit 1
@@ -175,7 +170,6 @@ trap get_sigerr ERR
 ## The following lines give status codes and some logging
 echo "Job status:\$?" >> ${bash_log}
 echo " \$(hostname) Finished ${script_base} at \$(date), it took \$(( SECONDS / 60 )) minutes." >> ${bash_log}
-touch ${finished_file}
 !;
 
         my $total_script_string = '';
@@ -219,7 +213,9 @@ failed with error: $!.\n");
     $job->{log} = $bash_log;
     $job->{job_id} = $bash_pid;
     $job->{script_file} = $script_file;
-
+    my $job_logger = FileHandle->new(">>outputs/logs/jobs.txt");
+    print $job_logger "${jname}\tbash\t${bash_pid}\n";
+    $job_logger->close();
     if ($options->{verbose}) {
         use Data::Dumper;
         print Dumper $job;
