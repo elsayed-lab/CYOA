@@ -227,6 +227,12 @@ xz -9e -f ${too_long}
             jprefix => $options->{jprefix} + 1,);
         $cutadapt->{tacheck} = $ta_check;
     }
+    my $stats = $class->Bio::Adventure::Metadata::Cutadapt_Stats(
+        input => $cutadapt->{stdout},
+        jcpu => 1,
+        jmem => 1,
+        jwalltime => '00:03:00',
+        jdepends => $cutadapt->{job_id},);
     return($cutadapt);
 }
 
@@ -498,9 +504,9 @@ sub Trimomatic_Pairwise {
     my $r2ou = qq"${r2b}-trimmed_unpaired.fastq";
 
     my $leader_trim = '';
-    if ($options->{task} eq 'dnaseq') {
-        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
-    }
+    #if ($options->{task} eq 'dnaseq') {
+    #    $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    #}
     my $suffix_trim = '';
     if (defined($options->{arbitrary}) &&
         $options->{arbitrary} =~ /^CROP/) {
@@ -638,9 +644,9 @@ sub Trimomatic_Single {
     }
     my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $leader_trim = "";
-    if (defined($options->{task}) && $options->{task} eq 'dnaseq') {
-        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
-    }
+    #if (defined($options->{task}) && $options->{task} eq 'dnaseq') {
+    #    $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    #}
 
     my $input = $options->{input};
     my $basename = $input;

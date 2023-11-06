@@ -146,7 +146,7 @@ sub BWA_Index {
     my $jstring = qq!mkdir -p ${output_dir}
 start=\$(pwd)
 cd $options->{libdir}/$options->{libtype}/indexes
-ln -sf $options->{input} ${species}.fa
+ln -sf \${start}/$options->{input} ${species}.fa
 bwa index ${species}.fa \\
   2>${stderr} \\
   1>${stdout}
@@ -195,38 +195,60 @@ sub Check_Blastdb {
         blast_tool => 'blastn',
         type => 'prot',
         required => ['input'],);
-    my $libname = basename($options->{input}, ('.fasta', '.fa', '.faa', '.fsa', '.fna'));
+    my $libname;
     if (defined($options->{library})) {
         $libname = $options->{library};
+    } else {
+        $libname = $options->{input};
     }
+    $libname = basename($libname, ('.fasta', '.fa', '.faa', '.fsa', '.fna'));
+
     ## First check for the relevant library in $ENV{BLASTDB}
     ## If it isn't there, make one in basedir/blastdb/
     my $foundlib = 0;
-    if ($options->{type} ne 'prot' && $options->{type} ne 'nucl') {
+    my $libtype = $options->{type};
+    if ($libtype ne 'prot' && $libtype ne 'nucl') {
         die(qw"makeblastdb requires either a type of 'prot' or 'nucl'.");
     }
+    if ($options->{blast_tool} eq 'blastn') {
+        $libtype = 'nucl';
+    } elsif ($options->{blast_tool} eq 'blastp') {
+        $libtype = 'prot';
+    } else {
+        $libtype = 'nucl';
+    }
 
-    my $mismatches = 0;
-    my $matches = 0;
     my $test_in = Bio::SeqIO->new(-file => $options->{input}, -format => 'Fasta');
+    my $guesses = {
+        prot => 0,
+        nucl => 0,
+    };
+    my $sum = 0;
     while (my $seq = $test_in->next_seq) {
+        $sum++;
         my $guess = $seq->alphabet;
         if ($guess eq 'protein') {
-            $guess = 'prot';
+            $guesses->{prot}++;
         } else {
-            $guess = 'nucl';
-        }
-        if ($options->{type} eq $guess) {
-            $matches++;
-        } else {
-            $mismatches++;
+            $guesses->{nucl}++;
         }
     }
-    my $sum = $matches + $mismatches;
-    print "Out of ${sum} sequences, ${matches} were guessed to be $options->{type} and ${mismatches} were not.\n";
+    my $guessed = 'nucl';
+    if ($guesses->{prot} > $guesses->{nucl}) {
+        $guessed = 'prot';
+    }
+    print "Out of ${sum} sequences, $guesses->{prot} were guessed prot ";
+    print "and $guesses->{nucl} were guessed nucleotide.\n";
+    if ($guessed eq $libtype) {
+        print "The guessed type and provided type agree!\n";
+    } else {
+        print "The guessed type and provided type disagree, going with: $guessed.\n";
+        $libtype = $guessed;
+    }
+
     my $checklib = qq"${libname}.psq";
     my $checklib_zero = qq"${libname}.00.psq";
-    if ($options->{type} eq 'nucl') {
+    if ($libtype eq 'nucl') {
         $checklib_zero = qq"${libname}.00.nsq";
         $checklib = qq"${libname}.nsq";
     }
@@ -248,27 +270,29 @@ sub Check_Blastdb {
     if (-f "${db_directory}/${checklib}" or
         -f "${db_directory}/${checklib_zero}") {
         $foundlib++;
-        $lib = qq"${db_directory}/${libname}";
-        print "Found an existing blast database at ${lib}.\n";
+        print "Found an existing blast database at ${libname}.\n";
+        return($libname);
     } else {
         print "Did not find an existing blast database.\n";
     }
 
     ## If we do not find the blast database, create it in the basedir.
     if (!$foundlib) {
-        if (!-d qq"$options->{basedir}/blastdb") {
-            make_path(qq"$options->{basedir}/blastdb");
+        if (!-d $db_directory) {
+            make_path($db_directory);
         }
-        my $formatdb_command = qq"makeblastdb \\
+        my $formatdb_command = qq"
+export BLASTDB=$ENV{BLASTDB}
+makeblastdb \\
   -in $options->{input} \\
-  -dbtype $options->{type} \\
+  -dbtype ${libtype} \\
   -out ${db_directory}/${libname} \\
   2>${db_directory}/makeblastdb.stderr \\
   1>${db_directory}/makeblastdb.stdout";
         print "The makeblastdb command run is: ${formatdb_command}\n";
         my $formatdb_ret = qx"${formatdb_command}";
     }
-    my $final_directory = qq"${relative_directory}/${libname}";
+    my $final_directory = qq"${db_directory}/${libname}";
     return($final_directory);
 }
 
@@ -607,16 +631,21 @@ sub Salmon_Index {
     $species =~ s/_cds//g;
     $species =~ s/_nt//g;
     my $species_file = qq"${cds_dir}/${species}.fasta";
-    my $copied_location = qq"$options->{libpath}/$options->{libtype}/${cds}.fasta";
-    my $species_location = qq"$options->{libpath}/$options->{libtype}/${species}.fasta";
-
+    my $index_basedir = qq"$options->{libpath}/$options->{libtype}";
+    my $copied_location = qq"${index_basedir}/${cds}.fasta";
+    my $species_location = qq"${index_basedir}/${species}.fasta";
+    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}salmon_index";
+    if (!-d $index_basedir) {
+        make_path($index_basedir);
+    }
+    if (!-d $output_dir) {
+        make_path($output_dir);
+    }
     if (!-r $copied_location) {
         cp($options->{input}, $copied_location);
     }
     my $decoy_copy_string = qq'';
     my $jstring = qq'';
-
-    my $output_dir = qq"$options->{basedir}/outputs/$options->{jprefix}salmon_index";
     my $stdout = qq"${output_dir}/index.stdout";
     my $stderr = qq"${output_dir}/index.stderr";
 
@@ -629,7 +658,8 @@ salmon index -t ${index_input} \\
             cp($species_file, $species_location);
         }
         my $decoy_location = qq"$options->{libdir}/${libtype}/${species}_decoys.fasta";
-        $decoy_copy_string = qq!less $options->{input} > ${decoy_location} && less ${species_file} >> ${decoy_location}
+        $decoy_copy_string = qq!less $options->{input} > ${decoy_location}
+less ${species_file} >> ${decoy_location}
 less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy_location}.txt
 !;
         $index_input = $decoy_location;
@@ -637,7 +667,8 @@ less ${species_file} | { grep '^>' || test \$? = 1; } | sed 's/^>//g' >> ${decoy
 mkdir -p ${output_dir}
 ${index_string} \\
   --decoys ${decoy_location}.txt \\
-  2>${stderr} 1>${stdout}
+  2>${stderr} \\
+  1>${stdout}
 !;
     } else {
         warn("This function would prefer to make a decoy aware index set which requires the full genome.");
@@ -645,12 +676,10 @@ ${index_string} \\
 otherwise a decoy-less index will be generated.");
         sleep(3);
         $jstring = qq!${index_string} \\
-  2>${stderr} 1>${stdout}
+  2>${stderr} \\
+  1>${stdout}
 !;
     }
-
-    print "TESTME: About to submit with:
-$jstring\n";
 
     my $comment = qq!## Generating salmon indexes for species: ${species}
 ## in $options->{libdir}/${libtype}/indexes!;

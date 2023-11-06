@@ -840,9 +840,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 my $inf;
 
                 ## FIXME: Looking for missing display names
-                ## use Data::Dumper;
-                ## print Dumper $feat;
-
                 if ($product_string eq $signal_string) {
                     $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
                 } elsif ($product_string eq $tm_string) {
@@ -870,9 +867,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
       ## So now let us steal the tbl writer from prokka and dump this new stuff...
 
       ## Looking for why sometimes tbl files are not getting all annotations.
-      ## use Data::Dumper;
-      ## print Dumper @new_features;
-
   } ## End iterating over every sequence.
 
     print "Writing new tbl file to ${output_tbl}\n";
@@ -1526,6 +1520,71 @@ echo "\${stat_string}" >> ${stat_output}!;
         jstring => $jstring,
         stdout => $stat_output,
         jwalltime => '00:01:00',);
+    return($stats);
+}
+
+=head2 C<Cutadapt_Stats>
+
+ Collect cutadapt results.
+
+ Collect some information from the cutadapt output files and present them in a
+ simple-to-read csv file.
+
+=cut
+sub Cutadapt_Stats {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jmem => 1,
+        jname => 'cutst',
+        jprefix => 12,
+        paired => 1,);
+    my $jname = $options->{jname};
+    my $input_file = $options->{input};
+    my $stat_output = qq"outputs/cutadapt_stats.csv";
+    if ($options->{direction}) {
+        $stat_output = qw"outputs/cutadapt.stdout";
+        $jname = qq"$options->{jname}_$options->{direction}";
+    }
+    my $comment = '## This should collect cutadapt statistics.';
+    my $jstring = qq!
+if [ \! -r "${stat_output}" ]; then
+  echo "name,total_reads,adapter_reads,too_short,discarded_untrimmed,passed" > $stat_output
+fi
+total_reads_tmp=\$( { head -n 15 ${input_file} | grep "^Total reads processed" || test \$? = 1; } |\\
+  awk '{print \$4}' | sed "s/\,//g")
+total_reads=\${total_reads_tmp:-0}
+adapter_tmp=\$( { head -n 15 ${input_file} | grep "^Reads with adapters" ${input_file} || test \$? = 1; } |\\
+  awk '{print \$4}' | sed "s/\,//g")
+adapter=\${adapter_tmp:-0}
+too_short_tmp=\$( { head -n 15 ${input_file} | grep "^Reads that were too short" || test \$? = 1; } |\\
+  awk '{print \$6}' | sed "s/\,//g")
+too_short=\${too_short_tmp:-0}
+discarded_untrimmed_tmp=\$( { head -n 15 ${input_file} | grep "^Reads discarded as untrimmed" || test \$? = 1; } |\\
+  awk '{print \$5}' | sed "s/\,//g")
+discarded_untrimmed=\${discarded_untrimmed_tmp:-0}
+passed_tmp=\$( { head -n 15 ${input_file} | grep "^Reads written" || test \$? = 1; } |\\
+  awk '{print \$5}' | sed "s/\,//g")
+passed=\${passed_tmp:-0}
+stat_string=\$(printf "$options->{jname},%s,%s,%s,%s,%s" "\${total_reads}" "\${adapter}" \\
+  "\${too_short}" "\${discarded_untrimmed}" "\${passed}")
+echo "\$stat_string" >> ${stat_output}
+!;
+    my $stats = $class->Submit(
+        comment => $comment,
+        input => $input_file,
+        jcpu => 1,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jwalltime => '00:01:00',
+        stdout => $stat_output,
+        output => $stat_output,);
+    ## Added to return the state of the system to what it was
+    ## before we messed with the options.
     return($stats);
 }
 

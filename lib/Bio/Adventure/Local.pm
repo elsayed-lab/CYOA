@@ -216,10 +216,6 @@ failed with error: $!.\n");
     my $job_logger = FileHandle->new(">>outputs/logs/jobs.txt");
     print $job_logger "${jname}\tbash\t${bash_pid}\n";
     $job_logger->close();
-    if ($options->{verbose}) {
-        use Data::Dumper;
-        print Dumper $job;
-    }
     ## Reset the environment in case we left any cruft behind
     my $reset = Bio::Adventure::Reset_Vars($class);
     return($job);

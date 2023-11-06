@@ -65,6 +65,7 @@ sub Make_Fasta_Job {
     my $dep = $options->{jdepends};
     my $split = $options->{split};
     my $output_type = $options->{output_type};
+    my $fasta_args = $class->Passthrough_Args(arbitrary => $options->{fasta_args});
     my $library;
     my $array_end = $options->{array_start} + $args{align_jobs};
     my $array_string = qq"$options->{array_start}-${array_end}";
@@ -79,30 +80,37 @@ sub Make_Fasta_Job {
     if (defined($output_type)) {
         $type_string = "-m ${output_type}";
     }
+    my $output = '';
     my $stdout = qq"$options->{basedir}/split_align.stdout";
     my $stderr = qq"$options->{basedir}/split_align.stderr";
-    my $output = '';
     ## Important Note:  fasta36's command line parsing fails on path names > 128 or 256 characters.
     ## Thus my usual '$options->{workdir}' will cause this to fail in many instances
     ## because it introduces many characters to the pathnames.
     if ($split) {
-        $output = qq"$options->{basedir}/outputs/split/${array_id_string}.stdout";
+        $output = qq"$options->{basedir}/outputs/split/${array_id_string}.out";
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
- outputs/split/${array_id_string}/in.fasta \\
- $options->{library} \\
- 1>${output} \\
- 2>>${stderr}
+if [[ -r outputs/split/${array_id_string}/in.fasta ]]; then
+  $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
+   outputs/split/${array_id_string}/in.fasta \\
+   $options->{library} \\
+   -O ${output} \\
+   1>${stdout} \\
+   2>>${stderr}
+else
+  echo "The input file does not exist."
+  exit 0
+fi
 !;
     } else {
-        $output = qq"$options->{workdir}/$options->{fasta_tool}.stdout";
+        $output = qq"$options->{workdir}/$options->{fasta_tool}.out";
         $jstring = qq!
 cd $options->{basedir}
   $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
   $options->{input} \\
   $options->{library} \\
-  1>${output} \\
+  -O ${output} \\
+  1>${stdout} \\
   2>>${stderr}
 !;
     }

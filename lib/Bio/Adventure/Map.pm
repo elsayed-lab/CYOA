@@ -847,6 +847,9 @@ sub Hisat2 {
     }
     my $hisat_args = $class->Passthrough_Args(arbitrary => $options->{hisat_args});
     $hisat_args .= qq" -k $options->{maximum} " if (defined($options->{maximum}));
+    if ($options->{task} eq 'dnaseq') {
+        $hisat_args .= qq" --no-spliced_alignment ";
+    }
     my $prefix_name = 'hisat2';
     $prefix_name .= qq"_k$options->{maximum}" if (defined($options->{maximum}));
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";

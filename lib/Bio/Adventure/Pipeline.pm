@@ -684,7 +684,8 @@ sub Process_RNAseq {
                 print "\n${prefix}: Performing additional mapping against ${nth_species} with filtering.\n";
                 $nth_map = $class->Bio::Adventure::Map::Hisat2(
                     jdepends => $last_job,
-                    input => $first_map->{unaligned_comp},
+                    input => $first_map->{unaligned},  ## Not unaligned_comp
+                    ## because compression is at the end.
                     species => $nth_species,
                     stranded => $options->{stranded},
                     gff_type => $nth_type,

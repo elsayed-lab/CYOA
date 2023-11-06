@@ -222,6 +222,7 @@ mv \$(/bin/ls -d ${outdir}/\${badname}_fastqc) ${outdir}/${modified_input} 2>/de
         jmem => 1,
         jwalltime => '00:03:00',
         jdepends => $fqc->{job_id},);
+    $fqc->{stats} = $stats;
     return($fqc);
 }
 

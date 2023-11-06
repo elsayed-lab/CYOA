@@ -33,29 +33,12 @@ my $assemble = $cyoa->Bio::Adventure::Pipeline::Phage_Assemble(
 
 my $job_id;
 my $status;
-sub Wait_Until_Finished {
-    my %args = @_;
-    my $job = $args{id};
-    my $datum;
-    my $finished = 0;
-    my $failed = 0;
-    while ($finished < 1 && $failed < 1) {
-        sleep(5);
-        my $info = $cyoa->Bio::Adventure::Slurm::Check_Job(id => $job, write => 0);
-        $datum = $info->[0];
-        if ($datum->{State} eq 'COMPLETED') {
-            $finished++;
-            print "The job ${job}:$datum->{JobName} required $datum->{MaxVMSize}G memory, $datum->{MaxDiskWrite}G disk, and $datum->{'Elapsed'} time using $datum->{'AveCPUFreq'}Ghz.\n";
-        }
-    }
-    return($datum);
-}
 
 ## Check the trimomatic output.
 my $id = '01trim';
 $test_file = $assemble->{$id}->{stderr};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 my $comparison = ok(-f $test_file, qq"Checking trimomatic output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $expected = qq"Using PrefixPair: 'TACACTCTTTCCCTACACGACGCTCTTCCGATCT' and 'GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT'
@@ -83,7 +66,7 @@ $actual = qx"tail ${test_file}";
 $id = '02fastqc';
 $test_file = $assemble->{$id}->{txtfile};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking fastqc output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";
@@ -111,7 +94,7 @@ PASS\tAdapter Content\tr1-trimmed.fastq
 $id = '03correction';
 $test_file = $assemble->{$id}->{stdout};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking racer output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"grep changed ${test_file} | head";
@@ -138,7 +121,7 @@ Number of changed positions\t\t90
 $id = '04kraken_standard';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking standard kraken report: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 1 ${test_file}";
@@ -165,7 +148,7 @@ d__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacterales|f__Morg
 $id = '05host_filter';
 $test_file = $assemble->{$id}->{job_log};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking kraken filter output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"tail -n 2 ${test_file}";
@@ -184,7 +167,7 @@ if ($comparison) {
 $id = '06kraken_viral';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking kraken viral report: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -211,7 +194,7 @@ d__Viruses|k__Heunggongvirae|p__Uroviricota|c__Caudoviricetes|o__Caudovirales|f_
 $id = '07assembly';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking unicycler fasta output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 1 ${test_file}";
@@ -229,7 +212,7 @@ if ($comparison) {
 $id = '08depth_filter';
 $test_file = $assemble->{$id}->{output_log};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking depth filter output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
@@ -251,7 +234,7 @@ if ($comparison) {
 $id = '09phastaf';
 $test_file = $assemble->{$id}->{coordinates};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking phastaf coordinate file: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file} | awk '{print \$4}'";
@@ -278,7 +261,7 @@ if ($comparison) {
 $id = '10ictv';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking ICTV classifier output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 3 ${test_file} | awk '{print \$2}'";
@@ -298,7 +281,7 @@ if ($comparison) {
 $id = '11rosalindplus';
 $test_file = $assemble->{$id}->{job_log};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking Rosalindplus output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 2 ${test_file}";
@@ -318,7 +301,7 @@ if ($comparison) {
 $id = '12phageterm';
 $test_file = $assemble->{$id}->{output_type};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking phageterm output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
@@ -336,7 +319,7 @@ if ($comparison) {
 $id = '13coverage';
 $test_file = $assemble->{$id}->{output_tsv};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking coverage output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file} | awk '{print \$3}'";
@@ -356,7 +339,7 @@ if ($comparison) {
 $id = '14terminase_reorder';
 $test_file = $assemble->{$id}->{output_tsv};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking terminase search output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 3 ${test_file}";
@@ -377,7 +360,7 @@ AUV61411.1\t503\tAUV61411\tlarge terminase [Pontimonas phage phiPsal1]\t32.5\t0.
 $id = '15prokka';
 $test_file = $assemble->{$id}->{output_cds};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking prokka output file: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -405,7 +388,7 @@ if ($comparison) {
 $id = '16prodigal';
 $test_file = $assemble->{$id}->{output_cds};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking prodigal output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 7 ${test_file}";
@@ -434,7 +417,7 @@ if ($comparison) {
 $id = '17glimmer';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking glimmer result file: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -466,7 +449,7 @@ if ($comparison) {
 $id = '18phanotate';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking phanotate output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file} | head | awk '{print \$1}'";
@@ -522,7 +505,7 @@ if ($comparison) {
 $id = '19cds_merge';
 $test_file = $assemble->{$id}->{output_tsv};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking CDS merge output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -552,7 +535,7 @@ if ($comparison) {
 $id = '20jellyfish';
 $test_file = $assemble->{$id}->{histogram_file};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking jellyfish output tsv: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";
@@ -582,7 +565,7 @@ if ($comparison) {
 $id = '21aragorn';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking aragorn output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
@@ -602,7 +585,7 @@ if ($comparison) {
 $id = '22trnascan';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking trnascan output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"tail -n 4 ${test_file}";
@@ -624,7 +607,7 @@ if ($comparison) {
 $id = '23trinotate';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking trinotate output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 3 ${test_file} | awk '{print \$1}'";
@@ -645,7 +628,7 @@ if ($comparison) {
 $id = '24abricate';
 $test_file = $assemble->{$id}->{output_txt};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking abricate result: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"more ${test_file}";
@@ -677,7 +660,7 @@ if ($comparison) {
 $id = '25interproscan';
 $test_file = $assemble->{$id}->{output_tsv};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking interproscan output tsv: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"awk '{print \$1}' $test_file | sort | uniq | head -n 1";
@@ -696,7 +679,7 @@ if ($comparison) {
 $id = '26merge_qualities';
 $test_file = $assemble->{$id}->{output_log};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking merge_annotations output log: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -723,7 +706,7 @@ Adding phageterm DTRs.
 $id = '27merge_unmodified';
 $test_file = $assemble->{$id}->{output_log};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking merge_annotations stripped log: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -750,7 +733,7 @@ Adding phageterm DTRs.
 $id = '28cgview';
 $test_file = $assemble->{$id}->{output_xml};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking cgview output xml: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head -n 2 ${test_file}";
@@ -769,7 +752,7 @@ if ($comparison) {
 $id = '29rnafold';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking rnafold output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file} | head";
@@ -796,7 +779,7 @@ if ($comparison) {
 $id = '30research';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"The restriction endonuclease catalog exists: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -823,7 +806,7 @@ if ($comparison) {
 $id = '31caical';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking caical output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -850,7 +833,7 @@ if ($comparison) {
 $id = '32phagepromoter';
 $test_file = $assemble->{$id}->{output_fasta};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking phagepromoter output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file}";
@@ -877,7 +860,7 @@ if ($comparison) {
 $id = '33rhopredict';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking rhotermpredict output file: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"head ${test_file} | awk '{print \$2}'";
@@ -904,7 +887,7 @@ if ($comparison) {
 $id = '34bacphlip';
 $test_file = $assemble->{$id}->{output};
 $job_id = $assemble->{$id}->{job_id};
-$status = Wait_Until_Finished(id => $job_id);
+$status = $cyoa->Wait(job => $job_id);
 $comparison = ok(-f $test_file, qq"Checking bacphlip output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file}";

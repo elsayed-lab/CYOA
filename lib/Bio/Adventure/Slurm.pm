@@ -7,7 +7,6 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Cwd;
-use Data::Dumper;
 use File::Basename qw"basename dirname";
 use File::Path qw"make_path remove_tree";
 use File::ShareDir qw"dist_file module_dir dist_dir";
@@ -18,6 +17,7 @@ use List::Util qw"uniq";
 use POSIX qw"floor ceil";
 use Template;
 use Text::CSV;
+use Tie::Array::CSV;
 my $template_base = dist_dir('Bio-Adventure');
 my $template_dir = qq"${template_base}/templates";
 
@@ -146,14 +146,24 @@ sub BUILD {
 =cut
 sub Check_Job {
     my ($class, %args) = @_;
-    my $id = $args{id};
-    my $write = $args{write};
+    my $options = $class->Bio::Adventure::Get_Vars(
+        args => \%args);
+    my $id = $options->{input};
+    my $write = $options->{write};
     $write = 0 if (!defined($write));
     my @all_info = ();
     my @ids;
     my @names;
     if (defined($id)) {
-        @ids = split(/\s|\:/, $id);
+        my @tmp_ids = split(/\s|\:/, $id);
+      TMPID: for my $i (@tmp_ids) {
+          next TMPID unless defined($i);
+          if ($i =~ /^\d+$/) {
+              push(@ids, $i);
+          } else {
+              print "This id was inappropriately passed: ${i}\n";
+          }
+      }
     } else {
         print "No id provided, reading the jobs.txt file.\n";
         my $job_file = FileHandle->new("<outputs/logs/jobs.txt");
@@ -161,10 +171,16 @@ sub Check_Job {
           chomp $line;
           next JOBLOG if ($line =~ /^#/);
           my ($name, $type, $id) = split(/\s+/, $line);
-          push(@names, $name);
-          push(@ids, $id);
+          next JOBLOG unless ($type eq 'slurm');
+          if ($id =~ /^\d+/) {
+              push(@names, $name);
+              push(@ids, $id);
+          } else {
+              print "This entry is not in the expected format: ${line}\n";
+              next JOBLOG;
+          }
+          $job_file->close();
       }
-        $job_file->close();
     }
   IDS: for my $id (@ids) {
       next IDS if (!defined($id));
@@ -219,7 +235,7 @@ sub Check_Job {
                 ## AveCPUFreq: Average weighted CPU frequency of all tasks in job, in kHz.
                 if ($element eq 'AveCPUFreq') {
                     $element = $element * 1e3;
-
+                }
                 if (defined($element) && $element ne '') {
                     $job_info->{$key} = $element;
                 }
@@ -229,17 +245,51 @@ sub Check_Job {
       push(@all_info, $job_info);
       $info->close();
     } ## Finished iterating over every job ID
+
+    ## Here are the various categories returned by sacct, keep in mind
+    ## that different ones are given to each class of job (job,
+    ## job.batch, job.extern):
+    ## AllocCPUS,AllocTRES,AveCPU,AveCPUFreq,AveDiskRead,AveDiskWrite,AvePages,AveRSS,
+    ## AveVMSize,ConsumedEnergy,Elapsed,ExitCode,JobID,JobIDRaw,JobName,MaxDiskRead,
+    ## MaxDiskReadNode,MaxDiskReadTask,MaxDiskWrite,MaxDiskWriteNode,MaxDiskWriteTask,
+    ## MaxPages,MaxPagesNode,MaxPagesTask,MaxRSS,MaxRSSNode,MaxRSSTask,MaxVMSize,
+    ## MaxVMSizeNode,MaxVMSizeTask,MinCPU,MinCPUNode,MinCPUTask,NTasks,Partition,
+    ## ReqCPUFreqGov,ReqCPUFreqMax,ReqCPUFreqMin,ReqMem,ReqTRES,State,TRESUsageInAve,
+    ## TRESUsageInMax,TRESUsageInMaxNode,TRESUsageInMaxTask,TRESUsageInMin,
+    ## TRESUsageInMinNode,TRESUsageInMinTask,TRESUsageInTot,TRESUsageOutAve,
+    ## TRESUsageOutMax,TRESUsageOutMaxNode,TRESUsageOutMaxTask,TRESUsageOutTot
+    ## I am only interested in a relative few of them.
+
     ## Taken with minor modifications from:
     ## https://www.perlmonks.org/?node_id=11139481
-
-    ## AllocCPUS,AllocTRES,AveCPU,AveCPUFreq,AveDiskRead,AveDiskWrite,AvePages,AveRSS,AveVMSize,ConsumedEnergy,Elapsed,ExitCode,JobID,JobIDRaw,JobName,MaxDiskRead,MaxDiskReadNode,MaxDiskReadTask,MaxDiskWrite,MaxDiskWriteNode,MaxDiskWriteTask,MaxPages,MaxPagesNode,MaxPagesTask,MaxRSS,MaxRSSNode,MaxRSSTask,MaxVMSize,MaxVMSizeNode,MaxVMSizeTask,MinCPU,MinCPUNode,MinCPUTask,NTasks,Partition,ReqCPUFreqGov,ReqCPUFreqMax,ReqCPUFreqMin,ReqMem,ReqTRES,State,TRESUsageInAve,TRESUsageInMax,TRESUsageInMaxNode,TRESUsageInMaxTask,TRESUsageInMin,TRESUsageInMinNode,TRESUsageInMinTask,TRESUsageInTot,TRESUsageOutAve,TRESUsageOutMax,TRESUsageOutMaxNode,TRESUsageOutMaxTask,TRESUsageOutTot
+    if (scalar(@all_info) < 1) {
+        $write = 0;
+    }
 
     if ($write) {
         ## my @columns = sort +uniq(map keys %$_, @all_info);
-        my @columns = ('JobName', 'JobID', 'AllocCPUS', 'AveCPU', 'AveCPUFreq', 'AveDiskRead', 'AveDiskWrite', 'AvePages', 'AveRSS', 'AveVMSize', 'Elapsed', 'ExitCode', 'MaxDiskRead', 'MaxDiskWrite', 'MaxPages', 'MaxRSS', 'MaxVMSize', 'Partition', 'ReqMem', 'State');
-        my $csv = Text::CSV->new({auto_diag => 1, binary => 1, eol => $/});
-        my $out_csv = FileHandle->new(">outputs/logs/jobs.csv");
-      RECORDS: for my $record ({map { $_ => $_ } @columns}, @all_info) {
+        my @columns = ('JobName', 'JobID', 'AllocCPUS', 'AveCPU',
+                       'AveCPUFreq', 'AveDiskRead', 'AveDiskWrite',
+                       'AvePages', 'AveRSS', 'AveVMSize', 'Elapsed',
+                       'ExitCode', 'MaxDiskRead', 'MaxDiskWrite',
+                       'MaxPages', 'MaxRSS', 'MaxVMSize', 'Partition',
+                       'ReqMem', 'State');
+        my $jobs_csv = 'outputs/logs/jobs.csv';
+        my @data;
+        ## If the csv already exists, append a new record to it by creating a new array
+        ## from the existing data and adding the new stuff.
+        if (-r $jobs_csv) {
+            ## my $start = Text::CSV::csv(in => $jobs_csv, keep_headers => \@columns);
+            my $start = Text::CSV::csv(in => $jobs_csv);
+            @data = (@{$start}, @all_info);
+        } else {
+            @data = @all_info;
+        }
+        my $out_csv = FileHandle->new(qq">${jobs_csv}");
+        my $headers = \@columns;
+        my $csv = Text::CSV->new({auto_diag => 1, binary => 1,
+                                   eol => $/});
+      RECORDS: for my $record ({map { $_ => $_ } @columns}, @data) {
           next RECORDS if (!defined($record->{JobName}) or $record->{JobName} eq '');
           $csv->say($out_csv, [@$record{@columns}]);
       }
@@ -860,13 +910,13 @@ sub Get_QOS {
   QOS: while (my $line = <$qos>) {
       $count++;
       next QOS if ($count == 1);
-      ## Note that the cbcb cluster uses MaxJobsPU to limit the number of concurrent jobs allowed to run per QOS
-      ## and that it appears to not set a maximum number of cpus
+      ## Note that the cbcb cluster uses MaxJobsPU to limit the number of concurrent
+      ## jobs allowed to run per QOS and that it appears to not set a maximum number of cpus
       my ($name, $priority, $gracetime, $preempt, $preempt_exempt, $preempt_mode, $flags,
           $usage_thresh, $usage_factor, $group_tres, $group_tres_min, $group_tres_run_min,
           $group_jobs, $group_submit, $group_wall, $max_resources_per_job, $max_tres_per_node,
-          $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu, $max_tres_pa,
-          $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
+          $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu,
+          $max_tres_pa, $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
       my $max_job_cpu = 0;
       my $max_job_gpu = 0;
       my $max_job_mem = 0;
@@ -1191,6 +1241,10 @@ sub Get_Usage {
           $instance->{$partition}->{$account}->{$qos}->{running} = 1;
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
           $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
+      } elsif ($state eq 'FAILED') {
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 1;
+          $instance->{$partition}->{$account}->{$qos}->{running} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
       } else {
           ## I think I would like this to print some information about failed jobs perhaps here?
           $instance->{$partition}->{$account}->{$qos}->{running} = 0;
@@ -1223,28 +1277,6 @@ sub Get_Usage {
 sub Guess_Time {
     my %args = @_;
     print "Not yet implemented.\n";
-}
-
-sub Query_Job {
-    my ($class, $parent, %args) = @_;
-    my $class_jprefix = $class->{jprefix};
-    my $options = $parent->Get_Vars(
-        args => \%args,
-        jname => 'unknown',);
-    my $finished = 0;
-    my $failed = 0;
-    my $job = $options->{job_id};
-    my $datum;
-    while ($finished < 1 && $failed < 1) {
-        sleep(10);
-        my $info = $class->Bio::Adventure::Slurm::Check_Job(id => $job, write => 0);
-        $datum = $info->[0];
-        if ($datum->{State} eq 'COMPLETED') {
-            $finished++;
-            print "The job ${job}:$datum->{JobName} required $datum->{MaxVMSize}G memory, $datum->{MaxDiskWrite}G disk, and $datum->{'Elapsed'} time using $datum->{'AveCPUFreq'}Mhz.\n";
-        }
-    }
-    return($datum);
 }
 
 =head2 C<Submit>
@@ -1453,17 +1485,20 @@ ${perl_file} \\
         $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
         $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
         $script_start .= qq"${array_string}\n" if ($array_string);
-        $script_start .= qq?set -o errexit
+        $script_start .= qq?startdir=\$(pwd)
+set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
 function get_sigterm {
+  cd "\${startdir}"
   echo "A SIGTERM was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive time usage." >> ${sbatch_log}
   exit 1
 }
 trap get_sigterm SIGTERM
 function get_sigerr {
+  cd "\${startdir}"
   echo "A ERR was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive memory usage." >> ${sbatch_log}
   exit 1
 }
@@ -1475,25 +1510,25 @@ trap get_sigerr ERR
         ## really is not necessary now because I have errexit on.
         my $script_end = qq!
 ## The following lines give status codes and some logging
+## This might not work because it is a little circular.
+cd \${startdir}
 minutes_used=\$(( SECONDS / 60 ))
 echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \${minutes_used} minutes." >> ${sbatch_log}
 if [[ -x "\$(command -v sstat)" && -n "\${SLURM_JOBID}" ]]; then
   echo "  walltime used by \${SLURM_JOBID} was: \${minutes_used:-null} minutes." >> ${sbatch_log}
   echo "" >> ${sbatch_log}
 fi
+## Note, you can score a bunch more information by running cyoa --method checkjob from the working directory.
 !;
-
         my $total_script_string = '';
         $total_script_string .= qq"${script_start}\n";
         $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
         $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
         ## The prescript contains the module() definition when needed.
         ## So put that after it.
-
         $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
         $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
         $total_script_string .= "${script_end}\n";
-
         my $script = FileHandle->new(">$script_file");
         if (!defined($script)) {
             die("Could not write the script: $script_file
@@ -1547,6 +1582,7 @@ fi
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
     $parent->{language} = 'bash';
+    make_path('outputs/logs');
     my $job_logger = FileHandle->new(">>outputs/logs/jobs.txt");
     print $job_logger "${jname}\tslurm\t${job_id}\n";
     $job_logger->close();
@@ -1571,6 +1607,64 @@ echo "Ending test job."
         jmem => $options->{jmem},
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});
+}
+
+=head2 C<Wait>
+
+  Wait until a slurm job has finished and provide some information
+  about the resources it used.  This should be extended slightly to
+  help figure out if/why a job failed.
+
+=cut
+sub Wait {
+    my ($class, %args) = @_;
+    my $finished = 0;
+    my $failed = 0;
+    my $job = $args{job};
+    my $id;
+    if (ref($job) eq 'HASH') {
+        if (defined($job->{jobids})) {
+            $id = $job->{jobids};
+        } else {
+            $id = $job->{job_id};
+        }
+    } else {
+        $id = $job;
+    }
+
+    my $datum;
+    my $wait_count = {
+        pending => 0,
+        finished => 0,
+        running => 0,
+        cancelled => 0,
+        failed => 0,
+    };
+    while ($wait_count->{finished} < 1 && $wait_count->{failed} < 1) {
+        sleep(10);
+        my $info = $class->Bio::Adventure::Slurm::Check_Job(input => $id, write => 0);
+        $datum = $info->[0];
+        if ($datum->{State} eq 'COMPLETED') {
+            $wait_count->{finished}++;
+            print qq"The job ${id}:$datum->{JobName} required $datum->{MaxVMSize}G memory, ";
+            print qq"$datum->{MaxDiskWrite}G disk, and ";
+            print qq"$datum->{'Elapsed'} time using $datum->{'AveCPUFreq'}Mhz.\n";
+        } elsif ($datum->{State} eq 'PENDING') {
+            $wait_count->{pending}++;
+            print "This job is still pending, it may be restarting.\n";
+        } elsif ($datum->{State} eq 'CANCELLED') {
+            $wait_count->{cancelled}++;
+            $wait_count->{finished}++;
+            print "This job was cancelled.\n";
+        } elsif ($datum->{State} eq 'RUNNING') {
+            $wait_count->{running}++;
+        } elsif ($datum->{State} eq 'FAILED') {
+            $wait_count->{failed}++;
+        } else {
+            print "I need to collect the various states, this one is: $datum->{State}.\n";
+        }
+    }
+    return($datum);
 }
 
 =head1 AUTHOR - atb

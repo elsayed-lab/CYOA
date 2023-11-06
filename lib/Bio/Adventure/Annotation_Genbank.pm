@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Data::Dumper;
 use Data::Printer;
 use Cwd qw"abs_path getcwd cwd";
 use Data::Table;
@@ -246,8 +245,6 @@ sub Extract_Features {
         my $type = $feat->primary_tag;
         my @names = $feat->get_tag_values($options->{id_tag});
         my $name = $names[0];
-        ## use Data::Dumper;
-        ## print Dumper $feat;
         my @tags = $feat->get_all_tags();
         my $chosen_tag = undef;
         if (defined($options->{id_tag}) && $options->{id_tag} ne '') {
@@ -1415,8 +1412,6 @@ sub Write_Tbl_from_SeqFeatures {
       print $tbl_fh ">Feature ${sid}\n";
     INNERFEATURE: for my $f (@features) {
         my $feature_name = $f->display_name;
-        ## use Data::Dumper;
-        ## print Dumper $f;
         next INNERFEATURE unless ($contig_to_orf{$feature_name} eq $sid);
         print "In ${sid} working on $feature_name\n";
         if ($f->primary_tag eq 'source') {

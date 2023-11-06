@@ -1,9 +1,13 @@
 package Bio::Adventure::Config;
+use Modern::Perl;
+use autodie qw":all";
+use diagnostics;
+use warnings qw"all";
 use Exporter;
 use Getopt::Long qw"GetOptionsFromArray";
 
-@EXPORT = qw"Get_Modules Get_Menus Get_TODOs";
-@ISA = qw"Exporter";
+our @EXPORT = qw"Get_Modules Get_Menus Get_TODOs";
+our @ISA = qw"Exporter";
 
 =head2 C<Get_Menus>
 
@@ -426,6 +430,7 @@ sub Get_Modules {
                         'bcftools', 'vcftools'], },
         'Sort_Indexes' => { modules => 'cyoa' },
         'Split_Align_Blast' => { modules => ['cyoa', 'blast', 'blastdb'], exe => 'blastn' },
+        'Split_Align_Fasta' => { modules => ['cyoa', 'fasta',], exe => 'fasta36' },
         'STAR' => { modules => 'star' },
         'STAR_Index' => { modules => ['star'] },
         'Suppa' => { modules => ['suppa'] },
@@ -473,7 +478,7 @@ sub Get_Modules {
             }
         }
     } else {
-        print "The function: $function does not appear to have defined modules.\n" if ($options->{debug});
+        print "The function: $function does not appear to have defined modules.\n" if ($args{debug});
         $datum = {};
     }
     return(%{$datum});
@@ -516,7 +521,8 @@ sub Get_TODOs {
         "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
         "casfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Casfinder'},
         "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
-        "checkslurm+" => \$todo_list->{todo}{'Bio::Adventure::Slurm::Check_Job'},
+        "checkslurm+" => \$todo_list->{todo}{'Bio::Adventure::Check_Job'},
+        "checkjob+" => \$todo_list->{todo}{'Bio::Adventure::Check_Job'},
         "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
         "cogent+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cogent'},
         "collectassembly+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Collect_Assembly'},

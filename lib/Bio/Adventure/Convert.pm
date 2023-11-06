@@ -115,12 +115,12 @@ sub Gb2Gff_Worker {
         output_gene_gff => 'gene_gff',
         required => ['input']);
 
-    my $in = FileHandle->new("less $options->{input} |");
-    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $handle = IO::Handle->new;
+    open($handle, "less $options->{input} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $handle);
     my $seq_count = 0;
     my $total_nt = 0;
     my $feature_count = 0;
-
     my $fasta = Bio::SeqIO->new(-file => qq">$options->{output_fasta}",
                                 -format => 'fasta', -flush => 0);
     my $gffout = Bio::Tools::GFF->new(-file => ">$options->{output_all_gff}",
@@ -137,8 +137,10 @@ sub Gb2Gff_Worker {
                                     -format => 'Fasta');
     my $rrna_gffout = Bio::Tools::GFF->new(-file => ">$options->{output_rrna_gff}", -gff_version => 3);
     my $rrna_fasta = Bio::SeqIO->new(-file => qq">$options->{output_rrna_fasta}", -format => 'Fasta');
+    print "TESTME: Starting to write features\n";
     while (my $seq = $seqio->next_seq) {
         $seq_count++;
+        print "Writing feature: $seq_count\n";
         $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);
         print "Wrote ${seq_count} features.\n";
@@ -337,7 +339,7 @@ sub Gb2Gff_Worker {
         rrna_gff => $options->{output_rrna_gff},
         rrna_fasta => $options->{output_rrna_fasta},
     };
-    close($in);
+    close($handle);
     $fasta->close();
     $gffout->close();
     $gene_gff->close();

@@ -59,7 +59,10 @@ sub Concatenate_Searches {
     my $comment_string = qq"## Concatenating the output files into ${output}
 ";
     my $jstring = qq!
-rm -f ${output} && for i in \$(/bin/ls outputs/split/*.stdout); do xz -9e -c \$i >> ${output}; done
+rm -f ${output}
+for i in \$(/bin/ls outputs/split/*.out); do
+  xz -9e -c \$i >> ${output}
+done
 !;
     my $concatenate = $class->Submit(
         comment => $comment_string,
@@ -222,13 +225,15 @@ sub Make_Directories {
         args => \%args,
         num_per_split => 100,
         align_jobs => 40,);
-    my $num_per_split = $options->{num_per_split};
+    my $split_info = $options->{num_per_split};
+    my $num_per_split = $split_info->{num_per_split};
+    my $sequences = $split_info->{seqs};
     my $splits = $options->{align_jobs};
     my $workdir = $options->{workdir};
     ## I am choosing to make directories starting at 1000
     ## This way I don't have to think about the difference from
     ## 99 to 100 (2 characters to 3) as long as no one splits more than 9000 ways...
-    print "Make_Directories: Making $options->{align_jobs} directories with $options->{num_per_split} sequences.\n";
+    print "Make_Directories: Making $options->{align_jobs} directories with ${num_per_split} sequences.\n";
     my $dir = $options->{array_start};
 
     remove_tree("outputs/split", {verbose => 0 });
@@ -517,6 +522,11 @@ orthofinder -f $options->{input} \\
 mv ${outdir}/output/Results_${month_date}/* ${outdir}/output
 rmdir ${outdir}/output/Results_${month_date}
 !;
+    my $orthofinder_all_output = qq"${outdir}/output/Orthogroups/Orthogroups.tsv";
+    my $orthofinder_single_output = qq"${outdir}/output/Orthogroups/Orthogroups_SingleCopyOrthologues.txt";
+    my $namer_out = qq"${outdir}/orthogroups_all_named.tsv";
+    my $single_out = qq"${outdir}/orthogroups_single_named.tsv";
+    my $fasta_dir = dirname($options->{input});
     my $ortho = $class->Submit(
         comment => $comment,
         input => $options->{input},
@@ -525,14 +535,12 @@ rmdir ${outdir}/output/Results_${month_date}
         jname => ${jname},
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        output => $orthofinder_all_output,
+        single_out => $orthofinder_single_output,
+        named_out => $namer_out,
+        single_name_out => $single_out,
         stderr => $stderr,
         stdout => $stdout,);
-
-    my $orthofinder_all_output = qq"${outdir}/output/Orthogroups/Orthogroups.tsv";
-    my $orthofinder_single_output = qq"${outdir}/output/Orthogroups/Orthogroups_SingleCopyOrthologues.txt";
-    my $namer_out = qq"${outdir}/orthogroups_all_named.tsv";
-    my $single_out = qq"${outdir}/orthogroups_single_named.tsv";
-    my $fasta_dir = dirname($options->{input});
     $comment = qq'## Extracting ortholog names.';
     $stdout = qq"${outdir}/name_orthogroups.stdout";
     $stderr = qq"${outdir}/name_orthogroups.stderr";
@@ -541,6 +549,8 @@ rmdir ${outdir}/output/Results_${month_date}
 my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
   all_input => '$orthofinder_all_output',
   single_input => '$orthofinder_single_output',
+  named_out => '$namer_out',
+  single_name_out => '$single_out',
   fasta_dir => '$fasta_dir',
   stdout => '$stdout',
   stderr => '$stderr',);
@@ -554,8 +564,13 @@ my \$result = \$h->Bio::Adventure::Align::Orthofinder_Names_Worker(
         jname => $jname,
         language => 'perl',
         single_input => $orthofinder_single_output,
+        output => $orthofinder_all_output,
+        single_out => $orthofinder_single_output,
+        named_out => $namer_out,
+        single_name_out => $single_out,
         stdout => $stdout,
         stderr => $stderr,);
+    $ortho->{namer} = $namer;
     return($ortho);
 }
 
@@ -564,14 +579,17 @@ sub Orthofinder_Names_Worker {
     my $options = $class->Get_Vars(
         args => \%args,
         jmem => 24,
+        named_out => 'all_orthogroups_named.tsv',
+        single_name_out => 'single_orthogroups_named.tsv',
         jprefix => '50',);
     my $protein_desc = {};
     my $ortho_names = {};
     my $all_groups = $options->{all_input};
     my $single_groups = $options->{single_input};
     my $outdir = dirname($all_groups);
-    my $all_out = qq"${outdir}/all_orthogroups_named.tsv";
-    my $single_out = qq"${outdir}/single_orthogroups_named.tsv";
+    my $all_out = $options->{named_out};
+    my $single_out = $options->{single_name_out};
+    print "TESTME: $all_out and $single_out\n";
     my $fasta_dir = $options->{fasta_dir};
     my @input_files = glob("${fasta_dir}/*.fa*");
     for my $in (@input_files) {
@@ -603,9 +621,6 @@ sub Orthofinder_Names_Worker {
       }
         print "Finished extracting ids from: ${species_name}.\n";
     }
-    ##use Data::Dumper;
-    ##print Dumper $protein_desc;
-
     print "Opening: ${all_groups}\n";
     my $orth = FileHandle->new("<${all_groups}");
     print "Opening: ${all_out}\n";

@@ -7,6 +7,9 @@ use Moo;
 use vars qw"$VERSION";
 use feature qw"try";
 no warnings qw"experimental::try";
+use Exporter;
+our @EXPORT = qw"Submit Wait";
+our @ISA = qw"Exporter";
 
 use AppConfig qw":argcount :expand";
 use Bio::SeqIO;
@@ -126,7 +129,7 @@ has bamfile => (is => 'rw', default => undef); ## Default bam file for convertin
 has basedir => (is => 'rw', default => cwd());  ## This was cwd() but I think that may cause problems.
 has bash_path => (is => 'rw', default => scalar_which('bash'));
 has best_only => (is => 'rw', default => 0); ## keep only the best search result when performing alignments?
-has blast_params => (is => 'rw', default => ' -e 10 '); ## Default blast parameters
+has blast_args => (is => 'rw', default => ' -evalue 10 '); ## Default blast parameters
 has blast_tool => (is => 'rw', default => 'blastn'); ## Default blast tool to use
 has bt_default => (is => 'rw', default => '--best'); ## Default bt1 arguments.
 has bt_varg => (is => 'rw', default => '-v 0');
@@ -150,6 +153,7 @@ has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your 
 has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
 has deduplicate => (is => 'rw', default => 1); ## Perform deduplication when using fastp
+has delimiter => (is => 'rw', default => '\,|\;|:');
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
 has do_umi => (is => 'rw', default => 1); ## Extract UMIs when using fastp
 has download => (is => 'rw', default => 1);
@@ -194,7 +198,7 @@ has input_umi => (is => 'rw', default => 'umi.txt');
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
-has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
+has jobids => (is => 'rw', default => ''); ## A place to put running jobids, resurrected!
 has jbasename => (is => 'rw', default => basename(cwd())); ## Job basename
 has jcpu => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jgpu => (is => 'rw', default => 0);
@@ -212,6 +216,7 @@ has jtemplate => (is => 'rw', default => undef);
 has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
 has language => (is => 'rw', default => 'bash'); ## What kind of script is this?
+has last_job => (is => 'rw', default => '');  ## Last job in a chain.
 has length => (is => 'rw', default => 17); ## kmer length, other stuff too.
 has libdir => (is => 'rw', default => "\${HOME}/libraries"); ## Directory containing genomes/gff/indexes
 has libpath => (is => 'rw', default => "$ENV{HOME}/libraries");
@@ -296,6 +301,7 @@ has verbose => (is => 'rw', default => 0); ## Print extra information while runn
 has vcf_cutoff => (is => 'rw', default => 5); ## Minimum depth cutoff for variant searches
 has vcf_method => (is => 'rw', default => 'freebayes');
 has vcf_minpct => (is => 'rw', default => 0.8); ## Minimum percent agreement for variant searches.
+has write => (is => 'rw', default => 1); ## Write outputs?
 ## A few variables which are by definition hash references and such
 has slots_ignored => (is => 'ro', default => 'slots_ignored,methods_to_run,menus,term,todos,variable_getvars_args,variable_function_overrides,variable_getopt_overrides,variable_current_state');  ## Ignore these slots when poking at the class.
 has methods_to_run => (is => 'rw', default => undef); ## Set of jobs to run.
@@ -429,14 +435,15 @@ $ENV{PATH}.") unless($check);
     ## Take just hpgl0523 as the job basename
     my $job_basename = '';
     my @suffixes = ('.gz', '.xz', '.bz2');
+    my $splitter = qq"/:|\;|\,/";
     if (defined($class->{suffixes})) {
-        @suffixes = split(/,/, $class->{suffixes});
+        @suffixes = split($splitter, $class->{suffixes});
     }
     if (defined($class->{input})) {
         $job_basename = $class->{input};
         ## Start by pulling apart any colon/comma separated inputs
-        if ($job_basename =~ /:|\,/) {
-            my @tmp = split(/:|\,/, $job_basename);
+        if ($job_basename =~ $splitter) {
+            my @tmp = split($splitter, $job_basename);
             ## Remove likely extraneous information
             $job_basename = $tmp[0];
         }
@@ -519,6 +526,19 @@ sub Check_Input {
         }
     }
     return($found);
+}
+
+sub Check_Job {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args);
+    my $result;
+    if ($options->{cluster} eq 'slurm') {
+        $result = $class->Bio::Adventure::Slurm::Check_Job(%args);
+    } else {
+        print "This runner doesn't yet have a Check_Job.\n";
+    }
+    return($result);
 }
 
 sub Check_Libpath {
@@ -1139,18 +1159,21 @@ the arbitrary string starts with a dash, it will leave it alone.
 
 Thus:
 
---arbitrary ':--funkytown=bob;L 10,very-sensitive'
+--arbitrary ',--funkytown=bob;L 10,very-sensitive'
 
 Will get the following arguments passed to your downstream tool:
 
 '--funkytown=bob -L 10 --very-sensitive'.
+
+ Note, since trimomatic uses colons, I excluded them from the default delimiter.
 
 =cut
 sub Passthrough_Args {
     my ($class, %args) = @_;
     my $argstring = $args{arbitrary};
     my $new_string = '';
-    for my $arg (split /\,|:|\;/, $argstring) {
+    my $splitter = qr/\,|\;/;
+    for my $arg (split($splitter, $argstring)) {
         if ($arg =~ /^\w{1}$|^\w{1}\W+/) {
             ## print "Single letter arg passthrough\n";
             $arg = qq" -${arg} ";
@@ -1446,7 +1469,41 @@ module add ';
     my $result = $runner->Submit($class, %args);
     my $unloaded = $class->Module_Reset(env => $loaded);
     $class = $class->Reset_Vars();
+    if ($class->{jobids} eq '') {
+        $class->{jobids} = $result->{job_id};
+    } else {
+        $class->{jobids} = qq"$class->{jobids}:$result->{job_id}";
+    }
+    $class->{last_job} = $class->{job_id};
     return($result);
+}
+
+=head2 C<Wait>
+
+Wait on a job, when possible collect information about it.
+
+=cut
+sub Wait {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args);
+    my $status = undef;
+    if ($options->{cluster} eq 'slurm') {
+        $status = $class->Bio::Adventure::Slurm::Wait(%args);
+    } elsif ($options->{cluster} eq 'torque') {
+        $status = $class->Bio::Adventure::Torque::Wait(%args);
+    } elsif ($options->{cluster} eq 'bash') {
+        ## I should probably have something to handle gracefully bash jobs.
+        $status = $class->Bio::Adventure::Local::Wait(%args);
+    } elsif ($options->{cluster} eq '0') {
+        ## On occasion I set cluster to 0 which is bash.
+        $status = $class->Bio::Adventure::Local::Wait(%args);
+    } else {
+        carp("Could not find sbatch, qsub, nor bash.");
+        print "Assuming this is running on a local shell.\n";
+        return(undef);
+    }
+    return($status);
 }
 
 sub Adventure_Help {

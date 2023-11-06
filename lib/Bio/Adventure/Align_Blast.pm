@@ -44,7 +44,6 @@ use POSIX qw"ceil";
  blast_format(5): This needs to be one of the parseable formats, which seems
   to change over time.
  blast_tool('blastn'): Which blast tool to use
- blast_params(''): Choose the appropriate arbitrary blast parameters here.
  library(nr): Choose a blast database.
  query(required): This ought to be changed to input.
  align_jobs(40): How many jobs to create.
@@ -57,17 +56,19 @@ sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         blast_format => 5,
         jdepends => '',
         jmem => 24,);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
-    my $array_end = 1000 + $options->{align_jobs};
-    my $array_string = qq"1000-${array_end}";
+    my $array_end = 100 + $options->{align_jobs};
+    my $array_string = qq"100-${array_end}";
+    my $blast_args = $class->Passthrough_Args(arbitrary => $options->{blast_args});
 
     ## Handle array job types for slurm/torque.
     my $queue_array_string = 'SLURM_ARRAY_TASK_ID';
-    if ($options->{pbs} eq 'torque') {
+    if ($options->{cluster} eq 'torque') {
         $queue_array_string = 'PBS_ARRAYID';
     }
 
@@ -82,21 +83,27 @@ sub Make_Blast_Job {
         sleep(3);
     }
     my $jstring = '';
-    if ($options->{pbs}) {
+    if ($options->{cluster}) {
         $jstring = qq!
 cd $options->{basedir}
-$options->{blast_tool} -outfmt $options->{blast_format} \\
- -query $options->{basedir}/split/\${${queue_array_string}}/in.fasta \\
- -db ${library} $options->{blast_params} \\
- -out $options->{basedir}/outputs/\${${queue_array_string}}.out \\
- 1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
- 2>>$options->{basedir}/split_align.stderr
+export BLASTDB=$ENV{BLASTDB}
+if [[ -f "outputs/split/\${$queue_array_string}/in.fasta" ]]; then
+  $options->{blast_tool} -outfmt $options->{blast_format} \\
+    -query $options->{basedir}/outputs/split/\${${queue_array_string}}/in.fasta \\
+    -db ${library} ${blast_args} \\
+    -out $options->{basedir}/outputs/split/\${${queue_array_string}}.out \\
+    1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
+    2>>$options->{basedir}/split_align.stderr
+else
+  echo "The input does not exist."
+  exit 0
+fi
 !;
     } else {
         $jstring = qq!
 cd $options->{basedir}
 $options->{blast_tool} -outfmt $options->{blast_format} \\
-  -query $options->{query} \\
+  -query $options->{input} \\
   -db ${library} \\
   -out $options->{basedir}/outputs/$options->{blast_tool}.out \\
   1>$options->{basedir}/outputs/$options->{blast_tool}.stdout \\
@@ -143,7 +150,7 @@ sub Merge_Parse_Blast {
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
-my \$h = Bio::Adventure->new(input => \$input);
+\$h = Bio::Adventure->new(input => \$input);
 my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blastxml',);
 !;
     my $parse = $class->Submit(
@@ -188,8 +195,7 @@ sub Parse_Blast {
     my $output = $input;
     my $best = $options->{best_only};
     my $search_type = $options->{search_type};
-    $output =~ s/\.txt\.gz//g;
-    $output .= '_parsed.txt';
+    $output =~ s/\.txt\.xz/_parsed.txt/g;
     print "Writing parsed output to ${output}\n";
     my $count_table = $output;
     $count_table =~ s/_parsed\.txt/_counts\.txt/g;
@@ -454,7 +460,7 @@ sub Split_Align_Blast {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'library',],
-        param => ' -e 10 ',
+        param => ' -evalue 10 ',
         blast_tool => 'blastn',
         align_jobs => 40,
         align_parse => 0,
@@ -488,11 +494,12 @@ blastp is normal protein/protein.
     my $output = qq"${outdir}/${que}_vs_${lib}.txt";
     my $concat_job;
     $lib = $class->Bio::Adventure::Index::Check_Blastdb(%args);
-    if ($options->{pbs}) {
-        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
+    if ($options->{cluster}) {
+        my $split_info = $class->Bio::Adventure::Align::Get_Split(%args);
+        my $num_per_split = $split_info->{num_per_split};
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(%args,
-            num_per_split => $num_per_split);
+            num_per_split => $split_info);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
@@ -504,7 +511,7 @@ blastp is normal protein/protein.
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         print "Not using the cluster.\n";
-        $options = $class->Set_Vars(align_jobs => 1);
+        ## $options = $class->Set_Vars(align_jobs => 1);
         ## $class->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split();
         $options = $class->Set_Vars(num_per_split => $num_per_split);
@@ -518,7 +525,11 @@ blastp is normal protein/protein.
             output => ${output},);
     }
 
-    my $parse_input = cwd() . qq"/$concat_job->{output}";
+    my $parse_input = $concat_job->{output};
+    my $parse_output = $parse_input;
+    $parse_output =~ s/\.txt\.xz/_parsed.txt/g;
+    my $count_output = $parse_input;
+    $count_output =~ s/_parsed\.txt/_counts\.txt/g;
     my $comment_string = qq!## I don't know if this will work.!;
     my $jstring = qq?
 use Bio::Adventure;
@@ -528,15 +539,20 @@ my \$h = new Bio::Adventure;
 my \$result = Bio::Adventure::Align::Parse_Search(
   \$h, input => '${parse_input}',
   search_type => 'blastxml',
-  best => $args{best_only});
+  parsed_output => '$parse_output',
+  count_output => '$count_output',
+  best => $options->{best_only});
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
+        count_output => $count_output,
         jdepends => $concat_job->{job_id},
         jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',);
+        language => 'perl',
+        parsed_output => $parse_output,);
+    $concat_job->{parser} = $parse_job;
     return($concat_job);
 }
 

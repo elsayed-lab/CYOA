@@ -2077,8 +2077,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     my $best_query_strand;
     my $best_hit_strand;
   SCANNER: foreach my $query_id (keys %{$result_data}) {
-      use Data::Dumper;
-      print Dumper $result_data->{$query_id};
       my $query_description = $result_data->{$query_id}->{query_description};
       my @hit_arr = @{$result_data->{$query_id}->{hit_data}};
       my $hits = scalar(@hit_arr);
