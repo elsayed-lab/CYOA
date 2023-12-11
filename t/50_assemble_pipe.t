@@ -397,7 +397,8 @@ $test_file = $assemble->{'18phanotate'}->{output};
 $comparison = ok(-f $test_file, qq"Checking phanotate output: ${test_file}");
 print "Passed.\n" if ($comparison);
 $actual = qx"less ${test_file} | head | awk '{print \$1}'";
-$expected = qq"#id:
+## Different versions of phanotate give slightly different outputs...
+my $expected_first = qq"#id:
 #START
 1
 183
@@ -408,19 +409,35 @@ $expected = qq"#id:
 1931
 2128
 ";
-
+my $expected_second = qq"#id:
+#START
+<1
+183
+477
+1148
+1267
+1773
+1931
+2128
+";
 ## Here is the previous result, which just used head -n 5 for no good reason.
 ## #id:\tgnl|Prokka|test_output_1
 ## #START\tSTOP\tFRAME\tCONTIG\tSCORE
 ## 1\t117\t+\tgnl|Prokka|test_output_1\t-1.248555528686707940866691777\t
 ## 183\t302\t+\tgnl|Prokka|test_output_1\t-0.2175130562377134455954126775\t
 ## 477\t617\t+\tgnl|Prokka|test_output_1\t-0.07018008835792925643848556090\t
-
-$comparison = ok($expected eq $actual, 'Checking phanotate output:');
+my $something_good = 0;
+if ($expected_first eq $actual) {
+    $something_good++;
+}
+if ($expected_second eq $actual) {
+    $something_good++;
+}
+$comparison = ok($something_good, 'Checking phanotate output:');
 if ($comparison) {
     print "Passed.\n";
 } else {
-    my ($e, $a) = diff($expected, $actual);
+    my ($e, $a) = diff($expected_first, $actual);
     diag("-- expected\n${e}\n-- actual\n${a}\n");
 }
 

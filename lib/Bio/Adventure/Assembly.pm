@@ -1,6 +1,4 @@
 package Bio::Adventure::Assembly;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -9,7 +7,6 @@ use warnings qw"all";
 no warnings 'experimental::try';
 use Moo;
 extends 'Bio::Adventure';
-
 use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Spec;
@@ -39,6 +36,8 @@ no warnings 'experimental::try';
  little work to try to optimize k.  Abyss is the first program I have
  ever seen which uses make as an interpreter.
 
+=over
+
 =item C<Arguments>
 
  input(required): one or more fastq files to assemble.
@@ -58,12 +57,7 @@ sub Abyss {
         args => \%args,
         required => ['input'],
         k => 41,
-        jmem => 12,
-        modules => ['abyss'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('abyss-pe');
-    die('Could not find abyss in your PATH.') unless($check);
-
+        jmem => 12,);
     my $job_name = $class->Get_Job_Name();
     my %abyss_jobs = ();
     my $outname = basename(cwd());
@@ -100,17 +94,15 @@ cd \${start}
         jdepends => $options->{jdepends},
         jname => "abyss_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         output => qq"${output_dir}/${outname}.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($abyss);
 }
+
+=back
 
 =head2 C<Assembly_Coverage>
 
@@ -126,6 +118,8 @@ cd \${start}
  should provide in effect a metric of the amount of bacterial
  contamination which snuck past previous filters.
 
+=over
+
 =item C<Arguments>
 
  input(required): Filename(s) of corrected/filtered reads which were
@@ -133,7 +127,7 @@ cd \${start}
  library(required): Filename of the assembly.
  jmem(12): Memory allocated on the cluster.
  jprefix(14): job name/output directory prefix.
- modules('hisat', 'bbmap'): Environment modules loaded to run this.
+ modules('hisat2', 'bbmap'): Environment modules loaded to run this.
 
 =item C<Invocation>
 
@@ -147,9 +141,7 @@ sub Assembly_Coverage {
         required => ['input', 'library'],
         ## input is the corrected/filtered reads, library is the assembly
         jmem => 18,
-        jprefix => 14,
-        modules => ['hisat', 'samtools', 'bbmap'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => 14,);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}assembly_coverage_${outname}";
@@ -213,9 +205,7 @@ samtools index ${output_dir}/coverage.bam \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'workstation',
         jwalltime => '4:00:00',
-        modules => $options->{modules},
         output => qq"${output_dir}/coverage.txt",
         output_bam => qq"${output_dir}/coverage.bam",
         output_tsv => qq"${output_dir}/coverage.tsv",
@@ -223,10 +213,10 @@ samtools index ${output_dir}/coverage.bam \\
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($coverage);
 }
+
+=back
 
 =head2 C<Collect_Assembly>
 
@@ -236,6 +226,8 @@ samtools index ${output_dir}/coverage.bam \\
  files/directories.  Choosing the appropriate final outputs can be a
  bit daunting.  This function defines a few likely candidates and
  copies them to a single working directory.
+
+=over
 
 =item C<Arguments>
 
@@ -294,6 +286,8 @@ cp $options->{input_tsv} ${output_dir}
     return($collect);
 }
 
+=back
+
 =head2 C<Unicycler_Filter_Depth>
 
  Parse unicycler contig headers, extract relative coverage, and filter.
@@ -305,6 +299,8 @@ cp $options->{input_tsv} ${output_dir}
  only 1 contig, just return it with depth set to 1.  This should be
  trivially improved to handle other assembly methods by using the
  coverage calculation script above.
+
+=over
 
 =item C<Arguments>
 
@@ -349,7 +345,6 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"filter_depth_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
         output => $output,
@@ -358,6 +353,8 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
         postscript => $options->{postscript},);
     return($depth_filtered);
 }
+
+=back
 
 =head2 C<Unicycler_Filter_Worker>
 
@@ -370,6 +367,8 @@ my \$result = Bio::Adventure::Assembly::Unicycler_Filter_Worker(\$h,
  only 1 contig, just return it with depth set to 1.  This should be
  trivially improved to handle other assembly methods by using the
  coverage calculation script above.
+
+=over
 
 =item C<Arguments>
 
@@ -468,6 +467,8 @@ Writing filtered contigs to $options->{output}
     return($final_coverage_data);
 }
 
+=back
+
 =head2 C<Shovill>
 
  Perform a shovill/spades assembly. https://github.com/tseemann/shovill
@@ -476,6 +477,8 @@ Writing filtered contigs to $options->{output}
  assemblers. Shovill is one of them, and very feature-full.  Shovill
  has a lot of interesting options, this only includes a few at the
  moment.
+
+=over
 
 =item C<Arguments>
 
@@ -499,11 +502,7 @@ sub Shovill {
         depth => 40,
         jmem => 12,
         jprefix => '13',
-        arbitrary => '',
-        modules => ['shovill',]);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('shovill');
-    die('Could not find shovill in your PATH.') unless($check);
+        arbitrary => '',);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}shovill";
@@ -537,16 +536,13 @@ fi
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'workstation',
-        modules => $options->{modules},
         output => qq"${output_dir}/final_assembly.fasta",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($shovill_job);
 }
 
+=back
 
 =head2 C<Trinity>
 
@@ -554,6 +550,8 @@ fi
 
  This function invokes trinity along with its default set of
  post-processing tools.
+
+=over
 
 =item C<Arguments>
 
@@ -573,42 +571,49 @@ sub Trinity {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
+        clean => 1,
         contig_length => 600,
+        jcpu => 8,
         jmem => 80,
-        jprefix => '60',
-        modules => ['trinity'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('Trinity');
-    die('Could not find trinity in your PATH.') unless($check);
-
+        jprefix => '60',);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/$options->{jprefix}trinity_${job_name}";
     my $input_string = '';
     if ($options->{input} =~ /\:|\;|\,|\s+/) {
         my @in = split(/\:|\;|\,|\s+/, $options->{input});
-        $input_string = qq"--left $in[0] --right $in[1] ";
+        $input_string = qq"--left <(less $in[0]) --right <(less $in[1]) ";
     } else {
-        $input_string = qq"--single $options->{input} ";
+        $input_string = qq"--single <(less $options->{input}) ";
     }
+    my $trim_flag = '';
+    if ($options->{trim}) {
+        $trim_flag = '--trimmomatic';
+    }
+    my $arbitrary_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
     my $comment = '## This is a trinity submission script.';
-    my $jstring = qq!mkdir -p ${output_dir} && \\
-  Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads \\
-    --trimmomatic --max_memory 90G --CPU 6 \\
-    --output ${output_dir} \\
-    ${input_string} \\
-    2>${output_dir}/trinity_${job_name}.stderr \\
-    1>${output_dir}/trinity_${job_name}.stdout
+    my $jstring = qq!mkdir -p ${output_dir}
+Trinity --seqType fq --min_contig_length $options->{contig_length} --normalize_reads ${arbitrary_args} \\
+  ${trim_flag} --max_memory $options->{jmem}G --CPU $options->{jcpu} \\
+  --output ${output_dir} \\
+  ${input_string} \\
+  2>${output_dir}/trinity_${job_name}.stderr \\
+  1>${output_dir}/trinity_${job_name}.stdout
 !;
+    if ($options->{clean}) {
+        $jstring .= qq"
+rm -rf chrysalis insilico_read_normalization read_partitions \\
+      __salmon_filt.chkpts salmon_outdir Trinity.tmp.fasta.salmon.idx \\
+      scaffolding_entries.sam *.cmds *.ok *.fa *.finished *.timing
+";
+    }
     my $trinity = $class->Submit(
         comment => $comment,
         jcpu => $options->{jcpu},
         jdepends => $options->{jdepends},
-        jname => qq"$options->{jprefix}trin_${job_name}",
+        jname => qq"trin_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'large',
-        modules => $options->{modules},
         output => qq"${output_dir}/Trinity.tsv",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
@@ -616,19 +621,19 @@ sub Trinity {
         %args,
         jcpu => $options->{jcpu},
         jdepends => $trinity->{job_id},
-        jname => qq"$options->{jprefix}_1trin_rsem",
+        jname => qq"1trin_rsem",
         input => $options->{input},);
     my $trinotate = $class->Bio::Adventure::Annotation::Trinotate(
         %args,
         jdepends => $trinity->{job_id},
-        jname => qq"$options->{jprefix}_2trinotate",
+        jname => qq"2trinotate",
         input => qq"${output_dir}/Trinity.fasta",);
     $trinity->{rsem_job} = $rsem;
     $trinity->{trinotate_job} = $trinotate;
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trinity);
 }
+
+=back
 
 =head2 C<Trinity_Post>
 
@@ -636,6 +641,8 @@ sub Trinity {
 
  Trinity comes with some scripts to grade the quality of the
  transcripts it generated.  This invokes a few of them.
+
+=over
 
 =item C<Arguments>
 
@@ -657,12 +664,9 @@ sub Trinity_Post {
         required => ['input'],
         jmem => 24,
         jname => 'trin_rsem',
-        jprefix => '61',
-        modules => ['rsem'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '61',);
     my $job_name = $class->Get_Job_Name();
-    my $trinity_out_dir = qq"outputs/trinity_${job_name}";
-
+    my $trinity_out_dir = dirname($options->{input});
     my $rsem_input = qq"${trinity_out_dir}/Trinity.fasta";
     my $trinity_path = which('Trinity');
     my $trinity_exe_dir = dirname($trinity_path);
@@ -679,8 +683,8 @@ sub Trinity_Post {
 start=\$(pwd)
 cd ${trinity_out_dir}
 ${trinity_exe_dir}/util/TrinityStats.pl Trinity.fasta \\
-  2>${trinity_out_dir}/trinpost_stats.stderr \\
-  1>${trinity_out_dir}/trinpost_stats.stdout &
+  2>trinpost_stats.stderr \\
+  1>trinpost_stats.stdout &
 
 ${trinity_exe_dir}/util/align_and_estimate_abundance.pl \\
   --output_dir align_estimate.out \\
@@ -714,17 +718,14 @@ cd \${start}
         jmem => $options->{jmem},
         jname => qq"$options->{jprefix}trinpost_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'large',
         jstring => $jstring,
-        modules => $options->{modules},
         output => qq"${trinity_out_dir}/RSEM.isoform.results",
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($trinpost);
 }
 
+=back
 
 =head2 C<Unicycler>
 
@@ -733,6 +734,8 @@ cd \${start}
  Yet another Spades-based assembler, this one has some nice pre and
  post-processing tools written into it, which means that I do not need
  to figure out the arguments for pilon and stuff!
+
+=over
 
 =item C<Arguments>
 
@@ -765,12 +768,7 @@ sub Unicycler {
         min_length => 1000,
         mode => 'bold',
         jmem => 24,
-        jprefix => '13',
-        modules => ['trimomatic', 'bowtie2', 'spades', 'unicycler', 'flash', 'shovill', 'bwa', 'pilon'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('unicycler');
-    die('Could not find unicycler in your PATH.') unless($check);
-
+        jprefix => '13',);
     my $job_name = $class->Get_Job_Name();
     my $outname = basename(cwd());
     my $output_dir = qq"outputs/$options->{jprefix}unicycler";
@@ -829,7 +827,7 @@ else
 fi
 
 mv ${output_dir}/assembly.fasta ${output_dir}/${outname}_final_assembly.fasta
-rm -f r1.fastq.gz r2.fastq.gz r1.fastq r2.fastq
+rm -f ${output_dir}/r1.fastq.gz ${output_dir}/r2.fastq.gz ${output_dir}/r1.fastq ${output_dir}/r2.fastq
 ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
 !;
     my $unicycler = $class->Submit(
@@ -839,9 +837,7 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         jmem => $options->{jmem},
         jname => qq"unicycler_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
-        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => qq"${output_dir}/${outname}_final_assembly.fasta",
@@ -849,10 +845,10 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
         output_log => qq"${output_dir}/unicycler.log",
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($unicycler);
 }
+
+=back
 
 =head2 C<Velvet>
 
@@ -861,6 +857,8 @@ ln -sf ${output_dir}/${outname}_final_assembly.fasta unicycler_assembly.fasta
  ragoo: doi:10.1186/s13059-019-1829-6
 
  Yet another kmer-based assembler.
+
+=over
 
 =item C<Arguments>
 
@@ -882,11 +880,7 @@ sub Velvet {
         required => ['input'],
         species => '',
         kmer => 31,
-        jmem => 24,
-        modules => ['velvet'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('velveth');
-    die('Could not find velvet in your PATH.') unless($check);
+        jmem => 24,);
     my $job_name = $class->Get_Job_Name();
     my $output_dir = qq"outputs/velvet_${job_name}";
     my $input_string = "";
@@ -927,20 +921,17 @@ sub Velvet {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         output => qq"$output_dir/Sequences",
         prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        jqueue => 'workstation',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        postscript => $options->{postscript},);
     return($velvet);
 }
 
+=back
 
 =head1 AUTHOR - atb
 
-Email  <abelew@gmail.com>
+  Email  <abelew@gmail.com>
 
 =head1 SEE ALSO
 

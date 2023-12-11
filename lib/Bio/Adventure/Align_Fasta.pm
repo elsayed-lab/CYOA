@@ -36,6 +36,8 @@ use POSIX qw"ceil";
  This handles the creation of the files and directories required when
  splitting up a sequence into a bunch of pieces for a split-fasta search.
 
+=over
+
 =item C<Arguments>
 
  split(0): Split up the fasta jobs into multiple pieces?
@@ -59,10 +61,11 @@ sub Make_Fasta_Job {
         cluster => 'slurm',
         jdepends => '',
         jmem => 8,
-        modules => ['fasta'],);
+        modules => ['fasta', 'cyoa'],);
     my $dep = $options->{jdepends};
     my $split = $options->{split};
     my $output_type = $options->{output_type};
+    my $fasta_args = $class->Passthrough_Args(arbitrary => $options->{fasta_args});
     my $library;
     my $array_end = $options->{array_start} + $args{align_jobs};
     my $array_string = qq"$options->{array_start}-${array_end}";
@@ -77,30 +80,37 @@ sub Make_Fasta_Job {
     if (defined($output_type)) {
         $type_string = "-m ${output_type}";
     }
+    my $output = '';
     my $stdout = qq"$options->{basedir}/split_align.stdout";
     my $stderr = qq"$options->{basedir}/split_align.stderr";
-    my $output = '';
     ## Important Note:  fasta36's command line parsing fails on path names > 128 or 256 characters.
     ## Thus my usual '$options->{workdir}' will cause this to fail in many instances
     ## because it introduces many characters to the pathnames.
     if ($split) {
-        $output = qq"$options->{basedir}/outputs/split/${array_id_string}.stdout";
+        $output = qq"$options->{basedir}/outputs/split/${array_id_string}.out";
         $jstring = qq!
 cd $options->{basedir}
-$options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
- outputs/split/${array_id_string}/in.fasta \\
- $options->{library} \\
- 1>${output} \\
- 2>>${stderr}
+if [[ -r outputs/split/${array_id_string}/in.fasta ]]; then
+  $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
+   outputs/split/${array_id_string}/in.fasta \\
+   $options->{library} \\
+   -O ${output} \\
+   1>${stdout} \\
+   2>>${stderr}
+else
+  echo "The input file does not exist."
+  exit 0
+fi
 !;
     } else {
-        $output = qq"$options->{workdir}/$options->{fasta_tool}.stdout";
+        $output = qq"$options->{workdir}/$options->{fasta_tool}.out";
         $jstring = qq!
 cd $options->{basedir}
   $options->{fasta_tool} -m $options->{fasta_format} $options->{fasta_args} ${type_string} -T $options->{jcpu} \\
   $options->{input} \\
   $options->{library} \\
-  1>${output} \\
+  -O ${output} \\
+  1>${stdout} \\
   2>>${stderr}
 !;
     }
@@ -124,6 +134,8 @@ cd $options->{basedir}
     return($fasta_jobs);
 }
 
+=back
+
 =head2 C<Parse_Fasta>
 
  Parse a fasta36 tool result file and print a summary table.
@@ -131,6 +143,8 @@ cd $options->{basedir}
  Given the output from one of the fasta36 programs: ggsearch36,
  fasta36, etc.  This parses it and prints a simplified table of the
  results.
+
+=over
 
 =item C<Arguments>
 
@@ -215,6 +229,8 @@ sub Parse_Fasta {
     return($results);
 }
 
+=back
+
 =head2 C<Parse_Fasta_Global>
 
  A separate parser for global:global searches.
@@ -230,6 +246,8 @@ sub Parse_Fasta {
  In addition, this will print summaries of hits in a few different
  files depending on how many hits were observed for each query
  sequence: singletons, doubles, triples, few (3-10), and many (10+).
+
+=over
 
 =item C<Arguments>
 
@@ -353,9 +371,10 @@ sub Parse_Fasta_Mismatches {
     my $options = $class->Get_Vars(
         args => \%args,
         jprefix => 50,
-        modules => ['fasta'],
+        modules => ['fasta', 'cyoa'],
         required => ['input', 'library'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+    my $loaded = $class->Module_Loader(modules => $options->{modules},
+                                       exe => ['fasta36']);
     my $in_base = basename($options->{input}, ('.fsa', '.faa', '.ffn', '.gbk'));
     my $lib_base = basename($options->{library}, ('.fsa', '.faa', '.ffn', '.gbk'));
     my $output_base = qq"${in_base}_vs_${lib_base}";
@@ -539,10 +558,11 @@ sub Parse_Fasta_Mismatches {
   } ## End of each hit of a result.
     $out->close();
     $numbers->close();
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($indices);
 }
+
+=back
 
 =head2 C<Split_Align_Fasta>
 
@@ -550,6 +570,8 @@ sub Parse_Fasta_Mismatches {
 
  This is the main callable function when one wants to perform a bunch
  of fasta36 searches in parallel.
+
+=over
 
 =item C<Arguments>
 
@@ -576,7 +598,9 @@ sub Split_Align_Fasta {
         num_dirs => 0,
         best_only => 0,
         jmem => 8,
-        modules => ['fasta']);
+        modules => ['fasta', 'cyoa']);
+    my $loaded = $class->Module_Loader(modules => $options->{modules},
+                                       exe => ['fasta36']);
     my $lib = basename($options->{library}, ('.fasta'));
     my $que = basename($options->{input}, ('.fasta'));
     my $outdir = qq"$options->{basedir}/outputs/fasta_${que}_${lib}";
@@ -655,6 +679,7 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
     my $parse_job = $class->Submit(
         comment => $comment_string,
         input => $parse_input,
+        modules => $options->{modules},
         output => $output_file,
         output_counts => $counts,
         output_singles => $singles,
@@ -673,8 +698,11 @@ my \$result = \$h->Bio::Adventure::Align_Fasta::Parse_Fasta_Global(
         language => 'perl',);
     $parse_job->{align} = $alignment;
     $parse_job->{concat} = $concat_job;
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($parse_job);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

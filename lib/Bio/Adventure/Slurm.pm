@@ -1,6 +1,4 @@
 package Bio::Adventure::Slurm;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -9,12 +7,19 @@ use Moo;
 extends 'Bio::Adventure';
 
 use Cwd;
-use Data::Dumper;
 use File::Basename qw"basename dirname";
 use File::Path qw"make_path remove_tree";
+use File::ShareDir qw"dist_file module_dir dist_dir";
 use File::Which qw"which";
 use IO::Handle;
+use JSON;
+use List::Util qw"uniq";
 use POSIX qw"floor ceil";
+use Template;
+use Text::CSV;
+use Tie::Array::CSV;
+my $template_base = dist_dir('Bio-Adventure');
+my $template_dir = qq"${template_base}/templates";
 
 ## List of accounts, partitions, qos for this user
 has accounts => (is => 'rw', default => undef);
@@ -77,7 +82,6 @@ sub BUILD {
     }
 
     $class->{usage} = Get_Usage();
-
     ## Give me the set of partitions/clusters/qos available to my current user.
     if (!defined($class->{assciation_data})) {
         my $qos_names = $class->{qos_names};
@@ -131,6 +135,167 @@ sub BUILD {
         $class->{association_data} = $assoc;
     }
     return($class);
+}
+
+=head2 C<Check_Job>
+
+  Given that every job at least _should_ have a defined slurm job id
+  as well as the final stdout/stderr, I should be able to query its
+  status.
+
+=cut
+sub Check_Job {
+    my ($class, %args) = @_;
+    my $options = $class->Bio::Adventure::Get_Vars(
+        args => \%args);
+    my $id = $options->{input};
+    my $write = $options->{write};
+    $write = 0 if (!defined($write));
+    my @all_info = ();
+    my @ids;
+    my @names;
+    if (defined($id)) {
+        my @tmp_ids = split(/\s|\:/, $id);
+      TMPID: for my $i (@tmp_ids) {
+          next TMPID unless defined($i);
+          if ($i =~ /^\d+$/) {
+              push(@ids, $i);
+          } else {
+              print "This id was inappropriately passed: ${i}\n";
+          }
+      }
+    } else {
+        print "No id provided, reading the jobs.txt file.\n";
+        my $job_file = FileHandle->new("<outputs/logs/jobs.txt");
+      JOBLOG: while (my $line = <$job_file>) {
+          chomp $line;
+          next JOBLOG if ($line =~ /^#/);
+          my ($name, $type, $id) = split(/\s+/, $line);
+          next JOBLOG unless ($type eq 'slurm');
+          if ($id =~ /^\d+/) {
+              push(@names, $name);
+              push(@ids, $id);
+          } else {
+              print "This entry is not in the expected format: ${line}\n";
+              next JOBLOG;
+          }
+          $job_file->close();
+      }
+    }
+  IDS: for my $id (@ids) {
+      next IDS if (!defined($id));
+      my $job_info = {};
+      ## my $info = FileHandle->new("sacct -l -j ${id} --json |");
+      my $info = FileHandle->new("sacct -l -j ${id} -p |");
+      my $line_count = 0;
+      my @header_array = ();
+      while (my $line = <$info>) {
+          $line_count++;
+          my @line_array = split(/\|/, $line);
+          ## The header
+          if ($line_count == 1) {
+              @header_array = @line_array;
+          } elsif ($line_array[0] =~ m/^\d+$/) {
+              ## Some important elements are in the number-only line
+              my @provided_info = split(/\|/, $line);
+              for my $idx (0 .. $#provided_info) {
+                  my $element = $provided_info[$idx];
+                  my $key = $header_array[$idx];
+                  if (defined($element) && $element ne '') {
+                      $job_info->{$key} = $element;
+                  }
+              }
+          } elsif ($line_array[0] =~ m/\.batch/) {
+              ## Some important elements are in the number-only line. skip them here.
+              my @provided_info = split(/\|/, $line);
+            IDX: for my $idx (0 .. $#provided_info) {
+                my $element = $provided_info[$idx];
+                my $key = $header_array[$idx];
+                next IDX if ($key eq 'JobName');
+                next IDX if ($key eq 'Partition');
+                next IDX if ($key eq 'JobIDRaw');
+                next IDX if ($key eq 'JobID');
+                if ($element =~ m/^\d+\.*\d*[K|M|G]$/) {
+                    my $num;
+                    if ($element =~ /K$/) {
+                        $num = $element;
+                        $num =~ s/K$//g;
+                        $num = $num / 1e6;
+                    } elsif ($element =~ /M$/) {
+                        $num = $element;
+                        $num =~ s/M$//g;
+                        $num = $num / 1e3;
+                    } else {
+                        $num = $element;
+                        $num =~ s/G$//g;
+                    }
+                    $element = $num;
+                }
+                ## A note from the slurm documentation:
+                ## AveCPUFreq: Average weighted CPU frequency of all tasks in job, in kHz.
+                if ($element eq 'AveCPUFreq') {
+                    $element = $element * 1e3;
+                }
+                if (defined($element) && $element ne '') {
+                    $job_info->{$key} = $element;
+                }
+            }
+          }
+      }
+      push(@all_info, $job_info);
+      $info->close();
+    } ## Finished iterating over every job ID
+
+    ## Here are the various categories returned by sacct, keep in mind
+    ## that different ones are given to each class of job (job,
+    ## job.batch, job.extern):
+    ## AllocCPUS,AllocTRES,AveCPU,AveCPUFreq,AveDiskRead,AveDiskWrite,AvePages,AveRSS,
+    ## AveVMSize,ConsumedEnergy,Elapsed,ExitCode,JobID,JobIDRaw,JobName,MaxDiskRead,
+    ## MaxDiskReadNode,MaxDiskReadTask,MaxDiskWrite,MaxDiskWriteNode,MaxDiskWriteTask,
+    ## MaxPages,MaxPagesNode,MaxPagesTask,MaxRSS,MaxRSSNode,MaxRSSTask,MaxVMSize,
+    ## MaxVMSizeNode,MaxVMSizeTask,MinCPU,MinCPUNode,MinCPUTask,NTasks,Partition,
+    ## ReqCPUFreqGov,ReqCPUFreqMax,ReqCPUFreqMin,ReqMem,ReqTRES,State,TRESUsageInAve,
+    ## TRESUsageInMax,TRESUsageInMaxNode,TRESUsageInMaxTask,TRESUsageInMin,
+    ## TRESUsageInMinNode,TRESUsageInMinTask,TRESUsageInTot,TRESUsageOutAve,
+    ## TRESUsageOutMax,TRESUsageOutMaxNode,TRESUsageOutMaxTask,TRESUsageOutTot
+    ## I am only interested in a relative few of them.
+
+    ## Taken with minor modifications from:
+    ## https://www.perlmonks.org/?node_id=11139481
+    if (scalar(@all_info) < 1) {
+        $write = 0;
+    }
+
+    if ($write) {
+        ## my @columns = sort +uniq(map keys %$_, @all_info);
+        my @columns = ('JobName', 'JobID', 'AllocCPUS', 'AveCPU',
+                       'AveCPUFreq', 'AveDiskRead', 'AveDiskWrite',
+                       'AvePages', 'AveRSS', 'AveVMSize', 'Elapsed',
+                       'ExitCode', 'MaxDiskRead', 'MaxDiskWrite',
+                       'MaxPages', 'MaxRSS', 'MaxVMSize', 'Partition',
+                       'ReqMem', 'State');
+        my $jobs_csv = 'outputs/logs/jobs.csv';
+        my @data;
+        ## If the csv already exists, append a new record to it by creating a new array
+        ## from the existing data and adding the new stuff.
+        if (-r $jobs_csv) {
+            ## my $start = Text::CSV::csv(in => $jobs_csv, keep_headers => \@columns);
+            my $start = Text::CSV::csv(in => $jobs_csv);
+            @data = (@{$start}, @all_info);
+        } else {
+            @data = @all_info;
+        }
+        my $out_csv = FileHandle->new(qq">${jobs_csv}");
+        my $headers = \@columns;
+        my $csv = Text::CSV->new({auto_diag => 1, binary => 1,
+                                   eol => $/});
+      RECORDS: for my $record ({map { $_ => $_ } @columns}, @data) {
+          next RECORDS if (!defined($record->{JobName}) or $record->{JobName} eq '');
+          $csv->say($out_csv, [@$record{@columns}]);
+      }
+        $out_csv->close();
+    }
+    return(\@all_info);
 }
 
 =head2 C<Check_Sbatch>
@@ -317,20 +482,39 @@ sub Choose_QOS {
             };
             $potential_qos->{$q} = $potential_metrics;
           } ## End iterating over stringent qos.
-          my $num_potential = scalar(keys(%{$potential_qos}));
+          my @potential_qos_names = keys(%{$potential_qos});
+          ## print "TESTME: @potential_qos_names\n";
+          my $num_potential = scalar(@potential_qos_names);
           $found_qos = $num_potential;
-          if ($num_potential) {
+          ## I think my logic here was a bit faulty.  I have an if statement checking to see
+          ## if there are multiple QOSes available that are not already full; but I also need
+          ## to ensure that this passes when all are full.
+          if ($num_potential <= 0) {
+              ## We have no open slots, so for now say so?
+              print "There appear to be no potential qos, this job should have to wait in the queue.\n";
+          } elsif ($num_potential == 1) {
+              $chosen_qos = $potential_qos_names[0];
+              $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+              $chosen_account = $account;
+              $chosen_cluster = $cluster;
+              $chosen_partition = $partition;
+              last PART;
+          } elsif ($num_potential > 1) {
               $chosen_qos = Choose_Among_Potential_QOS($potential_qos);
+              $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
+              $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
+              $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
+              $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
+              $chosen_account = $account;
+              $chosen_cluster = $cluster;
+              $chosen_partition = $partition;
+              last PART;
+          } else {
+              die("We should not be able to fall through to here.");
           }
-
-          $qos_info->{$chosen_qos}->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
-          $qos_info->{$chosen_qos}->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
-          $qos_info->{$chosen_qos}->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
-          $qos_info->{$chosen_qos}->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-          $chosen_account = $account;
-          $chosen_cluster = $cluster;
-          $chosen_partition = $partition;
-          last PART;
       } ## End iterating over accounts
 
         unless ($found_qos) {
@@ -378,11 +562,18 @@ sub Choose_QOS {
               }
 
               $found_qos2++;
+              if (!defined($qos_info->{$chosen_qos}->{used_mem})) {
+                  print "In 2nd round of searching for a QOS, used_mem in $chosen_qos is still undefined.\n";
+                  $qos_info->{$chosen_qos}->{used_mem} = 0;
+                  $qos_info->{$chosen_qos}->{used_cpu} = 0;
+                  $qos_info->{$chosen_qos}->{used_gpu} = 0;
+                  $qos_info->{$chosen_qos}->{used_hours} = 0;
+              }
               $qos_info->{used_mem} = $qos_info->{$chosen_qos}->{used_mem} + $wanted_spec->{mem};
               $qos_info->{used_cpu} = $qos_info->{$chosen_qos}->{used_cpu} + $wanted_spec->{cpu};
               $qos_info->{used_gpu} = $qos_info->{$chosen_qos}->{used_gpu} + $wanted_spec->{gpu};
               $qos_info->{used_hours} = $qos_info->{$chosen_qos}->{used_hours} + $wanted_spec->{walltime_hours};
-              last TOP;
+              last ACCOUNT2;
           }
       } ## End iterating over a second attempt of accounts.
     } ## End a second pass if we didn't find anything the first time.
@@ -719,13 +910,13 @@ sub Get_QOS {
   QOS: while (my $line = <$qos>) {
       $count++;
       next QOS if ($count == 1);
-      ## Note that the cbcb cluster uses MaxJobsPU to limit the number of concurrent jobs allowed to run per QOS
-      ## and that it appears to not set a maximum number of cpus
+      ## Note that the cbcb cluster uses MaxJobsPU to limit the number of concurrent
+      ## jobs allowed to run per QOS and that it appears to not set a maximum number of cpus
       my ($name, $priority, $gracetime, $preempt, $preempt_exempt, $preempt_mode, $flags,
           $usage_thresh, $usage_factor, $group_tres, $group_tres_min, $group_tres_run_min,
           $group_jobs, $group_submit, $group_wall, $max_resources_per_job, $max_tres_per_node,
-          $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu, $max_tres_pa,
-          $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
+          $max_tres_min, $max_wall, $max_resources_per_user, $max_jobs_pu, $max_submit_pu,
+          $max_tres_pa, $max_jobs_pa, $max_submit_pa, $min_tres) = split(/\|/, $line);
       my $max_job_cpu = 0;
       my $max_job_gpu = 0;
       my $max_job_mem = 0;
@@ -738,41 +929,50 @@ sub Get_QOS {
       if ($max_resources_per_job) {
           $max_job_cpu = $max_resources_per_job;
           if ($max_job_cpu =~ /cpu=/) {
-              $max_job_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
+              $max_job_cpu =~ s/.*cpu=(\d+).*$/$1/g;
           } else {
               $max_job_cpu = 0;
           }
           $max_job_gpu = $max_resources_per_job;
           if ($max_job_gpu =~ m/gpu=/) {
-              $max_job_gpu =~ s/.*gpu=(\d+),.*$/$1/g;
+              $max_job_gpu =~ s/.*gpu=(\d+).*$/$1/g;
           } else {
               $max_job_gpu = 0;
           }
           $max_job_mem = $max_resources_per_job;
           if ($max_job_mem =~ /mem=/) {
-              $max_job_mem =~ s/.*mem=(\d+)G.*$/$1/g;
+              ## print "TESTME: In Get_QOS mem=: <${max_job_mem}>\n";
+              my $max_mem_suffix = $max_job_mem;
+              ## Note the suffix of memory may be M/G/T and perhaps P one day?
+              ## But I am only bothering to count in Gb.
+              $max_job_mem =~ s/.*mem=(\d+)\w{1}.*$/$1/g;
+              $max_mem_suffix =~ s/.*mem=(\d+)(\w{1}).*$/$2/g;
+              $max_job_mem = $max_job_mem * 1000 if ($max_mem_suffix eq 'T');
+              $max_job_mem = $max_job_mem / 1000 if ($max_mem_suffix eq 'M');
+              ## print "Succeded in parsing max_job_mem: $max_job_mem\n";
           } else {
               $max_job_mem = 0;
           }
+          ## print "Attempted to parse max_job_mem, got: ${max_job_mem}\n";
       }
 
       if ($max_resources_per_user) {
           $max_user_cpu = $max_resources_per_user;
           if ($max_user_cpu =~ /cpu=/) {
-              $max_user_cpu =~ s/.*cpu=(\d+),.*$/$1/g;
+              $max_user_cpu =~ s/.*cpu=(\d+).*$/$1/g;
           } else {
               $max_user_cpu = $max_job_cpu;
           }
 
           $max_user_gpu = $max_resources_per_user;
           if ($max_user_gpu =~ m/gpu=/) {
-              $max_user_gpu =~ s/.*gpu=(\d+),.*$/$1/g;
+              $max_user_gpu =~ s/.*gpu=(\d+).*$/$1/g;
           } else {
               $max_user_gpu = $max_job_cpu;
           }
           $max_user_mem = $max_resources_per_user;
           if ($max_user_mem =~ /mem=/) {
-              $max_user_mem =~ s/.*mem=(\d+)G.*$/$1/g;
+              $max_user_mem =~ s/.*mem=(\d+)\w{1}.*$/$1/g;
           } else {
               $max_user_mem = $max_job_mem;
           }
@@ -1041,6 +1241,10 @@ sub Get_Usage {
           $instance->{$partition}->{$account}->{$qos}->{running} = 1;
           $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
           $instance->{$partition}->{$account}->{$qos}->{failed} = 0;
+      } elsif ($state eq 'FAILED') {
+          $instance->{$partition}->{$account}->{$qos}->{failed} = 1;
+          $instance->{$partition}->{$account}->{$qos}->{running} = 0;
+          $instance->{$partition}->{$account}->{$qos}->{queued} = 0;
       } else {
           ## I think I would like this to print some information about failed jobs perhaps here?
           $instance->{$partition}->{$account}->{$qos}->{running} = 0;
@@ -1060,6 +1264,19 @@ sub Get_Usage {
   }
     $usage->close();
     return($current);
+}
+
+=head2 C<Guess_Time>
+
+  A stub function in which I want to write down some ideas for
+  automatically generating the time parameter of a job.  The time to
+  request from the cluster is a function of:
+  time(job) = job_constant(computer_bogomips) * sigma(filesize_constants*input_filesizes)
+
+=cut
+sub Guess_Time {
+    my %args = @_;
+    print "Not yet implemented.\n";
 }
 
 =head2 C<Submit>
@@ -1117,7 +1334,8 @@ sub Submit {
         $options->{jprefix} = '';
     }
     my $jname = qq"$options->{jprefix}$options->{jname}";
-    my $finished_file = qq"outputs/logs/${jname}.finished";
+    my $finished_file = qq"$options->{logdir}/${jname}.finished";
+
     my $job = {};
     foreach my $k (keys %args) {
         next if ($k eq 'jstring');
@@ -1156,7 +1374,7 @@ sub Submit {
         $partition_string = $class->{chosen_partition};
     } else {
         ## Partition is often empty, I don't quite know why yet.
-        print "partition is not defined, setting it to the empty string\n";
+        ## print "partition is not defined, setting it to the empty string\n";
         $partition_string = '';
     }
     ##  Need to catch the special case of scavenger
@@ -1178,9 +1396,10 @@ sub Submit {
     }
 
     my $script_file = qq"$options->{basedir}/scripts/$options->{jprefix}$options->{jname}.sh";
+    print "Slurm::Submit: Writing to script:
+${script_file}\n" if ($options->{debug});
     my $sbatch_cmd_line = qq"${sbatch} ${depends_string} ${script_file}";
     my $mycwd = getcwd();
-    make_path("$options->{logdir}", {verbose => 0}) unless (-r qq"$options->{logdir}");
     make_path("$options->{basedir}/scripts", {verbose => 0}) unless (-r qq"$options->{basedir}/scripts");
     my $script_base = basename($script_file);
 
@@ -1236,77 +1455,89 @@ ${perl_file} \\
 ";
     } ## End extra processing for submission of a perl script (perhaps not needed for slurm?
 
-    my $nice_string = '';
-    $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
-
-    my $array_string = '';
-    $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
-    my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
-    my $mem_string = qq"$wanted->{mem}G";
-    my $script_start = qq?#!$options->{shell}
+    if ($options->{jtemplate}) {
+        print "In slurm, processing with dir: $template_dir\n";
+        print "Template is outputting to: $script_file\n";
+        my $tt = Template->new({
+            INCLUDE_PATH => $template_dir,
+            OUTPUT => $script_file,
+            TRIM => 1,
+            INTERPOLATE => 1,});
+        $tt->process($options->{jtemplate}, $options) || die $tt->error();
+    } else {
+        my $nice_string = '';
+        $nice_string = qq"--nice=$options->{jnice}" if (defined($options->{jnice}));
+        my $array_string = '';
+        $array_string = qq"#SBATCH --array=$options->{array_string}" if ($options->{array_string});
+        my $walltime_string = qq"$wanted->{walltime_hours}:00:00";
+        my $mem_string = qq"$wanted->{mem}G";
+        my $script_start = qq?#!$options->{shell}
 #SBATCH --export=ALL --requeue --mail-type=NONE --open-mode=append
 #SBATCH --chdir=$options->{basedir}
 #SBATCH --job-name=${jname} ${nice_string}
 #SBATCH --output=${sbatch_log}.sbatch
 ?;
-    $script_start .= qq?#SBATCH --account=${account_string}\n? if ($account_string);
-    $script_start .= qq?#SBATCH --partition=${partition_string}\n? if ($partition_string);
-    $script_start .= qq?#SBATCH --qos=${qos_string}\n? if ($qos_string);
-    ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
-    $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
-    $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
-    $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
-    $script_start .= qq"${array_string}\n" if ($array_string);
-    $script_start .= qq?set -o errexit
+        $script_start .= qq?#SBATCH --account=${account_string}\n? if ($account_string);
+        $script_start .= qq?#SBATCH --partition=${partition_string}\n? if ($partition_string);
+        $script_start .= qq?#SBATCH --qos=${qos_string}\n? if ($qos_string);
+        ## FIXME: This should get smarter and be able to request multiple tasks and nodes.
+        $script_start .= qq?#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=$wanted->{cpu}\n? if (defined($wanted->{cpu}));
+        $script_start .= qq?#SBATCH --time=${walltime_string}\n? if (defined($wanted->{walltime}));
+        $script_start .= qq?#SBATCH --mem=${mem_string}\n? if (defined(${mem_string}));
+        $script_start .= qq"${array_string}\n" if ($array_string);
+        $script_start .= qq?startdir=\$(pwd)
+set -o errexit
 set -o errtrace
 set -o pipefail
 export LESS='$ENV{LESS}'
 echo "## Started ${script_file} at \$(date) on \$(hostname) with id \${SLURM_JOBID}." >> ${sbatch_log}
+function get_sigterm {
+  cd "\${startdir}"
+  echo "A SIGTERM was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive time usage." >> ${sbatch_log}
+  exit 1
+}
+trap get_sigterm SIGTERM
+function get_sigerr {
+  cd "\${startdir}"
+  echo "A ERR was sent to ${jname}: \${SLURM_JOBID}, perhaps due to excessive memory usage." >> ${sbatch_log}
+  exit 1
+}
+trap get_sigerr ERR
 ?;
-    $script_start .= $options->{module_string} if ($options->{module_string});
+        $script_start .= $options->{module_string} if ($options->{module_string});
 
-    my $script_end = qq!
+        ## Note, the 'echo "Job status: $? " >> ${sbatch_log}'
+        ## really is not necessary now because I have errexit on.
+        my $script_end = qq!
 ## The following lines give status codes and some logging
-echo "Job status: \$? " >> ${sbatch_log}
+## This might not work because it is a little circular.
+cd \${startdir}
 minutes_used=\$(( SECONDS / 60 ))
 echo "  \$(hostname) Finished \${SLURM_JOBID} ${script_base} at \$(date), it took \${minutes_used} minutes." >> ${sbatch_log}
-if [[ -x "\$(command -v sstat)" && \! -z "\${SLURM_JOBID}" ]]; then
+if [[ -x "\$(command -v sstat)" && -n "\${SLURM_JOBID}" ]]; then
   echo "  walltime used by \${SLURM_JOBID} was: \${minutes_used:-null} minutes." >> ${sbatch_log}
-  maxmem=\$(sstat -n -P --format=MaxVMSize -j "\${SLURM_JOBID}")
-  ## I am not sure why, but when I run a script in an interactive session, the maxmem variable
-  ## gets set correctly everytime, but when it is run by another node, sometimes it does not.
-  ## Lets try and figure that out...
-  echo "TESTME: \${maxmem}"
-  if [[ \! -z "\${maxmem}" ]]; then
-    echo "  maximum memory used by \${SLURM_JOBID} was: \${maxmem}." >> ${sbatch_log}
-  else
-    echo "  The maximum memory did not get set for this job: \${SLURM_JOBID}." >> ${sbatch_log}
-    sstat -P -j "\${SLURM_JOBID}" >> ${sbatch_log}
-  fi
   echo "" >> ${sbatch_log}
 fi
-touch ${finished_file}
+## Note, you can score a bunch more information by running cyoa --method checkjob from the working directory.
 !;
-
-    my $total_script_string = '';
-    $total_script_string .= qq"${script_start}\n";
-    $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
-    $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
-    ## The prescript contains the module() definition when needed.
-    ## So put that after it.
-
-    $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
-    $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
-    $total_script_string .= "${script_end}\n";
-
-    my $script = FileHandle->new(">$script_file");
-    if (!defined($script)) {
-        die("Could not write the script: $script_file
+        my $total_script_string = '';
+        $total_script_string .= qq"${script_start}\n";
+        $total_script_string .= qq"$options->{comment}\n" if ($options->{comment});
+        $total_script_string .= qq"$options->{prescript}\n" if ($options->{prescript});
+        ## The prescript contains the module() definition when needed.
+        ## So put that after it.
+        $total_script_string .= qq"$options->{jstring}\n" if ($options->{jstring});
+        $total_script_string .= qq"$options->{postscript}\n" if ($options->{postscript});
+        $total_script_string .= "${script_end}\n";
+        my $script = FileHandle->new(">$script_file");
+        if (!defined($script)) {
+            die("Could not write the script: $script_file
   $!");
+        }
+        print $script $total_script_string;
+        $script->close();
+        chmod(0755, $script_file);
     }
-    print $script $total_script_string;
-    $script->close();
-    chmod(0755, $script_file);
     my $job_id = undef;
     my $handle = IO::Handle->new;
     my $sbatch_pid = open($handle, qq"${sbatch_cmd_line} |");
@@ -1351,6 +1582,10 @@ touch ${finished_file}
     ##my $reset = Bio::Adventure::Reset_Vars($class);
     ##$reset = Bio::Adventure::Reset_Vars($parent);
     $parent->{language} = 'bash';
+    make_path('outputs/logs');
+    my $job_logger = FileHandle->new(">>outputs/logs/jobs.txt");
+    print $job_logger "${jname}\tslurm\t${job_id}\n";
+    $job_logger->close();
     return($job);
 }
 
@@ -1368,10 +1603,68 @@ echo "Ending test job."
 ?;
     my $job = $cyoa->Submit(
         input => 'test',
-        jstring => $jstring,
+        jtemplate => 'test.sh',
         jmem => $options->{jmem},
         jcpu => $options->{jcpu},
         jwalltime => $options->{jwalltime});
+}
+
+=head2 C<Wait>
+
+  Wait until a slurm job has finished and provide some information
+  about the resources it used.  This should be extended slightly to
+  help figure out if/why a job failed.
+
+=cut
+sub Wait {
+    my ($class, %args) = @_;
+    my $finished = 0;
+    my $failed = 0;
+    my $job = $args{job};
+    my $id;
+    if (ref($job) eq 'HASH') {
+        if (defined($job->{jobids})) {
+            $id = $job->{jobids};
+        } else {
+            $id = $job->{job_id};
+        }
+    } else {
+        $id = $job;
+    }
+
+    my $datum;
+    my $wait_count = {
+        pending => 0,
+        finished => 0,
+        running => 0,
+        cancelled => 0,
+        failed => 0,
+    };
+    while ($wait_count->{finished} < 1 && $wait_count->{failed} < 1) {
+        sleep(10);
+        my $info = $class->Bio::Adventure::Slurm::Check_Job(input => $id, write => 0);
+        $datum = $info->[0];
+        if ($datum->{State} eq 'COMPLETED') {
+            $wait_count->{finished}++;
+            print qq"The job ${id}:$datum->{JobName} required $datum->{MaxVMSize}G memory, ";
+            print qq"$datum->{MaxDiskWrite}G disk, and ";
+            print qq"$datum->{'Elapsed'} time using $datum->{'AveCPUFreq'}Mhz.\n";
+        } elsif ($datum->{State} eq 'PENDING') {
+            $wait_count->{pending}++;
+            print "This job is still pending, it may be restarting.\n";
+        } elsif ($datum->{State} eq 'CANCELLED') {
+            $wait_count->{cancelled}++;
+            $wait_count->{finished}++;
+            print "This job was cancelled.\n";
+        } elsif ($datum->{State} eq 'RUNNING') {
+            $wait_count->{running}++;
+        } elsif ($datum->{State} eq 'FAILED') {
+            $wait_count->{failed}++;
+        } else {
+            print "I need to collect the various states, this one is: $datum->{State}.\n";
+        }
+    }
+    return($datum);
 }
 
 =head1 AUTHOR - atb

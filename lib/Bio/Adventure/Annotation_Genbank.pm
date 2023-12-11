@@ -1,15 +1,11 @@
 package Bio::Adventure::Annotation_Genbank;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-use Data::Dumper;
 use Data::Printer;
-
 use Cwd qw"abs_path getcwd cwd";
 use Data::Table;
 use Data::Table::Excel qw"tables2xlsx";
@@ -45,6 +41,8 @@ use Bio::Tools::GuessSeqFormat;
  preferred annotation source and also set the first/second source.
  I am pretty sure this logic is redundant.
 
+=over
+
 =item C<Arguments>
 
  first: First annotation source.
@@ -55,6 +53,7 @@ use Bio::Tools::GuessSeqFormat;
  notes: A hash of note annotations
  keep_both(0): Keep the union of the sources.
 
+=back
 =cut
 sub Combine_CDS_Features {
     my %args = @_;
@@ -246,8 +245,6 @@ sub Extract_Features {
         my $type = $feat->primary_tag;
         my @names = $feat->get_tag_values($options->{id_tag});
         my $name = $names[0];
-        ## use Data::Dumper;
-        ## print Dumper $feat;
         my @tags = $feat->get_all_tags();
         my $chosen_tag = undef;
         if (defined($options->{id_tag}) && $options->{id_tag} ne '') {
@@ -379,6 +376,8 @@ sub Filter_Edge_Features {
  This requires input genbank file from prokka, the gff features from
  prodigal, and the prediction file from glimmer3.
 
+=over
+
 =item C<Arguments>
 
  input(required): Prokka output annotations (e.g. untrained prodigal).
@@ -401,9 +400,7 @@ sub Merge_CDS_Predictions {
         input_prodigal => '',
         primary_key => 'locus_tag',
         jmem => 8,
-        jprefix => '19',
-        modules => ['ncbi_tools/6.1']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '19',);
     ## Even though it is a bit redundant, record all the output filenames now
     ## so that they are easily accessible for the various downstream search tools.
     my $output_dir =  qq"outputs/$options->{jprefix}merge_cds_predictions";
@@ -479,10 +476,10 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
         output_tsv => $output_tsv,
         output_log => $output_log,
         primary_key => $options->{primary_key},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($merge_orfs);
 }
+
+=back
 
 =head2 C<Merge_CDS_Predictions_Worker>
 
@@ -511,6 +508,8 @@ my \$result = \$h->Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions_Wor
  9.  Actually run tbl2asn in order to generate genbank flat files.
 
  Currently it does not return anything useful, which is dumb.
+
+=over
 
 =item C<Arguments>
 
@@ -642,6 +641,8 @@ sub Merge_CDS_Predictions_Worker {
     ## This should return something useful -- maybe parse the error file from tbl2asn?
 }
 
+=back
+
 =head2 C<Predict_to_Features>
 
  Read the nasty glimmer output format into something sensible.
@@ -725,6 +726,10 @@ sub Query_Edge_Feature {
     ## Sometimes a feature is picked up which is a little before the origin and continues after the origin.
     ## e.g. the strand may be +1, the start is ~ 100nt before 0 and the end is ~ 100nt after 0.
     my $straddles = 0;
+    if ($start eq '<1') {
+        ## Pick up the special case when phanotate detects an ORF which wraps around the origin.
+        $start = 1;
+    }
     $straddles = 1 if ($start > $end);
     if ($straddles) {
         print "This feature straddles the origin east and is problematic for genbank.\n";
@@ -774,6 +779,10 @@ sub Read_Phanotate_to_SeqFeatures {
       $count++;
       my $orf_number = sprintf("%04d", $count);
       my ($start, $end, $frame, $contig, $score) = split(/\t/, $line);
+      if ($start eq '<1') {
+          ## Catch the phanotate special case again.
+          $start = 1;
+      }
       my $fixed_id = Remove_Contig_Cruft($contig);
       my $orf_id = qq"${fixed_id}_${orf_number}";
       my $strand = '+';
@@ -1403,8 +1412,6 @@ sub Write_Tbl_from_SeqFeatures {
       print $tbl_fh ">Feature ${sid}\n";
     INNERFEATURE: for my $f (@features) {
         my $feature_name = $f->display_name;
-        ## use Data::Dumper;
-        ## print Dumper $f;
         next INNERFEATURE unless ($contig_to_orf{$feature_name} eq $sid);
         print "In ${sid} working on $feature_name\n";
         if ($f->primary_tag eq 'source') {

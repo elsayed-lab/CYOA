@@ -47,7 +47,6 @@ my $phix_library = $cyoa->Bio::Adventure::Index::Check_Blastdb(
 ok($phix_library, 'Run Check_Blastdb()');
 ok($phix_library eq 'blastdb/phix', 'The database name is "phix".');
 $ENV{BLASTDB} = 'blastdb';
-print "TESTME Finished checking blastdb\n";
 ## Run a standalone blast search of the phix CDSes vs. the phix genome.
 my $standalone = $cyoa->Bio::Adventure::Align_Blast::Run_Parse_Blast(
     input => $cds_local,

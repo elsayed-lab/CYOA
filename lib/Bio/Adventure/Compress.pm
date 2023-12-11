@@ -1,6 +1,4 @@
 package Bio::Adventure::Compress;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -38,7 +36,6 @@ sub Compress {
         jmem => 8,
         jname => 'xz',
         jprefix => '',
-        jqueue => 'long',
         jwalltime => '24:00:00',
         modules => undef,);
     my $input_paths = $class->Get_Paths($options->{input});
@@ -63,7 +60,6 @@ if [ -f "${in_full}" ]; then
 else
   echo "The input: ${in_full} does not exist."
 fi
-
 !;
     }
     $output_string =~ s/:$//g;
@@ -91,7 +87,6 @@ sub Recompress {
         jname => 'xz',
         jmem => 8,
         jprefix => '99',
-        jqueue => 'long',
         jwalltime => '12:00:00',);
     my $input_paths = $class->Get_Paths($options->{input});
 

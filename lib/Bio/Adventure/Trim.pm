@@ -1,13 +1,12 @@
 package Bio::Adventure::Trim;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
+use Cwd qw"abs_path getcwd cwd";
 use File::Basename;
 use File::Path qw"make_path";
 use File::ShareDir qw":ALL";
@@ -23,6 +22,74 @@ use File::Which qw"which";
  This file is responsible for invoking the various sequence trimmers.
 
 =head1 METHODS
+
+=head2 C<Cogent>
+
+ Invoke takara's cogent tool to remove UMIs from a sequencing run.
+
+=cut
+sub Cogent {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        modules => ['cogent'],
+        required => ['input', 'species', 'input_umi'],
+        jcpu => 4,
+        jprefix => '01',
+        jmem => 24,
+        jwalltime => 36,
+        type => 'Stranded_UMI',);
+    my $job_name = $class->Get_Job_Name();
+    my $inputs = $class->Get_Paths($options->{input});
+    my $cwd_name = basename(cwd());
+    my @input_filenames = split(/\:|\;|\,|\s+/, $options->{input});
+    my $output_dir = qq"outputs/$options->{jprefix}cogent";
+    my $comment = qq!## This is a cogent demultiplexing/trimming job.
+!;
+    my $stdout = qq"${output_dir}/cogent.stdout";
+    my $stderr = qq"${output_dir}/cogent.stderr";
+    my $jstring = qq!mkdir -p ${output_dir}
+cogent demux \\
+  -i $input_filenames[0] \\
+  -p $input_filenames[1] \\
+  -b $options->{input_umi} \\
+  -t $options->{type} \\
+  -o ${output_dir}/demux \\
+  -n $options->{jcpu} \\
+  2>${stderr} 1>${stdout}
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "cogent demux succeeded."
+else
+  echo "cogent demux failed."
+  exit \$?
+fi
+cogent analyze \\
+  -i ${output_dir}/demux \\
+  -g $options->{species} \\
+  -o ${output_dir}/analyze \\
+  -t $options->{type} \\
+  --threads $options->{jcpu} \\
+  2>>${stderr} 1>>${stdout}
+test=\$?
+if [[ "\${test}" -eq "0" ]]; then
+  echo "cogent analyze succeeded."
+else
+  echo "cogent analyze failed."
+  exit \$?
+fi
+!;
+    my $cogent = $class->Submit(
+        comment => $comment,
+        jcpu => $options->{jcpu},
+        jdepends => $options->{jdepends},
+        jname => "cogent_${job_name}",
+        jqueue => 'large',
+        jstring => $jstring,
+        stdout => $stdout,
+        stderr => $stderr,);
+    return($cogent);
+}
 
 =head2 C<Cutadapt>
 
@@ -43,7 +110,6 @@ sub Cutadapt {
         maxerr => 0.1,
         maxremoved => 3,
         minlength => 8,
-        modules => ['cutadapt'],
         left => undef,
         right => undef,
         either => undef,
@@ -51,11 +117,8 @@ sub Cutadapt {
         jmem => 12,
         jwalltime => '48:00:00',
         jprefix => '12',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
-    my $check = which('cutadapt');
-    die('Could not find cutadapt in your PATH.') unless($check);
     my $minlength = $options->{minlength};
     my $maxlength = $options->{maxlength};
     my $arbitrary = '';
@@ -150,7 +213,6 @@ xz -9e -f ${too_long}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '8:00:00',
-        modules => $options->{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
@@ -165,32 +227,41 @@ xz -9e -f ${too_long}
             jprefix => $options->{jprefix} + 1,);
         $cutadapt->{tacheck} = $ta_check;
     }
+    my $stats = $class->Bio::Adventure::Metadata::Cutadapt_Stats(
+        input => $cutadapt->{stdout},
+        jcpu => 1,
+        jmem => 1,
+        jwalltime => '00:03:00',
+        jdepends => $cutadapt->{job_id},);
     return($cutadapt);
 }
 
 
+=head2 C<Fastp>
+
+ Invoke fastp on a sequence dataset.
+ 10.1093/bioinformatics/bty560
+
+ Fastp is an excellent trimomatic alternative.
+
+=cut
 sub Fastp {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
         arbitrary => undef,
-        do_umi => 1,
-        modules => ['fastp'],
         jmem => 12,
         jwalltime => '24:00:00',
         jprefix => '12',);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
-    my $check = which('fastp');
-    die('Could not find fastp in your PATH.') unless($check);
-
     my $extra_args = $class->Passthrough_Args(arbitrary => $options->{arbitrary});
+    $extra_args .= ' -D ' if ($options->{deduplication});
+    $extra_args .= ' -c ' if ($options->{correction});
 
     my $fastp_input = $options->{input};
     my @suffixes = split(/\,/, $options->{suffixes});
-
     my $comment = qq!## Run fastp on raw data
 !;
     my $out_dir = qq"outputs/$options->{jprefix}fastp";
@@ -221,10 +292,12 @@ sub Fastp {
     if ($options->{do_umi}) {
         $umi_flags = ' -U ';
     }
+    my $report_flags = qq"-h ${out_dir}/fastp_report.html -j ${out_dir}/fastp_report.json";
 
     my $jstring = qq!
 mkdir -p ${out_dir}
 fastp ${umi_flags} ${input_flags} \\
+  ${report_flags} ${extra_args} \\
   2>${stderr} \\
   1>${stdout}
 !;
@@ -237,14 +310,12 @@ fastp ${umi_flags} ${input_flags} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '8:00:00',
-        modules => $options->{modules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
     return($fastp);
 }
-
 
 =head2 C<Racer>
 
@@ -261,9 +332,7 @@ sub Racer {
         jmem => 24,
         jprefix => '10',
         jwalltime => '40:00:00',
-        modules => ['hitec'],
         required => ['input', ],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $job_name = $class->Get_Job_Name();
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
@@ -290,7 +359,7 @@ sub Racer {
         if ($decompress_input) {
             $jstring .= qq"less $input_list[$c] > ${name}.fastq\n";
         } else {
-            $jstring .= qq"ln -sf \$(pwd)/$input_list[$c] ${name}.fastq\n";
+            $jstring .= qq!ln -sf "\$(pwd)"/$input_list[$c] ${name}.fastq\n!;
         }
         $jstring .= qq"RACER \\
   ${name}.fastq \\
@@ -327,14 +396,11 @@ echo \"Finished correction of $input_list[$c].\" >> ${stdout}
         jqueue => 'workstation',
         jstring => $jstring,
         jwalltime => '12:00:00',
-        modules => $options->{modules},
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         output => $output,
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($racer);
 }
 
@@ -356,7 +422,6 @@ sub Trimomatic {
         compress => 1,
         input_paired => undef,
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         jcpu => 4,
         jmem => 24,
@@ -386,27 +451,26 @@ sub Trimomatic_Pairwise {
         jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules}, verbose => 1);
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
     my $job_name = $class->Get_Job_Name();
     my $exe = undef;
     my $found_exe = 0;
-
-    my @exe_list = ('trimomatic PE', 'TrimmomaticPE', 'trimmomatic PE');
-    for my $test_exe (@exe_list) {
-        my @executable_list = split(/\s+/, $test_exe);
-        my $executable = $executable_list[0];
-        if (which($executable)) {
-            $exe = $test_exe;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my %exe_list = (trimomatic => 'trimomatic PE',
+                    TrimmomaticSE => 'TrimmomaticPE',
+                    TrimomaticSE => 'TrimmomaticPE',
+                    trimmomatic => 'trimmomatic PE');
+    for my $test_exe (keys %exe_list) {
+        if (which($test_exe)) {
+            $exe = $exe_list{$test_exe};
         }
     }
     if (!defined($exe)) {
         die('Unable to find the trimomatic executable.');
     }
-
     my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $input = $options->{input};
     my @input_list = split(/:|\,/, $input);
@@ -440,9 +504,9 @@ sub Trimomatic_Pairwise {
     my $r2ou = qq"${r2b}-trimmed_unpaired.fastq";
 
     my $leader_trim = '';
-    if ($options->{task} eq 'dnaseq') {
-        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
-    }
+    #if ($options->{task} eq 'dnaseq') {
+    #    $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    #}
     my $suffix_trim = '';
     if (defined($options->{arbitrary}) &&
         $options->{arbitrary} =~ /^CROP/) {
@@ -510,7 +574,6 @@ mv ${r2op} ${r2o}
     ## Example output from trimomatic:
     ## Input Read Pairs: 10000 Both Surviving: 9061 (90.61%) Forward Only Surviving: 457 (4.57%) Reverse Only Surviving: 194 (1.94%) Dropped: 288 (2.88%)
     ## Perhaps I can pass this along to Get_Stats()
-    $loaded = $class->Module_Loader(modules => $options->{modules});
     my $trim = $class->Submit(
         args => \%args,
         comment => $comment,
@@ -523,15 +586,12 @@ mv ${r2op} ${r2o}
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         length => $options->{length},
-        modules => $options->{modules},
         output => $output,
         output_unpaired => $output_unpaired,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
         stdout => $stdout,
         stderr => $stderr);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     my $new_prefix = qq"$options->{jprefix}_1";
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
@@ -563,18 +623,19 @@ sub Trimomatic_Single {
         jprefix => '01',
         jwalltime => '48:00:00',
         length => 50,
-        modules => ['trimomatic'],
         quality => '20',
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
     my $exe = undef;
     my $found_exe = 0;
-    my @exe_list = ('trimomatic SE', 'TrimmomaticSE', 'trimmomatic SE');
-    for my $test_exe (@exe_list) {
-        my @executable_list = split(/\s+/, $test_exe);
-        my $executable = $executable_list[0];
-        if (which($executable)) {
-            $exe = $test_exe;
+    my %modules = Bio::Adventure::Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my %exe_list = (trimomatic => 'trimomatic SE',
+                    TrimmomaticSE => 'TrimmomaticSE',
+                    TrimomaticSE => 'TrimmomaticSE',
+                    trimmomatic => 'trimmomatic SE');
+    for my $test_exe (keys %exe_list) {
+        if (which($test_exe)) {
+            $exe = $exe_list{$test_exe};
         }
     }
     my $output_dir = qq"outputs/$options->{jprefix}trimomatic";
@@ -583,13 +644,13 @@ sub Trimomatic_Single {
     }
     my $adapter_file = dist_file('Bio-Adventure', 'genome/adapters.fa');
     my $leader_trim = "";
-    if (defined($options->{task}) && $options->{task} eq 'dnaseq') {
-        $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
-    }
+    #if (defined($options->{task}) && $options->{task} eq 'dnaseq') {
+    #    $leader_trim = 'HEADCROP:20 LEADING:3 TRAILING:3';
+    #}
 
     my $input = $options->{input};
     my $basename = $input;
-    $basename = basename($basename, ('.gz'));
+    $basename = basename($basename, ('.gz', '.xz', '.bz2'));
     $basename = basename($basename, ('.fastq'));
     my $job_name = $class->Get_Job_Name();
     my $output = qq"${basename}-trimmed.fastq";
@@ -628,14 +689,11 @@ ln -sf ${output}.xz r1_trimmed.fastq.xz
         jstring => $jstring,
         jwalltime => $options->{jwalltime},
         length => $options->{length},
-        modules => $options->{modules},
         output => $output,
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     my $trim_stats = $class->Bio::Adventure::Metadata::Trimomatic_Stats(
         basename => $basename,
         input => $stderr,

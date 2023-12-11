@@ -1,15 +1,13 @@
 package Bio::Adventure::Phage;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
+use Bio::Adventure::Config;
 use feature 'try';
 no warnings 'experimental::try';
-
 use Bio::DB::EUtilities;
 use Bio::Restriction::Analysis;
 use Bio::Restriction::Enzyme;
@@ -52,12 +50,7 @@ sub Bacphlip {
         required => ['input'],
         jmem => 12,
         jname => 'bacphlip',
-        jprefix => '80',
-        modules => ['bacphlip'],
-        executables => ['bacphlip'],);
-    my $loaded = $class->Module_Loader(
-        modules => $options->{modules},
-        executables => $options->{executables},);
+        jprefix => '80',);
     my @suffixes = split(/,/, $options->{suffixes});
     my $out_base = basename($options->{input}, @suffixes);
     my $in_base = basename($options->{input});
@@ -91,19 +84,17 @@ cd \${start}
 ?;
     my $job = $class->Submit(
         comment => $comment,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => $options->{jname},
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
         output => $output,
         output_hmm => $output_hmm,
         output_frames => $output_frames,
         output_tsv => $output_tsv,
         stderr => $stderr,
-        stdout => $stdout,
-        jdepends => $options->{jdepends},
-        jmem => $options->{jmem},
-        jname => $options->{jname},
-        jprefix => $options->{jprefix},
-        jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
+        stdout => $stdout,);
     return($job);
 }
 
@@ -122,6 +113,8 @@ cd \${start}
  The caical perl script comes with a fair number of arguments, this
  just blindly uses the defaults.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input set of CDS sequences.
@@ -138,11 +131,7 @@ sub Caical {
         args => \%args,
         required => ['input', 'species'],
         jmem => 4,
-        jprefix => '80',
-        modules => ['caical']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('caical');
-    die('Could not find caical in your PATH.') unless($check);
+        jprefix => '80',);
     my $test = ref($options->{suffixes});
     my @suffixes = split(/,/, $options->{suffixes});
     my $species = $options->{species};
@@ -173,21 +162,19 @@ my \$result = \$h->Bio::Adventure::Phage::Caical_Worker(
 !;
     my $cai = $class->Submit(
         comment => $comment,
-        input => $options->{input},
-        random_sequences => $random_sequences,
         expected_cai => $expected_cai,
-        species => $species,
+        input => $options->{input},
         jdepends => $options->{jdepends},
         jname => $jname,
         jprefix => $options->{jprefix},
         jstring => $jstring,
         output => $output_cai,
+        random_sequences => $random_sequences,
+        species => $species,
         stdout => $stdout,
         stderr => $stderr,
         language => 'perl',
         output_dir => $output_dir);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
     return($cai);
 }
 
@@ -200,11 +187,7 @@ sub Caical_Worker {
         random_sequences => '',
         expected_cai => '',
         output => '',
-        jprefix => '80',
-        modules => ['caical']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('caical');
-    die('Could not find caical in your PATH.') unless($check);
+        jprefix => '80',);
     my $species = $options->{species};
     ## Then the species argument is a filename, so pull the species from it.
     if (-r $species) {
@@ -232,8 +215,6 @@ sub Caical_Worker {
   2>$options->{stderr} 1>$options->{stdout}
 ?;
     my $ran_caical = qx"$jstring";
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($ran_caical);
 }
 
@@ -260,6 +241,8 @@ sub Caical_CDS {
   }
 }
 
+=back
+
 =head2 C<Classify_Phage>
 
  Use the ICTV data to attempt to classify a viral assembly.
@@ -269,6 +252,8 @@ sub Caical_CDS {
  provided by the ICTV.  This should hopefully provide a reasonably
  complete set of taxonomic classifications for viral assemblies.  This
  function pretty much just calls Blast_Classify().
+
+=over
 
 =item C<Arguments>
 
@@ -292,8 +277,7 @@ sub Classify_Phage {
         library => 'ictv',
         topn => 5,
         jmem => 12,
-        jprefix => '18',
-        modules => ['blastdb', 'blast'],);
+        jprefix => '18',);
     my $paths = $class->Get_Paths($options->{input});
     my $output_dir = qq"outputs/$options->{jprefix}classify_$paths->[0]->{dirname}";
     if (-d $output_dir) {
@@ -332,7 +316,6 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        modules => $options->{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $output_tsv,
@@ -342,6 +325,8 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
         topn => $options->{topn},);
     return($cjob);
 }
+
+=back
 
 =head2 C<Classify_Phage_Worker>
 
@@ -357,6 +342,8 @@ my \$result = Bio::Adventure::Phage::Classify_Phage_Worker(\$h,
  It then invokes blast, parses the output, and pulls out the hits
  which pass the various cutoffs.  Upon completion, it collects the
  results, sorts them, and writes them out as a tab separated file.
+
+=over
 
 =item C<Arguments>
 
@@ -390,14 +377,14 @@ sub Classify_Phage_Worker {
         output => 'ictv_filtered.tsv',
         score => 1000,
         topn => 5,
-        modules => ['blast', 'blastdb'],
         required => ['input',],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which($options->{blast_tool});
-    die("Could not find $options->{blast_tool} in your PATH.") unless($check);
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my $blast_db = $ENV{BLASTDB};
+    my $unloaded = $class->Module_Reset(env => $loaded);
 
     ## Read the xref file, located in the blast database directory as ${library}.csv
-    my $xref_file = qq"$ENV{BLASTDB}/$options->{library}.csv";
+    my $xref_file = qq"${blast_db}/$options->{library}.csv";
     ## Use Text::CSV to create an array of hashes with keynames:
     ## 'taxon', 'virusnames', 'virusgenbankaccession', 'virusrefseqaccession'
     my $xref_aoh = csv(in => $xref_file, headers => 'auto');
@@ -414,7 +401,7 @@ sub Classify_Phage_Worker {
     my @params = (
         -e => $options->{evalue},
         -create => 0,
-        -db_dir => $ENV{BLASTDB},
+        -db_dir => $blast_db,
         -db_name => $options->{library},
         -outfile => $blast_outfile,
         -num_threads => $options->{jcpu},
@@ -529,11 +516,11 @@ Writing filtered results to $options->{output}.
         print $final_fh $hit_string;
     }
     $final_fh->close();
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     $log->close();
     return($result_data);
 }
+
+=back
 
 =head2 C<Download_NCBI_Assembly_UID>
 
@@ -545,6 +532,8 @@ Writing filtered results to $options->{output}.
  genomes and only ever got it working about 1 time in 4.  So, I
  decided to say 'screw it' and write a simple web crawler to do it
  instead.
+
+=over
 
 =item C<Arguments>
 
@@ -570,6 +559,8 @@ sub Download_NCBI_Assembly_UID {
     my $accession = basename($url);
     return($accession);
 }
+
+=back
 
 =head2 C<Download_NCBI_Assembly_Accession>
 
@@ -620,6 +611,8 @@ sub Download_NCBI_Assembly_Accession {
  genome as a reference.  Then the unaligned reads are hopefully only
  from the phage and not the host bacterium.
 
+=over
+
 =item C<Arguments>
 
  input(required): The kraken report.
@@ -638,6 +631,12 @@ sub Filter_Host_Kraken {
         jmem => 8,
         jprefix => '06',
         htseq_stranded => 'no',);
+    ## FIXME FIXME FIXME
+    ## This needs to be changed to use the EUtilities as per Prepare::Download_NCBI_Accession().
+    ## The assembly ncbi link is no longer a plain html document but instead redirects to the
+    ## javascript-heavy datasets tree.  As a result, the use of WWW::Mechanize is unlikely to
+    ## continue working for a large number of assemblies.  Happily, I now have some examples
+    ## of EUtilities searches/downloads which should make this reasonably easy to fix.
     my $comment = '## Use kraken results to choose a host species to filter against.';
     my $output_dir = qq"outputs/$options->{jprefix}filter_kraken_host";
     my $stderr = qq"${output_dir}/filter_host.stderr";
@@ -689,11 +688,15 @@ my \$result = Bio::Adventure::Phage::Filter_Kraken_Worker(\$h,
     return($host);
 }
 
+=back
+
 =head2 C<Filter_Kraken_Worker>
 
  Do the work for Filter_Kraken().
 
  This does the actual work for the previous function.
+
+=over
 
 =item C<Arguments>
 
@@ -966,6 +969,8 @@ sub Filter_Kraken_Worker {
     return(%species_observed);
 }
 
+=back
+
 =head2 C<Get_DTR>
 
  Extract the direct-terminal-repeats from a phageterm run.
@@ -982,6 +987,8 @@ sub Filter_Kraken_Worker {
  type of DTR.  As a result, this function includes a regex-based
  search of the output assembly to find the n copies of the DTR and set
  the DTR features accordingly.
+
+=over
 
 =item C<Arguments>
 
@@ -1094,6 +1101,8 @@ sub Get_DTR {
     return(\@dtr_features);
 }
 
+=back
+
 =head2 C<Phageterm>
 
  Attempt to run phageterm and detect direct terminal repeats.
@@ -1108,6 +1117,8 @@ sub Get_DTR {
  multi-contig assemblies into separate files and runs on them.  In
  addition, it works around the nasty file type detection in phageterm
  by simply decompressing the input files.
+
+=over
 
 =item C<Arguments>
 
@@ -1126,12 +1137,7 @@ sub Phageterm {
         jcpu => 8,
         jmem => 12,
         jprefix => '14',
-        modules => ['phageterm'],
         required => ['input', 'library'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('PhageTerm.py');
-    die('Could not find phageterm in your PATH.') unless($check);
-
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -1169,22 +1175,24 @@ my \$result = \$h->Bio::Adventure::Phage::Phageterm_Worker(
   output => '${output_file}',);
 ?;
     my $phageterm_run = $class->Submit(
-        input => $options->{input},
-        output => $output_file,
-        output_type => $dtr_type_file,
-        output_dtr => $dtr_sequence_file,
-        test_file => $dtr_test_file,
-        language => 'perl',
-        stderr => $stderr,
-        stdout => $stdout,
         comment => $comment,
+        input => $options->{input},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'phageterm',
         jprefix => $options->{jprefix},
-        jstring => $jstring,);
+        jstring => $jstring,
+        language => 'perl',
+        output => $output_file,
+        output_type => $dtr_type_file,
+        output_dtr => $dtr_sequence_file,
+        stderr => $stderr,
+        stdout => $stdout,
+        test_file => $dtr_test_file,);
     return($phageterm_run);
 }
+
+=back
 
 =head2 C<Phageterm_Worker>
 
@@ -1202,9 +1210,7 @@ sub Phageterm_Worker {
         required => ['input', 'library'],
         output_dir => '.',
         output => 'final_sequence.fasta',
-        jprefix => '19',
-        modules => ['phageterm']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '19',);
     ## I am going to use this function to make it easier for phageterm
     ## to run without shenanigans.  In order to accomplish this, I will
     ## make a separate run for each contig of the assembly, run it on them
@@ -1376,8 +1382,6 @@ PhageTerm.py -f ${read_string} \\
   } ## End when we do find a DTR
     print $phage_log "Deleting the uncompressed input files.\n";
     my $delete_crap = qx"rm -f ${workdir}/r1.fastq ${workdir}/r2.fastq 2>/dev/null 1>/dev/null";
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
 }
 
 =head2 C<Phastaf>
@@ -1389,6 +1393,8 @@ PhageTerm.py -f ${read_string} \\
  forward way to hunt for phage-derived sequences in an input assembly.
  It basically just runs tblastx on the input assembly and returns some
  files which describe the locations of high-quality hits.
+
+=over
 
 =item C<Arguments>
 
@@ -1408,12 +1414,7 @@ sub Phastaf {
         jcpu => 8,
         jmem => 12,
         jprefix => '14',
-        modules => ['phastaf'],
         required => ['input'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('phastaf');
-    die('Could not find phastaf in your PATH.') unless($check);
-
     my $job_name = $class->Get_Job_Name();
     my $input_paths = $class->Get_Paths($options->{input});
     my $input_full = $input_paths->[0]->{fullpath};
@@ -1448,7 +1449,6 @@ phastaf --force --outdir ${output_dir} \\
         jname => qq"phastaf_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
         output => $output_file,
         stderr => $stderr,
         stdout => $stdout,
@@ -1475,17 +1475,15 @@ my \$result = Bio::Adventure::Phage::Interpret_Phastaf_Worker(\$h,
             input_fna => $input_fna,
             input_phage => $phage_bed,
             input_phageterm => $options->{input_phageterm},
-            stderr => $stderr,
-            stdout => $stdout,
             jdepends => $phastaf->{job_id},
             jmem => $options->{jmem},
             jname => 'interpret_phastaf',
             jprefix => $options->{jprefix},
             jstring => $interpret_jstring,
-            language => 'perl',);
+            language => 'perl',
+            stderr => $stderr,
+            stdout => $stdout,);
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($phastaf);
 }
 
@@ -1670,6 +1668,8 @@ sub Interpret_Phastaf_Worker {
     $out->close();
 }
 
+=back
+
 =head2 C<Restriction_Catalog>
 
  Make a catalog of restriction enzyme hits from an input sequence.
@@ -1680,6 +1680,8 @@ sub Interpret_Phastaf_Worker {
  endonuclease -- which makes no damn sense to me.  I guess they are on
  plasmids or something?  In any event, I figured it would still be
  nice to have an idea of the restriction sites.
+
+=over
 
 =item C<Arguments>
 
@@ -1726,12 +1728,13 @@ my \$result = Bio::Adventure::Phage::Restriction_Catalog_Worker(\$h,
         jstring => $jstring,
         language => 'perl',
         library => $options->{library},
-        modules => $options->{modules},
         stderr => $stderr,
         stdout => $stdout,
         output => $re_output,);
     return($re_job);
 }
+
+=back
 
 =head2 C<Restriction_Catalog_Worker>
 
@@ -1806,6 +1809,8 @@ sub Restriction_Catalog_Worker {
 
  We should potentially consider switching this from prodigal to phanotate.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input assembly.
@@ -1825,16 +1830,15 @@ sub Terminase_ORF_Reorder {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['input'],
         evalue => 0.01,
         fasta_tool => 'fastx36',
         gcode => '11',
-        library => 'terminase',
-        species => 'phages',
-        test_file => 'direct-term-repeats.fasta',
         jmem => 8,
         jprefix => '15',
-        modules => ['fasta', 'blast', 'blastdb'],);
+        library => 'terminase',
+        required => ['input'],
+        species => 'phages',
+        test_file => 'direct-term-repeats.fasta',);
     my $input_dir = basename(dirname($options->{input}));
     my $output_dir = qq"outputs/$options->{jprefix}termreorder_${input_dir}";
     my $stderr = qq"${output_dir}/termreorder.stderr";
@@ -1881,28 +1885,29 @@ my \$result = Bio::Adventure::Phage::Terminase_ORF_Reorder_Worker(\$h,
   test_file => '$options->{test_file}',);
 !;
     my $tjob = $class->Submit(
+        comment => $comment,
         evalue => $options->{evalue},
         fasta_tool => 'fastx36',
         input => $options->{input},
-        library => $options->{library},
-        query => $prodigal_cds,
-        output => $final_output,
-        output_dir => $output_dir,
-        output_tsv => $output_tsv,
-        test_file => $options->{test_file},
-        language => 'perl',
-        comment => $comment,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'terminase_reorder',
         jprefix => $options->{jprefix},
         jstring => $jstring,
+        language => 'perl',
+        library => $options->{library},
+        output => $final_output,
+        output_dir => $output_dir,
+        output_tsv => $output_tsv,
+        query => $prodigal_cds,
         stderr => $stderr,
         stdout => $stdout,
-        modules => $options->{modules},);
+        test_file => $options->{test_file},);
     $tjob->{prodigal_job} = $term_prodigal;
     return($tjob);
 }
+
+=back
 
 =head2 C<Terminase_ORF_Reorder_Worker>
 
@@ -1922,10 +1927,12 @@ sub Terminase_ORF_Reorder_Worker {
         fasta_tool => 'fastx36',
         jprefix => '15',
         library => 'terminase',
-        modules => ['fasta', 'blast', 'blastdb'],
         output_file => 'final_assembly.fasta',
         test_file => '',);
-
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
+    my $blast_db = $ENV{BLASTDB};
+    my $unloaded = $class->Module_Reset(env => $loaded);
     my $output_dir = dirname($options->{output});
     my $log = FileHandle->new(">${output_dir}/reorder.log");
     ## First check for the test file, if it exists, then this should
@@ -1941,14 +1948,8 @@ sub Terminase_ORF_Reorder_Worker {
         $new_filename = qq"${output_dir}/${new_filename}_reordered.fasta";
     }
 
-    ## Load up fasta36 and make sure we are able to run a search against the
-    ## translated nucleotide sequences.
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('fastx36');
-    die("Could not find fasta36 in your PATH.") unless($check);
-
     ## Now perform the search for potential terminases.
-    my $library_file = qq"$ENV{BLASTDB}/$options->{library}.fasta";
+    my $library_file = qq"${blast_db}/$options->{library}.fasta";
     my $fasta_output = Bio::SearchIO->new(-format => 'fasta', );
     my $number_hits = 0;
     print $log "Starting fasta search of $options->{input}
@@ -1962,6 +1963,9 @@ sub Terminase_ORF_Reorder_Worker {
         program => $options->{fasta_tool},);
     my $seq_count = 0;
     my $e = '';
+    if (!-r $library_file) {
+        die("The library file: ${library_file} is missing.");
+    }
     my $search = Bio::Tools::Run::Alignment::StandAloneFasta->new(@params);
     $search->library($library_file);
     my @fasta_output;
@@ -2026,7 +2030,7 @@ sub Terminase_ORF_Reorder_Worker {
             query_name => $query_name,
         };
         print $hit_fh "${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
-        print "HITLOOP: ${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
+        ## print "HITLOOP: ${hit_name}\t${hit_length}\t${hit_acc}\t${hit_descr}\t${hit_score}\t${hit_sig}\t${hit_bits}\t${hit_strand}\t${query_strand}\t${query_descr}\t${query_length}\t${query_name}\n";
         push(@hit_data, $hit_datum);
         $result_data->{$query_name}->{hit_data} = \@hit_data;
         $hit_count++;
@@ -2073,8 +2077,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     my $best_query_strand;
     my $best_hit_strand;
   SCANNER: foreach my $query_id (keys %{$result_data}) {
-      use Data::Dumper;
-      print Dumper $result_data->{$query_id};
       my $query_description = $result_data->{$query_id}->{query_description};
       my @hit_arr = @{$result_data->{$query_id}->{hit_data}};
       my $hits = scalar(@hit_arr);
@@ -2229,8 +2231,6 @@ Symlinking ${full_input} to ${full_new} and stopping.\n";
     for my $obj (@other_objects) {
         $out_assembly->write_seq($obj);
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     $log->close();
     return($result_data);
 }
@@ -2265,18 +2265,18 @@ my \$result = Bio::Adventure::Phage::Xref_Crispr_Worker(\$h,
   test_file => '$options->{test_file}',);
 !;
     my $xref = $class->Submit(
-        input => $options->{input},
-        output => $final_output,
-        stdout => $final_output,
-        output_dir => $output_dir,
-        test_file => $options->{test_file},
-        language => 'perl',
         comment => $comment,
+        input => $options->{input},
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'xref_crispr',
         jprefix => $options->{jprefix},
-        jstring => $jstring,);
+        jstring => $jstring,
+        language => 'perl',
+        output => $final_output,
+        output_dir => $output_dir,
+        stdout => $final_output,
+        test_file => $options->{test_file},);
     return($xref);
 }
 

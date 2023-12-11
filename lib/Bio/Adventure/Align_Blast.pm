@@ -5,7 +5,7 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::SearchIO::blast;
 use Bio::SearchIO::fasta;
 use Bio::Seq;
@@ -37,12 +37,13 @@ use POSIX qw"ceil";
 
  This is one of the older functions in CYOA and could really use some love.
 
+=over
+
 =item C<Arguments>
 
  blast_format(5): This needs to be one of the parseable formats, which seems
   to change over time.
  blast_tool('blastn'): Which blast tool to use
- blast_params(''): Choose the appropriate arbitrary blast parameters here.
  library(nr): Choose a blast database.
  query(required): This ought to be changed to input.
  align_jobs(40): How many jobs to create.
@@ -55,18 +56,19 @@ sub Make_Blast_Job {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
+        required => ['input'],
         blast_format => 5,
         jdepends => '',
-        jmem => 24,
-        modules => ['blastdb', 'blast']);
+        jmem => 24,);
     my $dep = $options->{jdepends};
     my $library = $options->{library};
-    my $array_end = 1000 + $options->{align_jobs};
-    my $array_string = qq"1000-${array_end}";
+    my $array_end = 100 + $options->{align_jobs};
+    my $array_string = qq"100-${array_end}";
+    my $blast_args = $class->Passthrough_Args(arbitrary => $options->{blast_args});
 
     ## Handle array job types for slurm/torque.
     my $queue_array_string = 'SLURM_ARRAY_TASK_ID';
-    if ($options->{pbs} eq 'torque') {
+    if ($options->{cluster} eq 'torque') {
         $queue_array_string = 'PBS_ARRAYID';
     }
 
@@ -81,21 +83,27 @@ sub Make_Blast_Job {
         sleep(3);
     }
     my $jstring = '';
-    if ($options->{pbs}) {
+    if ($options->{cluster}) {
         $jstring = qq!
 cd $options->{basedir}
-$options->{blast_tool} -outfmt $options->{blast_format} \\
- -query $options->{basedir}/split/\${${queue_array_string}}/in.fasta \\
- -db ${library} $options->{blast_params} \\
- -out $options->{basedir}/outputs/\${${queue_array_string}}.out \\
- 1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
- 2>>$options->{basedir}/split_align.stderr
+export BLASTDB=$ENV{BLASTDB}
+if [[ -f "outputs/split/\${$queue_array_string}/in.fasta" ]]; then
+  $options->{blast_tool} -outfmt $options->{blast_format} \\
+    -query $options->{basedir}/outputs/split/\${${queue_array_string}}/in.fasta \\
+    -db ${library} ${blast_args} \\
+    -out $options->{basedir}/outputs/split/\${${queue_array_string}}.out \\
+    1>$options->{basedir}/outputs/\${${queue_array_string}}.stdout \\
+    2>>$options->{basedir}/split_align.stderr
+else
+  echo "The input does not exist."
+  exit 0
+fi
 !;
     } else {
         $jstring = qq!
 cd $options->{basedir}
 $options->{blast_tool} -outfmt $options->{blast_format} \\
-  -query $options->{query} \\
+  -query $options->{input} \\
   -db ${library} \\
   -out $options->{basedir}/outputs/$options->{blast_tool}.out \\
   1>$options->{basedir}/outputs/$options->{blast_tool}.stdout \\
@@ -109,10 +117,11 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
         jdepends => $dep,
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         array_string => $array_string,);
     return($blast_jobs);
 }
+
+=back
 
 =head2 C<Merge_Parse_Blast>
 
@@ -120,6 +129,8 @@ $options->{blast_tool} -outfmt $options->{blast_format} \\
 
  This invokes Concatenate_Searches() and Parse_Search() in order to get the final
  parsed table from a series of blast searches.
+
+=over
 
 =item C<Arguments>
 
@@ -139,7 +150,7 @@ sub Merge_Parse_Blast {
 use Bio::Adventure;
 use Bio::Adventure::Align;
 use Bio::Adventure::Align_Blast;
-my \$h = Bio::Adventure->new(input => \$input);
+\$h = Bio::Adventure->new(input => \$input);
 my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blastxml',);
 !;
     my $parse = $class->Submit(
@@ -151,6 +162,8 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
     return($parse);
 }
 
+=back
+
 =head2 C<Parse_Blast>
 
  Do the actual parsing of a blast result and print an easy-to-read table.
@@ -158,6 +171,8 @@ my \$final = \$h->Bio::Adventure::Align_Blast->Parse_Search(search_type => 'blas
  Parse_Blast is responsible for parsing blast output, it makes some attempt to be
  flexible vis a vis different formatting.  It prints a table of each gene and
  some relevant statistics about the hits that were found.
+
+=over
 
 =item C<Arguments>
 
@@ -180,8 +195,7 @@ sub Parse_Blast {
     my $output = $input;
     my $best = $options->{best_only};
     my $search_type = $options->{search_type};
-    $output =~ s/\.txt\.gz//g;
-    $output .= '_parsed.txt';
+    $output =~ s/\.txt\.xz/_parsed.txt/g;
     print "Writing parsed output to ${output}\n";
     my $count_table = $output;
     $count_table =~ s/_parsed\.txt/_counts\.txt/g;
@@ -267,6 +281,8 @@ sub Parse_Blast {
     return($result_count);
 }
 
+=back
+
 =head2 C<Run_Blast_Parse>
 
  Create a blast database and run blast on it.
@@ -283,6 +299,8 @@ sub Parse_Blast {
  In addition, this should have the blast parameters as an input
  variable.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input sequences to search.
@@ -292,7 +310,6 @@ sub Parse_Blast {
  output('blast_output.txt'): Output file to write.
  modules('blast'): Which environment module to load.
 
-
 =cut
 sub Run_Parse_Blast {
     my ($class, %args) = @_;
@@ -301,11 +318,9 @@ sub Run_Parse_Blast {
         required => ['input', 'library'],
         blast_tool => 'blastp',
         evalue => 0.01,
-        output => 'blast_output.txt',
-        modules => ['blast'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('blastp');
-    die("Could not find blast in your PATH.") unless($check);
+        output => 'blast_output.txt',);
+    my %modules = Get_Modules(caller => 1);
+    my $loaded = $class->Module_Loader(%modules);
     my $query = $options->{input};
     my $library_path = $class->Bio::Adventure::Index::Check_Blastdb(%args);
     my $library = $options->{library};
@@ -408,10 +423,11 @@ sub Run_Parse_Blast {
     $doubles->close();
     $few->close();
     $many->close();
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+    my $unloaded = $class->Module_Reset(env => $loaded);
     return($number_hits);
 }
+
+=back
 
 =head2 C<Split_Align_Blast>
 
@@ -420,6 +436,8 @@ sub Run_Parse_Blast {
  Split apart a set of query sequences into $args{align_jobs} pieces and align
  them all separately.  This is the primary function to call when one
  wants to run a whole lot of blast.
+
+=over
 
 =item C<Arguments>
 
@@ -442,7 +460,7 @@ sub Split_Align_Blast {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'library',],
-        param => ' -e 10 ',
+        param => ' -evalue 10 ',
         blast_tool => 'blastn',
         align_jobs => 40,
         align_parse => 0,
@@ -450,13 +468,7 @@ sub Split_Align_Blast {
         num_dirs => 0,
         best_only => 0,
         interactive => 0,
-        jmem => 8,
-        modules => ['blast', 'blastdb'],);
-    ## This might be wrong (tblastx)
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('blastp');
-    die("Could not find blast in your PATH.") unless($check);
-
+        jmem => 8,);
     print STDERR qq"A quick reminder because I (atb) get confused easily:
 tblastn is a protein fasta query against a nucleotide blast database.
 tblastx is a nucleotide fasta query (which is translated on the fly) against a nucleotide blast db.
@@ -482,11 +494,12 @@ blastp is normal protein/protein.
     my $output = qq"${outdir}/${que}_vs_${lib}.txt";
     my $concat_job;
     $lib = $class->Bio::Adventure::Index::Check_Blastdb(%args);
-    if ($options->{pbs}) {
-        my $num_per_split = $class->Bio::Adventure::Align::Get_Split(%args);
+    if ($options->{cluster}) {
+        my $split_info = $class->Bio::Adventure::Align::Get_Split(%args);
+        my $num_per_split = $split_info->{num_per_split};
         print "Going to make $options->{align_jobs} directories with ${num_per_split} sequences each.\n";
         my $actual = $class->Bio::Adventure::Align::Make_Directories(%args,
-            num_per_split => $num_per_split);
+            num_per_split => $split_info);
         print "Actually used ${actual} directories to write files.\n";
         my $alignment = $class->Bio::Adventure::Align_Blast::Make_Blast_Job(
             library => $lib,
@@ -498,7 +511,7 @@ blastp is normal protein/protein.
     } else {
         ## If we don't have pbs, force the number of jobs to 1.
         print "Not using the cluster.\n";
-        $options = $class->Set_Vars(align_jobs => 1);
+        ## $options = $class->Set_Vars(align_jobs => 1);
         ## $class->{align_jobs} = 1;
         my $num_per_split = $class->Bio::Adventure::Align::Get_Split();
         $options = $class->Set_Vars(num_per_split => $num_per_split);
@@ -512,7 +525,11 @@ blastp is normal protein/protein.
             output => ${output},);
     }
 
-    my $parse_input = cwd() . qq"/$concat_job->{output}";
+    my $parse_input = $concat_job->{output};
+    my $parse_output = $parse_input;
+    $parse_output =~ s/\.txt\.xz/_parsed.txt/g;
+    my $count_output = $parse_input;
+    $count_output =~ s/_parsed\.txt/_counts\.txt/g;
     my $comment_string = qq!## I don't know if this will work.!;
     my $jstring = qq?
 use Bio::Adventure;
@@ -522,17 +539,20 @@ my \$h = new Bio::Adventure;
 my \$result = Bio::Adventure::Align::Parse_Search(
   \$h, input => '${parse_input}',
   search_type => 'blastxml',
-  best => $args{best_only});
+  parsed_output => '$parse_output',
+  count_output => '$count_output',
+  best => $options->{best_only});
 ?;
     my $parse_job = $class->Submit(
         comment => $comment_string,
+        count_output => $count_output,
         jdepends => $concat_job->{job_id},
         jmem => $options->{jmem},
         jname => 'parse_search',
         jstring => $jstring,
-        language => 'perl',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        language => 'perl',
+        parsed_output => $parse_output,);
+    $concat_job->{parser} = $parse_job;
     return($concat_job);
 }
 
@@ -542,11 +562,7 @@ sub OrthoMCL_Pipeline {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        modules => ['orthomcl'],
         required => ['input'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('orthomclPairs');
-    die('Could not find orthomcl in your PATH.') unless($check);
     my $job_name = 'orthomcl';
     ## Note that I am cheating and using a pre-defined pipeline for orthomcl
     ## https://github.com/apetkau/orthomcl-pipeline
@@ -567,16 +583,14 @@ orthomcl-pipeline.pl -i input -o output \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 16,
-        modules => $options->{modules},
         output => 'output',
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => 'large',
         walltime => '144:00:00',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($job);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

@@ -1,6 +1,4 @@
 package Bio::Adventure::Proteomics;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;

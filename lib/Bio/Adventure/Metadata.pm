@@ -1,28 +1,10 @@
 package Bio::Adventure::Metadata;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
-=head1 C<Metadata>
-
- Collect results from other tools and merge them into a skeleton feature set.
-
- This package is intended to collect and collate data from other tools into some
- useful and readable formats.  Practically speaking, this mostly relates to
- the annotation pipelines, which gather data from many sources into a single
- genbank output file.
-
- One other set of functions which I will move here include the various XYZ_Stats()
- functions which gather the stdout/stderr from various tools in order to write a
- csv summary.
-
-=cut
-
 use Bio::SeqIO;
 use Bio::Seq;
 use Bio::SeqFeature::Generic;
@@ -38,7 +20,26 @@ use File::Which qw"which";
 use File::ShareDir qw":ALL";
 use List::MoreUtils qw"any";
 use Template;
+use Test::File::ShareDir::Dist { 'Bio-Adventure' => 'share/' };
 use Text::CSV_XS::TSV;
+
+## Question: When running my test suite on assemblies, the creation of genbank outputs fails because
+## the Test::More instance cannot find the File::ShareDir copy of the template.sbt file.
+## If I copy the logic I used for other test files here, will it work when not testing?
+## Let us find out!
+
+=head1 C<Metadata>
+
+ Collect results from other tools and merge them into a skeleton feature set.
+
+ This package is intended to collect and collate data from other tools into some
+ useful and readable formats.  Practically speaking, this mostly relates to
+ the annotation pipelines, which gather data from many sources into a single
+ genbank output file.
+
+ One other set of functions which I will move here include the various XYZ_Stats()
+ functions which gather the stdout/stderr from various tools in order to write a
+ csv summary.
 
 =head2 C<Collect_Assembly>
 
@@ -46,6 +47,8 @@ use Text::CSV_XS::TSV;
 
  This makes a set of assumptions about the outputs from other tools
  and copies them to a single output directory.
+
+=over
 
 =item C<Arguments>
 
@@ -112,6 +115,8 @@ sub Collect_Assembly {
     return($collect);
 }
 
+=back
+
 =head2 C<Generate_Samplesheet>
 
  Call extract_metadata() to create a global metadata xlsx file.
@@ -128,12 +133,7 @@ sub Generate_Samplesheet {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input'],
-        jmem => 12,
-        modules => ['R']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('R');
-    die('Could not find R in your PATH.') unless($check);
-
+        jmem => 12,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -326,11 +326,7 @@ sub Kraken_Best_Hit {
         required => ['input'],
         library => 'viral',
         jmem => 64,
-        jprefix => '11',
-        modules => ['kraken'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
+        jprefix => '11',);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -362,15 +358,11 @@ sub Kraken_Best_Hit {
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        jqueue => 'large',
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        modules => $options->{modules},
         output => qq"${output_dir}/kraken_report.txt",);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($kraken);
 }
 
@@ -405,12 +397,7 @@ sub Merge_Annotations {
         product_signalp => 'trinity_SignalP',
         suffix => '',
         jmem => 12,
-        jprefix => '15',
-        modules => ['ncbi_tools/6.1']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('tbl2asn');
-    die('Could not find tbl2asn in your PATH.') unless($check);
-
+        jprefix => '15',);
     my $output_name = basename($options->{input_fsa}, ('.fsa'));
     if ($options->{suffix}) {
         $output_name .= qq"_$options->{suffix}";
@@ -475,10 +462,6 @@ my \$result = \$h->Bio::Adventure::Metadata::Merge_Annotations_Worker(
         output_log => $output_log,
         primary_key => $options->{primary_key},
         suffix => $options->{suffix},);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($merge_job);
 }
 
@@ -616,12 +599,13 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
     my $final_sbt = qq"${output_dir}/${output_name}.sbt";
     print $log_fh "Checking for ICTV classification data from $options->{input_classifier}.\n";
     my $input_sbt = $args{template_sbt};
+    my $start_dir = dist_dir('Bio-Adventure');
     if (!defined($input_sbt)) {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_template.sbt";
     } elsif (!-r $input_sbt) {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_template.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_template.sbt";
     } else {
-        $input_sbt = dist_file('Bio-Adventure', 'tbl2asn_unmodified.sbt');
+        $input_sbt = qq"${start_dir}/tbl2asn_unmodified.sbt";
     }
     my $taxonomy_information = {};
     ($merged_data, $taxonomy_information) = Merge_Classifier(
@@ -856,9 +840,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
                 my $inf;
 
                 ## FIXME: Looking for missing display names
-                ## use Data::Dumper;
-                ## print Dumper $feat;
-
                 if ($product_string eq $signal_string) {
                     $inf = $feat->add_tag_value('inference', 'ab initio prediction:SignalP');
                 } elsif ($product_string eq $tm_string) {
@@ -886,9 +867,6 @@ gbf: ${output_gbf}, tbl: ${output_tbl}, xlsx: ${output_xlsx}.\n";
       ## So now let us steal the tbl writer from prokka and dump this new stuff...
 
       ## Looking for why sometimes tbl files are not getting all annotations.
-      ## use Data::Dumper;
-      ## print Dumper @new_features;
-
   } ## End iterating over every sequence.
 
     print "Writing new tbl file to ${output_tbl}\n";
@@ -1433,7 +1411,6 @@ echo "\$stat_string" >> ${stat_output}!;
         jstring => $jstring,
         jmem => 1,
         stdout => $stat_output,
-        jqueue => 'throughput',
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1486,7 +1463,6 @@ echo "\$stat_string" >> ${output}!;
         stdout => $output,
         jname => $jname,
         jmem => 1,
-        jqueue => 'throughput',
         jwalltime => '00:01:00',);
     return($stats);
 }
@@ -1541,10 +1517,74 @@ echo "\${stat_string}" >> ${stat_output}!;
         jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         stdout => $stat_output,
         jwalltime => '00:01:00',);
+    return($stats);
+}
+
+=head2 C<Cutadapt_Stats>
+
+ Collect cutadapt results.
+
+ Collect some information from the cutadapt output files and present them in a
+ simple-to-read csv file.
+
+=cut
+sub Cutadapt_Stats {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jmem => 1,
+        jname => 'cutst',
+        jprefix => 12,
+        paired => 1,);
+    my $jname = $options->{jname};
+    my $input_file = $options->{input};
+    my $stat_output = qq"outputs/cutadapt_stats.csv";
+    if ($options->{direction}) {
+        $stat_output = qw"outputs/cutadapt.stdout";
+        $jname = qq"$options->{jname}_$options->{direction}";
+    }
+    my $comment = '## This should collect cutadapt statistics.';
+    my $jstring = qq!
+if [ \! -r "${stat_output}" ]; then
+  echo "name,total_reads,adapter_reads,too_short,discarded_untrimmed,passed" > $stat_output
+fi
+total_reads_tmp=\$( { head -n 15 ${input_file} | grep "^Total reads processed" || test \$? = 1; } |\\
+  awk '{print \$4}' | sed "s/\,//g")
+total_reads=\${total_reads_tmp:-0}
+adapter_tmp=\$( { head -n 15 ${input_file} | grep "^Reads with adapters" ${input_file} || test \$? = 1; } |\\
+  awk '{print \$4}' | sed "s/\,//g")
+adapter=\${adapter_tmp:-0}
+too_short_tmp=\$( { head -n 15 ${input_file} | grep "^Reads that were too short" || test \$? = 1; } |\\
+  awk '{print \$6}' | sed "s/\,//g")
+too_short=\${too_short_tmp:-0}
+discarded_untrimmed_tmp=\$( { head -n 15 ${input_file} | grep "^Reads discarded as untrimmed" || test \$? = 1; } |\\
+  awk '{print \$5}' | sed "s/\,//g")
+discarded_untrimmed=\${discarded_untrimmed_tmp:-0}
+passed_tmp=\$( { head -n 15 ${input_file} | grep "^Reads written" || test \$? = 1; } |\\
+  awk '{print \$5}' | sed "s/\,//g")
+passed=\${passed_tmp:-0}
+stat_string=\$(printf "$options->{jname},%s,%s,%s,%s,%s" "\${total_reads}" "\${adapter}" \\
+  "\${too_short}" "\${discarded_untrimmed}" "\${passed}")
+echo "\$stat_string" >> ${stat_output}
+!;
+    my $stats = $class->Submit(
+        comment => $comment,
+        input => $input_file,
+        jcpu => 1,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => $jname,
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        jwalltime => '00:01:00',
+        stdout => $stat_output,
+        output => $stat_output,);
+    ## Added to return the state of the system to what it was
+    ## before we messed with the options.
     return($stats);
 }
 
@@ -1609,7 +1649,6 @@ echo "\$stat_string" >> ${stat_output}
         jmem => $options->{jmem},
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => $stat_output,
@@ -1664,7 +1703,6 @@ echo "\$stat_string" >> ${output}
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jwalltime => '00:01:00',
-        jqueue => 'throughput',
         stdout => $output,
         output => $output,);
     return($stats);
@@ -1711,7 +1749,6 @@ echo "\$stat_string" >> "${output}"!;
         jname => $jname,
         jdepends => $options->{jdepends},
         jprefix => $args{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => '',
@@ -1777,7 +1814,6 @@ echo "\$stat_string" >> "${output}"!;
         jmem => 1,
         jname => $jname,
         jprefix => $args{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',);
     return($stats);
@@ -1846,15 +1882,12 @@ echo "\$stat_string" >> ${stat_output}
         jmem => 1,
         jname => $jname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '00:01:00',
         stdout => $stat_output,
         output => $stat_output,);
     return($stats);
 }
-
-=back
 
 =head1 AUTHOR - atb
 

@@ -1,13 +1,11 @@
 package Bio::Adventure::Count;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
+use Bio::Adventure::Config;
 use Bio::DB::Sam;
 use Bio::Tools::GFF;
 use Cwd;
@@ -62,7 +60,6 @@ my \$result = Bio::Adventure::Count::Guess_Strand_Worker(\$h,
         jmem => $options->{jmem},
         jname => qq"guess_strand_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'workstation',
         jstring => $jstring,
         language => 'perl',
         output => $output,
@@ -181,6 +178,8 @@ sub Guess_Strand_Worker {
 
  Invoke htseq multiple times with options for counting different transcript types.
 
+=over
+
 =item C<Arguments>
 
  species(required): Defines the gff/fasta files to query in {libpath}.
@@ -203,17 +202,15 @@ sub HT_Multi {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input',],
-        modules => ['htseq'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('htseq-count');
-    die('Could not find htseq in your PATH.') unless($check);
+        required => ['species', 'input',],);
 
     my %ro_opts = %{$options};
     my $species = $options->{species};
     my $htseq_input = $options->{input};
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {
+        $stranded = 'yes';
+    } elsif ($stranded eq 'forward') {
         $stranded = 'yes';
     } elsif ($stranded eq '0') {
         $stranded = 'no';
@@ -252,7 +249,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $jprefix,
-                jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -268,7 +264,6 @@ sub HT_Multi {
                 jdepends => $options->{jdepends},
                 jname => $htseq_jobname,
                 jprefix => $options->{jprefix},
-                jqueue => 'throughput',
                 postscript => $options->{postscript},
                 prescript => $options->{prescript},
                 suffix => $options->{suffix},);
@@ -292,7 +287,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
             postscript => $options->{postscript},
             prescript => $options->{prescript},
             suffix => $options->{suffix},);
@@ -307,7 +301,6 @@ sub HT_Multi {
             jdepends => $options->{jdepends},
             jname => $htall_jobname,
             jprefix => $jprefix,
-            jqueue => 'throughput',
             postscript => $args{postscript},
             prescript => $args{prescript},
             suffix => $args{suffix},);
@@ -315,10 +308,10 @@ sub HT_Multi {
     } else {
         print "Did not find ${gff} nor ${gtf}, not running htseq_all.\n";
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return(\@jobs);
 }
+
+=back
 
 =head2 C<HT_Types>
 
@@ -326,6 +319,8 @@ sub HT_Multi {
 
  This function reads the first 100k lines of a gff file and use that
  to guess at the most likely type of feature when invoking htseq.
+
+=over
 
 =item C<Arguments>
 
@@ -420,6 +415,8 @@ sub HT_Types {
     return($ret);
 }
 
+=back
+
 =head2 C<HTSeq>
 
  Run htseq-count on a sorted, indexed bam file.
@@ -428,6 +425,8 @@ sub HT_Types {
  Invoke htseq-count.  This should be able to automagically pick up
  other types of countable features and send the htseq-count results to
  a separate count file.
+
+=over
 
 =item C<Arguments>
 
@@ -455,13 +454,13 @@ sub HTSeq {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species', 'htseq_args',],
-	jmem => 20,
+        jmem => 20,
         jname => '',
-        jprefix => '',
-        modules => ['htseq'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        jprefix => '',);
     my $stranded = $options->{stranded};
     if ($stranded eq '1') {
+        $stranded = 'yes';
+    } elsif ($stranded eq 'forward') {
         $stranded = 'yes';
     } elsif ($stranded eq '0') {
         $stranded = 'no';
@@ -560,7 +559,6 @@ xz -f -9e ${output}
         gff_type => $options->{gff_type},
         gff_tag => $options->{gff_tag},
         input => $htseq_input,
-        modules => $options->{modules},
         output => $output,
         stderr => $error,
         stdout => $output,
@@ -571,12 +569,11 @@ xz -f -9e ${output}
         jmem => 6,
         jname => $htseq_jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($htseq);
 }
+
+=back
 
 =head2 C<Jellyfish>
 
@@ -587,6 +584,8 @@ xz -f -9e ${output}
  This should also send the wacky fasta format fo counted sequences to a
  tsv of kmers and numbers, which should be a rather more tractable
  format with which to play.
+
+=over
 
 =item C<Arguments>
 
@@ -602,8 +601,7 @@ sub Jellyfish {
         args => \%args,
         required => ['input'],
         length => '9,11,13,15',
-        jprefix => 18,
-        modules => ['jellyfish'],);
+        jprefix => 18,);
     my @kmer_array = split(/\,|:/, $options->{length});
     my $count = 0;
     my $ret;
@@ -621,10 +619,6 @@ sub Jellyfish {
       }
         return($ret);
     }
-
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('jellyfish');
-    die('Could not find jellyfish in your PATH.') unless($check);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     my $cwd_name = basename(cwd());
@@ -665,25 +659,21 @@ jellyfish dump ${count_file} > ${count_fasta} \\
 
     my $jelly = $class->Submit(
         comment => $comment,
-        modules => $options->{modules},
-        count_file => $count_file,
-        info_file => $info_file,
-        histogram_file => $histogram_file,
         count_fasta => $count_fasta,
-        output => $matrix_file,
-        stderr => $stderr,
-        stdout => $stdout,
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
+        count_file => $count_file,
+        histogram_file => $histogram_file,
+        info_file => $info_file,
         jdepends => $options->{jdepends},
         jname => qq"jelly_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => 12,
-        jcpu => 4,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
-
+        jcpu => 4,
+        output => $matrix_file,
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        stderr => $stderr,
+        stdout => $stdout,);
     $comment = qq"## This should create a matrix with rows as kmers and elements
 ## comprised of the number of occurrences.
 ";
@@ -701,14 +691,14 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     my $matrix_job = $class->Submit(
         comment => $comment,
         input => $count_fasta,
-        output => $matrix_file,
-        stdout => $stdout,
         jdepends => $jelly->{job_id},
         jname => qq"jelly_matrix_$options->{length}",
         jprefix => $new_prefix,
         jstring => $jstring,
         jcpu => 1,
-        language => 'perl',);
+        language => 'perl',
+        output => $matrix_file,
+        stdout => $stdout,);
     $jelly->{matrix_job} = $matrix_job;
 
     my $compress_files = qq"${count_file}:${info_file}:${histogram_file}:${count_fasta}:${matrix_file}";
@@ -730,12 +720,16 @@ my \$result = \$h->Bio::Adventure::Count::Jellyfish_Matrix(
     return($jelly);
 }
 
+=back
+
 =head2 C<Jellyfish_Matrix>
 
  Convert the jellyfish fasta format to a matrix-compatible tsv.
 
  This function is responsible for actually converting the fasta output
  from jellyfish into tsv.  It is pretty quick and dirty.
+
+=over
 
 =item C<Arguments>
 
@@ -783,12 +777,16 @@ sub Jellyfish_Matrix {
     return($nmer_count);
 }
 
+=back
+
 =head2 C<Kraken>
 
  Use kraken2 to taxonomically classify reads.
 
  Kraken2 is a kmer-based read classifier.  It is quite fast once its
  databases are built.
+
+=over
 
 =item C<Arguments>
 
@@ -808,12 +806,9 @@ sub Kraken {
         args => \%args,
         required => ['input'],
         library => 'viral',
+        jmem => 32,
         jprefix => '11',
-        clean => 1,
-        modules => ['kraken'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kraken2');
-    die('Could not find kraken2 in your PATH.') unless($check);
+        clean => 1,);
     ## kraken2 --db ${DBNAME} --paired --classified-out cseqs#.fq seqs_1.fq seqs_2.fq
     my $job_name = $class->Get_Job_Name();
     my $input_directory = basename(cwd());
@@ -836,13 +831,14 @@ sub Kraken {
 !;
     my $stdout = qq"${output_dir}/kraken.stdout";
     my $stderr = qq"${output_dir}/kraken.stderr";
-    my $jstring = qq!kraken2 --db $ENV{KRAKEN2_DB_PATH}/$options->{library} \\
+    my $jstring = qq!kraken2 --db "\${KRAKEN2_DB_PATH}"/$options->{library} \\
   --report ${output_dir}/kraken_report.txt --use-mpa-style \\
   --use-names ${input_string} \\
   --classified-out ${output_dir}/classified#.fastq.gz \\
   --unclassified-out ${output_dir}/unclassified#.fastq.gz \\
   2>${stderr} \\
   1>${stdout}
+# shellcheck disable=SC2181
 if [ "\$?" -ne "0" ]; then
   echo "Kraken returned an error."
 fi
@@ -857,23 +853,21 @@ rm -f ${output_dir}/*.fastq.gz
     }
     my $kraken = $class->Submit(
         comment => $comment,
-        modules => $options->{modules},
-        output => qq"${output_dir}/kraken_report.txt",
-        prescript => $options->{prescript},
-        postscript => $options->{postscript},
-        stdout => $stdout,
-        stderr => $stderr,
         jcpu => 6,
         jdepends => $options->{jdepends},
         jmem => 96,
         jname => "kraken_${job_name}",
         jprefix => $options->{jprefix},
-        jqueue => 'large',
-        jstring => $jstring,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        jstring => $jstring,
+        output => qq"${output_dir}/kraken_report.txt",
+        prescript => $options->{prescript},
+        postscript => $options->{postscript},
+        stdout => $stdout,
+        stderr => $stderr,);
     return($kraken);
 }
+
+=back
 
 =head2 C<Mash>
 
@@ -888,11 +882,7 @@ sub Mash {
         jprefix => 21,
         length => 9,
         sketch => 9,
-        jcpu => 4,
-        modules => ['mash'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('mash');
-    die('Could not find mash in your PATH.') unless($check);
+        jcpu => 4,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -925,17 +915,14 @@ for outer in ${sketch_dir}/*; do
 
     my $mash = $class->Submit(
         comment => $comment,
-        stderr => $stderr,
-        stdout => $stdout,
         jcpu => 4,
         jdepends => $options->{jdepends},
         jmem => 12,
         jname => qq"mash_${job_name}_$options->{length}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        stderr => $stderr,
+        stdout => $stdout,);
     return($mash);
 }
 
@@ -945,6 +932,8 @@ for outer in ${sketch_dir}/*; do
 
  This function has not been used in a very long time and likely will
  require some work if I wish to use it again.
+
+=over
 
 =item C<Arguments>
 
@@ -992,12 +981,16 @@ sub Mi_Map {
     return($job);
 } ## End of Mi_Map
 
+=back
+
 =head2 C<Read_Mi>
 
  Read an miRNA database.
 
  This takes the fasta file from the mirbase and extracts the IDs and
  sequences.
+
+=over
 
 =item C<Arguments>
 
@@ -1018,6 +1011,8 @@ sub Read_Mi {
     return(\%sequences);
 }
 
+=back
+
 =head2 C<Mpileup>
 
  Run samtools mpileup.
@@ -1028,11 +1023,7 @@ sub Mpileup {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input', 'species'],
-        jprefix => 61,
-        modules => ['samtools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('samtools');
-    die('Could not find samtools in your PATH.') unless($check);
+        jprefix => 61,);
     my $job_name = $class->Get_Job_Name();
     my $inputs = $class->Get_Paths($options->{input});
     ## Unlike most of my jobs, the input argument here is a directory, so just grab it
@@ -1056,7 +1047,6 @@ samtools mpileup -uvf ${genome} 2>${output_dir}/samtools_mpileup.stderr \\
     ${output_dir}/sorted.vcf
 bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 !;
-
     my $mpileup = $class->Submit(
         comment => $comment,
         jcpu => 4,
@@ -1066,10 +1056,7 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
         jprefix => $options->{jprefix},
         jstring => $jstring,
         stderr => $final_error,
-        stdout => $stdout,
-        modules => $options->{modules},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
+        stdout => $stdout,);
     return($mpileup);
 }
 
@@ -1077,6 +1064,8 @@ bcftools view -l 9 -o ${pileup_output} 2>${output_dir}/mpileup_bcftools.stderr
 
  Read an miRNA database and get the connections between the various IDs, mature
  sequences, and immature sequences.
+
+=over
 
 =item C<Arguments>
 
@@ -1154,9 +1143,13 @@ sub Read_Mappings_Mi {
     return($newdb);
 }
 
+=back
+
 =head2 C<Read_Bam_Mi>
 
  Read a bam file and cross reference it against an miRNA database.
+
+=over
 
 =item C<Arguments>
 
@@ -1225,9 +1218,13 @@ sub Read_Bam_Mi {
     return($mappings);
 }
 
+=back
+
 =head2 C<Final_Print_Mi>
 
  Print out the final counts of miRNA mappings.
+
+=over
 
 =item C<Arguments>
 
@@ -1250,6 +1247,8 @@ sub Final_Print_Mi {
     return($hits);
 } ## End of Final_Print
 
+=back
+
 =head2 C<Count_Alignments>
 
  Compare alignments across species.
@@ -1259,6 +1258,8 @@ sub Final_Print_Mi {
  parasite along with multi-hits across both.  This was first used to
  distinguish between T. cruzi and human hits, ergo the 'Tc' as the
  default parasite pattern.
+
+=over
 
 =item C<Arguments>
 
@@ -1420,6 +1421,8 @@ Multi-both: $result->{both_multi}\n";
     return($result);
 }
 
+=back
+
 =head2 C<SLSearch>
 
  Search a pile of reads for the trypanosome spliced leader.
@@ -1437,6 +1440,8 @@ Multi-both: $result->{both_multi}\n";
  With that in mind, this counts up the number of times a string of
  interest appears in the input files in the forward and RC directions,
  and prints that in an easy-to-read format.
+
+=over
 
 =item C<Arguments>
 
@@ -1470,20 +1475,20 @@ my \$result = \$h->Bio::Adventure::Count::SLSearch_Worker(
     my $slsearch = $class->Submit(
         comment => $comment,
         input => $options->{input},
-        language => 'perl',
-        stderr => $stderr,
-        stdout => $stdout,
-        output => $output_dir,
         jcpu => 1,
         jdepends => $options->{jdepends},
         jmem => $options->{jmem},
         jname => 'slsearch',
         jprefix => $options->{jprefix},
-        jstring => $jstring,);
-    $class->{language} = 'bash';
-    $class->{shell} = '/usr/bin/env bash';
+        jstring => $jstring,
+        language => 'perl',
+        output => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,);
     return($slsearch);
 }
+
+=back
 
 =head2 C<SLSearch_Worker>
 
@@ -1613,6 +1618,199 @@ Total results:
   reverse-complement observed: $global_search_result{rc_found}\n";
     $log_fh->close();
 }
+
+=back
+
+=head2 C<SL_UTR>
+
+ Search a pile of reads for UTR boundaries with the SL/polyA.
+
+ I have been rereading Keith's code for gathering UTRs from SL sites.
+ I like it quite a lot and would like to use it to improve my python
+ style, but it will require quite a bit of retooling to work with the
+ newer generation of tools/methods.  As a result I am thinking I will
+ first port the logic here, then once I am reasonably confident I can
+ get a 'correct' answer I will turn back to that code.
+
+=over
+
+=item C<Arguments>
+
+ input(required): Set of input files to read.
+ search('AGTTTCTGTACTTTATTGG'): SL substring to search.
+ jmem(24): Memory to allocate for this task.
+ jprefix(50): Default jobname/output prefix.
+
+=cut
+sub SL_UTR {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input'],
+        jmem => 24,
+        jprefix => '50',
+        search => 'AGTTTCTGTACTTTATTGG',);
+    my $output_dir =  qq"outputs/$options->{jprefix}SL_UTR";
+    my $output_made = make_path($output_dir);
+    my $comment = '## Search for SL sub-sequences.';
+    my $stdout = qq"${output_dir}/sl_utr.stdout";
+    my $stderr = qq"${output_dir}/sl_utr.stderr";
+    my $jstring = qq?
+use Bio::Adventure::Count;
+my \$result = \$h->Bio::Adventure::Count::SL_UTR_Worker(
+  input => '$options->{input}',
+  output => '${output_dir}',
+  jprefix => '$options->{jprefix}',
+  jname => 'slsearch',);
+?;
+    my $sl_utr = $class->Submit(
+        comment => $comment,
+        input => $options->{input},
+        jcpu => 1,
+        jdepends => $options->{jdepends},
+        jmem => $options->{jmem},
+        jname => 'sl_utr',
+        jprefix => $options->{jprefix},
+        jstring => $jstring,
+        language => 'perl',
+        output => $output_dir,
+        stderr => $stderr,
+        stdout => $stdout,);
+    return($sl_utr);
+}
+
+=back
+
+=head2 C<SL_UTR_Worker>
+
+ This function does the actual work for SL_UTR().
+
+=cut
+sub SL_UTR_Worker {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args,
+        required => ['input', 'output'],
+        jmem => 24,
+        jprefix => '50',
+        search => 'AGTTTCTGTACTTTAT',);
+    ## Ideally, I would like to run this function on the mapping
+    ## directories and search the aligned/unaligned sequences
+    ## separately.
+    ## Unfortunately, in our cleaning, we deleted those files.
+    ## Therefore it (for the moment) will instead just read over the
+    ## trimmed files.
+    ## I think I will write the following: the read IDs for every
+    ## read which matches the forward or RC versions of the SL and
+    ## a summary txt file of the result.
+    my @input_lst = ();
+    if ($options->{input} =~ /\:|\;|\,|\s+/) {
+        my @tmp_lst = split(/\:|\;|\,|\s+/, $options->{input});
+        for my $i (@tmp_lst) {
+            push (@input_lst, $i) if (-r $i);
+        }
+    } else {
+        if (-r $options->{input}) {
+            push(@input_lst, $options->{input});
+        }
+    }
+    if (scalar(@input_lst) == 0) {
+        return(undef);
+    }
+
+    my $fwd_search = $options->{search};
+    my $rc_search = reverse($fwd_search);
+    $rc_search =~ tr/ATGCUatgcu/TACGAtacga/;
+    my $search_length = length($fwd_search);
+
+    my $log_fh = FileHandle->new(">$options->{output}/slsearch_log.txt");
+    print $log_fh qq"Starting search for a portion of the SL sequence: $options->{search}
+in the file(s): $options->{input}.\n";
+    ## Now start the main loop, open file handles for a main log
+    ## and for the per-input outputs.  Create a couple of global counters.
+
+    my %global_search_result = (
+        found => 0,  ## The total number of observed SL.
+        fwd_found => 0,  ## The number found in the forward orientation.
+        rc_found => 0,  ## The number of revcomp found.
+        searched => 0); ## The total number of sequences searched.
+    ## One may reasonably ask why all_found is not just the sum of the next two.
+    ## I am thinking to catch the pathological case where a single input sequence
+    ## has both the forward and RC sequences.
+
+    for my $i (@input_lst) {
+        my $ind_name = basename($i, ('.gz', '.bz2', '.xz'));
+        my $format = 'Fastq';
+        $format = 'Fasta' if ($i =~ /\.fasta/);
+
+        $ind_name = basename($ind_name, ('.fastq', '.fasta'));
+        my $ind_result = FileHandle->new(">$options->{output}/${ind_name}.tsv");
+        ## I want to save the position information too so that I can see if I my search string
+        ## is too close to the beginning of the read.
+        print $ind_result "ReadID\tposition\torientation\n";
+        my %ind_search_result = (
+            found => 0,
+            fwd_found => 0,
+            rc_found => 0,
+            searched => 0);
+        my $reader = FileHandle->new("less ${i} |");
+        my $seqio = Bio::SeqIO->new(-format => $format, -fh => $reader);
+      FSA: while (my $seq = $seqio->next_seq) {
+          $ind_search_result{searched}++;
+          $global_search_result{searched}++;
+          my $seq_id = $seq->id;
+          my $read_seq = $seq->seq;
+          my $fwd_end = undef;
+          if ($read_seq =~ m/$fwd_search/g) {
+              $fwd_end = pos($read_seq);
+          }
+          my $rc_end = undef;
+          if ($read_seq =~ m/$rc_search/g) {
+              $rc_end = pos($read_seq);
+          }
+          ## Get out if we do not find the SL portion.
+          if (!defined($fwd_end) && !defined($rc_end)) {
+              next FSA;
+          }
+
+          if ($fwd_end) {
+              my $fwd_start = $fwd_end - ($search_length - 1);
+              print $ind_result "${seq_id}\t${fwd_start}\tFWD\n";
+              $ind_search_result{found}++;
+              $ind_search_result{fwd_found}++;
+              $global_search_result{found}++;
+              $global_search_result{fwd_found}++;
+          }
+
+          if ($rc_end) {
+              my $rc_start = $rc_end - ($search_length - 1);
+              print $ind_result "${seq_id}\t${rc_start}\tRC\n";
+              $ind_search_result{found}++;
+              $ind_search_result{rc_found}++;
+              $global_search_result{found}++;
+              $global_search_result{rc_found}++;
+          }
+      } ## End reading the input fastq/fasta file.
+
+        print $log_fh qq"
+${ind_name} results:
+  sequences searched: $ind_search_result{searched}
+  subsequences observed: $ind_search_result{found}
+  forward observed: $ind_search_result{fwd_found}
+  reverse-complement observed: $ind_search_result{rc_found}\n";
+        $ind_result->close();
+        $reader->close();
+    } ## End of the input loop
+        print $log_fh qq"
+Total results:
+  sequences searched: $global_search_result{searched}
+  subsequences observed: $global_search_result{found}
+  forward observed: $global_search_result{fwd_found}
+  reverse-complement observed: $global_search_result{rc_found}\n";
+    $log_fh->close();
+}
+
+
 
 =head1 AUTHOR - atb
 

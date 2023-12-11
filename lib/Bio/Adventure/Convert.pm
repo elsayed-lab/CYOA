@@ -6,7 +6,6 @@ use feature 'try';
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
 use Bio::FeatureIO;
 use Bio::Tools::GFF;
 use Bio::Root::Exception;
@@ -116,12 +115,12 @@ sub Gb2Gff_Worker {
         output_gene_gff => 'gene_gff',
         required => ['input']);
 
-    my $in = FileHandle->new("less $options->{input} |");
-    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $in);
+    my $handle = IO::Handle->new;
+    open($handle, "less $options->{input} |");
+    my $seqio = Bio::SeqIO->new(-format => 'genbank', -fh => $handle);
     my $seq_count = 0;
     my $total_nt = 0;
     my $feature_count = 0;
-
     my $fasta = Bio::SeqIO->new(-file => qq">$options->{output_fasta}",
                                 -format => 'fasta', -flush => 0);
     my $gffout = Bio::Tools::GFF->new(-file => ">$options->{output_all_gff}",
@@ -138,8 +137,10 @@ sub Gb2Gff_Worker {
                                     -format => 'Fasta');
     my $rrna_gffout = Bio::Tools::GFF->new(-file => ">$options->{output_rrna_gff}", -gff_version => 3);
     my $rrna_fasta = Bio::SeqIO->new(-file => qq">$options->{output_rrna_fasta}", -format => 'Fasta');
+    print "TESTME: Starting to write features\n";
     while (my $seq = $seqio->next_seq) {
         $seq_count++;
+        print "Writing feature: $seq_count\n";
         $total_nt = $total_nt + $seq->length();
         $fasta->write_seq($seq);
         print "Wrote ${seq_count} features.\n";
@@ -338,7 +339,7 @@ sub Gb2Gff_Worker {
         rrna_gff => $options->{output_rrna_gff},
         rrna_fasta => $options->{output_rrna_fasta},
     };
-    close($in);
+    close($handle);
     $fasta->close();
     $gffout->close();
     $gene_gff->close();
@@ -363,18 +364,21 @@ sub Gb2Gff_Worker {
  It writes one file of amino acid sequence and one of nucleotides.
  Upon completion, it returns the number of entries written.
 
+=over
+
 =item C<Arguments>
 
+ species: Add the .gff and .fasta suffixes to this and look in $libdir.
  gff(required): Gff file to read.
  input(required): Genome fasta file to read.
- htseq_id('gene_id'): ID tag to use when extracting features.
- htseq_type(undef): gff type to extract, left undefined it will count
+ gff_tag('gene_id'): ID tag to use when extracting features.
+ gff_type(undef): gff type to extract, left undefined it will count
   them up and choose the most highly represented.
 
 =item C<Invocation>
 
-> cyoa --task convert --method gff2 --input lmajor.fasta \
-   --gff lmajor.gff --htseq_type CDS --htseq_id ID
+> cyoa --method gff2 --input lmajor.fasta \
+   --gff lmajor.gff --gff_type CDS --gff_tag ID
 
 =cut
 sub Gff2Fasta {
@@ -464,6 +468,8 @@ sub Gff2Fasta {
     print "Wrote ${features_written} features to the aa/nt files.\n";
     return($features_written);
 }
+
+=back
 
 =head2 C<Gff2Gtf>
 
@@ -619,6 +625,8 @@ sub Read_GFF {
  directory and which start with $basename, include something like
  -trimmed-v0M1.sam.
 
+=over
+
 =item C<Arguments>
 
  input(required): Input sam file.
@@ -635,8 +643,7 @@ sub Sam2Bam {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input'],
-        modules => ['samtools', 'bamtools'],);
+        required => ['species', 'input'],);
     my @input_list = ();
     my $paths = $class->Get_Paths($options->{input});
     if ($options->{input}) {
@@ -661,9 +668,10 @@ sub Sam2Bam {
     my $sam = $class->Bio::Adventure::Convert::Samtools(%args,
         jdepends => $options->{jdepends},
         sam => \@input_list);
-    $loaded = $class->Module_Unload(modules => $options->{modules});
     return($sam);
 }
+
+=back
 
 =head2 C<Samtools>
 
@@ -677,6 +685,8 @@ sub Sam2Bam {
  not for any real reason but because when I first wrote it, it
  seemed like the sorting was taking too long if I did not already
  have the alignments in a bam file.
+
+=over
 
 =item C<Arguments>
 
@@ -693,9 +703,7 @@ sub Samtools {
         jname => 'sam',
         jprefix => '',
         paired => 1,
-        mistmatch => 1,
-        modules => ['samtools', 'bamtools'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
+        mismatch => 1,);
     my $input = $options->{input};
     my $output = $input;
     $output =~ s/\.sam$/\.bam/g;
@@ -730,7 +738,8 @@ samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
   1>>${stdout}";
     ## If there is a 0.1 in the version string, then use the old syntax.
     if ($samtools_version =~ /0\.1/) {
-        $samtools_first = qq"samtools view -u -t $options->{libdir}/genome/$options->{species}.fasta \\
+        $samtools_first = qq"samtools view -u \\
+  -t $options->{libdir}/genome/$options->{species}.fasta \\
   -S ${input} 1>${output}";
         $samtools_second = qq"samtools sort -l 9 ${output} \\
   ${sorted_name} \\
@@ -834,7 +843,6 @@ xz -9e -f ${unmapped}
         comment => $comment,
         depends => $options->{jdepends},
         input => $input,
-        modules => $options->{modules},
         output => $output,
         paired => $options->{paired},
         paired_output => qq"${paired_name}.bam",
@@ -846,13 +854,12 @@ xz -9e -f ${unmapped}
         jmem => $options->{jmem},
         jname => $jobname,
         jprefix => $options->{jprefix},
-        jqueue => 'throughput',
         jstring => $jstring,
         jwalltime => '18:00:00',);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload',);
     return($samtools);
 }
+
+=back
 
 =head1 AUTHOR - atb
 

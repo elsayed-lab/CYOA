@@ -7,6 +7,9 @@ use Moo;
 use vars qw"$VERSION";
 use feature qw"try";
 no warnings qw"experimental::try";
+use Exporter;
+our @EXPORT = qw"Submit Wait";
+our @ISA = qw"Exporter";
 
 use AppConfig qw":argcount :expand";
 use Bio::SeqIO;
@@ -37,6 +40,7 @@ use Storable qw"lock_store lock_retrieve";
 use Term::ReadLine;
 use Term::UI;
 
+use Bio::Adventure::Config;
 use Bio::Adventure::Slurm;
 use Bio::Adventure::Local;
 
@@ -123,9 +127,9 @@ has arbitrary => (is => 'rw', default => ''); ## Extra arbitrary arguments to pa
 has array_start => (is => 'rw', default => 100);
 has bamfile => (is => 'rw', default => undef); ## Default bam file for converting/reading/etc.
 has basedir => (is => 'rw', default => cwd());  ## This was cwd() but I think that may cause problems.
-has bash_path => (is => 'rw', default => My_Which('bash'));
+has bash_path => (is => 'rw', default => scalar_which('bash'));
 has best_only => (is => 'rw', default => 0); ## keep only the best search result when performing alignments?
-has blast_params => (is => 'rw', default => ' -e 10 '); ## Default blast parameters
+has blast_args => (is => 'rw', default => ' -evalue 10 '); ## Default blast parameters
 has blast_tool => (is => 'rw', default => 'blastn'); ## Default blast tool to use
 has bt_default => (is => 'rw', default => '--best'); ## Default bt1 arguments.
 has bt_varg => (is => 'rw', default => '-v 0');
@@ -141,14 +145,19 @@ has comment => (is => 'rw', default => undef); ## Set a comment in running slurm
 has compress => (is => 'rw', default => 1); ## Compress output files?
 has config => (is => 'rw', default => undef); ## Not sure
 has count => (is => 'rw', default => 1); ## Quantify reads after mapping?
+has correction => (is => 'rw', default => 1); ## Perform correction when using fastp?
 has coverage => (is => 'rw', default => undef); ## Provide a coverage cutoff
 has coverage_tag => (is => 'rw', default => 'DP');
 has csv_file => (is => 'rw', default => 'all_samples.csv'); ## Default csv file to read/write.
 has cutoff => (is => 'rw', default => 0.05); ## Default cutoff (looking at your vcftools, e.g. I haven't changed those yet).
 has decoy => (is => 'rw', default => 1); ## Add decoys
 has debug => (is => 'rw', default => 0); ## Print debugging information.
+has deduplicate => (is => 'rw', default => 1); ## Perform deduplication when using fastp
+has delimiter => (is => 'rw', default => '\,|\;|:');
 has directories => (is => 'rw', default => undef); ## Apply a command to multiple input directories.
+has do_umi => (is => 'rw', default => 1); ## Extract UMIs when using fastp
 has download => (is => 'rw', default => 1);
+has email => (is => 'rw', default => 'abelew@umd.edu');
 has evalue => (is => 'rw', default => 0.001); ## Default e-value cutoff
 has fasta_args => (is => 'rw', default => ' -b 20 -d 20 '); ## Default arguments for the fasta36 suite
 has fasta_tool => (is => 'rw', default => 'ggsearch36'); ## Which fasta36 program to run?
@@ -185,10 +194,11 @@ has input_phanotate => (is => 'rw', default => 'outputs/16phanotate/phanotate.ts
 has input_prodigal => (is => 'rw', default => 'outputs/17prodigal/predicted_cds.gff');
 has input_prokka_tsv => (is => 'rw', default => undef); ## Prokka tsv file for merging annotations.
 has input_trinotate => (is => 'rw', default => '11trinotate_10prokka_09termreorder_08phageterm_07rosalind_plus/Trinotate.tsv'); ## trinotate output, used when merging annotations.
+has input_umi => (is => 'rw', default => 'umi.txt');
 has interactive => (is => 'rw', default => 0); ## Is this an interactive session?
 has introns => (is => 'rw', default => 0); ## Is this method intron aware? (variant searching).
 has jobs => (is => 'rw', default => undef); ## List of currently active jobs, possibly not used right now.
-has jobids => (is => 'rw', default => undef); ## A place to put running jobids, maybe no longer needed.
+has jobids => (is => 'rw', default => ''); ## A place to put running jobids, resurrected!
 has jbasename => (is => 'rw', default => basename(cwd())); ## Job basename
 has jcpu => (is => 'rw', default => 2); ## Number of processors to request in jobs
 has jgpu => (is => 'rw', default => 0);
@@ -202,9 +212,11 @@ has jqueue => (is => 'rw', default => 'workstation'); ## What queue will jobs de
 has jqueues => (is => 'rw', default => 'throughput,workstation,long,large'); ## Other possible queues
 has jsleep => (is => 'rw', default => '0.5'); ## Set a sleep between jobs
 has jstring => (is => 'rw', default => undef); ## String of the job
+has jtemplate => (is => 'rw', default => undef);
 has jwalltime => (is => 'rw', default => '10:00:00'); ## Default time to request
 has kingdom => (is => 'rw', default => undef); ## Taxonomic kingdom, prokka/kraken
 has language => (is => 'rw', default => 'bash'); ## What kind of script is this?
+has last_job => (is => 'rw', default => '');  ## Last job in a chain.
 has length => (is => 'rw', default => 17); ## kmer length, other stuff too.
 has libdir => (is => 'rw', default => "\${HOME}/libraries"); ## Directory containing genomes/gff/indexes
 has libpath => (is => 'rw', default => "$ENV{HOME}/libraries");
@@ -237,6 +249,7 @@ has paired => (is => 'rw', default => 1); ## Is the input paired?
 has pdata => (is => 'rw', default => 'options.pdata');
 has phred => (is => 'rw', default => 33); ## Minimum quality score when trimming
 has postscript => (is => 'rw', default => undef); ## String to put after a cluter job.
+has preprocess_dir => (is => 'rw', default => 'preprocessing');
 has prescript => (is => 'rw', default => undef); ## String to put before a cluster job.
 has primary_key => (is => 'rw', default => 'locus_tag'); ## Choose a keytype for merging data
 has product_columns => (is => 'rw', default => 'trinity_sprot_Top_BLASTX_hit,inter_Pfam,inter_TIGRFAM'); ## When merging annotations, choose the favorites when upgrading an annotation to 'product'
@@ -247,7 +260,7 @@ has pval => (is => 'rw', default => undef); ## Pvalue cutoffs.
 has qsub_args => (is => 'rw', default => '-j oe -V -m n'); ## What arguments will be passed to qsub by default?
 has qsub_depends => (is => 'rw', default => 'depend=afterok:'); ## String to pass for dependencies
 has qsub_dependsarray => (is => 'rw', default => 'depend=afterokarray:'); ## String to pass for an array of jobs
-has qsub_path => (is => 'rw', default => My_Which('qsub'));
+has qsub_path => (is => 'rw', default => scalar_which('qsub'));
 has qual => (is => 'rw', default => undef); ## cutadapt quality string
 has query => (is => 'rw', default => undef); ## Used for searches when input is already taken, most likely blast/fasta
 has restart => (is => 'rw', default => 0); ## Restart job(s) in the middle of a group
@@ -267,7 +280,7 @@ has samtools_mapped => (is => 'rw', default => 0); ## Extract mapped reads with 
 has samtools_unmapped => (is => 'rw', default => 0); ## Extract unmapped reads with samtools.
 has sbatch_depends => (is => 'rw', default => 'afterok:');
 has sbatch_dependsarray => (is => 'rw', default => 'afterok:'); ## String to pass for an array of jobs
-has sbatch_path => (is => 'rw', default => My_Which('sbatch'));
+has sbatch_path => (is => 'rw', default => scalar_which('sbatch'));
 has search_string => (is => 'rw', default => 'tail');
 has shell => (is => 'rw', default => '/usr/bin/bash'); ## Default qsub shell
 has species => (is => 'rw', default => undef); ## Primarily for getting libraries to search against
@@ -281,12 +294,14 @@ has task => (is => 'rw', default => 'tnseq');
 has taxid => (is => 'rw', default => '353153'); ## Default taxonomy ID, unknown for now.
 has test_file => (is => 'rw', default => 'direct-term-repeasts.fasta'); ## There are a few places where testing for the existence of a test file is useful.
 has threshold => (is => 'rw', default => 0.05); ## A second cutoff value (looking at you, glimmer.)
+has trim => (is => 'rw', default => 1); ## Perform trimming (rnaseq pipeline, trinity)
 has type => (is => 'rw', default => undef); ## Possibly superceded by htseq_type
 has varfilter => (is => 'rw', default => 1); ## use a varfilter when performing variant searches.
 has verbose => (is => 'rw', default => 0); ## Print extra information while running?
 has vcf_cutoff => (is => 'rw', default => 5); ## Minimum depth cutoff for variant searches
 has vcf_method => (is => 'rw', default => 'freebayes');
 has vcf_minpct => (is => 'rw', default => 0.8); ## Minimum percent agreement for variant searches.
+has write => (is => 'rw', default => 1); ## Write outputs?
 ## A few variables which are by definition hash references and such
 has slots_ignored => (is => 'ro', default => 'slots_ignored,methods_to_run,menus,term,todos,variable_getvars_args,variable_function_overrides,variable_getopt_overrides,variable_current_state');  ## Ignore these slots when poking at the class.
 has methods_to_run => (is => 'rw', default => undef); ## Set of jobs to run.
@@ -303,17 +318,26 @@ has variable_current_state => (is => 'rw', default => undef); ## Current variabl
 
 our $AUTOLOAD;
 ##our @EXPORT_OK = qw"";
-$VERSION = '20151101';
+$VERSION = '202308';
 $COMPRESSION = 'xz';
 $XZ_OPTS = '-9e';
 $XZ_DEFAULTS = '-9e';
 $ENV{LESS} = '--buffers 0 -B';
+$ENV{PERL_USE_UNSAFE_INC} = 0;
 my $lessopen = Get_Lesspipe();
 ## Added to test Bio:DB::SeqFeature::Store
 if (!defined($ENV{PERL_INLINE_DIRECTORY})) {
-    my $filename = File::Temp::tempnam('/tmp', "inline_$ENV{USER}");
+    my $this_tmpdir = '/tmp';
+    $this_tmpdir = $ENV{TMPDIR} if (defined($ENV{TMPDIR}));
+    my $filename = File::Temp::tempnam($this_tmpdir, "inline_$ENV{USER}");
     $ENV{PERL_INLINE_DIRECTORY} = $filename;
     my $made = make_path($filename);
+}
+
+sub scalar_which {
+    my $exe = $_[0];
+    my $path = which($exe);
+    return($path);
 }
 
 =head2 C<Help>
@@ -354,7 +378,8 @@ sub BUILD {
 
     ## The modulecmd comand is kind of a hard-prerequisite for this to work.
     my $check = which('modulecmd');
-    die('Could not find environment modules in your PATH.') unless($check);
+    die("Could not find environment modules in your PATH:
+$ENV{PATH}.") unless($check);
 
     my @ignored;
     if (defined($class->{slots_ignored})) {
@@ -410,14 +435,15 @@ sub BUILD {
     ## Take just hpgl0523 as the job basename
     my $job_basename = '';
     my @suffixes = ('.gz', '.xz', '.bz2');
+    my $splitter = qq"/:|\;|\,/";
     if (defined($class->{suffixes})) {
-        @suffixes = split(/,/, $class->{suffixes});
+        @suffixes = split($splitter, $class->{suffixes});
     }
     if (defined($class->{input})) {
         $job_basename = $class->{input};
         ## Start by pulling apart any colon/comma separated inputs
-        if ($job_basename =~ /:|\,/) {
-            my @tmp = split(/:|\,/, $job_basename);
+        if ($job_basename =~ $splitter) {
+            my @tmp = split($splitter, $job_basename);
             ## Remove likely extraneous information
             $job_basename = $tmp[0];
         }
@@ -500,6 +526,19 @@ sub Check_Input {
         }
     }
     return($found);
+}
+
+sub Check_Job {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args);
+    my $result;
+    if ($options->{cluster} eq 'slurm') {
+        $result = $class->Bio::Adventure::Slurm::Check_Job(%args);
+    } else {
+        print "This runner doesn't yet have a Check_Job.\n";
+    }
+    return($result);
 }
 
 sub Check_Libpath {
@@ -645,285 +684,6 @@ sub Get_Term {
     return($term);
 }
 
-=head2 C<Get_Menus>
-
-This is responsible for printing out the cyoa menus and connecting the
-various options to the functions in the package.
-
-The top-level of the hash is the set of tasks, so stuff like sequence alignment,
-mapping, indexing, conversion, counting, etc.
-
-There are a few keys inside each of these; the names are the option which may be used
-with --task to differentiate between contexts (e.g. if one wishes to use mapping
-options specific for tnseq vs. snps, for example).  The message is just silly.
-Finally, the choices are a set of strings which point to a function.
-Choosing the number associated with the string will therefore lead to the
-invocation of that function.
-
-=cut
-sub Get_Menus {
-    my $menus = {
-        Alignment => {
-            name => 'alignment',
-            message => 'Hari Seldon once said violence is the last refuge of the incompetent.  Go to page 6626070.',
-            choices => {
-                '(blastsplit): Split the input sequence into subsets and align with blast.' => \&Bio::Adventure::Align_Blast::Split_Align_Blast,
-                '(fastasplit): Split the input sequence into subsets and align with fasta36.' => \&Bio::Adventure::Align_Fasta::Split_Align_Fasta,
-                '(fastamismatch): Split the input sequence into subsets and align with fasta36.' => \&Bio::Adventure::Align_Fasta::Parse_Fasta_Mismatches,
-                '(concat): Merge split searches into a single set of results.' => \&Bio::Adventure::Align::Concatenate_Searches,
-                '(fastaparse): Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Parse_Fasta,
-                '(blastparse): Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Parse_Blast,
-                '(fastamerge): Merge and Parse fasta36 output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Fasta::Merge_Parse_Fasta,
-                '(blastmerge): Merge and Parse blast output into a reasonably simple table of hits.' => \&Bio::Adventure::Align_Blast::Merge_Parse_Blast,
-                '(orthomcl): Run OrthoMCL assuming a directory "input" with the amino acid faa files.' => \&Bio::Adventure::Align_Blast::OrthoMCL_Pipeline,
-                '(orthofinder): Run OrthoFinder assuming a directory "input" with the amino acid faa files.' => \&Bio::Adventure::Align_Blast::OrthoFinder,
-            },
-        },
-        Annotation => {
-            name => 'annotation',
-            message => 'How come Aquaman can control whales?  They are mammals!  Makes no sense.',
-            choices =>  {
-                '(abricate): Search for Resistance genes across databases.' => \&Bio::Adventure::Resistance::Abricate,
-                '(casfinder): Search for Crispr/Cas9 cassettes/sequences in a bacterial assembly.' => \&Bio::Adventure::Annotation::Casfinder,
-                '(classify_virus): Use ICTV data to classify viral sequences/contigs.' => \&Bio::Adventure::Phage::Classify_Phage,
-                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Index::Extend_Kraken_DB,
-                '(interproscan): Use interproscan to analyze ORFs.' => \&Bio::Adventure::Annotation::Interproscan,
-                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Count::Kraken,
-                '(phageterm): Invoke phageterm to hunt for likely phage ends.' => \&Bio::Adventure::Phage::Phageterm,
-                '(phastaf): Invoke phastaf to attempt classifying phage sequence.' => \&Bio::Adventure::Phage::Phastaf,
-                '(rhopredict): Search for rho terminators.' => \&Bio::Adventure::Feature_Prediction::Rho_Predict,
-                '(terminasereorder): Reorder an assembly based on the results of a blast search.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(prokka): Invoke prokka to annotate a genome.' => \&Bio::Adventure::Annotation::Prokka,
-                '(resfinder): Search for antimicrobial resistance genes.' => \&Bio::Adventure::Resistance::Resfinder,
-                '(rgi): Search for resistance genes with genecards and peptide fasta input.' => \&Bio::Adventure::Resistance::Rgi,
-                '(mergeannotations): Merge annotations into a genbank file.' => \&Bio::Adventure::Metadata::Merge_Annotations_Make_Gbk,
-            },
-        },
-        Assembly => {
-            name => 'assembly',
-            message => 'The wise man fears the wrath of a gentle heart. Go to page 314159.',
-            choices => {
-                '(abyss): Run abyss to create a new assembly.' => \&Bio::Adventure::Assembly::Abyss,
-                '(assemblycoverage): Calculate Assembly coverage across contigs.' => \&Bio::Adventure::Assembly::Assembly_Coverage,
-                '(extract_trinotate): Extract the most likely hits from Trinotate.' => \&Bio::Adventure::Annotation::Extract_Trinotate,
-                '(filterdepth): Filter contigs based on sequencing depth.' => \&Bio::Adventure::Assembly::Unicycler_Filter_Depth,
-                '(kraken2): Taxonomically classify reads.' => \&Bio::Adventure::Count::Kraken,
-                '(transdecoder):  Run transdecoder on a putative transcriptome.' => \&Bio::Adventure::Assembly::Transdecoder,
-                '(trinotate): Perform de novo transcriptome annotation with trinotate.' => \&Bio::Adventure::Annotation::Trinotate,
-                '(trinity): Perform de novo transcriptome assembly with trinity.' => \&Bio::Adventure::Assembly::Trinity,
-                '(trinitypost): Perform post assembly analyses with trinity.' => \&Bio::Adventure::Assembly::Trinity_Post,
-                '(velvet): Perform de novo genome assembly with velvet.' => \&Bio::Adventure::Assembly::Velvet,
-                '(unicycler): Perform de novo assembly with unicycler.' => \&Bio::Adventure::Assembly::Unicycler,
-                '(shovill): Perform the shovill pre/post processing with spades.' => \&Bio::Adventure::Assembly::Shovill,
-                '(terminasereorder): Reorder an existing assembly to the most likely terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(collect_assembly): Copy files generated by an assembly into one directory.' => \&Bio::Adventure::Metadata::Collect_Assembly,
-                '(rosalind_plus): Make sure the Rosalind strand has the most pluses.' => \&Bio::Adventure::Annotation::Rosalind_Plus,
-            },
-        },
-        Conversion => {
-            name => 'convert',
-            message => 'And it rained a fever. And it rained a silence. And it rained a sacrifice. And it rained a miracle. And it rained sorceries and saturnine eyes of the totem.  Go to page 2584981.',
-            choices => {
-                '(sam2bam): Convert a sam mapping to compressed/sorted/indexed bam.' => \&Bio::Adventure::Convert::Sam2Bam,
-                '(gb2gff): Convert a genbank flat file to gff/fasta files.' => \&Bio::Adventure::Convert::Gb2Gff,
-                '(gff2fasta): Convert a gff file to a fasta file.' => \&Bio::Adventure::Convert::Gff2Fasta,
-            },
-        },
-        Counting => {
-            name => 'count',
-            message => 'Once men turned their thinking over to machines in the hope that this would set them free. But that only permitted other men with machines to enslave them.  Go to page 27812',
-            choices => {
-                '(guessstrand): Count reads with respect to features and report strandedness.' => \&Bio::Adventure::Count::Guess_Strand,
-                '(htseq): Count mappings with htseq-count.' =>  \&Bio::Adventure::Count::HTSeq,
-                '(htmulti): Use different option sets for counting with htseq.' => \&Bio::Adventure::Count::HT_Multi,
-                '(jellyfish): Perform a kmer count of some data.' => \&Bio::Adventure::Count::Jellyfish,
-                '(mash): Use mash to count pairwise distances among sequences.' => \&Bio::Adventure::Count::Mash,
-                '(mimap): Count mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
-                '(mpileup): Count coverage with mpileup.' => \&Bio::Adventure::Count::Mpileup,
-                '(countstates): Count ribosome positions.' => \&Bio::Adventure::Riboseq::Count_States,
-                '(slsearch): Count frequency of SL (or an arbitrary) sequences.' => \&Bio::Adventure::Count::SLSearch,
-            },
-        },
-        FeaturePrediction => {
-            name => 'features',
-            message => '',
-            choices => {
-                '(aragorn): Search for tRNAs with aragorn.' => \&Bio::Adventure::Feature_Prediction::Aragorn,
-                '(glimmer): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediction::Glimmer,
-                '(glimmersingle): Use glimmer to search for ORFs without training.' => \&Bio::Adventure::Feature_Prediction::Glimmer_Single,
-                '(phanotate): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediciton::Phanotate,
-                '(prodigal): Look for ORFs in bacterial/viral sequence.' => \&Bio::Adventure::Feature_Prediction::Prodigal,
-                '(rhopredict): Search for rho terminators.' => \&Bio::Adventure::Feature_Prediction::Rho_Predict,
-                '(trnascan): Search for tRNA genes with trnascan.' => \&Bio::Adventure::Feature_Prediction::tRNAScan,
-                '(trainprodigal): Train prodgial using sequences from a species/strain.' => \&Bio::Adventure::Feature_Prediction::Train_Prodigal,
-            },
-        },
-        Mapping => {
-            name => 'map',
-            message => 'The world is dark and full of terrors, take this and go to page 6022140.',
-            choices => {
-                '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => \&Bio::Adventure::Map::Bowtie,
-                '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
-                '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
-                '(btmulti): Map trimmed reads and count using multiple bowtie1 option sets.' => \&Bio::Adventure::Map::BT_Multi,
-                '(bwa): Map reads with bwa and count with htseq.' => \&Bio::Adventure::Map::BWA,
-                '(kallisto): Pseudo-align and count reads using kallisto.' => \&Bio::Adventure::Map::Kallisto,
-                '(salmon): Pseudo-align and count reads using salmon.' => \&Bio::Adventure::Map::Salmon,
-                '(star): Pseudo-align and count reads using STAR.' => \&Bio::Adventure::Map::STAR,
-                '(mimap): Attempt to map reads explicitly to mature miRNA species.' => \&Bio::Adventure::Count::Mi_Map,
-                '(rrnabowtie): Map rRNA reads using bowtie1.' => \&Bio::Adventure::Map::Bowtie_RRNA,
-                '(rsem): Quantify reads using rsem.' => \&Bio::Adventure::Map::RSEM,
-                '(tophat): Map reads using tophat2 and count with htseq.' => \&Bio::Adventure::Map::Tophat,
-            },
-        },
-        Indexers => {
-            name => 'index',
-            message => '',
-            choices => {
-                '(extend_kraken): Extend a kraken2 database with some new sequences.' => \&Bio::Adventure::Index::Extend_Kraken_DB,
-                '(indexbt1): Create bowtie1 compatible indexes.' => \&Bio::Adventure::Index::BT1_Index,
-                '(indexbt2): Create bowtie2 compatible indexes.' => \&Bio::Adventure::Index::BT2_Index,
-                '(indexhisat): Create hisat2 compatible indexes.' => \&Bio::Adventure::Index::Hisat2_Index,
-                '(indexbwa): Create bwa compatible indexes.' => \&Bio::Adventure::Index::BWA_Index,
-                '(indexkallisto): Create kallisto compatible indexes.' => \&Bio::Adventure::Index::Kallisto_Index,
-                '(indexrsem): Create rsem indexes.' => \&Bio::Adventure::Index::RSEM_Index,
-                '(indexsalmon): Create salmon indexes.' => \&Bio::Adventure::Index::Salmon_Index,
-            },
-        },
-        Phage => {
-            name => 'phage',
-            message => '',
-            choices => {
-                '(filterkraken): Filter out host sequences using a kraken report.' => \&Bio::Adventure::Phage::Filter_Host_Kraken,
-                '(classifyphage): Use ICTV data to classify a phage assembly.' => \&Bio::Adventure::Phage::Classify_Phage,
-                '(phageterm): Invoke phageterm to search for terminal repeats.' => \&Bio::Adventure::Phage::Phageterm,
-                '(phagepromoter): Search for phage promoters.' => \&Bio::Adventure::Feature_Prediction::Phagepromoter,
-                '(phastaf): Search for phage regions in arbitrary assemblies.' => \&Bio::Adventure::Phage::Phastaf,
-                '(restriction): Search for restriction sites.' => \&Bio::Adventure::Phage::Restriction_Catalog,
-                '(terminasereorder): Reorder a phage assembly to the putative terminase.' => \&Bio::Adventure::Phage::Terminase_ORF_Reorder,
-                '(caical): Calculate codon adaptation index of a phage vs. some host.' => \&Bio::Adventure::Phage::Caical,
-                '(recatalog): Create a catalog of restriction enzyme hits.' => \&Bio::Adventure::Phage::Restriction_Catalog,
-                '(xref_crispr): Cross reference against observed crispr sequences.' => \&Bio::Adventure::Phage::Xref_Crispr,
-            },
-        },
-        Phylogeny => {
-            name => 'phylogeny',
-            message => '',
-            choices => {
-                '(gubbins): Run Gubbins with an input msa.' => \&Bio::Adventure::Phylogeny::Run_Gubbins,
-            },
-        },
-        Pipeline => {
-            name => 'pipeline',
-            message => 'When Mr. Bilbo Baggins announced he would shortly be celebrating his eleventyfirst birthday, there was much talk and excitement in Hobbiton.  Go to page 1618033',
-            choices => {
-                '(prnaseq): Preset assembly.' => \&Bio::Adventure::Pipeline::Process_RNAseq,
-                '(priboseq): Perform a preset pipeline of ribosome profiling tasks.' => \&Bio::Adventure::Pipeline::Riboseq,
-                '(ptnseq): Perform a preset pipeline of TNSeq tasks.' => \&Bio::Adventure::Pipeline::TNSeq,
-                '(pbt1): Perform a preset group of bowtie1 tasks.' => \&Bio::Adventure::Pipeline::Bowtie,
-                '(pbt2): Use preset bowtie2 tasks.' => \&Bio::Adventure::Pipeline::Bowtie2,
-                '(phisat): Use preset tophat tasks.' => \&Bio::Adventure::Pipeline::Hisat,
-                '(pbwa): Try preset bwa tasks.' => \&Bio::Adventure::Pipeline::BWA,
-                '(psalmon): Try preset salmon tasks.' => \&Bio::Adventure::Pipeline::Salmon,
-                '(passemble): Preset assembly.' => \&Bio::Adventure::Pipeline::Assemble,
-                '(phageassemble): Preset phage assembly.' => \&Bio::Adventure::Pipeline::Phage_Assemble,
-                '(annotateassembly): Do some searches on an assembly.' => \&Bio::Adventure::Pipline::Annotation_Assembly,
-            },
-        },
-        PopulationGenetics => {
-            name => 'popgen',
-            message => 'The front pattern DOES move - and no wonder! The woman behind shakes it!',
-            choices => {
-                '(angsd): Get the set of filtered variants given a list of bam files.' => \&Bio::Adventure::PopGen::Angsd_Filter,
-            },
-        },
-        Prepare => {
-            name => 'preparation',
-            message => 'Whan that Aprille withe her shoures sote, the droughte of Marche hath perced to the rote.  go to Cantebury.',
-            choices => {
-                '(read_samples): Read samples using a csv file to determine the raw data locations.' => \&Bio::Adventure::Prepare::Read_Samples,
-                '(copyraw): Copy data from the raw data archive to scratch.' => \&Bio::Adventure::Prepare::Copy_Raw,
-                '(sradownload): Extract SRA accession from a bioproject and download.' => \&Bio::Adventure::Prepare::Download_SRA_PRJNA,
-                '(fastqdump): Download data from sra.' => \&Bio::Adventure::Prepare::Fastq_Dump,
-                '(download): Download accessions from ncbi.' => \&Bio::Adventure::Prepare::Download_NCBI_Accessions,
-            },
-        },
-        QA => {
-            name => 'qa',
-            message => 'There is a time when the operation of the machine becomes so odious that you cannot take part.',
-            choices => {
-                '(biopieces): Use biopieces to graph some metrics of the data.' => \&Bio::Adventure::QA::Biopieces_Graph,
-                '(cutadapt): Perform adapter trimming with cutadapt.' => \&Bio::Adventure::Trim::Cutadapt,
-                '(fastp): Use fastp to trim fastq/remove UMIs.' => \&Bio::Adventure::Trim::Fastp,
-                '(fastqc): Use fastqc to check the overall quality of the raw data.' => \&Bio::Adventure::QA::Fastqc,
-                '(racer): Perform sequence correction with hitec/RACER.' => \&Bio::Adventure::Trim::Racer,
-                '(trimomatic): Perform adapter trimming with Trimomatic.' => \&Bio::Adventure::Trim::Trimomatic,
-            },
-        },
-        RiboSeq => {
-            name => 'riboseq',
-            message => 'Awake Awake Fear Fire Foes!  Go to page 5291772',
-            choices => {
-                '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => \&Bio::Adventure::QA::Biopieces_Graph,
-                '(cutadapt): Use cutadapt to remove the adapters.' => \&Bio::Adventure::Trim::Cutadapt,
-                '(rrnabowtie): Map rRNA reads using bowtie1.' => \&Bio::Adventure::Map::Bowtie_RRNA,
-                '(btmulti): Use bowtie1 to find putative ribosomal positions.' => \&Bio::Adventure::Map::BT_Multi,
-                '(calibrate): Calibrate the positions of the a/p/e sites of the ribosomes.' => \&Bio::Adventure::Riboseq::Calibrate,
-                '(countstates): Count the positions of a/p/e/etc sites across the genome/transcriptome.' => \&Bio::Adventure::Riboseq::Count_States,
-                '(graphreads): Plot the coverage of ribosomes across the genome by ORF.' => \&Bio::Adventure::Riboseq::Graph_Reads,
-            },
-        },
-        SNP => {
-            name => 'snp',
-            message => qq"When my god comes back I'll be waiting for him with a shotgun.  And I'm keeping the last shell for myself. (inexact quote)  Go to page 667408",
-            choices => {
-                '(mpileup): Count coverage with mpileup.' => \&Bio::Adventure::Count::Mpileup,
-                '(trim): Trim sequence with an additional rule to remove the first 10 nucleotides.' => \&Bio::Adventure::Trim::Trimomatic,
-                '(bwa): Map reads with bwa and count with htseq.' => \&Bio::Adventure::Map::BWA,
-                '(bowtie): Map trimmed reads with bowtie1 and count with htseq.' => \&Bio::Adventure::Map::Bowtie,
-                '(bt2): Map trimmed reads with bowtie2 and count with htseq.' => \&Bio::Adventure::Map::Bowtie2,
-                '(freebayes): Use freebayes to create a vcf file and filter it.' => \&Bio::Adventure::SNP::Freebayes_SNP_Search,
-                '(hisat): Map trimmed reads with hisat2 and count with htseq.' => \&Bio::Adventure::Map::Hisat2,
-                '(parsnp): Parse an existing bcf file and print some fun tables.' => \&Bio::Adventure::SNP::SNP_Ratio,
-                '(snpsearch): Use mpileup to create a vcf file and filter it. (bam input)' => \&Bio::Adventure::SNP::Mpileup_SNP_Search,
-                '(snpratio): Count the variant positions by position and create a new genome. (bcf input)' => \&Bio::Adventure::SNP::SNP_Ratio,
-                '(snp): Perform alignments and search for variants. (fastq input)' => \&Bio::Adventure::SNP::Align_SNP_Search,
-                '(snippy): Invoke snippy. (fastq and genbank inputs)' => \&Bio::Adventure::SNP::Snippy,
-            },
-        },
-        TNSeq => {
-            name => 'tnseq',
-            message => 'You have enterred a world of jumping DNA, be ware and go to page 42.',
-            choices => {
-                '(sortindex): Demultiplex raw reads based on the peculiar TNSeq indexes.' => \&Bio::Adventure::TNSeq::Sort_Indexes,
-                '(consolidate): Extract the reads of read-pairs with beginning TAs.' => \&Bio::Adventure::TNSeq::Consolidate_TAs,
-                '(cutadapt): Use cutadapt to remove the odd tnseq adapters.' => \&Bio::Adventure::Trim::Cutadapt,
-                '(tacheck): Make certain that all reads have a leading or terminal TA.' => \&Bio::Adventure::TNSeq::TA_Check,
-                '(biopieces): Make some plots of the demultiplexed/trimmed reads.' => \&Bio::Adventure::QA::Biopieces_Graph,
-                '(essentialityta): Count the hits/TA in preparation for essentiality.' => \&Bio::Adventure::TNSeq::Essentiality_TAs,
-                '(runessentiality): Run the essentiality suite of tools.' => \&Bio::Adventure::TNSeq::Run_Essentiality,
-                '(gumbel): Run the essentiality suite of tools on the ta counts.' => \&Bio::Adventure::TNSeq::Run_Essentiality,
-                '(tpp): Run the transit preprocessing script.' => \&Bio::Adventure::TNSeq::Transit_TPP,
-            },
-        },
-        Visualize => {
-            name => 'visualize',
-            message => 'When Red wins, she stands alone.  Go to page: 96485.332',
-            choices =>  {
-                '(cgview): Invoke cgview to visualize a genome.' => \&Bio::Adventure::Visualization::CGView,
-            },
-        },
-        Test => {
-            name => 'test',
-            message => 'All happy families are happy in the same way. Go to page 5670367.',
-            choices => {
-                '(test): Run a test job' => \&Test_Job,
-            },
-        },
-    };
-    return($menus);
-}
-
 =head2 C<Get_Job_Name>
 
 This attempts to make a reasonable job name given a filename or
@@ -945,187 +705,6 @@ sub Get_Job_Name {
     $name = basename($name, split(/,/, $class->{suffixes}));
     $name =~ s/\-trimmed//g;
     return($name);
-}
-
-=head2 C<Get_TODOs>
-
-The keys of possible_todos provide the GetOpt::Long options required
-to figure out if the user is requesting the various functions.  When
-using GetOpt::Long, if an options has a '+' suffix, its value is
-incremented by one when it is set without a following argument.  Thus
-doing --abricate will set the
-todo_list{todo}{Bio::Adventure::Resistance::Abricate} value from 0 to 1.
-The cyoa script will then iterate over the todo hash and look for
-anything with a positive value and run its associated function.
-
-=cut
-sub Get_TODOs {
-    my %args = @_;
-    my $todo_list = ();
-    my $possible_todos = {
-        "abricate+" => \$todo_list->{todo}{'Bio::Adventure::Resistance::Abricate'},
-        "abyss+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Abyss'},
-        "angsdfilter+" => \$todo_list->{todo}{'Bio::Adventure::PopGen::Angsd_Filter'},
-        "annotatephage+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Phage'},
-        "aragorn+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Aragorn'},
-        "assemblycoverage+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Assembly_Coverage'},
-        "biopieces+" => \$todo_list->{todo}{'Bio::Adventure::QA::Biopieces_Graph'},
-        "blastmerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Blast_Parse'},
-        "blastparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Blast_Parse'},
-        "blastsplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Split_Align_Blast'},
-        "bowtie+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie'},
-        "bowtie2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie2'},
-        "bowtierrna+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie_RRNA'},
-        "rrnabowtie+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie_RRNA'},
-        "bt2+" => \$todo_list->{todo}{'Bio::Adventure::Map::Bowtie2'},
-        "btmulti+" => \$todo_list->{todo}{'Bio::Adventure::Map::BT_Multi'},
-        "bwa+" => \$todo_list->{todo}{'Bio::Adventure::Map::BWA'},
-        "caical+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Caical'},
-        "calibrate+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Calibrate'},
-        "casfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Casfinder'},
-        "cgview+" => \$todo_list->{todo}{'Bio::Adventure::Visualization::CGView'},
-        "classifyphage+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Classify_Phage'},
-        "collectassembly+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Collect_Assembly'},
-        "consolidate+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Consolidate_TAs'},
-        "copyraw+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Copy_Raw'},
-        "countstates+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Count_States'},
-        "concat+" => \$todo_list->{todo}{'Bio::Adventure::Align::Concatenate_Searches'},
-        "cutadapt+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Cutadapt'},
-        "download+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Download_NCBI_Accessions'},
-        "essentialitytas+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Essentiality_TAs'},
-        "extendkraken+" => \$todo_list->{todo}{'Bio::Adventure::Index::Extend_Kraken_DB'},
-        "extracttrinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Extract_Trinotate'},
-        "fastp+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Fastp'},
-        "splitalignfasta+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
-        "fastado+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Do_Fasta'},
-        "fastasplitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Split_Align_Fasta'},
-        "fastamerge+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Merge_Parse_Fasta'},
-        "fastamismatch+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta_Mismatches'},
-        "fastaparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Fasta::Parse_Fasta'},
-        "fastqct+" => \$todo_list->{todo}{'Bio::Adventure::QA::Fastqc'},
-        "fastqdump+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Fastq_Dump'},
-        "featureextract+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Extract_Features'},
-        "filterdepth+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler_Filter_Depth'},
-        "filterkraken+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Filter_Host_Kraken'},
-        "freebayes+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Freebayes_SNP_Search'},
-        "gb2gff+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gb2Gff'},
-        "gff2fasta+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Gff2Fasta'},
-        "glimmer+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Glimmer'},
-        "glimmersingle+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Glimmer_Single'},
-        "graphreads+" => \$todo_list->{todo}{'Bio::Adventure::Riboseq::Graph_Reads'},
-        "gubbins+" => \$todo_list->{todo}{'Bio::Adventure::Phylogeny::Run_Gubbins'},
-        "guessstrand+" => \$todo_list->{todo}{'Bio::Adventure::Count::Guess_Strand'},
-        "gumbel+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
-        "hisat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Hisat2'},
-        "htmulti+" => \$todo_list->{todo}{'Bio::Adventure::Count::HT_Multi'},
-        "htseq+" => \$todo_list->{todo}{'Bio::Adventure::Count::HTSeq'},
-        "indexhisat+" => \$todo_list->{todo}{'Bio::Adventure::Index::Hisat2_Index'},
-        "indexbt1+" => \$todo_list->{todo}{'Bio::Adventure::Index::BT1_Index'},
-        "indexbt2+" => \$todo_list->{todo}{'Bio::Adventure::Index::BT2_Index'},
-        "indexbwa+" => \$todo_list->{todo}{'Bio::Adventure::Index::BWA_Index'},
-        "indexkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Index::Kallisto_Index'},
-        "indexrsem+" => \$todo_list->{todo}{'Bio::Adventure::Index::RSEM_Index'},
-        "indexsalmon+" => \$todo_list->{todo}{'Bio::Adventure::Index::Salmon_Index'},
-        "interproscan+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Interproscan'},
-        "jellyfish+" => \$todo_list->{todo}{'Bio::Adventure::Count::Jellyfish'},
-        "kallisto+" => \$todo_list->{todo}{'Bio::Adventure::Map::Kallisto'},
-        "kraken+" => \$todo_list->{todo}{'Bio::Adventure::Count::Kraken'},
-        "mash+" => \$todo_list->{todo}{'Bio::Adventure::Count::Mash'},
-        "mergeannotations+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annotations'},
-        "mergecds+" => \$todo_list->{todo}{'Bio::Adventure::Annotation_Genbank::Merge_CDS_Predictions'},
-        "mergeparse+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Merge_Parse_Blast'},
-        "mergeprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Metadata::Merge_Annot_Prodigal'},
-        "mimap+" => \$todo_list->{todo}{'Bio::Adventure::MiRNA::Mi_Map'},
-        "mpileup+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Mpileup_SNP_Search'},
-        "orthomcl+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::OrthoMCL_Pipeline'},
-        "orthofinder+" => \$todo_list->{todo}{'Bio::Adventure::Align::OrthoFinder'},
-        "phageterm+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phageterm'},
-        "phanotate+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Phanotate'},
-        "phastaf+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Phastaf'},
-        "prodigal+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Prodigal'},
-        "parseblast+" => \$todo_list->{todo}{'Bio::Adventure::Align_Blast::Parse_Blast'},
-        "parsebcf+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
-        "phagepromoter+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction_Phagepromoter'},
-        "posttrinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
-        "prokka+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Prokka'},
-        "racer+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Racer'},
-        "readsample+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Read_Samples'},
-        "recatalog+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Restriction_Catalog'},
-        "resfinder+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Resfinder'},
-        "restriction+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Restriction_Catalog'},
-        "rhopredict+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::Rho_Predict'},
-        "rgi+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rgi'},
-        "rsem+" => \$todo_list->{todo}{'Bio::Adventure::Map::RSEM'},
-        "runessentiality+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Run_Essentiality'},
-        "sam2bam+" => \$todo_list->{todo}{'Bio::Adventure::Convert::Sam2Bam'},
-        "salmon+" => \$todo_list->{todo}{'Bio::Adventure::Map::Salmon'},
-        "terminasereorder+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Terminase_ORF_Reorder'},
-        "shovill+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Shovill'},
-        "slsearch+" => \$todo_list->{todo}{'Bio::Adventure::Count::SLSearch'},
-        "snippy+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Snippy'},
-        "alignsnpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Align_SNP_Search'},
-        "snpsearch+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Mpileup_SNP_Search'},
-        "snpratio+" => \$todo_list->{todo}{'Bio::Adventure::SNP::SNP_Ratio'},
-        "snpgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
-        "sortindexes+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Sort_Indexes'},
-        "splitalign+" => \$todo_list->{todo}{'Bio::Adventure::Align::Split_Align'},
-        "sradownload+" => \$todo_list->{todo}{'Bio::Adventure::Prepare::Download_SRA_PRJNA'},
-        "star+" => \$todo_list->{todo}{'Bio::Adventure::Map::STAR'},
-        "tacheck+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::TA_Check'},
-        "test+" => \$todo_list->{todo}{'Bio::Adventure::Slurm::Test_Job'},
-        "tophat+" => \$todo_list->{todo}{'Bio::Adventure::Map::Tophat'},
-        "tpp+" => \$todo_list->{todo}{'Bio::Adventure::TNSeq::Transit_TPP'},
-        "trainprodigal+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Train_Prodigal'},
-        "transdecoder+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Transdecoder'},
-        "trimomatic+" => \$todo_list->{todo}{'Bio::Adventure::Trim::Trimomatic'},
-        "trinity+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity'},
-        "trinitypost+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Trinity_Post'},
-        "trinotate+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Trinotate'},
-        "trnascan+" => \$todo_list->{todo}{'Bio::Adventure::Feature_Prediction::tRNAScan'},
-        "unicycler+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Unicycler'},
-        "variantgenome+" => \$todo_list->{todo}{'Bio::Adventure::SNP::Make_Genome'},
-        "velvet+" => \$todo_list->{todo}{'Bio::Adventure::Assembly::Velvet'},
-        "vienna+" => \$todo_list->{todo}{'Bio::Adventure::Structure::RNAFold_Windows'},
-        "rosalindplus+" => \$todo_list->{todo}{'Bio::Adventure::Annotation::Rosalind_Plus'},
-        "xrefcrispr+" => \$todo_list->{todo}{'Bio::Adventure::Phage::Xref_Crispr'},
-        ## A set of pipelines combining the above.
-        "pannotate+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Annotate_Assembly'},
-        "passemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Assemble'},
-        "pbt1+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie'},
-        "pbt2+" => \$todo_list->{todo}{'Bio::Adventure::RNAseq_Pipeline_Bowtie2'},
-        "pbwa+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::BWA'},
-        "phageassemble+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Phage_Assemble'},
-        "phisat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Hisat'},
-        "pkallisto+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::RNAseq_Pipeline_Kallisto'},
-        "priboseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Riboseq_Pipeline'},
-        "prnaseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Process_RNAseq'},
-        "psalmon+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::Salmon'},
-        "ptnseq+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::TNseq_Pipeline'},
-        "ptophat+" => \$todo_list->{todo}{'Bio::Adventure::Pipeline::RNAseq_Pipeline_Tophat'},
-        "help+" => \$todo_list->{todo}{'Bio::Adventure::Adventure_Help'},
-    };
-
-    if (defined($args{method})) {
-        my $m = '--' . $args{method};
-        my @method = ($m,);
-        my $array_result = GetOptionsFromArray(\@method, %{$possible_todos});
-    }
-
-    my @methods_to_run = ();
-    my $set_of_todos = $todo_list->{todo};
-    foreach my $job (keys %{$set_of_todos}) {
-        my $thing = $set_of_todos->{$job};
-        if ($thing) {
-            if (!defined($args{task})) {
-                print "Going on an adventure to ${job}.\n";
-            } else {
-                print "Going on an adventure to ${job} in the $args{task} context.\n";
-            }
-            my $final = \&${job};
-            push(@methods_to_run, $final);
-        }
-    }
-    return(\@methods_to_run);
 }
 
 =head2 C<Get_Input>
@@ -1291,23 +870,26 @@ sub Get_Vars {
     ## The set of arguments passed to the function includes:
     ## $this_function_vars{args} which contains args to the parent.
     ## Now let us iterate over this_function_vars
+    my %defined_in_this_funcall = ();
     for my $varname (keys %getvars_default_vars) {
         ## required and args are provided in the function call, so skip them.
         next if ($varname eq 'required' || $varname eq 'args');
         $returned_vars{$varname} = $getvars_default_vars{$varname};
+        $defined_in_this_funcall{$varname} = 1;
     }
     ## Pick up options passed in the parent function call, e.g.
     ## my $bob = $class->Function(bob => 'jane');
-    for my $varname (keys %function_override_vars) {
+    PARENT_ARG: for my $varname (keys %function_override_vars) {
         ## required and args are provided in the function call, so skip them.
-        next if ($varname eq 'required' || $varname eq 'args');
+        next PARENT_ARG if ($varname eq 'required' || $varname eq 'args');
+        ## Do not redefine variables which were defined in the current functioncall.
+        if ($defined_in_this_funcall{$varname}) {
+
+        }
+        #next PARENT_ARG if ($defined_in_this_funcall{$varname});
         $returned_vars{$varname} = $function_override_vars{$varname};
         ## Try to ensure that the shell reverts to the default 'bash'
         ## I think the following 4 lines are no longer needed.
-        ##if (!defined($function_override_vars{language})) {
-        ##    $returned_vars{language} = 'bash';
-        ##    $returned_vars{shell} = '/usr/bin/env bash';
-        ##}
     }
     ## Final loop to pick up options from the commandline or a TERM prompt.
     ## These supercede everything else.
@@ -1319,8 +901,8 @@ sub Get_Vars {
 
     ## I previously had the cluster check in the BUILD() function.
     ## I think this is the wrong place and should instead be here?
-    my $torque_test = My_Which('qsub');
-    my $slurm_test = My_Which('sbatch');
+    my $torque_test = which('qsub');
+    my $slurm_test = which('sbatch');
     if (defined($returned_vars{cluster})) {
         if ($returned_vars{cluster} ne 'bash') {
             $returned_vars{qsub_path} = $torque_test;
@@ -1411,13 +993,13 @@ sub Reset_Vars {
         jdepends => '',
         jmem => 12,
         jname => 'undefined',
-        jqueue => 'workstation',
         jprefix => '01',
         jstring => '',
         jwalltime => '10:00:00',
         language => 'bash',
         prescript => '',
         postscript => '',
+        modules => [],
         shell => '/usr/bin/env bash',);
     for my $k (keys %original_values) {
         $class->{$k} = $original_values{$k};
@@ -1457,16 +1039,6 @@ sub Set_Vars {
     return($options);
 }
 
-sub My_Which {
-    my $executable = shift;
-    my $result = which($executable);
-    if (!defined($result)) {
-        return(undef);
-    } else {
-        return($result);
-    }
-}
-
 sub Last_Stat {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(args => \%args, required => ['input']);
@@ -1493,10 +1065,14 @@ sub Module_Loader {
     if ($args{action}) {
         $action = $args{action};
     }
-    my @mod_lst;
-    my $mod_class = ref($args{modules});
-    my @test_lst;
 
+    ## Start with the current ENV and an empty set of things to load and test.
+    my %old_env = %ENV;
+    my @mod_lst = ();
+    my $mod_class = ref($args{modules});
+    my @test_lst = ();
+
+    my $test_class = ref($args{exe});
     if ($mod_class eq 'SCALAR') {
         push(@mod_lst, $args{modules});
     } elsif ($mod_class eq 'ARRAY') {
@@ -1513,16 +1089,31 @@ sub Module_Loader {
         print "I do not know this class: $mod_class, $args{modules}\n";
     }
 
+    if ($test_class eq 'SCALAR') {
+        push(@test_lst, $args{exe});
+    } elsif ($test_class eq 'ARRAY') {
+        for my $e (@{$args{exe}}) {
+            push(@test_lst, $e);
+        }
+    } elsif (!$test_class) {
+        push(@test_lst, $args{exe});
+    } else {
+        print "I do not know this class: $test_class, $args{exe}\n";
+    }
+
     my $count = 0;
     my $mod;
     if ($action eq 'unload') {
         @mod_lst = reverse(@mod_lst);
     }
     my @messages = ();
-    foreach $mod (@mod_lst) {
+    my @loads = ();
+    LOADER: for $mod (@mod_lst) {
+        ## Skip one's self.
         my ($stdout, $stderr, @result) = capture {
             try {
                 my $test;
+                push(@loads, $mod);
                 if ($action eq 'load') {
                     $test = Env::Modulecmd::load($mod);
                 } else {
@@ -1537,18 +1128,24 @@ sub Module_Loader {
         $count++;
     } ## End iterating over every mod in the list
 
-    if (defined($args{executables})) {
-        @test_lst = @{$args{executables}};
-    }
-
     ## If we got a set of test programs, check that they are in the PATH:
     if (scalar(@test_lst) > 0) {
-        for my $exe (@test_lst) {
-            my $check = which($exe);
-            die(qq"Could not find ${exe} in the PATH.") unless ($check);
-        }
+      EXELOOP: for my $exe (@test_lst) {
+          next EXELOOP unless($exe);
+          my $check = which($exe);
+          die(qq"Could not find ${exe} in the PATH.") unless ($check);
+      }
     }
-    return(\@mod_lst);
+    $class->{modules} = \@mod_lst;
+    return(%old_env);
+}
+
+sub Module_Reset {
+    my ($class, %args) = @_;
+    my %old_env = %args{env};
+    for my $k (keys %old_env) {
+        $ENV{$k} = $old_env{$k};
+    }
 }
 
 =head2 C<Passthrough_Args>
@@ -1562,18 +1159,21 @@ the arbitrary string starts with a dash, it will leave it alone.
 
 Thus:
 
---arbitrary ':--funkytown=bob;L 10,very-sensitive'
+--arbitrary ',--funkytown=bob;L 10,very-sensitive'
 
 Will get the following arguments passed to your downstream tool:
 
 '--funkytown=bob -L 10 --very-sensitive'.
+
+ Note, since trimomatic uses colons, I excluded them from the default delimiter.
 
 =cut
 sub Passthrough_Args {
     my ($class, %args) = @_;
     my $argstring = $args{arbitrary};
     my $new_string = '';
-    for my $arg (split /\,|:|\;/, $argstring) {
+    my $splitter = qr/\,|\;/;
+    for my $arg (split($splitter, $argstring)) {
         if ($arg =~ /^\w{1}$|^\w{1}\W+/) {
             ## print "Single letter arg passthrough\n";
             $arg = qq" -${arg} ";
@@ -1769,28 +1369,37 @@ sub Submit {
     my ($class, %args) = @_;
     my $options = $class->Get_Vars(
         args => \%args);
+    my %modules = Get_Modules(caller => 2);
+    my $loaded = $class->Module_Loader(%modules);
     my $modulecmd_check = $class->{modulecmd};
-    if ($options->{language} eq 'bash') {
-        my $module_string = '';
-        if (defined($options->{modules}) && scalar(@{$options->{modules}} > 0)) {
-            $module_string = 'mod=$( { type -t module || true; } )
+    make_path("$options->{logdir}", {verbose => 0}) unless (-r "$options->{logdir}");
+    my $module_string = '';
+    my @module_lst = ();
+    @module_lst = @{$modules{modules}} if (defined($modules{modules}));
+    if ($options->{language} eq 'perl') {
+        push(@module_lst, 'cyoa');
+    }
+    if (scalar(@module_lst) > 0) {
+        $module_string = 'mod=$( { type -t module || true; } )
 if [[ -z "${mod}" ]]; then
   module() {
-    eval $(/usr/bin/modulecmd bash $*);
+  # shellcheck disable=SC2086
+    { eval "$(/usr/bin/modulecmd bash $*)" || true; }
   }
   export -f module
 fi
-module add';
-            for my $m (@{$options->{modules}}) {
-                $module_string .= qq" ${m}";
-            }
-            $options->{module_string} = $module_string;
+module purge
+module add ';
+        for my $m (@module_lst) {
+            $module_string .= qq" ${m}" if (defined($m));
         }
+        $module_string .= ' 2>/dev/null 1>&2';
+        $options->{module_string} = $module_string;
     }
 
     ## If we are invoking an indirect job, we need a way to serialize the options
     ## in order to get them passed to the eventual interpreter
-    my $option_file = "";
+    my $option_file = '';
     if ($options->{language} eq 'perl') {
         my $option_directory;
         if (defined($options->{output_dir})) {
@@ -1858,8 +1467,43 @@ module add';
         $runner->{$k} = $options->{$k};
     }
     my $result = $runner->Submit($class, %args);
+    my $unloaded = $class->Module_Reset(env => $loaded);
     $class = $class->Reset_Vars();
+    if ($class->{jobids} eq '') {
+        $class->{jobids} = $result->{job_id};
+    } else {
+        $class->{jobids} = qq"$class->{jobids}:$result->{job_id}";
+    }
+    $class->{last_job} = $class->{job_id};
     return($result);
+}
+
+=head2 C<Wait>
+
+Wait on a job, when possible collect information about it.
+
+=cut
+sub Wait {
+    my ($class, %args) = @_;
+    my $options = $class->Get_Vars(
+        args => \%args);
+    my $status = undef;
+    if ($options->{cluster} eq 'slurm') {
+        $status = $class->Bio::Adventure::Slurm::Wait(%args);
+    } elsif ($options->{cluster} eq 'torque') {
+        $status = $class->Bio::Adventure::Torque::Wait(%args);
+    } elsif ($options->{cluster} eq 'bash') {
+        ## I should probably have something to handle gracefully bash jobs.
+        $status = $class->Bio::Adventure::Local::Wait(%args);
+    } elsif ($options->{cluster} eq '0') {
+        ## On occasion I set cluster to 0 which is bash.
+        $status = $class->Bio::Adventure::Local::Wait(%args);
+    } else {
+        carp("Could not find sbatch, qsub, nor bash.");
+        print "Assuming this is running on a local shell.\n";
+        return(undef);
+    }
+    return($status);
 }
 
 sub Adventure_Help {

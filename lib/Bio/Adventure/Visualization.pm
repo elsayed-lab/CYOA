@@ -1,6 +1,4 @@
 package Bio::Adventure::Visualization;
-## LICENSE: gplv2
-## ABSTRACT:  Kitty!
 use Modern::Perl;
 use autodie qw":all";
 use diagnostics;
@@ -39,7 +37,6 @@ sub CGView {
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['input',],
-        modules => ['cgview'],
         jprefix => '16',
         linear => 1,
         reading_frame => 1,
@@ -47,10 +44,6 @@ sub CGView {
         feature_labels => 1,
         orfs => 1,
         imagemap => 0,);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('cgview');
-    die("Could not find cgview in your PATH.") unless($check);
-
     my $job_name = $class->Get_Job_Name();
     ## Reminder, this gives me: filename, directory, dirname, fullpath
     my $job_paths = $class->Get_Paths($options->{input});
@@ -116,13 +109,10 @@ cgview -i ${xml_output} \\
         jname => qq"cgview_${job_name}",
         jprefix => $options->{jprefix},
         jstring => $jstring,
-        modules => $options->{modules},
         output => $output_file,
         output_xml => $xml_output,
         prescript => $options->{prescript},
         postscript => $options->{postscript},);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($cgview);
 }
 

@@ -5,7 +5,6 @@ use diagnostics;
 use warnings qw"all";
 use Moo;
 extends 'Bio::Adventure';
-
 use File::Basename;
 use File::Copy qw"cp";
 use File::Spec;
@@ -69,11 +68,7 @@ sub Bowtie {
         count => 1,
         libtype => 'genome',
         jmem => 12,
-        jprefix => '10',
-        modules => ['bowtie1'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bowtie-build');
-    die('Could not find bowtie in your PATH.') unless($check);
+        jprefix => '10',);
     my $start_species = $options->{species};
     my $species = $start_species;
     if ($species =~ /\:/) {
@@ -168,10 +163,8 @@ bowtie \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         output => $sam_filename,
-        modules => $options->{modules},
         postscript => $options->{postscript},
         prescript => $options->{prescript},
-        jqueue => 'workstation',
         stderr => $stderr,
         stdout => $stdout,
         unaligned => $unaligned_filename,);
@@ -209,7 +202,6 @@ bowtie \\
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
-                jqueue => 'workstation',
                 libtype => $libtype,
                 mapper => 'bowtie1',
                 stranded => $stranded,
@@ -221,7 +213,6 @@ bowtie \\
                 jdepends => $sam_job->{job_id},
                 jname => qq"ht_${jname}",
                 jprefix => $options->{jprefix} + 4,
-                jqueue => 'workstation',
                 libtype => $libtype,
                 mapper => 'bowtie1',
                 stranded => $stranded,
@@ -239,9 +230,6 @@ bowtie \\
         jprefix => $options->{jprefix} + 2,
         trim_input => ${trim_output_file},);
     $bt_job->{stats} = $stats;
-
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     return($bt_job);
 }
 
@@ -254,6 +242,8 @@ bowtie \\
  alignment to a sorted-compressed-indexed bam, count it with
  htseq-count, compress the various output fastq files, and collect a
  few alignment statistics.
+
+=over
 
 =item C<Arguments>
 
@@ -282,11 +272,7 @@ sub Bowtie2 {
         required => ['species', 'input',],
         count => 1,
         jmem => 28,
-        jprefix => '20',
-        modules => ['bowtie2']);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bowtie2-build');
-    die('Could not find bowtie2 in your PATH.') unless($check);
+        jprefix => '20',);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -381,7 +367,6 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        modules => $options->{modules},
         output => $sam_filename,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
@@ -435,10 +420,10 @@ bowtie2 -x ${bt_reflib} ${bt2_args} \\
             $bt2_job->{htseq} = $htmulti;
         }
     }
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-        action => 'unload',);
     return($bt2_job);
 }
+
+=back
 
 =head2 C<Bowtie_RRNA>
 
@@ -518,6 +503,8 @@ sub BT_Multi {
  converts the output (when appropriate) to sorted/indexed bam and passes them to
  htseq.
 
+=over
+
 =item C<Arguments>
 
  input(required): likely a colon-separated pair of (compressed)fastq files.
@@ -543,13 +530,9 @@ sub BWA {
         jmem => 40,
         jprefix => 30,
         jwalltime => '72:00:00',
-        modules => ['bwa'],
         required => ['input', 'species'],
         samtools_mapped => 1,
         samtools_unmapped => 1);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('bwa');
-    die('Could not find bwa in your PATH.') unless($check);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -765,13 +748,11 @@ fi
         jprefix => $options->{jprefix},
         jstring => $job_string,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         output => $sam_outs,
         postscript => $options->{postscript},
         prescript => $options->{prescript},
         stdout => $stdout,
-        stderr => $stderr,
-        jqueue => 'workstation',);
+        stderr => $stderr,);
 
     my @samtools_jobs = ();
     my $sam_count = 0;
@@ -803,12 +784,16 @@ fi
     return($bwa_job);
 }
 
+=back
+
 =head2 C<Hisat2>
 
  Invoke hisat2!
  10.1038/s41587-019-0201-4
 
  Hisat2 is currently my favorite aligner.
+
+=over
 
 =item C<Arguments>
 
@@ -837,16 +822,11 @@ sub Hisat2 {
         jwalltime => '36:00:00',
         libtype => 'genome',
         maximum => undef,
-        modules => ['hisat2', 'samtools', 'htseq', 'bamtools'],
         output_dir => undef,
         output_unaligned => undef,
         unaligned_discordant => undef,
         required => ['species', 'input',],
         samtools => 1,);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('hisat2-build');
-    die('Could not find hisat2 in your PATH.') unless($check);
-
     if ($options->{species} =~ /:/) {
         my $start_species = $options->{species};
         my @species_lst = split(/:/, $options->{species});
@@ -865,8 +845,11 @@ sub Hisat2 {
     if (!$options->{jdepends}) {
         $ready = $class->Check_Input(files => $options->{input},);
     }
-    my $hisat_args = $class->Passthrough_Args(arbitrary => $options->{hisat_args});;
+    my $hisat_args = $class->Passthrough_Args(arbitrary => $options->{hisat_args});
     $hisat_args .= qq" -k $options->{maximum} " if (defined($options->{maximum}));
+    if ($options->{task} eq 'dnaseq') {
+        $hisat_args .= qq" --no-spliced_alignment ";
+    }
     my $prefix_name = 'hisat2';
     $prefix_name .= qq"_k$options->{maximum}" if (defined($options->{maximum}));
     my $hisat_name = qq"${prefix_name}_$options->{species}_$options->{libtype}";
@@ -942,7 +925,6 @@ sub Hisat2 {
         $stderr .= ".stderr";
         $stdout .= ".stdout";
     }
-
     my $comment = qq!## This is a hisat2 alignment of ${hisat_input} against ${hisat_reflib}
 !;
     $comment .= qq"## This alignment is using arguments: ${hisat_args}.\n" unless ($hisat_args eq '');
@@ -1000,7 +982,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         jstring => $jstring,
         jprefix => $options->{jprefix},
         jmem => $options->{jmem},
-        modules => $options->{modules},
         paired => $paired,
         output => $sam_filename,
         prescript => $options->{prescript},
@@ -1012,8 +993,6 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
         unaligned => $unaligned_filenames,
         unaligned_dis => $unaligned_discordant_filename,
         unaligned_comp => $unaligned_xz,);
-    $loaded = $class->Module_Loader(modules => $options->{modules},
-                                    action => 'unload');
     my $xz_jname = qq"xz_$options->{species}_${suffix_name}";
     my $new_jprefix = qq"$options->{jprefix}_1";
     if ($options->{compress}) {
@@ -1096,12 +1075,16 @@ hisat2 -x ${hisat_reflib} ${hisat_args} \\
     return($hisat_job);
 }
 
+=back
+
 =head2 C<Kallisto>
 
  Perform a kallisto transcript quantification.
  10.1038/nbt.3519
 
  Kallisto and salmon are my two favorite 'voting' based aligners.
+
+=over
 
 =item C<Arguments>
 
@@ -1120,11 +1103,7 @@ sub Kallisto {
         jwalltime => '8:00:00',
         jmem => 24,
         jprefix => '46',
-        required => ['input', 'species',],
-        modules => ['kallisto'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('kallisto');
-    die('Could not find kallisto in your PATH.') unless($check);
+        required => ['input', 'species',],);
     die('No species provided.') unless($options->{species});
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1231,6 +1210,8 @@ kallisto quant ${ka_args} \\
     return($kallisto);
 }
 
+=back
+
 =head2 C<RSEM>
 
  Invoke RSEM.
@@ -1241,14 +1222,10 @@ kallisto quant ${ka_args} \\
 =cut
 sub RSEM {
     my ($class, %args) = @_;
-    my $check = which('rsem-prepare-reference');
-    die('Could not find RSEM in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        jmem => 24,
-        modules => ['rsem'],);
-
+        jmem => 24,);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1313,7 +1290,6 @@ sub RSEM {
         jstring => $jstring,
         jprefix => '28',
         mem => $options->{jmem},
-        modules => $options->{modules},
         output => $output_file,
         stderr => $stderr,
         stdout => $stdout,
@@ -1337,12 +1313,7 @@ sub Salmon {
         args => \%args,
         required => ['species', 'input'],
         jmem => 24,
-        jprefix => '45',
-        modules => ['salmon'],);
-    my $loaded = $class->Module_Loader(modules => $options->{modules});
-    my $check = which('salmon');
-    die('Could not find salmon in your PATH.') unless($check);
-
+        jprefix => '45',);
     my $depends = $options->{jdepends};
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
@@ -1412,7 +1383,6 @@ salmon quant -i ${sa_reflib} \\
         jprefix => $options->{jprefix},
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         output => qq"${outdir}/quant.sf",
         stderr => $stderr,
         stdout => $stdout,
@@ -1436,13 +1406,10 @@ salmon quant -i ${sa_reflib} \\
 =cut
 sub STAR {
     my ($class, %args) = @_;
-    my $check = which('STAR');
-    die('Could not find STAR in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
         required => ['species', 'input'],
-        jmem => 48,
-        modules => ['star'],);
+        jmem => 48,);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1529,12 +1496,10 @@ STAR \\
         jprefix => '33',
         jstring => $jstring,
         jmem => $options->{jmem},
-        modules => $options->{modules},
         prescript => $args{prescript},
         postscript => $args{postscript},
         stderr => $stderr,
-        stdout => $stdout,
-        jqueue => 'large',);
+        stdout => $stdout,);
     $star_job->{index_job} = $index_job;
     return($star_job);
 }
@@ -1554,8 +1519,7 @@ sub Tophat {
     die('Could not find tophat in your PATH.') unless($check);
     my $options = $class->Get_Vars(
         args => \%args,
-        required => ['species', 'input', 'gff_type'],
-        modules => ['tophat'],);
+        required => ['species', 'input', 'gff_type'],);
     if ($options->{species} =~ /\:/) {
         my @species_lst = split(/:/, $options->{species});
         my @result_lst = ();
@@ -1588,11 +1552,9 @@ sub Tophat {
     ## $tophat_args .= ' --no-mixed --no-discordant ' if (scalar(@in) > 1);
     ## $tophat_args .= ' ' if (scalar(@in) > 1);
 
-    my $tophat_queue = $options->{jqueue};
     my $tophat_walltime = '18:00:00';
     my $tophat_mem = 8;
     if ($options->{species} eq 'hsapiens' or $options->{species} eq 'mmusculus') {
-        $tophat_queue = 'workstation';
         $tophat_walltime =  '144:00:00';
         $tophat_mem = 20;
     }
@@ -1675,14 +1637,11 @@ fi
         jprefix => '31',
         jstring => $jstring,
         jmem => $tophat_mem,
-        modules => $options->{mdules},
         stderr => $stderr,
         stdout => $stdout,
         prescript => $options->{prescript},
         postscript => $options->{postscript},
-        jqueue => $tophat_queue,
         jwalltime => $tophat_walltime,);
-
     ## Set the input for htseq
     my $accepted = qq"${tophat_dir}/accepted_hits.bam";
     $accepted = $options->{accepted_hits} if ($options->{accepted_hits});
@@ -1720,8 +1679,6 @@ fi
     $tophat->{stats} = $stats;
     return($tophat);
 }
-
-=back
 
 =head1 AUTHOR - atb
 
